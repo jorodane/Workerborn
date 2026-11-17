@@ -15,12 +15,13 @@ namespace Workerborn
         public bool CanCollect => !collected && age >= FlightSeconds && isActiveAndEnabled;
         public Vector3 LandingPosition => landing;
 
-        public void Initialize(CropDefinition definition, Transform model, Vector3 start, Vector3 end)
+        public void Initialize(CropDefinition definition, Transform model, Vector3 start, Vector3 end, bool settled = false)
         {
             Definition = definition;
             visual = model;
             origin = start;
             landing = end;
+            age = settled ? FlightSeconds : 0f;
             transform.position = start;
         }
 

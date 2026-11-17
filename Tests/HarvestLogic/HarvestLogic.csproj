@@ -9,6 +9,11 @@
   <ItemGroup>
     <PackageReference Include="NUnitLite" Version="3.14.0" />
     <Compile Include="../../Assets/Workerborn/Runtime/HarvestCycle.cs" Link="HarvestCycle.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/ItemCatalog.cs" Link="ItemCatalog.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/GridInventory.cs" Link="GridInventory.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.cs" Link="VillageState.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/HarvestCycleTests.cs" Link="HarvestCycleTests.cs" />
+    <Compile Include="../../Assets/Workerborn/Tests/EditMode/GridInventoryTests.cs" Link="GridInventoryTests.cs" />
+    <Compile Include="../../Assets/Workerborn/Tests/EditMode/VillageStateTests.cs" Link="VillageStateTests.cs" />
   </ItemGroup>
 </Project>

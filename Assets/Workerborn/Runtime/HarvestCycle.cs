@@ -48,5 +48,12 @@ namespace Workerborn
             IsWorking = false;
             Elapsed = 0f;
         }
+
+        public void RestoreRemaining(int remaining)
+        {
+            if (remaining < 0 || remaining > Capacity) throw new ArgumentOutOfRangeException(nameof(remaining));
+            Cancel();
+            Remaining = remaining;
+        }
     }
 }

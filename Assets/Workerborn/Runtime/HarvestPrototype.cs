@@ -7,29 +7,29 @@ using UnityEngine.Rendering;
 namespace Workerborn
 {
     // All prototype content is scoped to the dedicated scene; imported assets stay untouched.
-    public sealed class HarvestPrototype : MonoBehaviour
+    public class HarvestPrototype : MonoBehaviour
     {
-        [SerializeField] private CropDefinition potato;
-        [SerializeField] private GameObject heroPrefab;
-        [SerializeField] private AnimationClip idleClip;
-        [SerializeField] private AnimationClip walkClip;
-        [SerializeField] private AnimationClip workClip;
-        [SerializeField] private GameObject cratePrefab;
-        [SerializeField] private GameObject treePrefab;
-        [SerializeField] private GameObject housePrefab;
-        [SerializeField] private Material surfaceMaterial;
-        [SerializeField] private Font interfaceFont;
+        [SerializeField] protected CropDefinition potato;
+        [SerializeField] protected GameObject heroPrefab;
+        [SerializeField] protected AnimationClip idleClip;
+        [SerializeField] protected AnimationClip walkClip;
+        [SerializeField] protected AnimationClip workClip;
+        [SerializeField] protected GameObject cratePrefab;
+        [SerializeField] protected GameObject treePrefab;
+        [SerializeField] protected GameObject housePrefab;
+        [SerializeField] protected Material surfaceMaterial;
+        [SerializeField] protected Font interfaceFont;
         [SerializeField, Range(1, 6)] private int columns = 4;
         [SerializeField, Range(1, 4)] private int rows = 3;
 
-        private readonly List<HarvestableCrop> crops = new List<HarvestableCrop>();
-        private readonly List<GroundPickup> pickups = new List<GroundPickup>();
+        protected readonly List<HarvestableCrop> crops = new List<HarvestableCrop>();
+        protected readonly List<GroundPickup> pickups = new List<GroundPickup>();
         private readonly Dictionary<Color, Material> palette = new Dictionary<Color, Material>();
-        private readonly Vector3 spawn = new Vector3(0f, 0f, -4.4f);
-        private NavMeshData navigationData;
-        private NavMeshDataInstance navigation;
-        private Transform world;
-        private Camera worldCamera;
+        protected readonly Vector3 spawn = new Vector3(0f, 0f, -4.4f);
+        protected NavMeshData navigationData;
+        protected NavMeshDataInstance navigation;
+        protected Transform world;
+        protected Camera worldCamera;
         private HarvestHud hud;
         private LineRenderer selection;
         private float cameraAspect;
@@ -55,7 +55,9 @@ namespace Workerborn
             }
         }
 
-        private void Awake()
+        protected virtual bool EnableResetShortcut => true;
+
+        protected virtual void Awake()
         {
             if (potato == null || potato.PlantPrefab == null || potato.DropPrefab == null || heroPrefab == null
                 || surfaceMaterial == null || interfaceFont == null || idleClip == null || walkClip == null || workClip == null)
@@ -77,15 +79,20 @@ namespace Workerborn
             BuildFarm();
             BuildNavigation();
             BuildWorker();
-            hud = new GameObject("Harvest interface", typeof(RectTransform)).AddComponent<HarvestHud>();
-            hud.transform.SetParent(transform, false);
-            hud.Initialize(this, worldCamera, interfaceFont);
+            BuildHud();
             selection = CreateRing("Selected crop", transform, 0.9f, ColorFromHex(0xF1CF80));
             selection.gameObject.SetActive(false);
             Physics.SyncTransforms();
         }
 
-        private void ConfigureCamera()
+        protected virtual void BuildHud()
+        {
+            hud = new GameObject("Harvest interface", typeof(RectTransform)).AddComponent<HarvestHud>();
+            hud.transform.SetParent(transform, false);
+            hud.Initialize(this, worldCamera, interfaceFont);
+        }
+
+        protected virtual void ConfigureCamera()
         {
             worldCamera.orthographic = true;
             worldCamera.transform.position = new Vector3(11.5f, 16f, -14.5f);
@@ -107,7 +114,7 @@ namespace Workerborn
             worldCamera.orthographicSize = Mathf.Max(8.6f, 13.5f / Mathf.Max(0.3f, cameraAspect));
         }
 
-        private void BuildFarm()
+        protected virtual void BuildFarm()
         {
             Primitive("Meadow island", PrimitiveType.Cube, world, new Vector3(0f, -0.35f, 1f),
                 new Vector3(24f, 0.7f, 21f), ColorFromHex(0x91A76A));
@@ -156,7 +163,7 @@ namespace Workerborn
             AddScenery(cratePrefab, "Spare crate", new Vector3(-7.5f, 0f, -4.1f), 0.5f, -10f);
         }
 
-        private void BuildCrop(Vector3 position, int number)
+        protected void BuildCrop(Vector3 position, int number)
         {
             var root = new GameObject($"Potato {number:00}");
             root.transform.SetParent(world, false);
@@ -181,7 +188,7 @@ namespace Workerborn
             crops.Add(crop);
         }
 
-        private void BuildNavigation()
+        protected virtual void BuildNavigation()
         {
             var sources = new List<NavMeshBuildSource>
             {
@@ -199,7 +206,7 @@ namespace Workerborn
             navigation = NavMesh.AddNavMeshData(navigationData);
         }
 
-        private void BuildWorker()
+        protected virtual void BuildWorker()
         {
             var root = new GameObject("Worker");
             root.transform.SetParent(transform, false);
@@ -217,10 +224,14 @@ namespace Workerborn
             ring.transform.localPosition = Vector3.up * 0.04f;
         }
 
-        private void DropHarvest(HarvestableCrop crop)
+        protected virtual void DropHarvest(HarvestableCrop crop)
+        {
+            SpawnDrops(crop, crop.Definition.ItemsPerHarvest);
+        }
+
+        protected void SpawnDrops(HarvestableCrop crop, int count)
         {
             pickups.RemoveAll(item => item == null);
-            int count = crop.Definition.ItemsPerHarvest;
             for (int i = 0; i < count; i++)
             {
                 // Scatter into the space between rows, so drops can be selected independently of the plant.
@@ -228,26 +239,38 @@ namespace Workerborn
                 Vector3 landing = crop.transform.position
                     + new Vector3(Mathf.Sin(angle) * 1.05f, 0f, -0.9f - Mathf.Cos(angle) * 0.25f);
                 landing.y = 0.08f;
-                var root = new GameObject("Dropped potato");
-                root.transform.SetParent(world, false);
-                var model = Instantiate(crop.Definition.DropPrefab, root.transform);
-                PrepareVisual(model, 0.32f);
-                var hit = root.AddComponent<SphereCollider>();
-                hit.radius = 0.38f;
-                hit.center = Vector3.up * 0.15f;
-                hit.isTrigger = true;
-                var item = root.AddComponent<GroundPickup>();
-                item.Initialize(crop.Definition, model.transform, crop.transform.position + Vector3.up * 0.5f, landing);
-                var ring = CreateRing("Pickup marker", root.transform, 0.25f, ColorFromHex(0xF4D390));
-                ring.transform.localPosition = Vector3.up * 0.01f;
-                pickups.Add(item);
+                CreatePickup(crop.Definition, crop.transform.position + Vector3.up * 0.5f, landing);
             }
+        }
+
+        protected GroundPickup CreatePickup(CropDefinition definition, Vector3 origin, Vector3 landing, bool settled = false)
+        {
+            var root = new GameObject("Dropped potato");
+            root.transform.SetParent(world, false);
+            var model = Instantiate(definition.DropPrefab, root.transform);
+            PrepareVisual(model, 0.32f);
+            var hit = root.AddComponent<SphereCollider>();
+            hit.radius = 0.38f;
+            hit.center = Vector3.up * 0.15f;
+            hit.isTrigger = true;
+            var item = root.AddComponent<GroundPickup>();
+            item.Initialize(definition, model.transform, origin, landing, settled);
+            var ring = CreateRing("Pickup marker", root.transform, 0.25f, ColorFromHex(0xF4D390));
+            ring.transform.localPosition = Vector3.up * 0.01f;
+            pickups.Add(item);
+            return item;
         }
 
         public void ResetFarm()
         {
             if (Worker == null) return;
             Worker.ResetWorker(spawn);
+            ResetCropsAndDrops();
+            hud?.ShowMessage("밭을 다시 준비했어요. 감자를 클릭해 수확을 시작해 보세요.");
+        }
+
+        protected void ResetCropsAndDrops()
+        {
             foreach (var item in pickups)
             {
                 if (item == null) continue;
@@ -256,20 +279,19 @@ namespace Workerborn
             }
             pickups.Clear();
             foreach (var crop in crops) crop.ResetHarvests();
-            hud?.ShowMessage("밭을 다시 준비했어요. 감자를 클릭해 수확을 시작해 보세요.");
         }
 
-        private void Update()
+        protected virtual void Update()
         {
             if (Worker == null) return;
-            if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) ResetFarm();
+            if (EnableResetShortcut && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) ResetFarm();
             if (!Mathf.Approximately(cameraAspect, worldCamera.aspect)) ResizeCamera();
             var crop = Worker.FocusCrop;
             selection.gameObject.SetActive(crop != null && !crop.IsDepleted);
             if (crop != null) selection.transform.position = crop.transform.position + Vector3.up * 0.03f;
         }
 
-        private GameObject Primitive(string label, PrimitiveType type, Transform parent, Vector3 position, Vector3 scale, Color color)
+        protected GameObject Primitive(string label, PrimitiveType type, Transform parent, Vector3 position, Vector3 scale, Color color)
         {
             var result = GameObject.CreatePrimitive(type);
             result.name = label;
@@ -282,7 +304,7 @@ namespace Workerborn
             return result;
         }
 
-        private Material MaterialFor(Color color)
+        protected Material MaterialFor(Color color)
         {
             if (palette.TryGetValue(color, out Material material)) return material;
             material = new Material(surfaceMaterial) { name = "Farm surface", color = color };
@@ -290,7 +312,7 @@ namespace Workerborn
             return material;
         }
 
-        private LineRenderer CreateRing(string label, Transform parent, float radius, Color color)
+        protected LineRenderer CreateRing(string label, Transform parent, float radius, Color color)
         {
             var ring = new GameObject(label).AddComponent<LineRenderer>();
             ring.gameObject.layer = 2;
@@ -310,20 +332,20 @@ namespace Workerborn
             return ring;
         }
 
-        private void FencePost(Vector3 position)
+        protected void FencePost(Vector3 position)
         {
             Primitive("Fence post", PrimitiveType.Cube, world, position + Vector3.up * 0.5f,
                 new Vector3(0.18f, 1f, 0.18f), ColorFromHex(0xD6BF88));
         }
 
-        private void FenceRail(Vector3 position, bool alongZ)
+        protected void FenceRail(Vector3 position, bool alongZ)
         {
             for (int i = 0; i < 2; i++)
                 Primitive("Fence rail", PrimitiveType.Cube, world, position + Vector3.up * (0.35f + i * 0.35f),
                     alongZ ? new Vector3(0.1f, 0.12f, 2f) : new Vector3(2f, 0.12f, 0.1f), ColorFromHex(0xD6BF88));
         }
 
-        private void AddScenery(GameObject prefab, string label, Vector3 position, float height, float yaw)
+        protected void AddScenery(GameObject prefab, string label, Vector3 position, float height, float yaw)
         {
             if (prefab == null) return;
             var root = new GameObject(label);
@@ -333,7 +355,7 @@ namespace Workerborn
             PrepareVisual(Instantiate(prefab, root.transform), height);
         }
 
-        private static void PrepareVisual(GameObject visual, float height)
+        protected static void PrepareVisual(GameObject visual, float height)
         {
             foreach (var child in visual.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 2;
             foreach (var collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
@@ -353,10 +375,10 @@ namespace Workerborn
             visual.transform.localPosition -= localBottom * scale;
         }
 
-        private static Color ColorFromHex(uint value) => new Color(((value >> 16) & 255) / 255f,
+        protected static Color ColorFromHex(uint value) => new Color(((value >> 16) & 255) / 255f,
             ((value >> 8) & 255) / 255f, (value & 255) / 255f, 1f);
 
-        private void OnDestroy()
+        protected virtual void OnDestroy()
         {
             // Stop the agent before removing the NavMesh it belongs to.
             if (Worker != null)

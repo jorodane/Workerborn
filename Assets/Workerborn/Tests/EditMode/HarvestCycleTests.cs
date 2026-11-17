@@ -5,6 +5,28 @@ namespace Workerborn.Tests
 {
     public sealed class HarvestCycleTests
     {
+        [TestCase(0)]
+        [TestCase(2)]
+        [TestCase(3)]
+        public void SavedRemainingCountDoesNotReplayAHarvest(int remaining)
+        {
+            var cycle = new HarvestCycle(3, 2f);
+            cycle.RestoreRemaining(remaining);
+            Assert.That(cycle.Remaining, Is.EqualTo(remaining));
+            Assert.That(cycle.Progress, Is.Zero);
+            Assert.That(cycle.IsWorking, Is.False);
+            Assert.That(cycle.TryBegin(), Is.EqualTo(remaining > 0));
+        }
+
+        [TestCase(-1)]
+        [TestCase(4)]
+        public void InvalidSavedChargesAreRejected(int remaining)
+        {
+            var cycle = new HarvestCycle(3, 2f);
+            Assert.Throws<ArgumentOutOfRangeException>(() => cycle.RestoreRemaining(remaining));
+            Assert.That(cycle.Remaining, Is.EqualTo(3));
+        }
+
         [Test]
         public void PartialWorkDoesNotSpendAHarvest()
         {

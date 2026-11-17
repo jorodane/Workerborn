@@ -60,6 +60,13 @@ namespace Workerborn
             RefreshVisuals();
         }
 
+        public void RestoreRemaining(int remaining)
+        {
+            owner = null;
+            cycle.RestoreRemaining(Mathf.Clamp(remaining, 0, Capacity));
+            RefreshVisuals();
+        }
+
         private void RefreshVisuals()
         {
             if (visual != null)

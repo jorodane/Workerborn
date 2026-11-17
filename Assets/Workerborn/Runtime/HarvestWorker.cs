@@ -21,16 +21,22 @@ namespace Workerborn
         private WorkerAnimation animationDriver;
         private HarvestableCrop cropTarget;
         private GroundPickup pickupTarget;
+        private VillageInteractable interactionTarget;
+        private VillagePrototype village;
+        private int collectedCount;
         private float pickupTime;
 
         public WorkerAction Action { get; private set; }
         public HarvestableCrop HoveredCrop { get; private set; }
         public GroundPickup HoveredPickup { get; private set; }
+        public VillageInteractable HoveredInteraction { get; private set; }
         public HarvestableCrop LastCrop { get; private set; }
         public HarvestableCrop ActiveCrop => Action == WorkerAction.Harvesting ? cropTarget : null;
         public HarvestableCrop FocusCrop => HoveredCrop != null ? HoveredCrop : cropTarget != null ? cropTarget : LastCrop;
-        public int TotalCollected { get; private set; }
+        public int TotalCollected => village != null ? village.State.Inventory.Count(ItemIds.Potato) : collectedCount;
         public event Action<string> Message;
+
+        public void BindVillage(VillagePrototype game) => village = game;
 
         public void Initialize(Camera camera, WorkerAnimation animations)
         {
@@ -68,6 +74,8 @@ namespace Workerborn
 
             HoveredCrop = null;
             HoveredPickup = null;
+            HoveredInteraction = null;
+            if (village != null && village.ControlsBlocked) return;
             var pointer = Pointer.current;
             if (pointer == null) return;
             Vector2 screen = pointer.position.ReadValue();
@@ -82,14 +90,17 @@ namespace Workerborn
                 ~(1 << 2), QueryTriggerInteraction.Collide)) return;
             HoveredCrop = hit.collider.GetComponentInParent<HarvestableCrop>();
             HoveredPickup = hit.collider.GetComponentInParent<GroundPickup>();
+            HoveredInteraction = hit.collider.GetComponentInParent<VillageInteractable>();
             if (!pointer.press.wasPressedThisFrame) return;
             if (HoveredPickup != null) CommandPickup(HoveredPickup);
+            else if (HoveredInteraction != null) CommandInteract(HoveredInteraction);
             else if (HoveredCrop != null) CommandHarvest(HoveredCrop);
             else CommandMove(hit.point);
         }
 
         public void CommandHarvest(HarvestableCrop crop)
         {
+            if (village != null && (village.ControlsBlocked || !village.CanHarvest())) return;
             if (crop == null || !crop.isActiveAndEnabled) return;
             if (crop == cropTarget && (Action == WorkerAction.Moving || Action == WorkerAction.Harvesting)) return;
             if (crop.IsDepleted)
@@ -107,6 +118,7 @@ namespace Workerborn
 
         public void CommandPickup(GroundPickup item)
         {
+            if (village != null && village.ControlsBlocked) return;
             if (item == null || !item.isActiveAndEnabled) return;
             if (item == pickupTarget && (Action == WorkerAction.Moving || Action == WorkerAction.PickingUp)) return;
             Cancel();
@@ -117,8 +129,17 @@ namespace Workerborn
 
         public void CommandMove(Vector3 destination)
         {
+            if (village != null && village.ControlsBlocked) return;
             Cancel();
             NavigateNear(destination, 0f);
+        }
+
+        public void CommandInteract(VillageInteractable target)
+        {
+            if (village == null || target == null || village.ControlsBlocked) return;
+            Cancel();
+            interactionTarget = target;
+            if (NavigateNear(target.transform.position, 1.2f)) Message?.Invoke($"{target.DisplayName}에게 이동해요.");
         }
 
         private bool NavigateNear(Vector3 target, float offset)
@@ -130,7 +151,7 @@ namespace Workerborn
             if (!NavMesh.SamplePosition(approach, out NavMeshHit hit, 0.8f, NavMesh.AllAreas))
             {
                 Cancel();
-                Message?.Invoke("밭 안의 이동할 수 있는 곳을 선택해 주세요.");
+                Message?.Invoke("이동할 수 있는 곳을 선택해 주세요.");
                 return false;
             }
             var path = new NavMeshPath();
@@ -175,6 +196,18 @@ namespace Workerborn
                 pickupTime = 0f;
                 Face(pickupTarget.LandingPosition);
             }
+            else if (interactionTarget != null)
+            {
+                var target = interactionTarget;
+                interactionTarget = null;
+                Action = WorkerAction.Idle;
+                if (InReach(target.transform.position, 1.7f))
+                {
+                    Face(target.transform.position);
+                    village.OpenConversation(target);
+                }
+                else Message?.Invoke("조금 더 가까이 가야 해요.");
+            }
             else Action = WorkerAction.Idle;
         }
 
@@ -186,8 +219,8 @@ namespace Workerborn
                 Cancel();
                 return;
             }
-            if (!cropTarget.Advance(this, Time.deltaTime)) return;
-            Message?.Invoke($"수확 완료! 바닥의 {cropTarget.Definition.DisplayName}를 클릭해서 주워 주세요.");
+            if (!cropTarget.Advance(this, Time.deltaTime * (village != null ? village.State.WorkRate : 1f))) return;
+            if (village == null) Message?.Invoke($"수확 완료! 바닥의 {cropTarget.Definition.DisplayName}를 클릭해서 주워 주세요.");
             cropTarget = null;
             Action = WorkerAction.Idle;
         }
@@ -203,11 +236,15 @@ namespace Workerborn
             pickupTime += Time.deltaTime;
             if (pickupTime < 0.3f || !pickupTarget.CanCollect) return;
             CropDefinition definition = pickupTarget.Definition;
-            if (pickupTarget.TryCollect())
+            if (village != null)
+            {
+                village.TryCollectPickup(pickupTarget);
+            }
+            else if (pickupTarget.TryCollect())
             {
                 inventory.TryGetValue(definition, out int count);
                 inventory[definition] = count + 1;
-                TotalCollected++;
+                collectedCount++;
                 Message?.Invoke($"{definition.DisplayName} +1  ·  가방에 담았어요.");
             }
             pickupTarget = null;
@@ -233,6 +270,7 @@ namespace Workerborn
             if (cropTarget != null) cropTarget.Cancel(this);
             cropTarget = null;
             pickupTarget = null;
+            interactionTarget = null;
             Action = WorkerAction.Idle;
             if (agent != null && agent.isOnNavMesh)
             {
@@ -246,12 +284,19 @@ namespace Workerborn
         {
             Cancel();
             inventory.Clear();
-            TotalCollected = 0;
+            collectedCount = 0;
             LastCrop = null;
             HoveredCrop = null;
             HoveredPickup = null;
+            HoveredInteraction = null;
             agent.Warp(spawn);
             transform.rotation = Quaternion.identity;
+        }
+
+        public void WarpTo(Vector3 position)
+        {
+            Cancel();
+            agent.Warp(position);
         }
 
         private void OnDisable() => Cancel();
