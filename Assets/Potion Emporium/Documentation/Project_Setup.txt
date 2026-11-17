@@ -1,0 +1,43 @@
+Project Setup For Unity 2020.1.6fl
+
+***(MAKE SURE TO DO IN THIS ORDER)***
+
+1. Open Scene 'Scenes' -> 'Sample Scene'
+
+2. 'Package Manager' -> Packages: 'Unity Registry' -> Search: 'render'
+
+3. Install 'Universal RP'
+
+4. 'Package Manager' -> Packages: 'Unity Registry' -> Search: 'shader'
+
+5. ONLY IF 'Shader Graph' is NOT already installed: Install 'Shader Graph'
+
+6. Go to 'Project Settings' -> 'Graphics'
+
+7. Open Folder: 'Potion Emporium' -> 'Shaders'
+
+8. Drag and drop the LightweightShaderGraph file into the box under 'Scriptable Render Pipeline Settings'
+
+9. Select ALL in 'Potion Emporium' -> 'Shaders'
+
+10.) Bottles opacity should all be set to the correct values, if any of the bottles aren't showing up - make sure the opacity is set to 0.2 or higher
+
+
+
+***For 2018 and 2019 versions of Unity***
+
+1.) Go to the Window drop-down menu and click on "Package Manager"
+
+2.) Click on "All Packages" in the top-left tab and under the "Advanced" tab click on "Show Preview Packages." Now you will see all of the package options on the left-hand side.
+
+3.) Find the "Render-Pipelines-Lightweight" option and install
+
+4.) Find the "Shadergraph" option and also install
+
+5.) Go to the Edit drop-down menu and open the "Project Settings" window and click on the Graphics tab on the left hand side.
+
+6.) Open the "Shaders" folder under the Potion Emporium Asset folder
+
+7.) Drag and drop the LightweightShaderGraph file into the box under "Scriptable Render Pipeline Settings.
+
+8.) Now open the Scene file under the Potion Emporium asset folder to make sure everything has loaded.

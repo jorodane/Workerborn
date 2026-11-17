@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 69395f687106ac646aec239185de229f
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Prefabs/Boxes/Potion_Box.prefab
+  uploadId: 405120

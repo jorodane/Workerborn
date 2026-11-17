@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b7025c944415b664e9bfc7d80f811b28
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Materials/Special_Potion_C.mat
+  uploadId: 405120

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a710fa20abd6a7640bf2eedc9b2c42d1
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 283073
+  packageName: Stylized Little Hero - 3D Character
+  packageVersion: 1.2
+  assetPath: Assets/stylizedLittleHero/Materials/weapon/arrow.mat
+  uploadId: 894144

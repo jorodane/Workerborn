@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 8eeff3989b2702344b264ac011858279
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Documentation/Project_Setup.txt
+  uploadId: 405120

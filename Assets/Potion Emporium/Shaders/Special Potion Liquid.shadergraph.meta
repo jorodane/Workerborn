@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 95f0b8bfe8c9a474e88a2ce2b828ac33
+ScriptedImporter:
+  fileIDToRecycleName:
+    4800000: MainAsset
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 625f186215c104763be7675aa2d941aa, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Shaders/Special Potion Liquid.shadergraph
+  uploadId: 405120

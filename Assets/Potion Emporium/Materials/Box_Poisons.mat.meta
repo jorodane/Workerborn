@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4da0e44f5541af649afe355b4823839c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Materials/Box_Poisons.mat
+  uploadId: 405120

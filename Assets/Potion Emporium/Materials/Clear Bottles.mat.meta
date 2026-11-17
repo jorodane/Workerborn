@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ee939c936a9003c4fbf131136bca488d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Materials/Clear Bottles.mat
+  uploadId: 405120

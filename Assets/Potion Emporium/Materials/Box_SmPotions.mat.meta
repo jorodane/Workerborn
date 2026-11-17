@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: da185f709c45da14ba4235850a70e4e4
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Materials/Box_SmPotions.mat
+  uploadId: 405120

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 49a4bc3c0c1e2d041a1af2e64e281a64
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 283073
+  packageName: Stylized Little Hero - 3D Character
+  packageVersion: 1.2
+  assetPath: Assets/stylizedLittleHero/Settings/UniversalRenderPipelineGlobalSettings.asset
+  uploadId: 894144

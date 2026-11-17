@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 8c69f76cb70e2cc4e8aee29f54dbb112
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Prefabs/Potion_Liquid.prefab
+  uploadId: 405120

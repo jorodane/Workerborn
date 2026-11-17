@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: fe9064dc775b0f04abbd40205b6306c3
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Prefabs/Poisons/Poison_E_Cork.prefab
+  uploadId: 405120

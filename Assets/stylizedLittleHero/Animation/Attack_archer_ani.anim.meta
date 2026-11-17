@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d0383aa213107a445b5982fcc666fb7a
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 283073
+  packageName: Stylized Little Hero - 3D Character
+  packageVersion: 1.2
+  assetPath: Assets/stylizedLittleHero/Animation/Attack_archer_ani.anim
+  uploadId: 894144

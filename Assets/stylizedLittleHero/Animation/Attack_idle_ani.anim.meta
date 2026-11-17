@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ed2b2f9ddc8320641b775645eab01db3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 283073
+  packageName: Stylized Little Hero - 3D Character
+  packageVersion: 1.2
+  assetPath: Assets/stylizedLittleHero/Animation/Attack_idle_ani.anim
+  uploadId: 894144

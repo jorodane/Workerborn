@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 4075501a07c6889488ae95d176676a99
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 155289
+  packageName: Potion Emporium
+  packageVersion: 1.1
+  assetPath: Assets/Potion Emporium/Prefabs/Jars/Jar_NoHandles.prefab
+  uploadId: 405120

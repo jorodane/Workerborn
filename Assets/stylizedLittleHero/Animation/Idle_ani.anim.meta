@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 13d34448388872c409f472a83b2416e6
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 283073
+  packageName: Stylized Little Hero - 3D Character
+  packageVersion: 1.2
+  assetPath: Assets/stylizedLittleHero/Animation/Idle_ani.anim
+  uploadId: 894144

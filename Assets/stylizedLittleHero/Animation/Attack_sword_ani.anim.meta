@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c2b393beeb97fcc42840ddf845ae7efb
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 283073
+  packageName: Stylized Little Hero - 3D Character
+  packageVersion: 1.2
+  assetPath: Assets/stylizedLittleHero/Animation/Attack_sword_ani.anim
+  uploadId: 894144
