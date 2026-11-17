@@ -1,0 +1,7 @@
+{
+  "name": "Workerborn.EditModeTests",
+  "rootNamespace": "Workerborn.Tests",
+  "references": ["Workerborn.Runtime"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

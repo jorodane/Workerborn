@@ -1,0 +1,6 @@
+{
+  "name": "Workerborn.Editor",
+  "rootNamespace": "Workerborn.Editor",
+  "references": ["Workerborn.Runtime"],
+  "includePlatforms": ["Editor"]
+}

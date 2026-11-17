@@ -36,6 +36,7 @@
 ExportedObj/
 .consulo/
 *.csproj
+!/Tests/HarvestLogic/HarvestLogic.csproj
 *.unityproj
 *.sln
 *.suo

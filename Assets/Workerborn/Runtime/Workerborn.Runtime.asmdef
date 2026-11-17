@@ -1,0 +1,6 @@
+{
+  "name": "Workerborn.Runtime",
+  "rootNamespace": "Workerborn",
+  "references": ["Unity.InputSystem", "UnityEngine.UI"],
+  "autoReferenced": true
+}
