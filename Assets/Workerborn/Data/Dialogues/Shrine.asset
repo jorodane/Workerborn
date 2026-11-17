@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c880f5978ffe5d1db7d7be853c9cc17c, type: 3}
+  m_Name: Shrine
+  m_EditorClassIdentifier: ''
+  topics:
+  - keyword: 기억
+    action: 0
+    text: 잔잔한 물결 위로 오래된 기억이 스쳐 간다.
+  - keyword: 환생
+    action: 6
+    text: 지나온 생의 기술과 경험을 품고 다시 시작한다.

@@ -10,27 +10,23 @@ namespace Workerborn
 {
     public sealed partial class VillageHud : MonoBehaviour
     {
-        private readonly Color paper = new Color(0.94f, 0.92f, 0.84f, 0.98f);
-        private readonly Color dark = new Color(0.12f, 0.18f, 0.21f, 0.96f);
-        private readonly Color ink = new Color(0.19f, 0.21f, 0.19f);
-        private readonly Color gold = new Color(0.87f, 0.72f, 0.43f);
-        private readonly Color pale = new Color(0.85f, 0.87f, 0.79f);
+        [SerializeField] private Color paper = new Color(0.92f, 0.92f, 0.9f, 0.97f);
+        [SerializeField] private Color dark = new Color(0.22f, 0.29f, 0.39f, 0.96f);
+        [SerializeField] private Color ink = new Color(0.19f, 0.21f, 0.19f);
+        [SerializeField] private Color gold = new Color(0.87f, 0.72f, 0.43f);
+        [SerializeField] private Color pale = new Color(0.82f, 0.83f, 0.83f);
         private VillagePrototype game;
         private Font font;
         private Canvas canvas;
         private Texture2D uiTexture;
         private Sprite uiSprite;
-        private Text clockText;
-        private Text clockDetail;
-        private Text energyText;
-        private Text growthText;
-        private Text moneyText;
-        private Text questTracker;
-        private Text jobTracker;
-        private Text toastText;
-        private Image energyFill;
-        private Image experienceFill;
-        private RectTransform toast;
+        [SerializeField] private Text clockText;
+        [SerializeField] private Text energyText;
+        [SerializeField] private Text growthText;
+        [SerializeField] private Text toastText;
+        [SerializeField] private Image energyFill;
+        [SerializeField] private Image experienceFill;
+        [SerializeField] private RectTransform toast;
         private float toastUntil;
         private RectTransform skillBubble;
         private Text skillTitle;
@@ -38,7 +34,6 @@ namespace Workerborn
         private Image skillFill;
         private RectTransform hoverTip;
         private Text hoverText;
-        private Text logText;
         private readonly Queue<string> log = new Queue<string>();
         private string lastLoggedMessage;
         private readonly Dictionary<string, RectTransform> windows = new Dictionary<string, RectTransform>();
@@ -48,33 +43,45 @@ namespace Workerborn
         private int seenVersion = -1;
         private int seenInventoryVersion = -1;
         private int seenNotice = -1;
+        private bool suppressRightContext;
+        [SerializeField] private RectTransform minimapPanel;
+        [SerializeField] private RectTransform minimapImage;
         public bool HasModal => dialogueTarget != null;
+        public bool IsHoldingItem => draggedEntry != 0;
         public bool InventoryOpen => windows.TryGetValue("inventory", out var panel) && panel.gameObject.activeSelf;
 
         private sealed class FloatingText { public Text Text; public Vector3 Position; public float Started; }
-        private sealed class MapView { public RectTransform Root; public RectTransform Player; }
+        private sealed class MapView { public RectTransform Root; public RectTransform Player; public Dictionary<VillageInteractable, RectTransform> Markers; }
 
         public void Initialize(VillagePrototype prototype, Font interfaceFont)
         {
             game = prototype; font = interfaceFont;
             CreateSprite();
-            canvas = gameObject.AddComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 20;
-            var scaler = gameObject.AddComponent<CanvasScaler>();
+            canvas = GetComponent<Canvas>();
+            if (canvas == null) canvas = gameObject.AddComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 20;
+            var scaler = GetComponent<CanvasScaler>();
+            if (scaler == null) scaler = gameObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1600, 900); scaler.matchWidthOrHeight = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
+            if (GetComponent<GraphicRaycaster>() == null) gameObject.AddComponent<GraphicRaycaster>();
             if (EventSystem.current == null)
             {
                 var events = new GameObject("Village input", typeof(EventSystem), typeof(InputSystemUIInputModule));
                 events.transform.SetParent(transform, false);
                 events.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
-            BuildMainHud();
+            else
+            {
+                var input = EventSystem.current.GetComponent<InputSystemUIInputModule>();
+                if (input != null && input.actionsAsset == null) input.AssignDefaultActions();
+            }
+            if (clockText == null) BuildMainHud();
+            else if (minimapImage != null) DrawMap(minimapImage, false);
             BuildWorldFeedback();
             game.Worker.Message += ShowToast;
             foreach (var target in game.Interactables)
             {
-                var text = Label(target.DisplayName, transform, Vector2.zero, new Vector2(240, 54), 16, Color.white, true);
+                var text = Label(target.DisplayName, transform, Vector2.zero, new Vector2(160, 28), 13, Color.white, false);
                 text.rectTransform.anchorMin = text.rectTransform.anchorMax = Vector2.zero;
                 text.rectTransform.pivot = new Vector2(0.5f, 0f);
                 text.alignment = TextAnchor.MiddleCenter;
@@ -85,41 +92,33 @@ namespace Workerborn
 
         private void BuildMainHud()
         {
-            var title = Panel("Village title", transform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(330, 76), new Vector2(20, -20), dark, true);
-            Label("WORKERBORN", title, new Vector2(17, -9), new Vector2(296, 32), 25, paper, true);
-            Label("솔바람 마을  ·  Born to Work", title, new Vector2(18, -46), new Vector2(296, 22), 14, pale);
-            var clock = Panel("World clock", transform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(330, 76), new Vector2(0, -20), dark, true);
-            clockText = Label("", clock, new Vector2(12, -7), new Vector2(306, 33), 25, paper, true); clockText.alignment = TextAnchor.MiddleCenter;
-            clockDetail = Label("", clock, new Vector2(12, -47), new Vector2(306, 21), 13, pale); clockDetail.alignment = TextAnchor.MiddleCenter;
-            var track = Panel("Quest tracker", transform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(330, 166), new Vector2(20, -108), dark, true);
-            Label("진행 중인 이야기", track, new Vector2(15, -12), new Vector2(270, 25), 17, gold, true);
-            questTracker = Label("", track, new Vector2(15, -47), new Vector2(300, 104), 15, paper);
-            var jobs = Panel("Job tracker", transform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(330, 134), new Vector2(20, -286), dark, true);
-            Label("오늘의 아르바이트  08:00~18:00", jobs, new Vector2(15, -12), new Vector2(302, 24), 15, gold, true);
-            jobTracker = Label("", jobs, new Vector2(15, -44), new Vector2(300, 77), 14, paper);
-
-            var mini = Panel("Mini map", transform, Vector2.one, Vector2.one, new Vector2(240, 215), new Vector2(-20, -20), dark, true);
-            Label("솔바람 마을  [M]", mini, new Vector2(15, -10), new Vector2(210, 27), 16, paper, true);
-            var miniMap = Panel("Village map", mini, new Vector2(0, 1), new Vector2(0, 1), new Vector2(210, 155), new Vector2(15, -43), new Color(0.47f, 0.58f, 0.43f), true);
-            DrawMap(miniMap, false);
-
-            var status = Panel("Status and shortcuts", transform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(900, 114), new Vector2(0, 14), dark, true);
-            energyText = Label("", status, new Vector2(18, -9), new Vector2(240, 24), 15, paper, true);
-            energyFill = Bar(status, new Vector2(18, -37), new Vector2(240, 8), new Color(0.51f, 0.75f, 0.51f));
-            growthText = Label("", status, new Vector2(281, -9), new Vector2(270, 24), 15, paper, true);
-            experienceFill = Bar(status, new Vector2(281, -37), new Vector2(270, 8), gold);
-            moneyText = Label("", status, new Vector2(580, -11), new Vector2(300, 32), 17, gold, true); moneyText.alignment = TextAnchor.MiddleRight;
-            string[] labels = { "F1 수확", "F2 빵", "I 소지품", "Q 퀘스트", "K 스킬", "C 캐릭터", "M 지도", "저장" };
-            Action[] actions = { game.HarvestNearest, () => game.Perform(game.State.TryEatBread), () => ToggleWindow("inventory"),
-                () => ToggleWindow("quests"), () => ToggleWindow("skills"), () => ToggleWindow("character"), () => ToggleWindow("map"), () => game.SaveGame(true) };
-            for (int i = 0; i < labels.Length; i++)
-                Button(labels[i], status, new Vector2(14 + i * 109, -58), new Vector2(103, 40), actions[i], i == 0);
-            var record = Panel("Life log", transform, new Vector2(0, 0), new Vector2(0, 0), new Vector2(328, 98), new Vector2(20, 20), dark, true);
-            Label("생활 기록", record, new Vector2(12, -7), new Vector2(300, 21), 13, gold, true);
-            logText = Label("", record, new Vector2(12, -34), new Vector2(303, 58), 12, paper);
-            toast = Panel("Notice", transform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(790, 54), new Vector2(0, 143), dark);
-            toastText = Label("", toast, new Vector2(14, -9), new Vector2(762, 40), 16, paper);
+            var menu = Panel("System bar", transform, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, paper, true);
+            menu.anchorMax = new Vector2(1, 0); menu.offsetMin = Vector2.zero; menu.offsetMax = new Vector2(0, 28);
+            string[] titles = { "메뉴", "캐릭터", "스킬", "소지품", "퀘스트", "지도" };
+            string[] ids = { "system", "character", "skills", "inventory", "quests", "map" };
+            for (int i = 0; i < titles.Length; i++)
+            {
+                string id = ids[i];
+                Button(titles[i], menu, new Vector2(3 + i * 72, -2), new Vector2(68, 24), () => ToggleWindow(id));
+            }
+            var status = Panel("Character status", transform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(360, 52), new Vector2(0, 32), new Color(0.1f, 0.13f, 0.17f, 0.55f));
+            growthText = Label("Lv.1", status, new Vector2(8, -3), new Vector2(65, 25), 12, Color.white);
+            energyText = Label("100/100", status, new Vector2(80, -3), new Vector2(270, 25), 12, Color.white);
+            energyText.alignment = TextAnchor.MiddleRight;
+            energyFill = Bar(status, new Vector2(80, -29), new Vector2(270, 6), new Color(0.55f, 0.72f, 0.4f));
+            experienceFill = Bar(status, new Vector2(8, -44), new Vector2(342, 3), new Color(0.85f, 0.75f, 0.45f));
+            clockText = Label("08:00", transform, new Vector2(-16, -12), new Vector2(180, 30), 16, Color.white);
+            clockText.rectTransform.anchorMin = clockText.rectTransform.anchorMax = Vector2.one;
+            clockText.rectTransform.pivot = Vector2.one; clockText.alignment = TextAnchor.MiddleRight;
+            clockText.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(1, -1);
+            minimapPanel = Panel("Mini map", transform, Vector2.one, Vector2.one, new Vector2(190, 170), new Vector2(-12, -49), paper, true);
+            Label("솔바람 마을", minimapPanel, new Vector2(8, -1), new Vector2(174, 25), 12, ink);
+            minimapImage = Panel("Map image", minimapPanel, new Vector2(0, 1), new Vector2(0, 1), new Vector2(174, 132), new Vector2(8, -30), Color.white, true);
+            DrawMap(minimapImage, false);
+            toast = Panel("System message", transform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(720, 34), new Vector2(0, 104), Color.clear);
+            toastText = Label("", toast, new Vector2(0, 0), new Vector2(720, 34), 14, Color.white);
             toastText.alignment = TextAnchor.MiddleCenter;
+            toastText.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(1, -1);
         }
 
         private void BuildWorldFeedback()
@@ -149,7 +148,7 @@ namespace Workerborn
                 while (log.Count > 3) log.Dequeue();
                 lastLoggedMessage = message;
             }
-            logText.text = string.Join("\n", log);
+
         }
 
         public void ShowFloatingText(Vector3 position, string content, Color color)
@@ -174,11 +173,18 @@ namespace Workerborn
             }
             if (keys.iKey.wasPressedThisFrame) ToggleWindow("inventory");
             if (keys.qKey.wasPressedThisFrame) ToggleWindow("quests");
-            if (keys.kKey.wasPressedThisFrame) ToggleWindow("skills");
+            if (keys.zKey.wasPressedThisFrame || keys.kKey.wasPressedThisFrame) ToggleWindow("skills");
             if (keys.cKey.wasPressedThisFrame) ToggleWindow("character");
-            if (keys.mKey.wasPressedThisFrame) ToggleWindow("map");
-            if (!HasModal && keys.f1Key.wasPressedThisFrame) game.HarvestNearest();
-            if (!HasModal && keys.f2Key.wasPressedThisFrame) game.Perform(game.State.TryEatBread);
+            if (keys.mKey.wasPressedThisFrame && minimapPanel != null) minimapPanel.gameObject.SetActive(!minimapPanel.gameObject.activeSelf);
+            if (Mouse.current != null)
+            {
+                if (IsHoldingItem) MoveItemDrag(Mouse.current.position.ReadValue());
+                if (Mouse.current.rightButton.wasPressedThisFrame)
+                {
+                    suppressRightContext = IsHoldingItem;
+                    if (IsHoldingItem) CancelItemDrag();
+                }
+            }
         }
 
         private void LateUpdate()
@@ -187,21 +193,11 @@ namespace Workerborn
             var state = game.State;
             int minute = Mathf.FloorToInt(state.Minute);
             clockText.text = $"{minute / 60:00} : {minute % 60:00}";
-            clockDetail.text = $"{state.Life}번째 생 · {state.LifeDay}일째" + (HasModal ? "  /  대화 중 시간 정지" : "  /  1초 = 3분");
-            energyText.text = $"에너지  {state.Energy} / 100";
-            energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : paper;
+            energyText.text = $"{state.Energy} / 100";
+            energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
             energyFill.fillAmount = state.Energy / 100f;
-            growthText.text = $"Lv.{state.Level}  EXP {state.Experience}/{state.NextLevelExperience}";
+            growthText.text = $"Lv.{state.Level}";
             experienceFill.fillAmount = (float)state.Experience / state.NextLevelExperience;
-            moneyText.text = $"AP {state.AP}    {state.Gold:N0} G";
-            questTracker.text = !state.IntroAccepted ? "마을의 새 일꾼\n서쪽 농장주 미라와 대화하기\n\nNPC를 클릭하면 다가가 대화해요."
-                : !state.IntroClaimed ? "마을의 새 일꾼\n" + (state.Career > 0 ? "완료! 미라에게 퀘스트 보상 받기" : "미라의 아르바이트를 한 번 완료하기")
-                : state.FarmLevel > 1 ? "농장에 남긴 발자국 · 완료\n다음 삶에도 넓어진 밭이 남아요.\n더 많은 일거리에 도전해 보세요."
-                : state.FarmUpgradePending ? "농장에 남긴 발자국\n확장 준비 완료!\n환생하면 더 넓은 밭이 생겨요."
-                : $"농장에 남긴 발자국\n기부금 {state.DonatedGold}/100G · 감자 {state.DonatedPotatoes}/20개\n미라에게 확장 자원을 전달하기";
-            jobTracker.text = state.Job == JobStatus.Active ? $"감자 납품  {state.Inventory.Count(ItemIds.Potato)}/{state.JobRequirement}개\n18:00 전에 미라에게 납품\n보상 {state.JobReward}G · 경력 +1"
-                : state.LastJobDay == state.Day ? state.Job == JobStatus.Completed ? "오늘의 아르바이트를 마쳤어요.\n개인 작업과 마을의 일을 도와보세요." : "오늘의 아르바이트가 마감됐어요.\n내일 다시 미라를 찾아가 보세요."
-                : "미라에게 아르바이트를 받아보세요.\n아침 08:00에 접수를 시작해요.";
             toast.gameObject.SetActive(Time.unscaledTime < toastUntil);
             if (state.NoticeSerial != seenNotice)
             {
@@ -252,9 +248,7 @@ namespace Workerborn
             }
             foreach (var pair in npcLabels)
             {
-                bool important = pair.Key.Role == VillageRole.Farmer && (!game.State.IntroClaimed || game.State.Job == JobStatus.Active);
-                pair.Value.text = (important ? "!  " : "") + pair.Key.DisplayName + "\n<size=12>" + pair.Key.Subtitle + "</size>";
-                pair.Value.supportRichText = true;
+                pair.Value.text = pair.Key.DisplayName;
                 PlaceWorld(pair.Value.rectTransform, pair.Key.LabelPosition);
             }
             for (int i = floating.Count - 1; i >= 0; i--)
@@ -288,6 +282,7 @@ namespace Workerborn
                     case "skills": BuildSkillsWindow(); break;
                     case "character": BuildCharacterWindow(); break;
                     case "map": BuildMapWindow(); break;
+                    case "system": BuildSystemWindow(); break;
                 }
                 return;
             }
@@ -300,10 +295,10 @@ namespace Workerborn
         {
             var panel = Panel(title, transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), size, position, paper, true);
             var outline = panel.gameObject.AddComponent<Outline>(); outline.effectColor = new Color(0.19f, 0.24f, 0.23f, 0.9f); outline.effectDistance = new Vector2(2, -2);
-            var header = Panel("Window header", panel, new Vector2(0, 1), new Vector2(0, 1), new Vector2(size.x, 42), Vector2.zero, dark, true);
-            Label(title, header, new Vector2(14, -7), new Vector2(size.x - 65, 30), 18, paper, true);
+            var header = Panel("Window header", panel, new Vector2(0, 1), new Vector2(0, 1), new Vector2(size.x, 32), Vector2.zero, dark, true);
+            Label(title, header, new Vector2(10, -2), new Vector2(size.x - 50, 28), 14, paper, true);
             header.gameObject.AddComponent<WindowDragHandle>().Window = panel;
-            Button("×", header, new Vector2(size.x - 37, -5), new Vector2(31, 31), () =>
+            Button("×", header, new Vector2(size.x - 28, -3), new Vector2(24, 24), () =>
             {
                 panel.gameObject.SetActive(false);
                 if (id == "inventory") CancelItemDrag();
@@ -328,7 +323,7 @@ namespace Workerborn
             rect.anchorMin = rect.anchorMax = new Vector2(0, 1); rect.pivot = new Vector2(0, 1); rect.anchoredPosition = position; rect.sizeDelta = size;
             var text = root.GetComponent<Text>(); text.font = font; text.fontSize = fontSize; text.text = content; text.color = color;
             text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal; text.raycastTarget = false; text.supportRichText = false;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap; text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap; text.verticalOverflow = VerticalWrapMode.Overflow;
             return text;
         }
 
@@ -338,7 +333,7 @@ namespace Workerborn
             var button = rect.gameObject.AddComponent<Button>(); button.targetGraphic = rect.GetComponent<Image>();
             var colors = button.colors; colors.highlightedColor = new Color(1f, 0.97f, 0.86f); colors.pressedColor = new Color(0.73f, 0.76f, 0.66f); button.colors = colors;
             button.onClick.AddListener(() => action());
-            var text = Label(content, rect, Vector2.zero, size, 14, ink, highlighted);
+            var text = Label(content, rect, Vector2.zero, size, 12, ink, highlighted);
             text.alignment = TextAnchor.MiddleCenter;
             return button;
         }
@@ -350,6 +345,14 @@ namespace Workerborn
             fill.anchorMax = Vector2.one; fill.offsetMin = fill.offsetMax = Vector2.zero;
             var image = fill.GetComponent<Image>(); image.type = Image.Type.Filled; image.fillMethod = Image.FillMethod.Horizontal; image.fillOrigin = 0;
             return image;
+        }
+
+        private void BuildSystemWindow()
+        {
+            var root = Window("system", "메뉴", new Vector2(240, 170), Vector2.zero);
+            Button("저장", root, new Vector2(20, -46), new Vector2(200, 30), () => game.SaveGame(true));
+            Button("캐릭터", root, new Vector2(20, -84), new Vector2(200, 30), () => ToggleWindow("character"));
+            Button("닫기", root, new Vector2(20, -122), new Vector2(200, 30), () => ToggleWindow("system"));
         }
 
         private static string RankName(int rank) => new[] { "F", "E", "D", "C", "B", "A", "9", "8", "7" }[Mathf.Clamp(rank, 0, 8)];

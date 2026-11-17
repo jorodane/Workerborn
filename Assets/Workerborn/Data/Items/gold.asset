@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: gold
+  m_EditorClassIdentifier: ''
+  id: gold
+  displayName: 골드
+  description: 마을에서 사용하는 금화. 한 칸에 1,000골드까지 보관한다.
+  icon: {fileID: 21300000, guid: 2ea2844ac2d25a96b116ad2fa544c47e, type: 3}
+  worldPrefab: {fileID: 0}
+  width: 1
+  height: 1
+  maxStack: 1000
+  price: 1
+  equipmentSlot: 0
+  equipmentPart: {fileID: 0}

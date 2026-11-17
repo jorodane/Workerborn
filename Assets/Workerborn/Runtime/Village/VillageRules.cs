@@ -1,0 +1,51 @@
+namespace Workerborn
+{
+    public sealed class JobTier
+    {
+        public int RequiredCompletions;
+        public int Quantity;
+        public int Gold;
+        public int Experience;
+        public JobTier(int required, int quantity, int gold, int experience)
+        {
+            RequiredCompletions = required; Quantity = quantity; Gold = gold; Experience = experience;
+        }
+    }
+
+    public sealed class VillageRules
+    {
+        public float MinutesPerSecond = 3f;
+        public int WakeMinute = 360;
+        public int CollapseMinute = 1440;
+        public int RoomPrice = 10;
+        public int FreeRestEnergy = 70;
+        public int CollapseEnergy = 45;
+        public int RebirthLevel = 3;
+        public int APPerLevel = 2;
+        public int HarvestExperience = 8;
+        public int HarvestEnergy = 5;
+        public string JobId = "potato_delivery";
+        public string JobTitle = "감자 납품";
+        public string JobItemId = ItemIds.Potato;
+        public int JobStart = 480;
+        public int JobEnd = 1080;
+        public JobTier[] JobTiers = { new JobTier(0, 6, 45, 35), new JobTier(3, 10, 80, 60), new JobTier(8, 16, 140, 100) };
+        public int WorldJobQuantity = 4;
+        public int WorldJobGold = 30;
+        public int WorldJobExperience = 20;
+        public string IntroTitle = "마을의 새 일꾼";
+        public string IntroDescription = "농부의 아르바이트를 마치고 보고한다.";
+        public int IntroRequiredJobs = 1;
+        public int IntroGold = 30;
+        public int IntroAP = 2;
+        public int IntroExperience = 15;
+        public string ExpansionTitle = "농장에 남긴 발자국";
+        public string ExpansionDescription = "마을의 농장 확장에 필요한 자원을 보탠다.";
+        public int DonationGold = 100;
+        public int DonationItems = 20;
+        public string DonationItemId = ItemIds.Potato;
+        public int DonationGoldStep = 25;
+        public int DonationItemStep = 5;
+        public int ExpandedStage = 2;
+    }
+}

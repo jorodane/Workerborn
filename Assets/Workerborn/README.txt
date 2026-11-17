@@ -1,41 +1,35 @@
-WORKERBORN — 솔바람 마을 프로토타입
+WORKERBORN — 솔바람 마을
 
-실행
-- Unity 6000.3.5f2에서 프로젝트를 엽니다.
-- Workerborn > Village Prototype > Play Village 메뉴를 선택합니다.
-- 또는 Scenes/VillagePrototype.unity를 열고 Play를 누릅니다.
-- 마을, NPC, 농장, UI, 이동 경로는 Play에서 생성됩니다.
-- 전체 조작과 첫 플레이 순서는 프로젝트 루트 README.md에 있습니다.
+Unity 6000.3.5f2 / URP 17.3 / Input System 1.17
+Scenes/VillagePrototype.unity를 열어 Play합니다.
+Workerborn > Village Prototype > Play Village 메뉴로도 실행합니다.
 
-첫 플레이
-- 서쪽 농장주 미라와 대화해 아르바이트를 받습니다. [Q]에서도 미라에게 길을 안내할 수 있습니다.
-- 감자를 수확하고 바닥에 떨어진 감자를 주워, 18:00 전에 미라에게 납품합니다.
-- '마을의 새 일꾼' 퀘스트 보상을 받고 [K]에서 AP로 수확 스킬을 올립니다.
-- 노아의 잡화점에서 거래하고 레나의 여관에서 잠을 잡니다.
-- 퀘스트 보상을 받고 레벨 3이 되면 북쪽 기억의 샘에서 환생할 수 있습니다.
-- 농장에 100G와 감자 20개를 기부하면 다음 환생 후 밭과 의뢰 규모가 커집니다.
+마을, 농장, NPC, 주인공, 카메라와 기본 HUD는 Scene에 저장되어 있습니다.
+Village/Buildings, Nature, Paths, Farm, NPCs를 Play 전부터 직접 수정합니다.
+마을을 Play 때 새로 생성하지 않습니다. 길찾기 데이터만 선택적으로 계산/베이크합니다.
 
-조작
-- 좌클릭: 이동 / 작물 수확 / 감자 줍기 / NPC와 대화
-- 우클릭: 이동·작업 취소. 인벤토리의 빵을 우클릭하면 사용합니다.
-- I 소지품, Q 퀘스트, K 스킬, C 캐릭터, M 지도, F1 가까운 작물 수확, F2 빵 사용
-- 마우스 휠: 확대·축소, 가운데 버튼 드래그: 시점 회전
-- 창 제목 표시줄을 드래그해 이동하고 Esc로 닫을 수 있습니다.
-- 대화 중 시간은 멈추고 일반 정보 창을 여는 동안에는 시간이 흐릅니다.
+Data/NPCs: NPC 설정. Inspector에서 외형을 펼쳐 파츠별 변경과 3D 미리보기.
+Data/Characters/Player_Default: 주인공 기본 외형. NPC와 같은 형식.
+Data/Characters/Parts: 머리, 의상, 눈, 눈썹, 입, 손 소품. 위치/회전/크기/재질/색상.
+미리보기 드래그: 회전. 휠: 확대. 에셋 변경은 Editor의 Scene 외형에 반영합니다.
+Data/VillageSettings: 기본 외형, 시간, 휴식, 경험치와 환생 조건.
+Data/Jobs, Quests, Dialogues, Items: 일자리, 퀘스트, 대화, 아이템과 장비.
+Data/Potato: 작물별 수확 횟수, 작업 시간, 드롭 수와 프리팹.
 
-조정과 저장
-- Data/Potato.asset: 수확 횟수, 작업 시간, 기본 드롭 수, 식물/아이템 프리팹
-- Runtime/Village/VillageState.cs: 시간 배율, 의뢰, 성장, 경제, 환생 규칙
-- Runtime/Village/VillagePrototype.cs: 마을 배치와 NPC 연결
-- 저장: Application.persistentDataPath/workerborn-village-v1.json (15초 주기 및 주요 행동 후 자동 저장)
-- 저장에는 가방 배치, 위치, 시간, 성장, 의뢰, 퀘스트, 남은 수확과 바닥 물품이 포함됩니다.
-- HarvestPrototype.unity는 기존 수확만 시험하는 별도 씬입니다. R 초기화는 그 씬에서만 작동합니다.
-- 기존 Idle, Walk, Attack_sword 애니메이션을 재사용합니다. 원본 에셋은 수정하지 않습니다.
+우클릭 드래그: 3인칭 자유 시점. 휠: 확대·축소.
+좌클릭: 이동, 수확, 바닥 아이템 줍기, NPC와 대화.
+I 소지품 / Q 퀘스트 / Z 또는 K 스킬 / C 캐릭터 / M 미니맵.
+아이템 좌클릭으로 집고 다음 좌클릭으로 놓습니다. 우클릭·Esc는 집기 취소.
+아이템 우클릭: 사용·장착·분할. Ctrl+클릭: 사용·장착.
+소지품 왼쪽은 장비 칸입니다. 괭이는 장착 시 작업 효과를 줍니다.
+골드도 실제 아이템입니다. HUD에는 시계, 미니맵, 상태와 창 메뉴가 표시됩니다.
 
-검증
-- Unity Test Runner EditMode: HarvestCycleTests, GridInventoryTests, VillageStateTests
-- Unity Test Runner PlayMode: HarvestFlowTests, VillageFlowTests
-- PlayMode 테스트는 플레이어 저장과 분리된 임시 폴더를 사용합니다.
-- .NET 8: dotnet run --project Tests/HarvestLogic/HarvestLogic.csproj -- --noheader --nocolor --workers=0
-- 연결 검사: python Tests/validate_harvest_assets.py
-- 한국어 UI 폰트는 Noto Sans CJK KR를 이름 변경·부분 추출했습니다. Fonts/OFL.txt 참조.
+미라의 아르바이트를 받아 수확한 감자를 직접 줍고 납품합니다.
+첫 일자리 퀘스트와 레벨 3 조건을 갖추면 기억의 우물에서 환생합니다.
+농장에 100G와 감자 20개를 기부하면 다음 환생에 확장 그룹이 활성화됩니다.
+확장 전 12개, 확장 후 24개의 작물이 Scene에 이미 배치되어 있습니다.
+
+전체 편집 방법, 조작, 저장과 검증은 루트 README.md를 참조하세요.
+Unity Editor가 없는 작업 환경이므로 Unity PlayMode·화면 검증은 미실행입니다.
+원본 에셋과 SampleScene은 보존했습니다.
+한국어 폰트는 Noto Sans CJK KR 부분 추출본입니다. Fonts/OFL.txt 참조.

@@ -8,9 +8,11 @@ namespace Workerborn
         [SerializeField] private CropDefinition definition;
         private HarvestCycle cycle;
         private HarvestWorker owner;
-        private Transform visual;
+        [SerializeField] private Transform visual;
         private Vector3 restScale;
-        private Renderer[] charges;
+        [SerializeField] private Renderer[] charges;
+        [SerializeField] private string persistentId;
+        public string PersistentId => persistentId;
 
         public CropDefinition Definition => definition;
         public int Remaining => cycle?.Remaining ?? 0;
@@ -18,6 +20,17 @@ namespace Workerborn
         public bool IsDepleted => cycle == null || cycle.IsDepleted;
         public float Progress => cycle?.Progress ?? 0f;
         public event Action<HarvestableCrop> Harvested;
+
+        private void Awake() => EnsureInitialized();
+
+        public void EnsureInitialized()
+        {
+            if (cycle != null || definition == null || visual == null) return;
+            foreach (var collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+            foreach (var child in visual.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 2;
+            restScale = visual.localScale;
+            ResetHarvests();
+        }
 
         public void Initialize(CropDefinition crop, Transform plantVisual, Renderer[] chargeMarkers)
         {

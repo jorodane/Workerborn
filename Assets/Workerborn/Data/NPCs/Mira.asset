@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8a2d8bb34455a83a5bd976867b29ad5, type: 3}
+  m_Name: Mira
+  m_EditorClassIdentifier: ''
+  id: mira
+  displayName: 미라
+  occupation: 농부
+  role: 0
+  appearance: {fileID: 11400000, guid: d195591d827a5f5d85db44c05d58632d, type: 2}
+  dialogue: {fileID: 11400000, guid: 99a23b7bdecc5b69862c45ff4f66b4a0, type: 2}
+  job: {fileID: 11400000, guid: 1d7c5edaa4915cc08ad45cc31d2a79e7, type: 2}
+  quests:
+  - {fileID: 11400000, guid: a316910e63955ff3a8de8de6d0d1fb03, type: 2}
+  - {fileID: 11400000, guid: 9fd82f28b7565027ae8cd208ef37e123, type: 2}
+  shopItems: []
+  interactionDistance: 1.8

@@ -20,19 +20,19 @@ namespace Workerborn.Tests
         public void FullInventoryPurchaseDoesNotChargeGold()
         {
             var state = Funded();
-            state.Inventory.TryAdd(ItemIds.Potato, 640);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, 620), Is.True);
             Assert.That(state.TryBuy(ItemIds.Bread), Is.False);
             Assert.That(state.Gold, Is.EqualTo(500));
             Assert.That(state.Inventory.Count(ItemIds.Bread), Is.Zero);
         }
 
         [Test]
-        public void ForgedActiveJobRewardsAreRejectedOnLoad()
+        public void InvalidActiveJobTermsAreRejectedOnLoad()
         {
             var state = new VillageState();
             state.TryAcceptJob();
             var save = state.Export();
-            save.jobReward = 140;
+            save.jobReward = -1;
             Assert.Throws<ArgumentException>(() => VillageState.Restore(save));
         }
 

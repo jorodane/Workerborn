@@ -15,6 +15,12 @@ namespace Workerborn
 
         public void Initialize(Animator animator, AnimationClip idle, AnimationClip walk, AnimationClip work)
         {
+            if (graph.IsValid()) graph.Destroy();
+            if (animator == null || idle == null) return;
+            walk = walk != null ? walk : idle;
+            work = work != null ? work : idle;
+            target = 0;
+            weights[0] = 1f; weights[1] = weights[2] = 0f;
             animator.runtimeAnimatorController = null;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;

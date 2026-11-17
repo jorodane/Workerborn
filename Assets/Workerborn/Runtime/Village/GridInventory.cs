@@ -49,6 +49,36 @@ namespace Workerborn
 
         public InventoryEntry Find(int id) => entries.Find(entry => entry.Id == id);
 
+        public GridInventory Copy()
+        {
+            return new GridInventory(Columns, Rows) { entries = CopyEntries(), nextId = nextId, Version = Version };
+        }
+
+        public void ReplaceWith(GridInventory other)
+        {
+            if (other == null || other.Columns != Columns) throw new ArgumentException(nameof(other));
+            entries = other.CopyEntries(); Rows = other.Rows; nextId = other.nextId; Version++;
+        }
+
+        public bool TryExchange(string removedItem, int removedCount, string addedItem, int addedCount)
+        {
+            var copy = Copy();
+            if (removedCount < 0 || addedCount < 0 || removedCount > 0 && !copy.TryRemove(removedItem, removedCount)
+                || addedCount > 0 && !copy.TryAdd(addedItem, addedCount)) return false;
+            ReplaceWith(copy);
+            return true;
+        }
+
+        public bool TryRemoveAt(int id, int quantity)
+        {
+            var entry = Find(id);
+            if (entry == null || quantity < 1 || entry.Quantity < quantity) return false;
+            entry.Quantity -= quantity;
+            if (entry.Quantity == 0) entries.Remove(entry);
+            Version++;
+            return true;
+        }
+
         public bool CanAdd(string itemId, int quantity) => BuildAdded(itemId, quantity, out _, out _);
 
         public bool TryAdd(string itemId, int quantity)
@@ -64,7 +94,7 @@ namespace Workerborn
         {
             result = null;
             next = nextId;
-            if (!ItemCatalog.Contains(itemId) || quantity <= 0 || quantity > 10000) return false;
+            if (!ItemCatalog.Contains(itemId) || quantity <= 0) return false;
             var spec = ItemCatalog.Get(itemId);
             var copy = CopyEntries();
             int remaining = quantity;
@@ -133,6 +163,29 @@ namespace Workerborn
             source.Quantity -= quantity;
             entries.Add(new InventoryEntry { Id = nextId++, ItemId = source.ItemId, Quantity = quantity, X = x, Y = y });
             Version++;
+            return true;
+        }
+
+        public bool TryPlaceHeld(int id, int x, int y, out int nextHeld)
+        {
+            nextHeld = id;
+            var entry = Find(id);
+            if (entry == null) { nextHeld = 0; return false; }
+            var target = entries.Find(other => other.Id != id && x >= other.X && x < other.X + other.Spec.Width
+                && y >= other.Y && y < other.Y + other.Spec.Height);
+            if (target != null && target.ItemId != entry.ItemId)
+            {
+                var others = entries.FindAll(item => item.Id != id && item.Id != target.Id);
+                int oldX = entry.X, oldY = entry.Y;
+                if (!Fits(others, entry.Spec, x, y) || !Fits(others, target.Spec, oldX, oldY)) return false;
+                if (x < oldX + target.Spec.Width && x + entry.Spec.Width > oldX
+                    && y < oldY + target.Spec.Height && y + entry.Spec.Height > oldY) return false;
+                entry.X = x; entry.Y = y; target.X = oldX; target.Y = oldY;
+                nextHeld = target.Id; Version++;
+                return true;
+            }
+            if (!TryMove(id, x, y)) return false;
+            nextHeld = target != null && Find(id) != null ? id : 0;
             return true;
         }
 

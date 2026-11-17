@@ -66,10 +66,10 @@ namespace Workerborn
         private void ReadInput()
         {
             if ((Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-                || (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame))
+                || (village != null ? village.CameraRig.CancelClickThisFrame : Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame))
             {
                 Cancel();
-                Message?.Invoke("작업을 취소했어요. 남은 수확 횟수는 그대로예요.");
+                if (village == null) Message?.Invoke("작업을 취소했어요. 남은 수확 횟수는 그대로예요.");
             }
 
             HoveredCrop = null;
@@ -113,7 +113,7 @@ namespace Workerborn
             cropTarget = crop;
             LastCrop = crop;
             if (!NavigateNear(crop.transform.position, HarvestReach * 0.85f)) return;
-            Message?.Invoke($"{crop.Definition.DisplayName} 밭으로 이동해요.");
+            if (village == null) Message?.Invoke($"{crop.Definition.DisplayName} 밭으로 이동해요.");
         }
 
         public void CommandPickup(GroundPickup item)
@@ -124,7 +124,7 @@ namespace Workerborn
             Cancel();
             pickupTarget = item;
             if (!NavigateNear(item.LandingPosition, PickupReach * 0.7f)) return;
-            Message?.Invoke($"떨어진 {item.Definition.DisplayName}를 주우러 가요.");
+            if (village == null) Message?.Invoke($"떨어진 {item.Definition.DisplayName}를 주우러 가요.");
         }
 
         public void CommandMove(Vector3 destination)
@@ -139,7 +139,7 @@ namespace Workerborn
             if (village == null || target == null || village.ControlsBlocked) return;
             Cancel();
             interactionTarget = target;
-            if (NavigateNear(target.transform.position, 1.2f)) Message?.Invoke($"{target.DisplayName}에게 이동해요.");
+            NavigateNear(target.transform.position, target.InteractionDistance * 0.7f);
         }
 
         private bool NavigateNear(Vector3 target, float offset)
@@ -188,7 +188,7 @@ namespace Workerborn
                 }
                 Action = WorkerAction.Harvesting;
                 Face(cropTarget.transform.position);
-                Message?.Invoke("수확 중이에요. 완료하면 감자가 바닥에 떨어져요.");
+                if (village == null) Message?.Invoke("수확 중이에요. 완료하면 감자가 바닥에 떨어져요.");
             }
             else if (pickupTarget != null)
             {
@@ -201,7 +201,7 @@ namespace Workerborn
                 var target = interactionTarget;
                 interactionTarget = null;
                 Action = WorkerAction.Idle;
-                if (InReach(target.transform.position, 1.7f))
+                if (InReach(target.transform.position, target.InteractionDistance))
                 {
                     Face(target.transform.position);
                     village.OpenConversation(target);

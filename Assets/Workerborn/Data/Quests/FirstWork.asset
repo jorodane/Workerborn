@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fcadf71819f58bbad658391e7ab15c0, type: 3}
+  m_Name: FirstWork
+  m_EditorClassIdentifier: ''
+  id: first_work
+  title: 첫 일자리
+  kind: 0
+  description: 미라의 아르바이트를 한 번 완수하고 인사를 전한다.
+  requiredCompletions: 1
+  rewardGold: 30
+  rewardAP: 2
+  rewardExperience: 15
+  contributionItem: {fileID: 11400000, guid: 74aa858d8448591fb97f2aef6f2527f3, type: 2}
+  requiredGold: 100
+  requiredItems: 20
+  goldPerContribution: 25
+  itemsPerContribution: 5
+  resultingWorldStage: 2

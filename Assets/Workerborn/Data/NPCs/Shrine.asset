@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8a2d8bb34455a83a5bd976867b29ad5, type: 3}
+  m_Name: Shrine
+  m_EditorClassIdentifier: ''
+  id: shrine
+  displayName: 기억의 우물
+  occupation: ''
+  role: 3
+  appearance: {fileID: 0}
+  dialogue: {fileID: 11400000, guid: 192c4f2bb3bb561b9fc5b7c3383592eb, type: 2}
+  job: {fileID: 0}
+  quests: []
+  shopItems: []
+  interactionDistance: 1.8

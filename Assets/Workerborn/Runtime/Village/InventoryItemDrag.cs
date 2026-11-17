@@ -3,26 +3,17 @@ using UnityEngine.EventSystems;
 
 namespace Workerborn
 {
-    public sealed class InventoryItemDrag : MonoBehaviour, IPointerDownHandler, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
+    // A click picks the item up; no held mouse button or drag gesture is required.
+    public sealed class InventoryItemDrag : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         public VillageHud Hud { get; set; }
         public int EntryId { get; set; }
-        private bool dragged;
-        public void OnPointerDown(PointerEventData eventData) => dragged = false;
-        public void OnPointerClick(PointerEventData eventData)
+        public void OnPointerClick(PointerEventData data)
         {
-            if (dragged) return;
-            Hud.SelectInventoryItem(EntryId);
-            if (eventData.button == PointerEventData.InputButton.Right) Hud.UseSelectedInventoryItem();
+            if (data.button == PointerEventData.InputButton.Right) Hud.OpenItemContext(EntryId, data.position);
+            else if (data.button == PointerEventData.InputButton.Left) Hud.ClickInventoryItem(EntryId, data.position);
         }
-        public void OnBeginDrag(PointerEventData eventData)
-        {
-            if (eventData.button != PointerEventData.InputButton.Left) return;
-            dragged = true;
-            Hud.BeginItemDrag(EntryId, eventData.position);
-        }
-        public void OnDrag(PointerEventData eventData) { if (dragged) Hud.MoveItemDrag(eventData.position); }
-        public void OnEndDrag(PointerEventData eventData) { if (dragged) Hud.EndItemDrag(eventData.position); }
-        private void OnDisable() { if (dragged && Hud != null) Hud.CancelItemDrag(); }
+        public void OnPointerEnter(PointerEventData data) => Hud.ShowItemTooltip(EntryId, data.position);
+        public void OnPointerExit(PointerEventData data) => Hud.HideItemTooltip();
     }
 }

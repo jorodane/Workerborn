@@ -13,7 +13,8 @@ namespace Workerborn
             RectTransformUtility.ScreenPointToLocalPointInRectangle(rect, eventData.position, eventData.pressEventCamera, out Vector2 local);
             float u = Mathf.InverseLerp(rect.rect.xMin, rect.rect.xMax, local.x);
             float v = Mathf.InverseLerp(rect.rect.yMin, rect.rect.yMax, local.y);
-            Game.Worker.CommandMove(new Vector3(Mathf.Lerp(-28f, 23f, u), 0f, Mathf.Lerp(-14.5f, 24.5f, v)));
+            if (Game.MinimapCamera != null && Physics.Raycast(Game.MinimapCamera.ViewportPointToRay(new Vector3(u, v, 0f)), out var hit, 300f, 1, QueryTriggerInteraction.Ignore))
+                Game.Worker.CommandMove(hit.point);
         }
     }
 }

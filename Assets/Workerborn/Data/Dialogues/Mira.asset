@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c880f5978ffe5d1db7d7be853c9cc17c, type: 3}
+  m_Name: Mira
+  m_EditorClassIdentifier: ''
+  topics:
+  - keyword: 일상
+    action: 0
+    text: 올해는 땅이 좋아. 감자도 잘 여물었어.
+  - keyword: 아르바이트
+    action: 1
+    text: 밭에서 캐 온 감자를 모아 주겠어? 해 지기 전에 부탁해.
+  - keyword: 첫 일자리
+    action: 2
+    text: 함께 일해 줘서 고마워.
+  - keyword: 마을 농장
+    action: 3
+    text: 모두가 조금씩 힘을 보태면 농장을 넓힐 수 있어.
