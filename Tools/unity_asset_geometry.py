@@ -172,6 +172,6 @@ def root_ids(path):
     path=Path(path)
     if path.suffix.lower()=='.fbx':return 919132149155446097,-8679921383154817045
     for d in documents(path):
-        t=d.get('Transform')
+        t=d.get('Transform',d.get('RectTransform'))
         if t and t.get('m_Father',{}).get('fileID')==0:return t['m_GameObject']['fileID'],d['_id']
     raise ValueError('Prefab has no explicit root: '+str(path))

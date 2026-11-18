@@ -30,6 +30,9 @@ PACKAGE_GUIDS = {
     '76c392e42b5098c458856cdf6ecaaaa1', # EventSystem
     '01614664b831546d2ae94a42149d80ac', # InputSystemUIInputModule
 }
+PACKAGE_GUIDS.update(json.loads((ROOT/'Tools/unity_ui_guids.json').read_text()).values())
+for source_settings in (ROOT/'Assets/Settings').glob('*.asset'):
+    PACKAGE_GUIDS.update(re.findall(r'guid: ([a-f0-9]{32})',source_settings.read_text()))
 CACHE = {}
 def guid_for(path): return re.search(r'^guid: ([a-f0-9]{32})$', Path(str(path)+'.meta').read_text(), re.M)[1]
 def docs(path):
@@ -81,9 +84,11 @@ for path in [CONTENT,*CONTENT.rglob('*')]:
     if not path.is_file():continue
     files+=1
     if path.suffix=='.asmdef':json.loads(path.read_text())
-    if path.suffix in ('.unity','.asset','.mat','.rendertexture'): pointers+=check_pointers(path)
+    if path.suffix in ('.unity','.prefab','.asset','.mat','.rendertexture'): pointers+=check_pointers(path)
 
-scene_path=CONTENT/'Scenes/VillagePrototype.unity';scene=docs(scene_path)
+scene_path=CONTENT/'Scenes/VillagePrototype.unity'
+from resolve_owned_prefabs import expand
+scene=expand(scene_path)
 ids=[d['_id'] for d in scene];assert len(ids)==len(set(ids)),'Duplicate scene IDs'
 transforms={d['_id']:d.get('Transform',d.get('RectTransform')) for d in scene if 'Transform'in d or 'RectTransform'in d}
 gos={d['_id']:d['GameObject'] for d in scene if 'GameObject'in d}
@@ -100,7 +105,7 @@ for id,go in gos.items():
     for c in go['m_Component']: assert c['component']['fileID'] in ids,f'Missing component in {go["m_Name"]}'
 
 controller=behaviours(scene,'Village/VillagePrototype.cs');assert len(controller)==1
-for field in ['settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','portraitCamera','portraitTexture','spawnPoint','restPoint','droppedItems','potato','sun']:
+for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','portraitCamera','portraitTexture','spawnPoint','restPoint','droppedItems','potato','sun']:
     assert controller[0][field]['fileID'],f'Missing binding: {field}'
 assert not behaviours(scene,'HarvestPrototype.cs'),'Village must not generate its map from the harvest demo'
 crops=behaviours(scene,'HarvestableCrop.cs');assert len(crops)==24
@@ -109,6 +114,8 @@ assert all(c['definition']['fileID'] and c['visual']['fileID'] for c in crops)
 assert len(behaviours(scene,'Village/VillageInteractable.cs'))==5
 actors=behaviours(scene,'Characters/CharacterActor.cs');assert len(actors)==4
 assert all(a['visualRoot']['fileID'] for a in actors)
+assert len(behaviours(scene,'Interaction/PointerTargeting.cs'))==1
+assert len(behaviours(scene,'UI/PickupNames.cs'))==1
 assert sum(a['playerSettings']['fileID']!=0 for a in actors)==1
 stage=behaviours(scene,'World/VillageWorldStage.cs');assert len(stage)==1 and stage[0]['minimumStage']==2
 assert gos[stage[0]['m_GameObject']['fileID']]['m_IsActive']==0

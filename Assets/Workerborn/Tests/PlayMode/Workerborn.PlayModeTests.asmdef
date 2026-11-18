@@ -1,6 +1,11 @@
 {
   "name": "Workerborn.PlayModeTests",
   "rootNamespace": "Workerborn.Tests",
-  "references": ["Workerborn.Runtime"],
-  "optionalUnityReferences": ["TestAssemblies"]
+  "references": [
+    "Workerborn.Runtime",
+    "Unity.InputSystem"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
 }

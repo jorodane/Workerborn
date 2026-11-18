@@ -1,0 +1,320 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &100210
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  serializedVersion: 6
+  m_Component:
+  - component:
+      fileID: 100211
+  - component:
+      fileID: 100216
+  m_Layer: 0
+  m_Name: Tree 6
+  m_TagString: Untagged
+  m_Icon:
+    fileID: 0
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &100211
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100210
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale:
+    x: 1
+    y: 1
+    z: 1
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - fileID: 100213
+  - fileID: 100218
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint:
+    x: 0
+    y: 0
+    z: 0
+  serializedVersion: 2
+--- !u!1 &100212
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  serializedVersion: 6
+  m_Component:
+  - component:
+      fileID: 100213
+  m_Layer: 0
+  m_Name: Visual
+  m_TagString: Untagged
+  m_Icon:
+    fileID: 0
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &100213
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100212
+  m_LocalRotation:
+    x: 0
+    y: 0
+    z: 0
+    w: 1
+  m_LocalPosition:
+    x: 0
+    y: 0
+    z: 0
+  m_LocalScale:
+    x: 1
+    y: 1
+    z: 1
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - fileID: 100215
+  m_Father:
+    fileID: 100211
+  m_LocalEulerAnglesHint:
+    x: 0
+    y: 0
+    z: 0
+  serializedVersion: 2
+--- !u!1001 &100214
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent:
+      fileID: 100213
+    m_Modifications:
+    - target:
+        fileID: 1619007742484521070
+        guid: 923c070ea6db0804d939eac729895388
+        type: 3
+      propertyPath: m_LocalPosition.x
+      value: '0.0'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 1619007742484521070
+        guid: 923c070ea6db0804d939eac729895388
+        type: 3
+      propertyPath: m_LocalPosition.y
+      value: '0.016856'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 1619007742484521070
+        guid: 923c070ea6db0804d939eac729895388
+        type: 3
+      propertyPath: m_LocalPosition.z
+      value: '0.0132048'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 1619007742484521070
+        guid: 923c070ea6db0804d939eac729895388
+        type: 3
+      propertyPath: m_LocalScale.x
+      value: '0.7548228'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 1619007742484521070
+        guid: 923c070ea6db0804d939eac729895388
+        type: 3
+      propertyPath: m_LocalScale.y
+      value: '0.7548228'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 1619007742484521070
+        guid: 923c070ea6db0804d939eac729895388
+        type: 3
+      propertyPath: m_LocalScale.z
+      value: '0.7548228'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 2318376540581352061
+        guid: 923c070ea6db0804d939eac729895388
+        type: 3
+      propertyPath: m_Layer
+      value: '2'
+      objectReference:
+        fileID: 0
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab:
+    fileID: 100100000
+    guid: 923c070ea6db0804d939eac729895388
+    type: 3
+--- !u!4 &100215 stripped
+Transform:
+  m_CorrespondingSourceObject:
+    fileID: 1619007742484521070
+    guid: 923c070ea6db0804d939eac729895388
+    type: 3
+  m_PrefabInstance:
+    fileID: 100214
+  m_PrefabAsset:
+    fileID: 0
+--- !u!114 &100216
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100210
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script:
+    fileID: 11500000
+    guid: dfaa4756e15355ab9887ad10f62cda91
+    type: 3
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  visual:
+    fileID: 100213
+--- !u!1 &100217
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  serializedVersion: 6
+  m_Component:
+  - component:
+      fileID: 100218
+  - component:
+      fileID: 100219
+  - component:
+      fileID: 100220
+  m_Layer: 8
+  m_Name: Navigation and camera collision
+  m_TagString: Untagged
+  m_Icon:
+    fileID: 0
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &100218
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100217
+  m_LocalRotation:
+    x: 0
+    y: 0
+    z: 0
+    w: 1
+  m_LocalPosition:
+    x: 0
+    y: 0
+    z: 0
+  m_LocalScale:
+    x: 1
+    y: 1
+    z: 1
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father:
+    fileID: 100211
+  m_LocalEulerAnglesHint:
+    x: 0
+    y: 0
+    z: 0
+  serializedVersion: 2
+--- !u!65 &100219
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100217
+  m_Material:
+    fileID: 0
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size:
+    x: 0.65
+    y: 3
+    z: 0.65
+  m_Center:
+    x: 0
+    y: 1.5
+    z: 0
+--- !u!114 &100220
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100217
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script:
+    fileID: 11500000
+    guid: ef5a234688a156268a29e9fbacb03f1c
+    type: 3
+  m_Name: ''
+  m_EditorClassIdentifier: ''

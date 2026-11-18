@@ -3,23 +3,38 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: bd66e0cfb6da54d7be0b1a62fdfca3d3
+    type: 3
   m_Name: bread
   m_EditorClassIdentifier: ''
   id: bread
   displayName: 빵
   description: 먹으면 에너지가 25 회복된다.
-  icon: {fileID: 21300000, guid: 8a5d12d31a9859f8813a95b366266e29, type: 3}
-  worldPrefab: {fileID: 4102080597140611281, guid: ea150aeccfa1c9e44b1eb098c23faa4b, type: 3}
+  icon:
+    fileID: 21300000
+    guid: 8a5d12d31a9859f8813a95b366266e29
+    type: 3
+  worldPrefab:
+    fileID: 4102080597140611281
+    guid: ea150aeccfa1c9e44b1eb098c23faa4b
+    type: 3
   width: 1
   height: 1
   maxStack: 10
   price: 10
   equipmentSlot: 0
-  equipmentPart: {fileID: 0}
+  equipmentPart:
+    fileID: 0
+  groundPrefab: {fileID: 100008, guid: daa5e3431a1153a39c527e6f6f060c72, type: 3}

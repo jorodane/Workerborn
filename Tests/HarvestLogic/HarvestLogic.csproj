@@ -18,5 +18,8 @@
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/GridInventoryTests.cs" Link="GridInventoryTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/VillageStateTests.cs" Link="VillageStateTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/EditableVillageTests.cs" Link="EditableVillageTests.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Interaction/NameplateLayout.cs" Link="NameplateLayout.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Interaction/TargetMaskGeometry.cs" Link="TargetMaskGeometry.cs" />
+    <Compile Include="../../Assets/Workerborn/Tests/EditMode/InteractionPresentationTests.cs" Link="InteractionPresentationTests.cs" />
   </ItemGroup>
 </Project>

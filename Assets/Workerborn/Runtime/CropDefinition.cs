@@ -5,14 +5,25 @@ namespace Workerborn
     [CreateAssetMenu(menuName = "Workerborn/Crop", fileName = "Crop")]
     public sealed class CropDefinition : ScriptableObject
     {
-        [SerializeField] private string itemId = ItemIds.Potato;
-        [SerializeField] private string displayName = "감자";
-        [SerializeField, Min(1)] private int harvestsPerPlant = 3;
-        [SerializeField, Min(0.1f)] private float harvestSeconds = 2.4f;
-        [SerializeField, Range(1, 12)] private int itemsPerHarvest = 2;
-        [SerializeField] private GameObject plantPrefab;
-        [SerializeField] private GameObject dropPrefab;
-
+        [SerializeField]
+        private string itemId = ItemIds.Potato;
+        [SerializeField]
+        private string displayName = "감자";
+        [SerializeField, Min(1)]
+        private int harvestsPerPlant = 3;
+        [SerializeField, Min(0.1f)]
+        private float harvestSeconds = 2.4f;
+        [SerializeField, Range(1, 12)]
+        private int itemsPerHarvest = 2;
+        [Header("Legacy harvest demo model references")]
+        [SerializeField]
+        private GameObject plantPrefab;
+        [SerializeField]
+        private GameObject dropPrefab;
+        [Header("Village ground-item prefab")]
+        [SerializeField]
+        private GroundPickup pickupPrefab;
+        public GroundPickup PickupPrefab => pickupPrefab;
         public string DisplayName => displayName;
         public string ItemId => itemId;
         public int HarvestsPerPlant => Mathf.Max(1, harvestsPerPlant);

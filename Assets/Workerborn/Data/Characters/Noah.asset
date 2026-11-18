@@ -3,29 +3,65 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3b771ac446165e05b830257e3a000550, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: 3b771ac446165e05b830257e3a000550
+    type: 3
   m_Name: Noah
   m_EditorClassIdentifier: ''
-  basePrefab: {fileID: 2622442842006866931, guid: 11de7a9615b406741a92f8c875508b76, type: 3}
+  basePrefab:
+    fileID: 2622442842006866931
+    guid: 11de7a9615b406741a92f8c875508b76
+    type: 3
   height: 1.7
-  hair: {fileID: 0}
-  outfit: {fileID: 0}
-  eyes: {fileID: 0}
-  eyebrows: {fileID: 0}
-  mouth: {fileID: 0}
-  headwear: {fileID: 0}
-  rightHand: {fileID: 0}
-  leftHand: {fileID: 0}
+  hair:
+    fileID: 0
+  outfit:
+    fileID: 0
+  eyes:
+    fileID: 0
+  eyebrows:
+    fileID: 0
+  mouth:
+    fileID: 0
+  headwear:
+    fileID: 0
+  rightHand:
+    fileID: 0
+  leftHand:
+    fileID: 0
   hideBaseWeapons: 1
   hideBaseHair: 0
-  skinTint: {r: 1, g: 1, b: 1, a: 1}
-  clothingTint: {r: 1, g: 1, b: 1, a: 1}
-  idle: {fileID: 7400000, guid: 13d34448388872c409f472a83b2416e6, type: 2}
-  walk: {fileID: 7400000, guid: b81dc44704c10524faa27e053f94279e, type: 2}
-  work: {fileID: 7400000, guid: c2b393beeb97fcc42840ddf845ae7efb, type: 2}
+  skinTint:
+    r: 1
+    g: 1
+    b: 1
+    a: 1
+  clothingTint:
+    r: 1
+    g: 1
+    b: 1
+    a: 1
+  idle:
+    fileID: 7400000
+    guid: 13d34448388872c409f472a83b2416e6
+    type: 2
+  walk:
+    fileID: 7400000
+    guid: b81dc44704c10524faa27e053f94279e
+    type: 2
+  work:
+    fileID: 7400000
+    guid: c2b393beeb97fcc42840ddf845ae7efb
+    type: 2
+  toonPalette: {fileID: 11400000, guid: d83d85ba5a8454c281d58a2e2ff40a7f, type: 2}

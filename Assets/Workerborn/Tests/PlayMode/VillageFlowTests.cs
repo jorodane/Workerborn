@@ -13,7 +13,6 @@ namespace Workerborn.Tests
         private VillagePrototype game;
         private string saveDirectory;
         private const string Scene = "Assets/Workerborn/Scenes/VillagePrototype.unity";
-
         [UnitySetUp]
         public IEnumerator LoadVillage()
         {
@@ -39,8 +38,10 @@ namespace Workerborn.Tests
                 SceneManager.SetActiveScene(empty);
                 yield return SceneManager.UnloadSceneAsync(scene);
             }
+
             VillageSaveStore.DirectoryOverride = null;
-            if (Directory.Exists(saveDirectory)) Directory.Delete(saveDirectory, true);
+            if (Directory.Exists(saveDirectory))
+                Directory.Delete(saveDirectory, true);
         }
 
         [UnityTest]
@@ -69,6 +70,7 @@ namespace Workerborn.Tests
                 game.Worker.CommandHarvest(crop);
                 yield return Until(() => crop.Remaining == crop.Capacity - 1, 12f);
             }
+
             while (game.State.Inventory.Count(ItemIds.Potato) < 6)
             {
                 var item = UnityEngine.Object.FindFirstObjectByType<GroundPickup>();
@@ -77,6 +79,7 @@ namespace Workerborn.Tests
                 game.Worker.CommandPickup(item);
                 yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) > before, 8f);
             }
+
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Farmer));
             yield return Until(() => game.Hud.HasModal, 10f);
             Assert.That(game.Perform(game.State.TryDeliverJob), Is.True);
@@ -119,8 +122,17 @@ namespace Workerborn.Tests
         public IEnumerator PendingWorldUpgradeBuildsTwentyFourPlantsAfterRebirth()
         {
             Directory.CreateDirectory(saveDirectory);
-            var save = new VillageSave { level = 3, totalLevel = 3, introAccepted = true, introClaimed = true,
-                career = 1, donatedGold = 100, donatedPotatoes = 20, farmUpgradePending = true };
+            var save = new VillageSave
+            {
+                level = 3,
+                totalLevel = 3,
+                introAccepted = true,
+                introClaimed = true,
+                career = 1,
+                donatedGold = 100,
+                donatedPotatoes = 20,
+                farmUpgradePending = true
+            };
             File.WriteAllText(VillageSaveStore.SavePath, JsonUtility.ToJson(save));
             yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
             yield return null;
@@ -134,10 +146,82 @@ namespace Workerborn.Tests
             Assert.That(game.State.OfferedJobRequirement, Is.EqualTo(10));
         }
 
+        [UnityTest]
+        public IEnumerator PrefabWindowsBindWithoutRebuildingTheirAuthoredContent()
+        {
+            foreach (string id in new[]
+            {
+                "inventory",
+                "skills",
+                "quests",
+                "questdetail",
+                "character",
+                "map",
+                "system",
+                "shop"
+            }
+
+            )
+            {
+                var view = game.Hud.OpenWindow(id);
+                Assert.That(view, Is.Not.Null, id);
+                view.Refresh();
+                yield return null;
+                Assert.That(view.transform.Find("Body"), Is.Not.Null, id);
+                game.Hud.ToggleWindow(id);
+            }
+
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            game.Hud.OpenDialogue(farmer);
+            yield return null;
+            Assert.That(game.Hud.HasModal, Is.True);
+            Assert.That(game.Hud.OpenWindow("conversation").GetComponent<ConversationWindowView>(), Is.Not.Null);
+            game.Hud.CloseDialogue();
+        }
+
+        [UnityTest]
+        public IEnumerator ClickingAnItemNameUsesTheSamePickupCommandAsTheWorldItem()
+        {
+            var end = game.Worker.transform.position + Vector3.forward * .6f;
+            var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
+            item.Initialize(game.Crops[0].Definition, end, end, true);
+            var prefab = game.Hud.Library.PickupName;
+            var view = UnityEngine.Object.Instantiate(prefab, game.Hud.transform);
+            view.Bind(item, game.Worker);
+            view.SetBox(true);
+            int before = game.State.Inventory.Count(ItemIds.Potato);
+            view.OnPointerClick(new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current) { button = UnityEngine.EventSystems.PointerEventData.InputButton.Left });
+            yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) > before, 4f);
+            Assert.That(item == null || !item.gameObject.activeSelf, Is.True);
+            UnityEngine.Object.Destroy(view.gameObject);
+        }
+
+        [UnityTest]
+        public IEnumerator WheelButtonOrbitDoesNotCancelTheWorkersCommand()
+        {
+            var mouse = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Mouse>();
+            try
+            {
+                game.Worker.CommandHarvest(game.Crops[0]);
+                var before = game.WorldCamera.transform.rotation;
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = new Vector2(500, 400), buttons = 4 });
+                yield return null;
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = new Vector2(620, 430), delta = new Vector2(120, 30), buttons = 4 });
+                yield return null;
+                Assert.That(Quaternion.Angle(before, game.WorldCamera.transform.rotation), Is.GreaterThan(5f));
+                Assert.That(game.Worker.Action, Is.Not.EqualTo(WorkerAction.Idle));
+            }
+            finally
+            {
+                UnityEngine.InputSystem.InputSystem.RemoveDevice(mouse);
+            }
+        }
+
         private static IEnumerator Until(Func<bool> condition, float timeout)
         {
             float deadline = Time.realtimeSinceStartup + timeout;
-            while (!condition() && Time.realtimeSinceStartup < deadline) yield return null;
+            while (!condition() && Time.realtimeSinceStartup < deadline)
+                yield return null;
             Assert.That(condition(), Is.True, "The expected village interaction did not finish before the timeout.");
         }
     }

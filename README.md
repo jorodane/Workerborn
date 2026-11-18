@@ -6,39 +6,61 @@ Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다
 
 ## Unity에서 직접 수정하기
 
-마을, 건물, 길, 농장, NPC, 주인공, 카메라, 기본 HUD는 **Scene에 저장**되어 있습니다. Play 전부터 Hierarchy와 Scene 뷰에서 이동·회전·복제·삭제할 수 있습니다. 게임 시작이나 에셋 임포트 때 마을을 다시 생성하지 않습니다.
+마을은 Scene에 배치된 **완성된 프리팹 인스턴스**로 구성합니다. Play에서 마을이나 창 레이아웃을 새로 만들지 않습니다. Scene에서 위치·회전과 개별 값을 바꾸거나, Prefab Mode에서 공통 모양·Collider·UI 구성을 수정하세요.
 
-| 수정 대상 | 위치와 편집 방법 |
+| 수정 대상 | 에셋 |
 | --- | --- |
-| 건물·소품·나무·길 | Scene의 `Village/Buildings`, `Nature`, `Paths`. 원본 에셋의 프리팹 인스턴스가 배치되어 있습니다. |
-| 농장 | `Village/Farm`. 작물 루트를 복제·이동하고 `HarvestableCrop.Definition`을 지정합니다. 저장 ID는 Editor에서 중복 없이 부여합니다. |
-| 확장 후 농장 | 비활성 `Stage 2 - expanded farm` 그룹. 기존 Scene 오브젝트가 세계 단계에 맞춰 활성화됩니다. |
-| 작물별 작업 | `Data/Potato.asset`: 수확 가능 횟수, 작업 시간, 드롭 수, 수확물 ID와 프리팹. |
-| NPC | `Data/NPCs/*.asset`: 이름, 역할, 외형, 대화, 아르바이트, 퀘스트, 판매 목록, 상호작용 거리. Scene NPC의 `VillageInteractable`과 `CharacterActor`가 같은 NPC 에셋을 참조합니다. |
-| NPC 외형과 3D 미리보기 | NPC 에셋 Inspector의 **캐릭터 파츠와 애니메이션**. 아래 Preview를 드래그하면 회전하고 휠로 확대합니다. |
-| 주인공 기본 외형 | `Data/Characters/Player_Default.asset`. NPC와 동일한 `CharacterDefinition` 형식입니다. `Data/VillageSettings.asset`의 Player에서도 바꿀 수 있습니다. |
-| 개별 캐릭터 파츠 | `Data/Characters/Parts/*.asset`. 머리·의상·눈·눈썹·입·장식·손 소품별 프리팹, 부착 본, 위치·회전·크기, 재질과 색상. 외형 Inspector에는 해당 슬롯의 파츠만 목록으로 표시됩니다. |
-| 시간·성장·휴식·환생 조건 | `Data/VillageSettings.asset`. 시간 배율, 기상·기절 시각, 숙박 가격, 회복량, 수확 경험치·소모량, AP, 환생 레벨. |
-| 일자리 | `Data/Jobs/PotatoDelivery.asset`: 품목, 접수·납품 시간, 경력 등급별 수량·보상, 세계 단계별 추가 요구량. 농부 NPC에 연결합니다. |
-| 퀘스트 | `Data/Quests/*.asset`: 목표·보상과 세계 기여 조건. 현재 지원되는 행동은 첫 일자리와 농장 확장입니다. |
-| 대화 | `Data/Dialogues/*.asset`: 키워드, 문장, 연결 행동. NPC 에셋에 연결합니다. |
-| 아이템 | `Data/Items/*.asset`: 이름·설명, 교체 가능한 아이콘, 크기, 겹침 수량, 가격, 장비 슬롯과 장착 외형. 골드도 실제 격자 아이템입니다. |
-| 카메라 | `Main Camera/VillageCameraRig`: 초기 방향·거리, 회전 감도, 줌 범위, 충돌 레이어. |
-| 화면과 지도 | Scene의 `Village UI`, `Minimap camera`, `Player/Equipment portrait camera`. 지도와 소지품의 캐릭터 그림은 실제 Scene 카메라의 RenderTexture입니다. |
+| 소지품·스킬·퀘스트·캐릭터·지도·상점·대화 등 각 창 | `Assets/Workerborn/Prefabs/UI/*Window.prefab` |
+| 퀘스트 스크롤·툴팁·아이템 메뉴 | `Prefabs/UI/QuestScrollWindow.prefab`, `ItemTooltip.prefab`, `ItemContext.prefab` |
+| 시계·미니맵·하단 메뉴·월드 이름 레이어 | `Prefabs/UI/VillageHUD.prefab` |
+| 아이템 칸·아이콘·목록 행·버튼·이름 박스·대상 연결선 | `Prefabs/UI/InventoryCell.prefab`, `ItemTile.prefab`, `ListRow.prefab`, `ActionButton.prefab`, `PickupName.prefab`, `TargetLink.prefab` |
+| 창과 위젯 프리팹 연결 목록 | `Data/VillageUI.asset` |
+| 주인공과 NPC 전체 | `Prefabs/Characters/Player.prefab`, `Mira.prefab`, `Noah.prefab`, `Lena.prefab` |
+| 게시판·우물·몬스터 예제 | `Prefabs/Interaction/Board.prefab`, `Shrine.prefab`, `Monster.prefab` |
+| 감자 작물 전체 | `Prefabs/Crops/Potato.prefab` |
+| 바닥 아이템 전체 | `Prefabs/Items/potato.prefab`, `bread.prefab`, `hoe.prefab`, `bag.prefab`, `gold.prefab` |
+| 건물·가로등·나무·소품과 충돌 영역 | `Prefabs/World/*.prefab` |
+| NPC 설정·대화·일자리·퀘스트·거래 품목 | `Data/NPCs`, `Data/Dialogues`, `Data/Jobs`, `Data/Quests`, `Data/Items` |
+| NPC와 주인공의 부위별 외형·기존 애니메이션 | `Data/Characters/*.asset`, `Data/Characters/Parts/*.asset` |
+| 시간·휴식·성장·환생 기본값 | `Data/VillageSettings.asset` |
+| 수확 횟수·작업 시간·드롭 수·바닥 아이템 프리팹 | `Data/Potato.asset` |
+| 카툰 재질과 원본 재질의 대응 | `Data/ToonPalette.asset`, `Materials/Toon/*.mat` |
+| 외곽선 Renderer Feature와 렌더 파이프라인 | `Rendering/PC_Renderer.asset`, `Mobile_Renderer.asset`, 각 `*_Pipeline.asset` |
 
-외형 파츠가 비어 있으면 기본 프리팹의 해당 부분을 유지합니다. 파츠를 선택하면 원래 부분을 교체하고, 스킨 메시의 본을 이름으로 연결합니다. 공통 파츠 에셋의 변경은 그 파츠를 사용하는 외형에 공유되므로 개인 변형이 필요하면 에셋을 복제하세요. 기존 Idle·Walk·Attack_sword 애니메이션을 재사용합니다. 외형을 바꾸면 **Editor에서** Scene 외형도 갱신하고 저장할 수 있습니다. 기본 프리팹을 변경한 경우에도 같은 방식으로 적용합니다.
+표의 짧은 경로는 모두 `Assets/Workerborn/` 아래에 있습니다. UI 창에는 제목 표시줄뿐 아니라 실제 내부 Text·Image·Button·RawImage·ScrollRect와 참조가 들어 있습니다. 실행 중에는 값과 이벤트를 연결하고, 목록 행·격자 아이콘처럼 수량이 바뀌는 요소만 지정된 위젯 프리팹으로 복제합니다. 프리팹에서 정한 위치·색·폰트·투명도·버튼 구성을 창을 열 때 지우고 다시 만들지 않습니다. 소지품 셀 크기는 `InventoryWindow` 안의 GridLayoutGroup에서 조정합니다.
 
-새 외형과 콘텐츠는 Project의 **Create → Workerborn** 메뉴에서 생성합니다. NPC 추가 시 기존 NPC 루트를 복제하고 새 NPC 에셋을 두 컴포넌트에 연결하세요. 현재 플레이 루프는 농장 일자리 한 종류와 그 경력을 공유합니다.
+NPC 설정 에셋에서는 외형을 펼쳐 머리·의상·눈·눈썹·입·양손 파츠를 고르고 3D 미리보기를 드래그·휠로 회전·확대할 수 있습니다. 주인공은 `Data/Characters/Player_Default.asset`을 같은 형식으로 사용합니다. 파츠가 비어 있으면 기본 프리팹의 부분을 유지하고, 스킨 메시의 본은 이름으로 연결합니다. 공통 파츠 에셋은 사용하는 외형에 공유되므로 개인 변형은 복제해서 사용하세요. 외형 변경과 새 프리팹 배치 시 캐릭터 외형은 **Edit 모드에서** 갱신합니다.
 
-길찾기는 배치된 바닥 Collider와 `VillageNavigationBlocker`의 상자를 사용합니다. 건물을 움직일 때는 자식인 장애물도 함께 이동합니다. 크기가 다른 건물로 바꾸면 장애물 상자도 맞춰 주세요. `Village session/VillageNavigation`의 **현재 Scene의 길찾기 데이터 저장**으로 베이크할 수 있습니다. 베이크 데이터가 비어 있으면 Play 시 길찾기 데이터만 계산합니다. 확장 그룹과 마을 지형은 Scene에 이미 존재합니다.
+상호작용은 공통 `WorldInteractable`을 상속합니다.
+
+- `VillageInteractable`: NPC·게시판·우물. NPC의 ScriptableObject로 대화·역할을 설정합니다.
+- `HarvestableCrop`: 이동·수확. 작물 ScriptableObject로 횟수·시간·드롭을 설정합니다.
+- `GroundPickup`: 이동·줍기. 아이템·수량·시각 오브젝트·비행 시간을 프리팹에 저장합니다.
+- `MonsterInteractable`: Ctrl 선택과 접근. 도착 후 행동은 공통 완료 이벤트 또는 `OnArrived` 재정의로 확장합니다. 전투는 구현하지 않았습니다.
+
+공통 상호작용 거리·이름 위치·요청/완료 UnityEvent를 Inspector에서 설정할 수 있습니다. 새 유형은 `Interact`를 재정의하고 기존 `HarvestWorker` 명령을 연결합니다. 몬스터 예제는 제공된 도마뱀 에셋을 사용하며 Scene에는 자동 배치하지 않습니다. 프리팹을 직접 배치해 선택과 접근을 시험할 수 있습니다.
+
+작물과 Scene에 놓은 아이템은 고유 ID로 저장합니다. 복제하면 Editor에서 새 ID를 부여해 서로 다른 개체의 수확 상태가 공유되지 않게 합니다. 새 외형·NPC·아이템 등의 데이터는 **Create → Workerborn**에서 생성합니다. NPC 프리팹의 CharacterActor와 VillageInteractable에 같은 NPC 에셋을 연결하세요. 현재 농장 일자리는 한 종류와 그 경력을 공유합니다.
+
+길찾기는 배치한 바닥 Collider와 `VillageNavigationBlocker` 상자로 계산합니다. 건물을 움직일 때 자식 장애물도 함께 움직입니다. `Village session/VillageNavigation` Inspector에서 경로를 베이크할 수 있으며, 비어 있으면 Play 시 경로 데이터만 계산합니다.
+
+## 카툰 렌더링과 대상·아이템 표시
+
+준비된 **FlatKit/Stylized Surface** 셰이더로 프로젝트 전용 카툰 재질을 만들었습니다. 원본 텍스처·색·UV·알파 컷아웃은 유지하고, 기존 FlatKit **ObjectOutlineRendererFeature**를 PC·모바일 Renderer에 연결했습니다. 원본 에셋팩의 재질은 수정하지 않습니다. 외형 미리보기와 새로 배치한 프리팹도 `ToonPalette` 매핑을 사용합니다. 새로운 원본 재질을 쓸 때는 카툰 재질을 직접 지정하거나 매핑에 추가하세요.
+
+Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까운 대상의 윤곽을 강조합니다. GPU의 깊이/ID 마스크로 가려진 부분과 움직이는 메시를 반영하고, 같은 FlatKit 방식으로 확장한 윤곽에서 커서에 가장 가까운 점을 찾아 선을 연결합니다. Ctrl+클릭은 같은 상호작용 명령으로 접근합니다. 시계나 UI 위에서는 선택하지 않습니다. 색·굵기·마스크 해상도·갱신 빈도는 `Village session/PointerTargeting`, 선 모양은 `TargetLink.prefab`에서 수정합니다. 비동기 GPU 읽기를 지원하지 않는 기기는 동기 읽기를 사용합니다.
+
+바닥 아이템 이름은 항상 표시합니다. **Alt를 누르는 동안** 검은 반투명 이름 박스가 나타나고, 박스를 클릭해도 실제 아이템을 클릭한 것과 같은 줍기 명령을 실행합니다. 박스는 수평 위치를 유지하면서 위아래로 겹침을 풀며, 화면상 높이가 같은 항목은 **생성 순서대로 위→아래** 정렬합니다. 한 화면의 높이보다 큰 더미는 Alt를 누르고 이름 위에서 휠을 돌려 세로로 살펴볼 수 있습니다. 글꼴·여백·검정색의 투명도는 `PickupName.prefab`에서 조정합니다.
 
 ## 조작
 
 | 입력 | 동작 |
 | --- | --- |
 | 좌클릭 | 이동, 작물 수확, 바닥 물품 줍기, NPC와 대화 |
-| 우클릭 드래그 | 3인칭 자유 시점의 좌우·상하 회전 |
+| 우클릭 또는 휠 버튼 드래그 | 3인칭 자유 시점의 좌우·상하 회전 |
 | 마우스 휠 | 줌. 기본 거리 범위 1.8~22m |
+| Ctrl / Ctrl+클릭 | 가까운 NPC·몬스터의 윤곽과 연결선 / 해당 대상에게 접근 |
+| Alt / Alt 이름 박스 클릭 | 바닥 물품의 검정 반투명 이름 박스 표시 / 해당 물품 줍기 |
 | 짧은 우클릭 / Esc | 이동·미완료 작업 취소 |
 | I / Q / Z 또는 K / C | 소지품 / 퀘스트 / 스킬 / 캐릭터 |
 | M | 미니맵 표시·숨김. 하단 지도 버튼은 큰 지도를 엽니다. |
@@ -76,10 +98,11 @@ UX의 기준은 마비노기의 [공식 Rookie Guide](https://mabibook.nexon.net
 dotnet run --project Tests/HarvestLogic/HarvestLogic.csproj -- --noheader --nocolor --workers=0
 python -m pip install -r Tests/requirements.txt
 python Tests/validate_harvest_assets.py
+python Tests/validate_prefab_contracts.py
 ```
 
-.NET NUnit 테스트는 수확·시점 줌 계산·아이템 배치·거래의 수량 보존·장비·저장 변환·시간·마감·보상·성장·환생 규칙을 검증합니다. Unity EditMode에는 외형 파츠 조합과 본 연결 검증도 있으며, PlayMode에는 이동·대화·수확·납품·환생·저장 재로드 검증이 있습니다. 테스트 저장 폴더는 플레이어 데이터와 분리됩니다.
+.NET NUnit 테스트 75개는 수확·시점 줌·이름 박스 배치와 생성 순서·윤곽의 가까운 점·아이템 배치·수량 거래·장비·저장 변환·시간·마감·보상·성장·환생 규칙을 검증합니다. Unity EditMode에는 외형 파츠 조합·본 연결·프리팹의 사전 배치와 UI 구성 검증이 있으며, PlayMode에는 이동·대화·수확·납품·환생·저장 재로드·프리팹 창 연결·이름 클릭 줍기 검증이 있습니다. 테스트 저장 폴더는 플레이어 데이터와 분리됩니다.
 
 이 작업 환경에는 Unity Editor가 없어 실제 Unity 6 임포트·PlayMode 실행·미리보기 및 화면 검증은 수행하지 못했습니다. .NET 테스트, C# 구문·참조 컴파일, Scene 및 에셋 연결 정적 검사를 수행했습니다.
 
-원본 에셋과 `SampleScene`은 보존합니다. `HarvestPrototype`은 기존 수확 전용 데모입니다. `Tools/author_village_scene.py`는 예제 Scene을 처음 작성한 명시적 오프라인 도구이며 Unity에서 실행되지 않습니다. 재실행은 예제 배치를 덮어쓰므로 일반 편집에는 Scene과 Inspector를 사용하세요.
+원본 에셋과 `SampleScene`은 보존합니다. `HarvestPrototype`은 기존 수확 전용 데모입니다. `Tools/author_*`는 예제 에셋을 작성할 때 사용한 명시적 오프라인 도구입니다. Unity의 import·Play에서는 실행되지 않습니다. 재실행은 예제 배치를 덮어쓰므로 일반 작업에는 Scene과 Prefab Mode를 사용하세요.

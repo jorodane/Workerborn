@@ -1,0 +1,84 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace Workerborn
+{
+    public sealed class InventoryWindowView : VillageWindowView
+    {
+        [SerializeField]
+        private RectTransform scrollContent;
+        [SerializeField]
+        private RectTransform itemLayer;
+        [SerializeField]
+        private RectTransform cellLayer;
+        [SerializeField]
+        private GridLayoutGroup gridLayout;
+        [SerializeField]
+        private RawImage portrait;
+        [SerializeField]
+        private Text gold;
+        [SerializeField]
+        private Text bagName;
+        [SerializeField]
+        private EquipmentSlotPointer[] equipment;
+        [SerializeField]
+        private RectTransform[] equipmentIcons;
+        public RectTransform ItemLayer => itemLayer;
+        public Vector2 CellSize => gridLayout.cellSize + gridLayout.spacing;
+
+        public override void Bind(VillagePrototype game, VillageHud hud)
+        {
+            base.Bind(game, hud);
+            portrait.texture = game.PortraitTexture;
+            foreach (var slot in equipment)
+                slot.Hud = hud;
+            itemLayer.GetComponent<InventoryGridPointer>().Hud = hud;
+        }
+
+        public override void Refresh()
+        {
+            var inventory = Game.State.Inventory;
+            int cells = inventory.Columns * inventory.Rows;
+            while (cellLayer.childCount < cells)
+                Instantiate(Hud.Library.InventoryCell, cellLayer);
+            for (int i = cellLayer.childCount - 1; i >= cells; i--)
+            {
+                cellLayer.GetChild(i).gameObject.SetActive(false);
+                Destroy(cellLayer.GetChild(i).gameObject);
+            }
+
+            gridLayout.constraintCount = inventory.Columns;
+            var size = new Vector2(inventory.Columns * CellSize.x, inventory.Rows * CellSize.y);
+            scrollContent.sizeDelta = size;
+            itemLayer.sizeDelta = size;
+            cellLayer.sizeDelta = size;
+            // Keep the authored panel height; its inventory viewport scrolls when the bag expands.
+            gold.text = Game.State.Gold.ToString("N0");
+            bagName.text = Game.State.BagExpanded ? "여행 가방" : "일반";
+            for (int i = 0; i < equipment.Length; i++)
+            {
+                Clear(equipmentIcons[i]);
+                if (Game.State.Equipment.TryGetValue(equipment[i].Slot, out var id))
+                {
+                    var visual = Instantiate(Hud.Library.Item, equipmentIcons[i]);
+                    visual.Display(Game.Settings.FindItem(id), id, 1);
+                    visual.Passive();
+                    visual.Rect.anchorMin = Vector2.zero;
+                    visual.Rect.anchorMax = Vector2.one;
+                    visual.Rect.offsetMin = visual.Rect.offsetMax = Vector2.zero;
+                }
+            }
+
+            Hud.RenderInventoryItems(this);
+        }
+
+        public static void Clear(Transform parent)
+        {
+            for (int i = parent.childCount - 1; i >= 0; i--)
+            {
+                parent.GetChild(i).gameObject.SetActive(false);
+                Destroy(parent.GetChild(i).gameObject);
+            }
+        }
+    }
+}

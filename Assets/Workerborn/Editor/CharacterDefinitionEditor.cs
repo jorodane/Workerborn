@@ -14,9 +14,16 @@ namespace Workerborn.Editor
         private bool dirty = true;
         private int seenRevision = -1;
         private CharacterPartDefinition[] partLibrary;
+        private void OnEnable()
+        {
+            EditorApplication.projectChanged += InvalidateLibrary;
+        }
 
-        private void OnEnable() { EditorApplication.projectChanged += InvalidateLibrary; }
-        private void InvalidateLibrary() { partLibrary = null; dirty = true; }
+        private void InvalidateLibrary()
+        {
+            partLibrary = null;
+            dirty = true;
+        }
 
         public override void OnInspectorGUI()
         {
@@ -32,7 +39,19 @@ namespace Workerborn.Editor
             DrawPart("headwear", "머리 장식", CharacterPartSlot.Headwear);
             DrawPart("rightHand", "오른손", CharacterPartSlot.RightHand);
             DrawPart("leftHand", "왼손", CharacterPartSlot.LeftHand);
-            foreach (string field in new[] { "hideBaseWeapons", "hideBaseHair", "skinTint", "clothingTint", "idle", "walk", "work" })
+            foreach (string field in new[]
+            {
+                "toonPalette",
+                "hideBaseWeapons",
+                "hideBaseHair",
+                "skinTint",
+                "clothingTint",
+                "idle",
+                "walk",
+                "work"
+            }
+
+            )
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(field));
             serializedObject.ApplyModifiedProperties();
             if (EditorGUI.EndChangeCheck())
@@ -40,8 +59,10 @@ namespace Workerborn.Editor
                 dirty = true;
                 CharacterEditorRefresh.RefreshActors();
             }
+
             EditorGUILayout.HelpBox("NPC와 주인공이 같은 외형 에셋을 사용합니다. 파츠가 비어 있으면 기본 프리팹의 해당 파츠를 유지합니다. 아래 미리보기를 드래그해 회전하고 휠로 확대할 수 있습니다.", MessageType.Info);
-            if (GUILayout.Button("Scene의 이 외형 갱신")) CharacterEditorRefresh.RefreshActors();
+            if (GUILayout.Button("Scene의 이 외형 갱신"))
+                CharacterEditorRefresh.RefreshActors();
         }
 
         private void DrawPart(string propertyName, string label, CharacterPartSlot slot)
@@ -54,30 +75,58 @@ namespace Workerborn.Editor
                 parts.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
                 partLibrary = parts.ToArray();
             }
+
             var property = serializedObject.FindProperty(propertyName);
-            var choices = new System.Collections.Generic.List<CharacterPartDefinition> { null };
-            var names = new System.Collections.Generic.List<string> { "기본 프리팹 유지" };
+            var choices = new System.Collections.Generic.List<CharacterPartDefinition>
+            {
+                null
+            };
+            var names = new System.Collections.Generic.List<string>
+            {
+                "기본 프리팹 유지"
+            };
             foreach (var part in partLibrary)
-                if (part != null && part.Slot == slot) { choices.Add(part); names.Add(part.name); }
+                if (part != null && part.Slot == slot)
+                {
+                    choices.Add(part);
+                    names.Add(part.name);
+                }
+
             var current = (CharacterPartDefinition)property.objectReferenceValue;
-            if (current != null && !choices.Contains(current)) { choices.Add(current); names.Add(current.name + " (슬롯 확인)"); }
+            if (current != null && !choices.Contains(current))
+            {
+                choices.Add(current);
+                names.Add(current.name + " (슬롯 확인)");
+            }
+
             EditorGUILayout.BeginHorizontal();
             int selected = EditorGUILayout.Popup(label, choices.IndexOf(current), names.ToArray());
-            if (selected >= 0) property.objectReferenceValue = choices[selected];
+            if (selected >= 0)
+                property.objectReferenceValue = choices[selected];
             using (new EditorGUI.DisabledScope(property.objectReferenceValue == null))
-                if (GUILayout.Button("편집", GUILayout.Width(42))) Selection.activeObject = property.objectReferenceValue;
+                if (GUILayout.Button("편집", GUILayout.Width(42)))
+                    Selection.activeObject = property.objectReferenceValue;
             EditorGUILayout.EndHorizontal();
         }
 
         public override bool HasPreviewGUI() => true;
         public override bool RequiresConstantRepaint() => true;
         public override void OnInteractivePreviewGUI(Rect rect, GUIStyle background) => OnPreviewGUI(rect, background);
-
         public override void OnPreviewGUI(Rect rect, GUIStyle background)
         {
             var definition = (CharacterDefinition)target;
-            if (seenRevision != CharacterEditorRefresh.Revision) { seenRevision = CharacterEditorRefresh.Revision; dirty = true; }
-            if (definition.BasePrefab == null) { GUI.Label(rect, "기본 캐릭터 프리팹을 지정하세요."); return; }
+            if (seenRevision != CharacterEditorRefresh.Revision)
+            {
+                seenRevision = CharacterEditorRefresh.Revision;
+                dirty = true;
+            }
+
+            if (definition.BasePrefab == null)
+            {
+                GUI.Label(rect, "기본 캐릭터 프리팹을 지정하세요.");
+                return;
+            }
+
             if (preview == null)
             {
                 preview = new PreviewRenderUtility();
@@ -90,22 +139,39 @@ namespace Workerborn.Editor
                 preview.lights[0].transform.rotation = Quaternion.Euler(35f, 30f, 0f);
                 preview.lights[1].intensity = 0.8f;
             }
+
             if (dirty || model == null)
             {
-                if (model != null) DestroyImmediate(model);
+                if (model != null)
+                    DestroyImmediate(model);
                 model = CharacterAssembler.Build(definition, null);
                 model.hideFlags = HideFlags.HideAndDontSave;
                 preview.AddSingleGO(model);
-                if (definition.Idle != null) definition.Idle.SampleAnimation(model.transform.GetChild(0).gameObject, 0f);
+                if (definition.Idle != null)
+                    definition.Idle.SampleAnimation(model.transform.GetChild(0).gameObject, 0f);
                 dirty = false;
             }
+
             var current = Event.current;
             if (rect.Contains(current.mousePosition))
             {
-                if (current.type == EventType.MouseDrag && current.button == 0) { orbit += current.delta; current.Use(); Repaint(); }
-                if (current.type == EventType.ScrollWheel) { distance = Mathf.Clamp(distance + current.delta.y * 0.12f, 1.3f, 8f); current.Use(); Repaint(); }
+                if (current.type == EventType.MouseDrag && current.button == 0)
+                {
+                    orbit += current.delta;
+                    current.Use();
+                    Repaint();
+                }
+
+                if (current.type == EventType.ScrollWheel)
+                {
+                    distance = Mathf.Clamp(distance + current.delta.y * 0.12f, 1.3f, 8f);
+                    current.Use();
+                    Repaint();
+                }
             }
-            if (current.type != EventType.Repaint) return;
+
+            if (current.type != EventType.Repaint)
+                return;
             preview.BeginPreview(rect, background);
             Vector3 focus = Vector3.up * (definition.Height * 0.5f);
             Quaternion rotation = Quaternion.Euler(Mathf.Clamp(orbit.y, -60f, 70f), orbit.x, 0f);
@@ -114,7 +180,13 @@ namespace Workerborn.Editor
             GUI.DrawTexture(rect, preview.EndPreview(), ScaleMode.StretchToFill, false);
         }
 
-        private void OnDisable() { EditorApplication.projectChanged -= InvalidateLibrary; preview?.Cleanup(); preview = null; model = null; }
+        private void OnDisable()
+        {
+            EditorApplication.projectChanged -= InvalidateLibrary;
+            preview?.Cleanup();
+            preview = null;
+            model = null;
+        }
     }
 
     [CustomEditor(typeof(CharacterPartDefinition))]
@@ -123,18 +195,27 @@ namespace Workerborn.Editor
         private UnityEditor.Editor prefabPreview;
         public override void OnInspectorGUI()
         {
-            EditorGUI.BeginChangeCheck(); DrawDefaultInspector();
-            if (EditorGUI.EndChangeCheck()) CharacterEditorRefresh.RefreshActors();
+            EditorGUI.BeginChangeCheck();
+            DrawDefaultInspector();
+            if (EditorGUI.EndChangeCheck())
+                CharacterEditorRefresh.RefreshActors();
         }
+
         public override bool HasPreviewGUI() => ((CharacterPartDefinition)target).Prefab != null;
         public override void OnPreviewGUI(Rect rect, GUIStyle background)
         {
             var prefab = ((CharacterPartDefinition)target).Prefab;
-            if (prefab == null) return;
+            if (prefab == null)
+                return;
             CreateCachedEditor(prefab, null, ref prefabPreview);
             prefabPreview.OnInteractivePreviewGUI(rect, background);
         }
-        private void OnDisable() { if (prefabPreview != null) DestroyImmediate(prefabPreview); }
+
+        private void OnDisable()
+        {
+            if (prefabPreview != null)
+                DestroyImmediate(prefabPreview);
+        }
     }
 
     [CustomEditor(typeof(CharacterActor))]
@@ -142,7 +223,8 @@ namespace Workerborn.Editor
     {
         public override void OnInspectorGUI()
         {
-            EditorGUI.BeginChangeCheck(); DrawDefaultInspector();
+            EditorGUI.BeginChangeCheck();
+            DrawDefaultInspector();
             bool changed = EditorGUI.EndChangeCheck();
             if (GUILayout.Button("외형을 Scene에 반영") || changed)
             {
@@ -151,6 +233,7 @@ namespace Workerborn.Editor
                 actor.RebuildAppearance();
                 EditorSceneManager.MarkSceneDirty(actor.gameObject.scene);
             }
+
             if (((CharacterActor)target).Appearance != null && GUILayout.Button("외형 에셋 선택"))
                 Selection.activeObject = ((CharacterActor)target).Appearance;
         }
@@ -160,9 +243,11 @@ namespace Workerborn.Editor
     {
         private static bool queued;
         public static int Revision { get; private set; }
+
         public static void RefreshActors()
         {
-            if (queued || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            if (queued || EditorApplication.isPlayingOrWillChangePlaymode)
+                return;
             Revision++;
             queued = true;
             EditorApplication.delayCall += () =>
@@ -170,7 +255,8 @@ namespace Workerborn.Editor
                 queued = false;
                 foreach (var actor in Resources.FindObjectsOfTypeAll<CharacterActor>())
                 {
-                    if (EditorUtility.IsPersistent(actor) || !actor.gameObject.scene.IsValid() || actor.Appearance == null) continue;
+                    if (EditorUtility.IsPersistent(actor) || !actor.gameObject.scene.IsValid() || actor.Appearance == null)
+                        continue;
                     Undo.RegisterFullObjectHierarchyUndo(actor.gameObject, "Refresh character appearance");
                     actor.RebuildAppearance();
                     EditorSceneManager.MarkSceneDirty(actor.gameObject.scene);

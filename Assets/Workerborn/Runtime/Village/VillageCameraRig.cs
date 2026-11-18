@@ -9,18 +9,30 @@ namespace Workerborn
     [RequireComponent(typeof(Camera))]
     public sealed class VillageCameraRig : MonoBehaviour
     {
-        [SerializeField, Range(25f, 85f)] private float fieldOfView = 50f;
-        [SerializeField, Min(0.2f)] private float pivotHeight = 1.1f;
-        [SerializeField, Min(1f)] private float initialDistance = 7.5f;
-        [SerializeField, Min(0.5f)] private float minimumDistance = 1.8f;
-        [SerializeField, Min(2f)] private float maximumDistance = 22f;
-        [SerializeField] private float initialYaw;
-        [SerializeField, Range(-10f, 80f)] private float initialPitch = 18f;
-        [SerializeField] private Vector2 pitchLimits = new Vector2(-5f, 75f);
-        [SerializeField, Range(0.02f, 1f)] private float orbitSensitivity = 0.18f;
-        [SerializeField, Range(0.05f, 0.5f)] private float zoomSensitivity = 0.18f;
-        [SerializeField, Min(0f)] private float followSmoothness = 10f;
-        [SerializeField] private LayerMask collisionMask = 1 << 8;
+        [SerializeField, Range(25f, 85f)]
+        private float fieldOfView = 50f;
+        [SerializeField, Min(0.2f)]
+        private float pivotHeight = 1.1f;
+        [SerializeField, Min(1f)]
+        private float initialDistance = 7.5f;
+        [SerializeField, Min(0.5f)]
+        private float minimumDistance = 1.8f;
+        [SerializeField, Min(2f)]
+        private float maximumDistance = 22f;
+        [SerializeField]
+        private float initialYaw;
+        [SerializeField, Range(-10f, 80f)]
+        private float initialPitch = 18f;
+        [SerializeField]
+        private Vector2 pitchLimits = new Vector2(-5f, 75f);
+        [SerializeField, Range(0.02f, 1f)]
+        private float orbitSensitivity = 0.18f;
+        [SerializeField, Range(0.05f, 0.5f)]
+        private float zoomSensitivity = 0.18f;
+        [SerializeField, Min(0f)]
+        private float followSmoothness = 10f;
+        [SerializeField]
+        private LayerMask collisionMask = 1 << 8;
         private Transform target;
         private VillagePrototype game;
         private Camera cameraComponent;
@@ -30,6 +42,7 @@ namespace Workerborn
         private float distance;
         private bool rightPressed;
         private bool rightDragged;
+        private bool middlePressed;
         private Vector2 pressPoint;
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
         public bool CancelClickThisFrame { get; private set; }
@@ -37,12 +50,15 @@ namespace Workerborn
 
         public void Initialize(Transform follow, VillagePrototype owner = null)
         {
-            target = follow; game = owner; cameraComponent = GetComponent<Camera>();
+            target = follow;
+            game = owner;
+            cameraComponent = GetComponent<Camera>();
             cameraComponent.orthographic = false;
             cameraComponent.fieldOfView = fieldOfView;
             cameraComponent.nearClipPlane = 0.08f;
             cameraComponent.farClipPlane = 180f;
-            yaw = initialYaw; pitch = initialPitch;
+            yaw = initialYaw;
+            pitch = initialPitch;
             distance = Mathf.Clamp(initialDistance, minimumDistance, maximumDistance);
             focus = target.position + Vector3.up * pivotHeight;
             UpdatePose(true);
@@ -50,7 +66,8 @@ namespace Workerborn
 
         private bool OverUi(Vector2 position)
         {
-            if (EventSystem.current == null) return false;
+            if (EventSystem.current == null)
+                return false;
             uiHits.Clear();
             EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = position }, uiHits);
             return uiHits.Count > 0;
@@ -59,35 +76,56 @@ namespace Workerborn
         private void Update()
         {
             CancelClickThisFrame = false;
-            if (target == null || Mouse.current == null) return;
+            if (target == null || Mouse.current == null)
+                return;
             var mouse = Mouse.current;
             Vector2 position = mouse.position.ReadValue();
             bool blocked = game != null && game.ControlsBlocked;
             bool overUi = OverUi(position);
             if (mouse.rightButton.wasPressedThisFrame && !blocked && !overUi)
             {
-                rightPressed = true; rightDragged = false; pressPoint = position;
+                rightPressed = true;
+                rightDragged = false;
+                pressPoint = position;
             }
-            if (rightPressed && mouse.rightButton.isPressed)
+
+            if (mouse.middleButton.wasPressedThisFrame && !blocked && !overUi)
+                middlePressed = true;
+            if (mouse.middleButton.wasReleasedThisFrame)
+                middlePressed = false;
+            if ((rightPressed && mouse.rightButton.isPressed) || (middlePressed && mouse.middleButton.isPressed))
             {
-                if ((position - pressPoint).sqrMagnitude > 25f) rightDragged = true;
-                if (rightDragged)
+                if (rightPressed && (position - pressPoint).sqrMagnitude > 25f)
+                    rightDragged = true;
+                if ((rightDragged || middlePressed) && !blocked)
                 {
                     Vector2 delta = mouse.delta.ReadValue();
                     yaw += delta.x * orbitSensitivity;
                     pitch = Mathf.Clamp(pitch - delta.y * orbitSensitivity, pitchLimits.x, pitchLimits.y);
                 }
             }
+
             if (mouse.rightButton.wasReleasedThisFrame)
             {
-                CancelClickThisFrame = rightPressed && !rightDragged && !blocked && !overUi;
+                CancelClickThisFrame = rightPressed && !rightDragged && !middlePressed && !blocked && !overUi;
                 rightPressed = false;
             }
+
+            if (!Application.isFocused)
+            {
+                rightPressed = false;
+                middlePressed = false;
+            }
+
             if (!blocked && !overUi)
                 distance = OrbitZoom.Apply(distance, mouse.scroll.ReadValue().y, minimumDistance, maximumDistance, zoomSensitivity);
         }
 
-        private void LateUpdate() { if (target != null) UpdatePose(false); }
+        private void LateUpdate()
+        {
+            if (target != null)
+                UpdatePose(false);
+        }
 
         private void UpdatePose(bool instant)
         {

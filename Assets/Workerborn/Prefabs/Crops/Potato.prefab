@@ -1,0 +1,250 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &100349
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  serializedVersion: 6
+  m_Component:
+  - component:
+      fileID: 100350
+  - component:
+      fileID: 100355
+  - component:
+      fileID: 100356
+  m_Layer: 0
+  m_Name: Potato
+  m_TagString: Untagged
+  m_Icon:
+    fileID: 0
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &100350
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100349
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale:
+    x: 1
+    y: 1
+    z: 1
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - fileID: 100352
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint:
+    x: 0
+    y: 0
+    z: 0
+  serializedVersion: 2
+--- !u!1 &100351
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  serializedVersion: 6
+  m_Component:
+  - component:
+      fileID: 100352
+  m_Layer: 0
+  m_Name: Plant visual
+  m_TagString: Untagged
+  m_Icon:
+    fileID: 0
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &100352
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100351
+  m_LocalRotation:
+    x: 0
+    y: 0
+    z: 0
+    w: 1
+  m_LocalPosition:
+    x: 0
+    y: 0
+    z: 0
+  m_LocalScale:
+    x: 1
+    y: 1
+    z: 1
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - fileID: 100354
+  m_Father:
+    fileID: 100350
+  m_LocalEulerAnglesHint:
+    x: 0
+    y: 0
+    z: 0
+  serializedVersion: 2
+--- !u!1001 &100353
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent:
+      fileID: 100352
+    m_Modifications:
+    - target:
+        fileID: 4887855912465015207
+        guid: 3fd2a86c32073694e9b3e62e5b4804bc
+        type: 3
+      propertyPath: m_LocalPosition.x
+      value: '-0.0078971'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 4887855912465015207
+        guid: 3fd2a86c32073694e9b3e62e5b4804bc
+        type: 3
+      propertyPath: m_LocalPosition.y
+      value: '0.1240728'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 4887855912465015207
+        guid: 3fd2a86c32073694e9b3e62e5b4804bc
+        type: 3
+      propertyPath: m_LocalPosition.z
+      value: '-0.0261289'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 4887855912465015207
+        guid: 3fd2a86c32073694e9b3e62e5b4804bc
+        type: 3
+      propertyPath: m_LocalScale.x
+      value: '1.8114045'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 4887855912465015207
+        guid: 3fd2a86c32073694e9b3e62e5b4804bc
+        type: 3
+      propertyPath: m_LocalScale.y
+      value: '1.8114045'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 4887855912465015207
+        guid: 3fd2a86c32073694e9b3e62e5b4804bc
+        type: 3
+      propertyPath: m_LocalScale.z
+      value: '1.8114045'
+      objectReference:
+        fileID: 0
+    - target:
+        fileID: 5232892095252232989
+        guid: 3fd2a86c32073694e9b3e62e5b4804bc
+        type: 3
+      propertyPath: m_Layer
+      value: '2'
+      objectReference:
+        fileID: 0
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab:
+    fileID: 100100000
+    guid: 3fd2a86c32073694e9b3e62e5b4804bc
+    type: 3
+--- !u!4 &100354 stripped
+Transform:
+  m_CorrespondingSourceObject:
+    fileID: 4887855912465015207
+    guid: 3fd2a86c32073694e9b3e62e5b4804bc
+    type: 3
+  m_PrefabInstance:
+    fileID: 100353
+  m_PrefabAsset:
+    fileID: 0
+--- !u!65 &100355
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100349
+  m_Material:
+    fileID: 0
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size:
+    x: 1.5
+    y: 1
+    z: 1.4
+  m_Center:
+    x: 0
+    y: 0.45
+    z: 0
+--- !u!114 &100356
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100349
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script:
+    fileID: 11500000
+    guid: e8249325324c510eb85104c2110fc577
+    type: 3
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  definition:
+    fileID: 11400000
+    guid: 0d1178ea5a6458b882a6e049865d0fc3
+    type: 2
+  visual:
+    fileID: 100352
+  charges: []
+  persistentId: ''

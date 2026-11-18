@@ -3,19 +3,33 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0b888291df055d56abb3c0abd0eb1542, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: 0b888291df055d56abb3c0abd0eb1542
+    type: 3
   m_Name: Potato
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: null
   itemId: potato
   displayName: 감자
   harvestsPerPlant: 3
   harvestSeconds: 2.4
   itemsPerHarvest: 2
-  plantPrefab: {fileID: 5232892095252232989, guid: 3fd2a86c32073694e9b3e62e5b4804bc, type: 3}
-  dropPrefab: {fileID: 8644971781712117094, guid: 63ca160aa7ee7ba42afc5499d770219c, type: 3}
+  plantPrefab:
+    fileID: 5232892095252232989
+    guid: 3fd2a86c32073694e9b3e62e5b4804bc
+    type: 3
+  dropPrefab:
+    fileID: 8644971781712117094
+    guid: 63ca160aa7ee7ba42afc5499d770219c
+    type: 3
+  pickupPrefab: {fileID: 100008, guid: 182273f91ec35145835c9e977b849b19, type: 3}

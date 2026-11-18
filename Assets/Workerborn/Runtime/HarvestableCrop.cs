@@ -3,31 +3,37 @@ using UnityEngine;
 
 namespace Workerborn
 {
-    public sealed class HarvestableCrop : MonoBehaviour
+    public sealed class HarvestableCrop : WorldInteractable
     {
-        [SerializeField] private CropDefinition definition;
+        [SerializeField]
+        private CropDefinition definition;
         private HarvestCycle cycle;
         private HarvestWorker owner;
-        [SerializeField] private Transform visual;
+        [SerializeField]
+        private Transform visual;
         private Vector3 restScale;
-        [SerializeField] private Renderer[] charges;
-        [SerializeField] private string persistentId;
-        public string PersistentId => persistentId;
-
+        [SerializeField]
+        private Renderer[] charges;
         public CropDefinition Definition => definition;
+        public override string DisplayName => definition != null ? definition.DisplayName : name;
+        protected override float DefaultDistance => 1.05f;
+
+        protected override void Interact(HarvestWorker worker) => worker.CommandHarvest(this);
         public int Remaining => cycle?.Remaining ?? 0;
         public int Capacity => cycle?.Capacity ?? 0;
         public bool IsDepleted => cycle == null || cycle.IsDepleted;
         public float Progress => cycle?.Progress ?? 0f;
+
         public event Action<HarvestableCrop> Harvested;
-
         private void Awake() => EnsureInitialized();
-
         public void EnsureInitialized()
         {
-            if (cycle != null || definition == null || visual == null) return;
-            foreach (var collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
-            foreach (var child in visual.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 2;
+            if (cycle != null || definition == null || visual == null)
+                return;
+            foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
+                collider.enabled = false;
+            foreach (var child in visual.GetComponentsInChildren<Transform>(true))
+                child.gameObject.layer = 2;
             restScale = visual.localScale;
             ResetHarvests();
         }
@@ -51,19 +57,23 @@ namespace Workerborn
 
         public bool Advance(HarvestWorker worker, float seconds)
         {
-            if (owner != worker || owner == null || !cycle.Advance(seconds)) return false;
+            if (owner != worker || owner == null || !cycle.Advance(seconds))
+                return false;
             owner = null;
             RefreshVisuals();
             Harvested?.Invoke(this);
+            NotifyInteractionCompleted();
             return true;
         }
 
         public void Cancel(HarvestWorker worker)
         {
-            if (owner != worker) return;
+            if (owner != worker)
+                return;
             cycle?.Cancel();
             owner = null;
-            if (visual != null) visual.localScale = restScale;
+            if (visual != null)
+                visual.localScale = restScale;
         }
 
         public void ResetHarvests()
@@ -87,7 +97,9 @@ namespace Workerborn
                 visual.gameObject.SetActive(!IsDepleted);
                 visual.localScale = restScale;
             }
-            if (charges == null) return;
+
+            if (charges == null)
+                return;
             for (int i = 0; i < charges.Length; i++)
                 charges[i].enabled = i < Remaining;
         }
@@ -98,8 +110,9 @@ namespace Workerborn
                 visual.localScale = restScale * (1f + Mathf.Sin(Time.time * 16f) * 0.025f);
         }
 
-        private void OnDisable()
+        protected override void OnDisable()
         {
+            base.OnDisable();
             cycle?.Cancel();
             owner = null;
         }

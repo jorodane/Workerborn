@@ -1,0 +1,183 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using NUnit.Framework;
+
+namespace Workerborn.Tests
+{
+    public sealed class InteractionPresentationTests
+    {
+        [Test]
+        public void EqualScreenHeightsStackInCreationOrderAndKeepTheirHorizontalPositions()
+        {
+            var slots = new List<NameplateSlot>();
+            foreach (int order in new[]
+            {
+                4,
+                2,
+                5,
+                1,
+                3
+            }
+
+            )
+                slots.Add(new NameplateSlot { Order = order, X = 100, Y = 150, Width = 80, Height = 24 });
+            NameplateLayout.Arrange(slots, 0, 300, 3);
+            Assert.That(slots.Select(s => s.Order), Is.EqualTo(new long[] { 1, 2, 3, 4, 5 }));
+            for (int i = 0; i < slots.Count; i++)
+            {
+                Assert.That(slots[i].X, Is.EqualTo(100));
+                Assert.That(slots[i].PlacedY, Is.InRange(12, 288));
+                if (i > 0)
+                    Assert.That(slots[i - 1].PlacedY - slots[i].PlacedY, Is.GreaterThanOrEqualTo(27));
+            }
+        }
+
+        [Test]
+        public void ScreenHeightTakesPriorityOverCreationOrderAndSeparateColumnsStayStill()
+        {
+            var slots = new List<NameplateSlot>
+            {
+                new NameplateSlot
+                {
+                    Order = 1,
+                    X = 50,
+                    Y = 100,
+                    Width = 70,
+                    Height = 24
+                },
+                new NameplateSlot
+                {
+                    Order = 2,
+                    X = 50,
+                    Y = 120,
+                    Width = 70,
+                    Height = 24
+                },
+                new NameplateSlot
+                {
+                    Order = 3,
+                    X = 250,
+                    Y = 120,
+                    Width = 70,
+                    Height = 24
+                }
+            };
+            NameplateLayout.Arrange(slots, 0, 300, 3);
+            Assert.That(slots.Find(s => s.Order == 2).PlacedY, Is.GreaterThan(slots.Find(s => s.Order == 1).PlacedY));
+            Assert.That(slots.Find(s => s.Order == 3).PlacedY, Is.EqualTo(120));
+        }
+
+        [Test]
+        public void RemovingACollectedItemClosesTheGapAndEdgeStacksStayInsideTheScreen()
+        {
+            var slots = new List<NameplateSlot>
+            {
+                new NameplateSlot
+                {
+                    Order = 1,
+                    X = 50,
+                    Y = 2,
+                    Width = 60,
+                    Height = 24
+                },
+                new NameplateSlot
+                {
+                    Order = 2,
+                    X = 50,
+                    Y = 2,
+                    Width = 60,
+                    Height = 24
+                }
+            };
+            NameplateLayout.Arrange(slots, 0, 100, 4);
+            Assert.That(slots.All(s => s.PlacedY >= 12 && s.PlacedY <= 88), Is.True);
+            slots.RemoveAt(0);
+            NameplateLayout.Arrange(slots, 0, 100, 4);
+            Assert.That(slots[0].PlacedY, Is.EqualTo(12));
+        }
+
+        [Test]
+        public void OversizedStacksExposeAStableVerticalScrollRange()
+        {
+            var slots = Enumerable.Range(0, 10).Select(i => new NameplateSlot { Order = i, X = 50, Y = 50, Width = 80, Height = 24 }).ToList();
+            float overflow = NameplateLayout.Arrange(slots, 0, 100, 4);
+            Assert.That(overflow, Is.GreaterThan(0));
+            float first = slots[0].PlacedY;
+            NameplateLayout.Arrange(slots, 0, 100, 4, overflow);
+            Assert.That(slots[0].PlacedY - first, Is.EqualTo(overflow).Within(.01f));
+            Assert.That(slots[slots.Count - 1].PlacedY, Is.EqualTo(12).Within(.01f));
+        }
+
+        [Test]
+        public void TargetLineEndsOnAConcaveSilhouetteRatherThanItsBoundingBox()
+        {
+            var mask = new byte[6 * 6 * 4];
+            // L-shaped target; the cursor sits in the missing upper-right corner of its bounds.
+            for (int y = 1; y <= 4; y++)
+                Paint(mask, 6, 1, y, 1);
+            for (int x = 1; x <= 4; x++)
+                Paint(mask, 6, x, 1, 1);
+            Assert.That(TargetMaskGeometry.Closest(mask, 6, 6, false, 45, 35, 60, 60, out var hit), Is.True);
+            Assert.That(hit.Id, Is.EqualTo(1));
+            Assert.That(hit.X, Is.EqualTo(45));
+            Assert.That(hit.Y, Is.EqualTo(20));
+        }
+
+        [Test]
+        public void TargetUnderThePointerWinsEvenWhenABoundaryTieFavorsAnotherId()
+        {
+            var mask = new byte[8 * 8 * 4];
+            for (int y = 1; y < 7; y++)
+                for (int x = 1; x < 6; x++)
+                    Paint(mask, 8, x, y, 9);
+            Paint(mask, 8, 6, 3, 1);
+            Assert.That(TargetMaskGeometry.Closest(mask, 8, 8, false, 35, 35, 80, 80, out var hit), Is.True);
+            Assert.That(hit.Id, Is.EqualTo(9));
+            Assert.That(hit.DistanceSquared, Is.EqualTo(625));
+        }
+
+        [Test]
+        public void EmptyOrInvalidMasksDoNotLeaveAStaleSelection()
+        {
+            Assert.That(TargetMaskGeometry.Closest(new byte[16], 2, 2, false, 1, 1, 100, 100, out _), Is.False);
+            Assert.That(TargetMaskGeometry.Closest(new byte[4], 2, 2, false, 1, 1, 100, 100, out _), Is.False);
+        }
+
+        [Test]
+        public void ReadbackOrientationAndViewportScalingProduceTheSameEdge()
+        {
+            var bottom = new byte[4 * 4 * 4];
+            Paint(bottom, 4, 1, 0, 3);
+            var top = new byte[bottom.Length];
+            Array.Copy(bottom, 0, top, 3 * 4 * 4, 4 * 4);
+            TargetMaskGeometry.Closest(bottom, 4, 4, false, 10, 40, 40, 40, out var a);
+            TargetMaskGeometry.Closest(top, 4, 4, true, 10, 40, 40, 40, out var b);
+            Assert.That(a.Id, Is.EqualTo(b.Id));
+            Assert.That(a.X, Is.EqualTo(b.X));
+            Assert.That(a.Y, Is.EqualTo(b.Y));
+        }
+
+        [Test]
+        public void MultiItemPurchasesAndSalesAreAtomicWithPhysicalCoins()
+        {
+            var state = VillageState.Restore(new VillageSave { gold = 50 });
+            Assert.That(state.TryBuy(ItemIds.Bread, 4), Is.True);
+            Assert.That(state.Gold, Is.EqualTo(10));
+            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.EqualTo(4));
+            Assert.That(state.TryBuy(ItemIds.Bread, 2), Is.False);
+            Assert.That(state.Gold, Is.EqualTo(10));
+            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.EqualTo(4));
+            Assert.That(state.TrySellItems(ItemIds.Bread, 3), Is.True);
+            Assert.That(state.Gold, Is.EqualTo(40));
+            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.EqualTo(1));
+        }
+
+        private static void Paint(byte[] bytes, int width, int x, int y, int id)
+        {
+            int index = (y * width + x) * 4;
+            bytes[index] = (byte)id;
+            bytes[index + 3] = 255;
+        }
+    }
+}

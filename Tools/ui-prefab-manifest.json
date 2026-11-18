@@ -1,0 +1,90 @@
+{
+  "InventoryCell": {
+    "path": "Assets/Workerborn/Prefabs/UI/InventoryCell.prefab",
+    "component": 100002
+  },
+  "ActionButton": {
+    "path": "Assets/Workerborn/Prefabs/UI/ActionButton.prefab",
+    "component": 100011
+  },
+  "ListRow": {
+    "path": "Assets/Workerborn/Prefabs/UI/ListRow.prefab",
+    "component": 100027
+  },
+  "ItemTile": {
+    "path": "Assets/Workerborn/Prefabs/UI/ItemTile.prefab",
+    "component": 100023
+  },
+  "PickupName": {
+    "path": "Assets/Workerborn/Prefabs/UI/PickupName.prefab",
+    "component": 100009
+  },
+  "TargetLink": {
+    "path": "Assets/Workerborn/Prefabs/UI/TargetLink.prefab",
+    "component": 100007
+  },
+  "SkillBalloon": {
+    "path": "Assets/Workerborn/Prefabs/UI/SkillBalloon.prefab",
+    "component": 100017
+  },
+  "WorldTooltip": {
+    "path": "Assets/Workerborn/Prefabs/UI/WorldTooltip.prefab",
+    "component": 100009
+  },
+  "NpcName": {
+    "path": "Assets/Workerborn/Prefabs/UI/NpcName.prefab",
+    "component": 100004
+  },
+  "FloatingText": {
+    "path": "Assets/Workerborn/Prefabs/UI/FloatingText.prefab",
+    "component": 100004
+  },
+  "InventoryWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/InventoryWindow.prefab",
+    "component": 100287
+  },
+  "SkillsWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/SkillsWindow.prefab",
+    "component": 100075
+  },
+  "QuestWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/QuestWindow.prefab",
+    "component": 100051
+  },
+  "QuestScrollWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/QuestScrollWindow.prefab",
+    "component": 100058
+  },
+  "CharacterWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/CharacterWindow.prefab",
+    "component": 100070
+  },
+  "MapWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/MapWindow.prefab",
+    "component": 100056
+  },
+  "SystemWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/SystemWindow.prefab",
+    "component": 100056
+  },
+  "ItemTooltip": {
+    "path": "Assets/Workerborn/Prefabs/UI/ItemTooltip.prefab",
+    "component": 100046
+  },
+  "ItemContext": {
+    "path": "Assets/Workerborn/Prefabs/UI/ItemContext.prefab",
+    "component": 100056
+  },
+  "ShopWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/ShopWindow.prefab",
+    "component": 100328
+  },
+  "QuantityWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/QuantityWindow.prefab",
+    "component": 100080
+  },
+  "ConversationWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/ConversationWindow.prefab",
+    "component": 100073
+  }
+}
