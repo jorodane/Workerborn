@@ -45,7 +45,8 @@ namespace Workerborn
         private readonly Dictionary<Material, Material> fadeMaterials = new Dictionary<Material, Material>();
         private readonly List<Renderer> removed = new List<Renderer>();
         private readonly List<Renderer> applied = new List<Renderer>();
-        private readonly MaterialPropertyBlock working = new MaterialPropertyBlock();
+        // Native Unity objects cannot be constructed during MonoBehaviour deserialization.
+        private MaterialPropertyBlock working;
         private sealed class FadeState
         {
             public float Opacity = 1;
@@ -69,6 +70,7 @@ namespace Workerborn
 
         private void Awake()
         {
+            working = new MaterialPropertyBlock();
             view = GetComponent<Camera>();
             if (fadeVariants != null)
                 fadeVariants.WarmUp();

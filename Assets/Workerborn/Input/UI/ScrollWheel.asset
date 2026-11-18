@@ -7,7 +7,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Script: {fileID: 11500000, guid: fc1515ab76e54f068e2f2207940fab32, type: 3}
-  m_Name: UI ScrollWheel
+  m_Name: ScrollWheel
   m_EditorClassIdentifier: ''
   m_Asset: {fileID: -944628639613478452, guid: 968ff0f490b85dbc91a43943a3508a8f, type: 3}
   m_ActionId: 6ffd2bcf-b574-566e-8e9a-f3ddacd5d03f

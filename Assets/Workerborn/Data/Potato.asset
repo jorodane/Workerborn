@@ -18,7 +18,7 @@ MonoBehaviour:
     guid: 0b888291df055d56abb3c0abd0eb1542
     type: 3
   m_Name: Potato
-  m_EditorClassIdentifier: null
+  m_EditorClassIdentifier:
   itemId: potato
   displayName: 감자
   harvestsPerPlant: 3

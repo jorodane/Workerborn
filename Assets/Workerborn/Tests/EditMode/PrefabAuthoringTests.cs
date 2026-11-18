@@ -4,11 +4,46 @@ using UnityEditor;
 using UnityEngine;
 using TMPro;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.TestTools;
 
 namespace Workerborn.Tests
 {
     public sealed class PrefabAuthoringTests
     {
+        [Test]
+        public void CameraVisibilityCanBeConstructedWithoutAllocatingNativeObjectsInItsConstructor()
+        {
+            var root = new GameObject("Camera visibility construction test");
+            try
+            {
+                root.AddComponent<CameraVisibility>();
+                LogAssert.NoUnexpectedReceived();
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [TestCase("PC")]
+        [TestCase("Mobile")]
+        public void PipelineLoadsItsAuthoredDefaultRenderer(string platform)
+        {
+            var path = "Assets/Workerborn/Rendering/";
+            var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(path + platform + "_Pipeline.asset");
+            var renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path + platform + "_Renderer.asset");
+            Assert.That(pipeline, Is.Not.Null);
+            Assert.That(renderer, Is.Not.Null);
+            var serialized = new SerializedObject(pipeline);
+            int index = serialized.FindProperty("m_DefaultRendererIndex").intValue;
+            var list = serialized.FindProperty("m_RendererDataList");
+            Assert.That(index, Is.InRange(0, list.arraySize - 1));
+            Assert.That(list.GetArrayElementAtIndex(index).objectReferenceValue, Is.SameAs(renderer));
+            Assert.That(pipeline.GetRenderer(-1), Is.Not.Null);
+            LogAssert.NoUnexpectedReceived();
+        }
+
         [Test]
         public void EveryWindowHasAnEditableLayoutBeforePlay()
         {

@@ -10,7 +10,7 @@ Material:
     fileID: 0
   m_PrefabAsset:
     fileID: 0
-  m_Name: Target silhouette mask
+  m_Name: TargetMask
   m_Shader: {fileID: 4800000, guid: adf6eb992a6e5c0bb50255dd9979b494, type: 3}
   m_Parent:
     fileID: 0

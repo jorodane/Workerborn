@@ -58,6 +58,20 @@ def resolve(pointer):
 
 def check_pointers(path):
     parsed=docs(path); local={d['_id'] for d in parsed};count=0
+    for d in parsed:
+        if 'PrefabInstance'in d:
+            assert d['PrefabInstance'].get('m_SourcePrefab',{}).get('fileID'), f'Broken prefab instance without a source: {path}:{d["_id"]}'
+    raw=path.read_bytes()
+    if raw.startswith(b'%YAML'):
+        assert not re.search(rb'^\s*m_EditorClassIdentifier: null\s*$',raw,re.M),f'Literal null type identifier: {path}'
+    meta=Path(str(path)+'.meta')
+    main=re.search(r'mainObjectFileID: (-?\d+)',meta.read_text())if meta.exists()else None
+    if main and path.suffix!='.prefab':
+        obj=next((d for d in parsed if d['_id']==int(main[1])),None)
+        if obj is not None:
+            value=next(v for k,v in obj.items()if not k.startswith('_'))
+            assert value.get('m_Name')==path.stem,f'Main object name differs from filename: {path}'
+
     assert all(-(2**63)<=i<2**63 for i in local), f'Object ID outside Unity int64 range: {path}'
     for pointer in walk(parsed):
         identifier=pointer['fileID'];guid=pointer.get('guid')
@@ -216,3 +230,15 @@ for renderer in ['PC_Renderer.asset','Mobile_Renderer.asset']:
     features=[d['MonoBehaviour']for d in docs(CONTENT/'Rendering'/renderer)if d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='576f949be0794f548b825c9ce6f556db']
     assert {f['settings']['filterSettings']['RenderQueueType']for f in features}=={0,1}
 print('Validated sculptable forest Terrain, supplied ground materials, radial skill icon, camera fade libraries and both outline queues.')
+
+# Validate the active render-pipeline assets, their typed renderer data and the graphics/quality bindings.
+for platform in ['PC','Mobile']:
+    pipeline=docs(CONTENT/'Rendering'/(platform+'_Pipeline.asset'))[0]['MonoBehaviour']
+    index=pipeline['m_DefaultRendererIndex'];renderers=pipeline['m_RendererDataList']
+    assert 0<=index<len(renderers) and renderers[index]['fileID']
+    renderer_path=resolve(renderers[index]);assert renderer_path==CONTENT/'Rendering'/(platform+'_Renderer.asset')
+    renderer=next(d['MonoBehaviour']for d in docs(renderer_path)if d['_id']==renderers[index]['fileID'])
+    assert renderer['m_Script']['guid']=='de640fe3d0db1804a85f9fc8f5cadab6'
+    assert renderer.get('m_EditorClassIdentifier')in [None,'']
+assert guid_for(CONTENT/'Rendering/PC_Pipeline.asset')in(ROOT/'ProjectSettings/GraphicsSettings.asset').read_text()
+print('Validated native asset names, empty type identifiers, complete prefab instances and default URP renderer references.')

@@ -18,7 +18,7 @@ MonoBehaviour:
     guid: de640fe3d0db1804a85f9fc8f5cadab6
     type: 3
   m_Name: PC_Renderer
-  m_EditorClassIdentifier: null
+  m_EditorClassIdentifier:
   debugShaders:
     debugReplacementPS:
       fileID: 4800000
@@ -109,7 +109,7 @@ MonoBehaviour:
     guid: f62c9c65cf3354c93be831c8bc075510
     type: 3
   m_Name: ScreenSpaceAmbientOcclusion
-  m_EditorClassIdentifier: null
+  m_EditorClassIdentifier:
   m_Active: 1
   m_Settings:
     AOMethod: 0

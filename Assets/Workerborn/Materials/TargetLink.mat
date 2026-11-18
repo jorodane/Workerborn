@@ -10,7 +10,7 @@ Material:
     fileID: 0
   m_PrefabAsset:
     fileID: 0
-  m_Name: Target Link
+  m_Name: TargetLink
   m_Shader: {fileID: 4800000, guid: eecf37fd6f4e5f5b8ca95ee18a1b05ff, type: 3}
   m_Parent:
     fileID: 0

@@ -17,7 +17,7 @@ MonoBehaviour:
     fileID: 11500000
     guid: 28c1c4eadef45a468b633752af1bd27c
     type: 3
-  m_Name: Village toon palette
+  m_Name: ToonPalette
   m_EditorClassIdentifier: ''
   materials:
   - source:

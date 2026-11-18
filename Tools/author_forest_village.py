@@ -63,7 +63,7 @@ h['m_Scale']=dict(x=SIZE[0]/(resolution-1),y=HEIGHT,z=SIZE[1]/(resolution-1))
 h['m_Heights']=np.rint(normalized*32767).astype(np.uint16).ravel().tolist()
 # Conservative error/culling bounds stay valid until Unity recomputes individual patches after sculpting.
 h['m_PrecomputedError']=[1.]*len(h['m_PrecomputedError']);h['m_MinMaxPatchHeights']=[v for _ in range(len(h['m_MinMaxPatchHeights'])//2)for v in [float(normalized.min()),float(normalized.max())]]
-data['m_Name']='Forest Village Terrain';detail=data['m_DetailDatabase'];detail['m_DetailPrototypes']=[]
+data['m_Name']='ForestVillageTerrain';detail=data['m_DetailDatabase'];detail['m_DetailPrototypes']=[]
 for patch in detail['m_Patches']:
     for key,value in patch.items():
         if isinstance(value,list):patch[key]=[]

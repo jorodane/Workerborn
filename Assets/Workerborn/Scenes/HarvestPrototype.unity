@@ -315,8 +315,8 @@ MonoBehaviour:
     fileID: 11500000
     guid: a79441f348de89743a2939f4d699eac1
     type: 3
-  m_Name: null
-  m_EditorClassIdentifier: null
+  m_Name:
+  m_EditorClassIdentifier:
   m_RenderShadows: 1
   m_RequiresDepthTextureOption: 2
   m_RequiresOpaqueTextureOption: 2
@@ -511,8 +511,8 @@ MonoBehaviour:
     fileID: 11500000
     guid: 474bcb49853aa07438625e644c072ee6
     type: 3
-  m_Name: null
-  m_EditorClassIdentifier: null
+  m_Name:
+  m_EditorClassIdentifier:
   m_Version: 3
   m_UsePipelineSettings: 1
   m_AdditionalLightsShadowResolutionTier: 2
@@ -568,8 +568,8 @@ MonoBehaviour:
     fileID: 11500000
     guid: 172515602e62fb746b5d573b38a5fe58
     type: 3
-  m_Name: null
-  m_EditorClassIdentifier: null
+  m_Name:
+  m_EditorClassIdentifier:
   m_IsGlobal: 1
   priority: 0
   blendDistance: 0
@@ -684,8 +684,8 @@ MonoBehaviour:
     fileID: 11500000
     guid: 56fb79ab9b555c02a1dff318fdee1f06
     type: 3
-  m_Name: null
-  m_EditorClassIdentifier: null
+  m_Name:
+  m_EditorClassIdentifier:
   potato:
     fileID: 11400000
     guid: 0d1178ea5a6458b882a6e049865d0fc3

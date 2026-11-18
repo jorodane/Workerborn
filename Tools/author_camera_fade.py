@@ -78,7 +78,7 @@ for pair in pairs:
         ks.add('_SURFACE_TYPE_TRANSPARENT')
         for fog in ['', 'FOG_EXP2']:combinations.add(' '.join(sorted(ks|({fog}if fog else set()))))
     shaders.append(dict(first=pair['fading'],second=dict(variants=[dict(keywords=k,passType=13)for k in sorted(combinations)])))
-path=BASE/'Rendering/CameraFade.shadervariants';write(path,[(200,20000000,'ShaderVariantCollection',dict(**common(),m_Name='Camera Fade',m_Shaders=shaders),False)])
+path=BASE/'Rendering/CameraFade.shadervariants';write(path,[(200,20000000,'ShaderVariantCollection',dict(**common(),m_Name='CameraFade',m_Shaders=shaders),False)])
 # The scene stores the library explicitly so player builds retain these variants.
 ds=read(BASE/'Scenes/VillagePrototype.unity')
 for c,i,k,v,st in ds:

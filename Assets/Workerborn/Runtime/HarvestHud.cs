@@ -212,7 +212,7 @@ namespace Workerborn
             text.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
             text.color = color;
             text.alignment = TextAlignmentOptions.TopLeft;
-            text.enableWordWrapping = true;
+            text.textWrappingMode = TextWrappingModes.Normal;
             text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = false;
             text.richText = false;

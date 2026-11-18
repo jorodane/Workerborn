@@ -12,6 +12,7 @@ class Flow(dict): pass
 
 class Dumper(yaml.SafeDumper): pass
 
+Dumper.add_representer(type(None), lambda d,v:d.represent_scalar('tag:yaml.org,2002:null',''))
 Dumper.add_representer(Flow, lambda d,v:d.represent_mapping('tag:yaml.org,2002:map',v,flow_style=True))
 
 def dump(v): return yaml.dump(v,Dumper=Dumper,allow_unicode=True,sort_keys=False,width=150)

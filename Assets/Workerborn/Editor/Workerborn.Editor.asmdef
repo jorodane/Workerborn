@@ -1,6 +1,12 @@
 {
   "name": "Workerborn.Editor",
   "rootNamespace": "Workerborn.Editor",
-  "references": ["Workerborn.Runtime"],
-  "includePlatforms": ["Editor"]
+  "references": [
+    "Workerborn.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Core.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
 }

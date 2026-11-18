@@ -142,6 +142,7 @@ def instance_tree(tid,path,source_docs,ids,extra_mods=None):
         source_id=source_tid if original_id==tid else original_id
         if source_id not in source_ids:raise ValueError(('Cannot remap external reference',path,original_id))
         original=source_by[source_id];kind=next(k for k in original if not k.startswith('_'))
+        if kind=='PrefabInstance':continue # Internal nested instances are owned by the source prefab, not scene aliases.
         fields=dict(m_CorrespondingSourceObject=assetref(path,source_id),m_PrefabInstance=ref(instance),m_PrefabAsset=ref())
         if kind=='MonoBehaviour':fields.update(m_GameObject=ref(),m_Enabled=1,m_EditorHideFlags=0,m_Script=value(original)['m_Script'],m_Name='',m_EditorClassIdentifier='')
         added.append(dict(_class=original['_class'],_id=original_id,**{kind:fields}))

@@ -18,7 +18,7 @@ MonoBehaviour:
     guid: de640fe3d0db1804a85f9fc8f5cadab6
     type: 3
   m_Name: Mobile_Renderer
-  m_EditorClassIdentifier: null
+  m_EditorClassIdentifier:
   debugShaders:
     debugReplacementPS:
       fileID: 4800000

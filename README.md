@@ -120,3 +120,5 @@ python Tests/validate_camera_graphs.py
 이 작업 환경에는 Unity Editor가 없어 실제 Unity 6 임포트·PlayMode 실행·미리보기 및 화면 검증은 수행하지 못했습니다. .NET 테스트, C# 구문·참조 컴파일, Scene 및 에셋 연결 정적 검사를 수행했습니다.
 
 원본 에셋과 `SampleScene`은 보존합니다. `HarvestPrototype`은 기존 수확 전용 데모입니다. `Tools/author_*`는 예제 에셋을 작성할 때 사용한 명시적 오프라인 도구입니다. Unity의 import·Play에서는 실행되지 않습니다. 재실행은 예제 배치를 덮어쓰므로 일반 작업에는 Scene과 Prefab Mode를 사용하세요.
+
+Unity가 실패한 import에서 기본 Renderer 참조를 비워둔 경우, Editor가 준비된 뒤 `VillageRenderPipelineReferences`가 Workerborn PC·Mobile 파이프라인의 **누락된 기본 슬롯만** 복구합니다. 이미 지정한 Renderer와 Renderer Feature는 유지합니다. 수동으로 실행하려면 **Workerborn → Rendering → Repair Missing Renderer References**를 사용합니다.

@@ -6,7 +6,7 @@ ShaderVariantCollection:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Camera Fade
+  m_Name: CameraFade
   m_Shaders:
   - first: {fileID: 4800000, guid: d0ec2e7f20c057e99f0bbe40f8c55b95, type: 3}
     second:

@@ -7,7 +7,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Script: {fileID: 11500000, guid: fc1515ab76e54f068e2f2207940fab32, type: 3}
-  m_Name: UI Click
+  m_Name: Click
   m_EditorClassIdentifier: ''
   m_Asset: {fileID: -944628639613478452, guid: 968ff0f490b85dbc91a43943a3508a8f, type: 3}
   m_ActionId: ea42930e-1b37-54ec-a441-30fd0f5a7218
