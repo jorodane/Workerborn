@@ -3,26 +3,55 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 67215e8fbbc757099aae5c00096661c4, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: 67215e8fbbc757099aae5c00096661c4
+    type: 3
   m_Name: VillageSettings
   m_EditorClassIdentifier: ''
   items:
-  - {fileID: 11400000, guid: 74aa858d8448591fb97f2aef6f2527f3, type: 2}
-  - {fileID: 11400000, guid: 7b471b1e3b6d5bdd8451d9df97649c0a, type: 2}
-  - {fileID: 11400000, guid: 923022ccb7665a26bfa386401df4ae16, type: 2}
-  - {fileID: 11400000, guid: 6191d8b13f735ea6a0871f62c91f712d, type: 2}
-  - {fileID: 11400000, guid: 6de5ad19e9765aeba9e31a1e72b56c89, type: 2}
-  defaultJob: {fileID: 11400000, guid: 1d7c5edaa4915cc08ad45cc31d2a79e7, type: 2}
-  introQuest: {fileID: 11400000, guid: a316910e63955ff3a8de8de6d0d1fb03, type: 2}
-  expansionQuest: {fileID: 11400000, guid: 9fd82f28b7565027ae8cd208ef37e123, type: 2}
-  player: {fileID: 11400000, guid: 1ba8002aba425f66a1f39dff4e92351b, type: 2}
-  interfaceFont: {fileID: 12800000, guid: f8fd8fcfc5615672889ebeb1fe6fa86f, type: 3}
+  - fileID: 11400000
+    guid: 74aa858d8448591fb97f2aef6f2527f3
+    type: 2
+  - fileID: 11400000
+    guid: 7b471b1e3b6d5bdd8451d9df97649c0a
+    type: 2
+  - fileID: 11400000
+    guid: 923022ccb7665a26bfa386401df4ae16
+    type: 2
+  - fileID: 11400000
+    guid: 6191d8b13f735ea6a0871f62c91f712d
+    type: 2
+  - fileID: 11400000
+    guid: 6de5ad19e9765aeba9e31a1e72b56c89
+    type: 2
+  defaultJob:
+    fileID: 11400000
+    guid: 1d7c5edaa4915cc08ad45cc31d2a79e7
+    type: 2
+  introQuest:
+    fileID: 11400000
+    guid: a316910e63955ff3a8de8de6d0d1fb03
+    type: 2
+  expansionQuest:
+    fileID: 11400000
+    guid: 9fd82f28b7565027ae8cd208ef37e123
+    type: 2
+  player:
+    fileID: 11400000
+    guid: 1ba8002aba425f66a1f39dff4e92351b
+    type: 2
+  interfaceFont: {fileID: 11400000, guid: 983a7b11a9c95d02b17b50fcf036fa03, type: 2}
   minutesPerSecond: 3
   wakeHour: 6
   collapseHour: 24

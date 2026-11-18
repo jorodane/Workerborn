@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
 namespace Workerborn
 {
     // A low-resolution ID/depth pass tracks visible animated silhouettes, not bounding boxes.
+    [DefaultExecutionOrder(-25)]
     public sealed class PointerTargeting : MonoBehaviour
     {
         [SerializeField]
@@ -21,6 +21,13 @@ namespace Workerborn
         private float highlightWidth = 1.8f;
         [SerializeField]
         private TargetLinkView link;
+        [SerializeField]
+        private Color pressedColor = new Color(1f, .55f, .12f, 1f);
+        private WorldInteractable pressTarget;
+        private bool highlightedPressed;
+        private CameraVisibility visibility;
+        public bool IsPressed => CurrentTarget != null && CurrentTarget == pressTarget && WorkerbornInput.Held("Gameplay/Interact");
+
         private VillagePrototype game;
         private RenderTexture mask;
         private Texture2D synchronous;
@@ -29,6 +36,7 @@ namespace Workerborn
         private WorldInteractable[] snapshot;
         private WorldInteractable[] pendingSnapshot;
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
+        private readonly RaycastHit[] worldHits = new RaycastHit[128];
         private readonly Dictionary<Renderer, MaterialPropertyBlock> previous = new Dictionary<Renderer, MaterialPropertyBlock>();
         private readonly Dictionary<Renderer, int> targetIds = new Dictionary<Renderer, int>();
         private AsyncGPUReadbackRequest request;
@@ -42,6 +50,7 @@ namespace Workerborn
         {
             game = owner;
             link = targetLink;
+            visibility = game.WorldCamera.GetComponent<CameraVisibility>();
             sceneRenderers = game.gameObject.scene.GetRootGameObjects().Length > 0 ? FindObjectsByType<Renderer>(FindObjectsSortMode.None) : new Renderer[0];
         }
 
@@ -54,38 +63,115 @@ namespace Workerborn
             return uiHits.Count > 0;
         }
 
+        private void Update()
+        {
+            if (game == null || WorkerbornInput.Current == null)
+                return;
+            var cursor = WorkerbornInput.Point;
+            WorldInteractable target = null;
+            bool overUi = false;
+            if (EventSystem.current != null)
+            {
+                uiHits.Clear();
+                EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = cursor }, uiHits);
+                overUi = uiHits.Count > 0;
+                if (overUi)
+                {
+                    var nameplate = uiHits[0].gameObject.GetComponentInParent<WorldNameplateView>();
+                    if (nameplate != null)
+                        target = nameplate.Target;
+                }
+            }
+
+            bool groundHit = false;
+            Vector3 ground = Vector3.zero;
+            bool control = WorkerbornInput.Held("Gameplay/Target");
+            if (!overUi)
+            {
+                if (control)
+                {
+                    if (HasMask && TargetMaskGeometry.Closest(pixels, mask.width, mask.height, SystemInfo.graphicsUVStartsAtTop, cursor.x, cursor.y, Screen.width, Screen.height, out var hit) && snapshot != null && hit.Id < snapshot.Length)
+                        target = snapshot[hit.Id];
+                }
+                else if (TryWorldHit(cursor, out RaycastHit hit))
+                {
+                    target = hit.collider.GetComponentInParent<WorldInteractable>();
+                    groundHit = target == null;
+                    ground = hit.point;
+                }
+            }
+
+            if (game.ControlsBlocked || target != null && !target.CanInteract)
+                target = null;
+            if (WorkerbornInput.Pressed("Gameplay/Interact"))
+                pressTarget = target;
+            if (!WorkerbornInput.Held("Gameplay/Interact"))
+                pressTarget = null;
+            Select(target);
+            if (!game.ControlsBlocked && WorkerbornInput.Pressed("Gameplay/Interact"))
+            {
+                if (CurrentTarget != null)
+                    CurrentTarget.RequestInteraction(game.Worker);
+                else if (!overUi && !control && groundHit)
+                    game.Worker.CommandMove(ground);
+            }
+        }
+
+        private bool TryWorldHit(Vector2 cursor, out RaycastHit nearest)
+        {
+            Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
+            int count = Physics.RaycastNonAlloc(ray, worldHits, 200f, ~(1 << 2), QueryTriggerInteraction.Collide);
+            var hits = worldHits;
+            if (count == worldHits.Length)
+            {
+                hits = Physics.RaycastAll(ray, 200f, ~(1 << 2), QueryTriggerInteraction.Collide);
+                count = hits.Length;
+            }
+
+            nearest = default;
+            float distance = float.MaxValue;
+            bool found = false;
+            for (int i = 0; i < count; i++)
+            {
+                if (hits[i].distance >= distance || visibility != null && visibility.IgnorePointerCollider(hits[i].collider))
+                    continue;
+                nearest = hits[i];
+                distance = hits[i].distance;
+                found = true;
+            }
+
+            return found;
+        }
+
+        private bool HasMask => pixels != null && mask != null && capturedWidth == Screen.width && capturedHeight == Screen.height;
+
         private void LateUpdate()
         {
-            if (game == null || maskMaterial == null || Mouse.current == null || link == null)
+            if (game == null || maskMaterial == null || link == null)
                 return;
-            bool held = Keyboard.current != null && (Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed);
-            var cursor = Mouse.current.position.ReadValue();
-            if (!held || game.ControlsBlocked || OverUi(cursor))
+            bool held = WorkerbornInput.Held("Gameplay/Target");
+            if (!held || game.ControlsBlocked)
             {
-                Select(null);
                 link.Hide();
                 pixels = null;
                 return;
             }
 
             EnsureTexture();
-            if (pixels != null && capturedWidth == Screen.width && capturedHeight == Screen.height && TargetMaskGeometry.Closest(pixels, mask.width, mask.height, SystemInfo.graphicsUVStartsAtTop, cursor.x, cursor.y, Screen.width, Screen.height, out var hit) && snapshot != null && hit.Id < snapshot.Length && snapshot[hit.Id] != null && snapshot[hit.Id].isActiveAndEnabled)
+            // Aim at the stable capsule center; the UI material masks character silhouettes.
+            Capture();
+            if (CurrentTarget != null && CurrentTarget.CanTarget && CurrentTarget.CanInteract)
             {
-                Select(snapshot[hit.Id]);
-                var end = new Vector2(hit.X, hit.Y);
-                link.Show(game.Hud.CanvasRect, cursor, end, highlightColor);
-            }
-            else
-            {
-                Select(null);
-                link.Hide();
+                Vector3 center = game.WorldCamera.WorldToScreenPoint(CurrentTarget.TargetCenter);
+                if (center.z > 0)
+                {
+                    link.SetSilhouetteMask(mask, SystemInfo.graphicsUVStartsAtTop);
+                    link.Show(game.Hud.CanvasRect, WorkerbornInput.Point, center, IsPressed ? pressedColor : highlightColor);
+                    return;
+                }
             }
 
-            if (!waiting && Time.unscaledTime >= nextCapture)
-            {
-                nextCapture = Time.unscaledTime + 1f / capturesPerSecond;
-                Capture();
-            }
+            link.Hide();
         }
 
         private void EnsureTexture()
@@ -105,6 +191,7 @@ namespace Workerborn
             {
                 name = "Target silhouettes",
                 filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
                 antiAliasing = 1
             };
             mask.Create();
@@ -120,7 +207,7 @@ namespace Workerborn
             targetIds.Clear();
             foreach (var item in WorldInteractable.Active)
             {
-                if (item == null || !item.CanTarget || !item.isActiveAndEnabled)
+                if (item == null || !item.CanTarget || !item.CanInteract)
                     continue;
                 int id = targets.Count;
                 targets.Add(item);
@@ -148,6 +235,10 @@ namespace Workerborn
                 Draw(command, pair.Key, pair.Value);
             Graphics.ExecuteCommandBuffer(command);
             command.Release();
+            // Draw every frame to mask moving silhouettes; read back IDs at a lower rate.
+            if (waiting || Time.unscaledTime < nextCapture)
+                return;
+            nextCapture = Time.unscaledTime + 1f / capturesPerSecond;
             int screenWidth = Screen.width, screenHeight = Screen.height, version = generation;
             var frameTargets = pendingSnapshot;
             if (SystemInfo.supportsAsyncGPUReadback)
@@ -190,7 +281,7 @@ namespace Workerborn
 
         private void Draw(CommandBuffer command, Renderer renderer, int id)
         {
-            if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy || !(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) || (game.WorldCamera.cullingMask & (1 << renderer.gameObject.layer)) == 0)
+            if (renderer == null || !renderer.enabled || renderer.forceRenderingOff || visibility != null && visibility.IsHidden(renderer) || !renderer.gameObject.activeInHierarchy || !(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) || (game.WorldCamera.cullingMask & (1 << renderer.gameObject.layer)) == 0)
                 return;
             var materials = renderer.sharedMaterials;
             for (int index = 0; index < materials.Length; index++)
@@ -214,8 +305,10 @@ namespace Workerborn
 
         private void Select(WorldInteractable target)
         {
-            if (CurrentTarget == target)
+            bool pressed = target != null && target == pressTarget && WorkerbornInput.Held("Gameplay/Interact");
+            if (CurrentTarget == target && highlightedPressed == pressed)
                 return;
+            highlightedPressed = pressed;
             foreach (var pair in previous)
                 if (pair.Key != null)
                     pair.Key.SetPropertyBlock(pair.Value);
@@ -230,7 +323,7 @@ namespace Workerborn
                 previous[renderer] = original;
                 var highlighted = new MaterialPropertyBlock();
                 renderer.GetPropertyBlock(highlighted);
-                highlighted.SetColor("_OutlineColor", highlightColor);
+                highlighted.SetColor("_OutlineColor", pressed ? pressedColor : highlightColor);
                 highlighted.SetFloat("_OutlineWidth", highlightWidth);
                 renderer.SetPropertyBlock(highlighted);
             }

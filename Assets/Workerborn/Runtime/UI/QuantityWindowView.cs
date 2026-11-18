@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,13 +9,13 @@ namespace Workerborn
         [SerializeField]
         private UiItemView item;
         [SerializeField]
-        private Text title;
+        private TMP_Text title;
         [SerializeField]
-        private Text quantityText;
+        private TMP_Text quantityText;
         [SerializeField]
-        private Text total;
+        private TMP_Text total;
         [SerializeField]
-        private Text confirmText;
+        private TMP_Text confirmText;
         [SerializeField]
         private Button plus;
         [SerializeField]

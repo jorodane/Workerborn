@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -16,9 +17,9 @@ namespace Workerborn
         [SerializeField]
         private RawImage portrait;
         [SerializeField]
-        private Text gold;
+        private TMP_Text gold;
         [SerializeField]
-        private Text bagName;
+        private TMP_Text bagName;
         [SerializeField]
         private EquipmentSlotPointer[] equipment;
         [SerializeField]

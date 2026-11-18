@@ -3,7 +3,9 @@
   "rootNamespace": "Workerborn.Tests",
   "references": [
     "Workerborn.Runtime",
-    "Unity.InputSystem"
+    "Unity.InputSystem",
+    "Unity.TextMeshPro",
+    "UnityEngine.UI"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

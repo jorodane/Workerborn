@@ -1,8 +1,8 @@
+using TMPro;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
@@ -23,13 +23,13 @@ namespace Workerborn
         public RectTransform CanvasRect => (RectTransform)transform;
 
         [SerializeField]
-        private Text clockText;
+        private TMP_Text clockText;
         [SerializeField]
-        private Text energyText;
+        private TMP_Text energyText;
         [SerializeField]
-        private Text growthText;
+        private TMP_Text growthText;
         [SerializeField]
-        private Text toastText;
+        private TMP_Text toastText;
         [SerializeField]
         private Image energyFill;
         [SerializeField]
@@ -38,15 +38,15 @@ namespace Workerborn
         private RectTransform toast;
         private float toastUntil;
         private RectTransform skillBubble;
-        private Text skillTitle;
-        private Text skillTime;
+        private TMP_Text skillTitle;
+        private TMP_Text skillTime;
         private Image skillFill;
         private RectTransform hoverTip;
-        private Text hoverText;
+        private TMP_Text hoverText;
         private readonly Queue<string> log = new Queue<string>();
         private string lastLoggedMessage;
         private readonly Dictionary<string, RectTransform> windows = new Dictionary<string, RectTransform>();
-        private readonly Dictionary<VillageInteractable, Text> npcLabels = new Dictionary<VillageInteractable, Text>();
+        private readonly Dictionary<VillageInteractable, WorldNameplateView> npcLabels = new Dictionary<VillageInteractable, WorldNameplateView>();
         private readonly List<FloatingText> floating = new List<FloatingText>();
         private int seenVersion = -1;
         private int seenInventoryVersion = -1;
@@ -62,12 +62,12 @@ namespace Workerborn
 
         private sealed class FloatingText
         {
-            public Text Text;
+            public TMP_Text Text;
             public Vector3 Position;
             public float Started;
         }
 
-        public void Initialize(VillagePrototype prototype, Font interfaceFont)
+        public void Initialize(VillagePrototype prototype, TMP_FontAsset interfaceFont)
         {
             game = prototype;
             if (GetComponent<Canvas>() == null || GetComponent<GraphicRaycaster>() == null)
@@ -80,15 +80,10 @@ namespace Workerborn
             {
                 var events = new GameObject("Village input", typeof(EventSystem), typeof(InputSystemUIInputModule));
                 events.transform.SetParent(transform, false);
-                events.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
+                WorkerbornInput.Current?.BindUi(events.GetComponent<InputSystemUIInputModule>());
             }
             else
-            {
-                var input = EventSystem.current.GetComponent<InputSystemUIInputModule>();
-                if (input != null && input.actionsAsset == null)
-                    input.AssignDefaultActions();
-            }
-
+                WorkerbornInput.Current?.BindUi(EventSystem.current.GetComponent<InputSystemUIInputModule>());
             if (clockText == null || library == null)
             {
                 Debug.LogError("Assign the authored HUD and UI prefab library.", this);
@@ -103,7 +98,8 @@ namespace Workerborn
             foreach (var target in game.Interactables)
             {
                 var text = Instantiate(library.NpcName, transform);
-                text.text = target.DisplayName;
+                text.Bind(target, game.Targeting);
+                text.SetBox(true);
                 npcLabels.Add(target, text);
             }
         }
@@ -150,10 +146,9 @@ namespace Workerborn
 
         private void Update()
         {
-            var keys = Keyboard.current;
-            if (keys == null)
+            if (WorkerbornInput.Current == null)
                 return;
-            if (keys.escapeKey.wasPressedThisFrame)
+            if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
                 if (HasModal)
                     CloseDialogue();
@@ -163,21 +158,21 @@ namespace Workerborn
                 CancelItemDrag();
             }
 
-            if (keys.iKey.wasPressedThisFrame)
+            if (WorkerbornInput.Pressed("Gameplay/Inventory"))
                 ToggleWindow("inventory");
-            if (keys.qKey.wasPressedThisFrame)
+            if (WorkerbornInput.Pressed("Gameplay/Quests"))
                 ToggleWindow("quests");
-            if (keys.zKey.wasPressedThisFrame || keys.kKey.wasPressedThisFrame)
+            if (WorkerbornInput.Pressed("Gameplay/Skills"))
                 ToggleWindow("skills");
-            if (keys.cKey.wasPressedThisFrame)
+            if (WorkerbornInput.Pressed("Gameplay/Character"))
                 ToggleWindow("character");
-            if (keys.mKey.wasPressedThisFrame && minimapPanel != null)
+            if (WorkerbornInput.Pressed("Gameplay/Map") && minimapPanel != null)
                 minimapPanel.gameObject.SetActive(!minimapPanel.gameObject.activeSelf);
-            if (Mouse.current != null)
+            if (WorkerbornInput.Current != null)
             {
                 if (IsHoldingItem)
-                    MoveItemDrag(Mouse.current.position.ReadValue());
-                if (Mouse.current.rightButton.wasPressedThisFrame)
+                    MoveItemDrag(WorkerbornInput.Point);
+                if (WorkerbornInput.Pressed("Camera/OrbitRight"))
                 {
                     suppressRightContext = IsHoldingItem;
                     if (IsHoldingItem)
@@ -230,31 +225,25 @@ namespace Workerborn
                 PlaceWorld(skillBubble, worker.transform.position + Vector3.up * skillWorldHeight);
             }
 
-            bool show = !HasModal && (worker.HoveredPickup != null || worker.HoveredInteraction != null || worker.HoveredCrop != null && active != worker.HoveredCrop);
+            var target = game.Targeting != null ? game.Targeting.CurrentTarget : null;
+            bool show = !game.ControlsBlocked && target != null && target.CanInteract;
             hoverTip.gameObject.SetActive(show);
             if (show)
             {
-                if (worker.HoveredPickup != null)
-                {
-                    hoverText.text = "감자 1개  ·  클릭해서 줍기";
-                    PlaceWorld(hoverTip, worker.HoveredPickup.transform.position + Vector3.up * 0.7f);
-                }
-                else if (worker.HoveredInteraction != null)
-                {
-                    hoverText.text = worker.HoveredInteraction.DisplayName + "  ·  클릭해서 대화";
-                    PlaceWorld(hoverTip, worker.HoveredInteraction.LabelPosition);
-                }
-                else
-                {
-                    hoverText.text = $"감자  ·  남은 수확 {worker.HoveredCrop.Remaining}/{worker.HoveredCrop.Capacity}회";
-                    PlaceWorld(hoverTip, worker.HoveredCrop.transform.position + Vector3.up * 1.1f);
-                }
+                hoverText.text = target.InteractionVerb;
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(CanvasRect, WorkerbornInput.Point, null, out var cursor);
+                var offset = hoverTip.GetComponent<WorldTooltipView>().CursorOffset;
+                Vector2 at = cursor + offset;
+                at.x = Mathf.Clamp(at.x, CanvasRect.rect.xMin, CanvasRect.rect.xMax - hoverTip.rect.width);
+                at.y = Mathf.Clamp(at.y, CanvasRect.rect.yMin + hoverTip.rect.height, CanvasRect.rect.yMax);
+                hoverTip.anchoredPosition = at - CanvasRect.rect.min;
             }
 
             foreach (var pair in npcLabels)
             {
-                pair.Value.text = pair.Key.DisplayName;
-                PlaceWorld(pair.Value.rectTransform, pair.Key.LabelPosition);
+                pair.Value.SetText(pair.Key.DisplayName);
+                pair.Value.SetBox(true);
+                PlaceWorld(pair.Value.Rect, pair.Key.LabelPosition);
             }
 
             for (int i = floating.Count - 1; i >= 0; i--)

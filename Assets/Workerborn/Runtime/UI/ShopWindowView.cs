@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -10,9 +11,9 @@ namespace Workerborn
         [SerializeField]
         private GridLayoutGroup cells;
         [SerializeField]
-        private Text description;
+        private TMP_Text description;
         [SerializeField]
-        private Text funds;
+        private TMP_Text funds;
         [SerializeField]
         private ShopSellTarget sellTarget;
         private VillageInteractable merchant;

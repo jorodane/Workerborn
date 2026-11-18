@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -6,19 +7,19 @@ namespace Workerborn
     public sealed class CharacterWindowView : VillageWindowView
     {
         [SerializeField]
-        private Text identity;
+        private TMP_Text identity;
         [SerializeField]
-        private Text level;
+        private TMP_Text level;
         [SerializeField]
-        private Text stamina;
+        private TMP_Text stamina;
         [SerializeField]
-        private Text ap;
+        private TMP_Text ap;
         [SerializeField]
         private Image staminaBar;
         [SerializeField]
         private Image experienceBar;
         [SerializeField]
-        private Text statistics;
+        private TMP_Text statistics;
         public override void Refresh()
         {
             var s = Game.State;

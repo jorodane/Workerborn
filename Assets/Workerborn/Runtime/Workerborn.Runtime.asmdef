@@ -1,6 +1,10 @@
 {
   "name": "Workerborn.Runtime",
   "rootNamespace": "Workerborn",
-  "references": ["Unity.InputSystem", "UnityEngine.UI"],
+  "references": [
+    "Unity.InputSystem",
+    "UnityEngine.UI",
+    "Unity.TextMeshPro"
+  ],
   "autoReferenced": true
 }

@@ -11,6 +11,7 @@ namespace Workerborn
         public override string DisplayName => displayName;
         public override bool CanTarget => true;
         public override float InteractionDistance => reach;
+        public override string InteractionVerb => "다가가기";
 
         protected override void Interact(HarvestWorker worker) => worker.CommandApproach(this);
     // Override OnArrived for combat; the shared completion event is also exposed in the prefab.

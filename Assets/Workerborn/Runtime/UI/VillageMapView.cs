@@ -1,3 +1,4 @@
+using TMPro;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,9 +12,9 @@ namespace Workerborn
         [SerializeField]
         private RectTransform player;
         [SerializeField]
-        private Text npcMarker;
+        private TMP_Text npcMarker;
         private VillagePrototype game;
-        private readonly Dictionary<VillageInteractable, Text> markers = new Dictionary<VillageInteractable, Text>();
+        private readonly Dictionary<VillageInteractable, TMP_Text> markers = new Dictionary<VillageInteractable, TMP_Text>();
         public void Bind(VillagePrototype owner)
         {
             if (game != null)

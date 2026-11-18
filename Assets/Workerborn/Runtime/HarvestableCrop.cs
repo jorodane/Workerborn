@@ -22,6 +22,8 @@ namespace Workerborn
         public int Remaining => cycle?.Remaining ?? 0;
         public int Capacity => cycle?.Capacity ?? 0;
         public bool IsDepleted => cycle == null || cycle.IsDepleted;
+        public override bool CanInteract => base.CanInteract && !IsDepleted;
+        public override string InteractionVerb => "수확하기";
         public float Progress => cycle?.Progress ?? 0f;
 
         public event Action<HarvestableCrop> Harvested;
@@ -92,6 +94,9 @@ namespace Workerborn
 
         private void RefreshVisuals()
         {
+            // Root colliders are the interaction surface; decorative model colliders stay disabled.
+            foreach (var collider in GetComponents<Collider>())
+                collider.enabled = !IsDepleted;
             if (visual != null)
             {
                 visual.gameObject.SetActive(!IsDepleted);

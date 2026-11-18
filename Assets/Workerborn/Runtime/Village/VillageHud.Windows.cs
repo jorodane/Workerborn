@@ -67,8 +67,7 @@ namespace Workerborn
             }
 
             selectedEntry = id;
-            var keys = UnityEngine.InputSystem.Keyboard.current;
-            if (keys != null && (keys.leftCtrlKey.isPressed || keys.rightCtrlKey.isPressed))
+            if (WorkerbornInput.Held("Gameplay/Target"))
             {
                 UseSelectedInventoryItem();
                 return;

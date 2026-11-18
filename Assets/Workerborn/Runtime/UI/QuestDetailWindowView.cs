@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -6,11 +7,11 @@ namespace Workerborn
     public sealed class QuestDetailWindowView : VillageWindowView
     {
         [SerializeField]
-        private Text description;
+        private TMP_Text description;
         [SerializeField]
-        private Text rewards;
+        private TMP_Text rewards;
         [SerializeField]
-        private Text objectives;
+        private TMP_Text objectives;
         private bool expansion;
         public void Select(bool world)
         {

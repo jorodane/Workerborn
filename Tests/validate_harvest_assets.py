@@ -19,16 +19,20 @@ for meta in (ROOT / 'Assets').rglob('*.meta'):
 # Package-owned scripts/shader retain the GUIDs shipped by URP, UGUI and Input System.
 PACKAGE_GUIDS = {
     '933532a4fcc9baf4fa0491de14d08ed7', # URP Lit
+    'd0353a89b1f911e48b9e16bdc9f2e058', # URP Editor/AssetVersion.cs (material import stamp)
     'a79441f348de89743a2939f4d699eac1', # UniversalAdditionalCameraData
     '474bcb49853aa07438625e644c072ee6', # UniversalAdditionalLightData
     '172515602e62fb746b5d573b38a5fe58', # Volume
     '0cd44c1031e13a943bb63640046fad76', # CanvasScaler
     'dc42784cf147c0c48a680349fa168899', # GraphicRaycaster
     'fe87c0e1cc204ed48ad3b37840f39efc', # Image
-    '5f7201a12d95ffc409449d95f23cf332', # Text
+    'f4688fdb7df04437aeb418b961361dc5', # TextMeshProUGUI
+    '71c1514a6bd24e1e882cebbe1904ce04', # TMP_FontAsset
+    '2705215ac5b84b70bacc50632be6e391', # TMP_Settings
     '4e29b1a8efbd4b44bb3f3716e73f07ff', # Button
     '76c392e42b5098c458856cdf6ecaaaa1', # EventSystem
     '01614664b831546d2ae94a42149d80ac', # InputSystemUIInputModule
+    'fc1515ab76e54f068e2f2207940fab32', # InputActionReference
 }
 PACKAGE_GUIDS.update(json.loads((ROOT/'Tools/unity_ui_guids.json').read_text()).values())
 for source_settings in (ROOT/'Assets/Settings').glob('*.asset'):
@@ -54,8 +58,10 @@ def resolve(pointer):
 
 def check_pointers(path):
     parsed=docs(path); local={d['_id'] for d in parsed};count=0
+    assert all(-(2**63)<=i<2**63 for i in local), f'Object ID outside Unity int64 range: {path}'
     for pointer in walk(parsed):
         identifier=pointer['fileID'];guid=pointer.get('guid')
+        assert -(2**63)<=identifier<2**63, f'Pointer ID outside Unity int64 range: {path}'
         if not identifier: continue
         if not guid:
             assert identifier in local, f'Broken local pointer {identifier} in {path}'
@@ -124,7 +130,8 @@ camera=next(d['Camera'] for d in scene if d['_id']==controller[0]['worldCamera']
 rig=behaviours(scene,'Village/VillageCameraRig.cs')[0];assert rig['initialPitch']<=25 and rig['maximumDistance']/rig['minimumDistance']>=10
 hud=behaviours(scene,'Village/VillageHud.cs')[0]
 clock=next(d['MonoBehaviour'] for d in scene if d['_id']==hud['clockText']['fileID'])
-assert clock['m_FontData']['m_VerticalOverflow']==1 and clock['m_FontData']['m_FontSize']>=14
+assert clock['m_Script']['guid']=='f4688fdb7df04437aeb418b961361dc5'
+assert clock['m_overflowMode']==0 and clock['m_fontSize']>=14
 assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values())
 
 settings=docs(resolve(controller[0]['settings']))[0]['MonoBehaviour']
@@ -146,3 +153,42 @@ for name in ['VillagePrototype','HarvestPrototype']:
     p=CONTENT/'Scenes'/(name+'.unity');assert str(p.relative_to(ROOT)) in build and guid_for(p) in build
 assert (CONTENT/'Fonts/WorkerbornKorean-Regular.otf').read_bytes().startswith(b'OTTO')
 print(f'Validated {files} project files, {pointers} pointers, native Scene hierarchy, 24 stable crops, 4 modular characters, content presets, HUD and build entries.')
+
+# Input bindings are an authored asset shared by gameplay, camera and the EventSystem.
+actions_path=CONTENT/'Input/Workerborn.inputactions'
+actions=json.loads(actions_path.read_text());maps={m['name']:m for m in actions['maps']}
+assert set(maps)=={'Gameplay','Camera','UI'}
+allids=[a['id']for m in maps.values()for a in m['actions']]+[b['id']for m in maps.values()for b in m['bindings']]
+assert len(allids)==len(set(allids))
+required={'Gameplay':{'Interact':'<Mouse>/leftButton','Target':'<Keyboard>/leftCtrl','Names':'<Keyboard>/leftAlt'},'Camera':{'OrbitMiddle':'<Mouse>/middleButton','OrbitRight':'<Mouse>/rightButton','Zoom':'<Mouse>/scroll/y'}}
+for mapname,bindings in required.items():
+    for name,binding in bindings.items():assert any(b['action']==name and b['path']==binding for b in maps[mapname]['bindings'])
+assert len(behaviours(scene,'Interaction/WorkerbornInput.cs'))==1
+module=next(d['MonoBehaviour']for d in scene if d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='01614664b831546d2ae94a42149d80ac')
+assert module['m_ActionsAsset']['guid']==guid_for(actions_path)
+for field in ['m_PointAction','m_LeftClickAction','m_RightClickAction','m_MiddleClickAction','m_ScrollWheelAction','m_MoveAction','m_SubmitAction','m_CancelAction']:
+    reference=docs(resolve(module[field]))[0]['MonoBehaviour'];assert reference['m_Asset']['guid']==guid_for(actions_path)
+    assert reference['m_ActionId'] in {a['id']for a in maps['UI']['actions']}
+assert 'activeInputHandler: 1' in (ROOT/'ProjectSettings/ProjectSettings.asset').read_text()
+assert len(behaviours(scene,'Rendering/CameraVisibility.cs'))==1
+assert 'followSmoothness'not in rig and 'collisionMask'not in rig
+for actor in actors:
+    go=actor['m_GameObject']['fileID'];assert any(d.get('CapsuleCollider',{}).get('m_GameObject',{}).get('fileID')==go for d in scene)
+# Every owned in-game text component uses TMP, with a valid Korean font and SDF material.
+texts=0
+for p in (CONTENT/'Prefabs/UI').glob('*.prefab'):
+    assert '5f7201a12d95ffc409449d95f23cf332'not in p.read_text(),p
+    for d in docs(p):
+        v=d.get('MonoBehaviour',{})
+        if v.get('m_Script',{}).get('guid')!='f4688fdb7df04437aeb418b961361dc5':continue
+        assert v['m_fontAsset']['guid']==guid_for(CONTENT/'Fonts/WorkerbornKorean-SDF.asset')
+        assert v['m_sharedMaterial']['fileID'] and not v['m_RaycastTarget'];texts+=1
+font=next(d['MonoBehaviour']for d in docs(CONTENT/'Fonts/WorkerbornKorean-SDF.asset')if 'MonoBehaviour'in d)
+assert font['m_AtlasPopulationMode']==1 and font['m_IsMultiAtlasTexturesEnabled']==1 and font['m_SourceFontFile']['fileID']==12800000
+outline=docs(CONTENT/'Fonts/WorkerbornKorean-NameOutline.mat')[0]['Material'];assert 'OUTLINE_ON'in outline['m_ValidKeywords']
+assert any(p.get('_OutlineWidth',0)>0 for p in outline['m_SavedProperties']['m_Floats'])
+hint=docs(CONTENT/'Prefabs/UI/WorldTooltip.prefab')
+assert not any(d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='fe87c0e1cc204ed48ad3b37840f39efc'and d['MonoBehaviour'].get('m_Enabled')for d in hint)
+for p in (CONTENT/'Runtime').rglob('*.cs'):
+    assert not re.search(r'UnityEngine\.Input(?!System)\b|Keyboard\.current|Mouse\.current|Pointer\.current',p.read_text()),p
+print(f'Validated {texts} TMP labels, Korean outlined SDF assets, authored input actions/UI references, camera visibility and interaction capsules.')

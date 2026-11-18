@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
 
 namespace Workerborn
 {
@@ -11,8 +10,7 @@ namespace Workerborn
     {
         Idle,
         Moving,
-        Harvesting,
-        PickingUp
+        Harvesting
     }
 
     [RequireComponent(typeof(NavMeshAgent))]
@@ -24,12 +22,11 @@ namespace Workerborn
         private NavMeshAgent agent;
         private WorkerAnimation animationDriver;
         private HarvestableCrop cropTarget;
-        private GroundPickup pickupTarget;
         private WorldInteractable interactionTarget;
         private VillagePrototype village;
         private int collectedCount;
-        private float pickupTime;
         public bool AcceptsInteractionCommands => village == null || !village.ControlsBlocked;
+        public PointerTargeting Targeting => village != null ? village.Targeting : null;
         public WorkerAction Action { get; private set; }
         public HarvestableCrop HoveredCrop { get; private set; }
         public GroundPickup HoveredPickup { get; private set; }
@@ -64,30 +61,21 @@ namespace Workerborn
                 UpdateMovement();
             else if (Action == WorkerAction.Harvesting)
                 UpdateHarvest();
-            else if (Action == WorkerAction.PickingUp)
-                UpdatePickup();
-            animationDriver?.SetAction(Action == WorkerAction.Moving && agent.velocity.sqrMagnitude > 0.02f ? 1 : Action == WorkerAction.Harvesting || Action == WorkerAction.PickingUp ? 2 : 0);
+            animationDriver?.SetAction(Action == WorkerAction.Moving && agent.velocity.sqrMagnitude > 0.02f ? 1 : Action == WorkerAction.Harvesting ? 2 : 0);
         }
 
         private void ReadInput()
         {
-            if ((Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) || (village != null ? village.CameraRig.CancelClickThisFrame : Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame))
-            {
+            if (WorkerbornInput.Pressed("Gameplay/Cancel") || (village != null ? village.CameraRig.CancelClickThisFrame : WorkerbornInput.Pressed("Camera/OrbitRight")))
                 Cancel();
-                if (village == null)
-                    Message?.Invoke("작업을 취소했어요. 남은 수확 횟수는 그대로예요.");
-            }
-
-            HoveredCrop = null;
-            HoveredPickup = null;
-            HoveredInteraction = null;
-            if (village != null && village.ControlsBlocked)
+            var target = village != null ? village.Targeting?.CurrentTarget : null;
+            HoveredCrop = target as HarvestableCrop;
+            HoveredPickup = target as GroundPickup;
+            HoveredInteraction = target as VillageInteractable;
+            // The village pointer controller handles both nameplates and world hits.
+            if (village != null || !AcceptsInteractionCommands)
                 return;
-            var pointer = Pointer.current;
-            if (pointer == null)
-                return;
-            Vector2 screen = pointer.position.ReadValue();
-            // Raycast the UI now, rather than relying on the previous frame's pointer state.
+            Vector2 screen = WorkerbornInput.Point;
             if (EventSystem.current != null)
             {
                 uiHits.Clear();
@@ -96,22 +84,15 @@ namespace Workerborn
                     return;
             }
 
-            var selected = village != null ? village.Targeting?.CurrentTarget : null;
-            bool control = Keyboard.current != null && (Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed);
-            if (control && village != null)
-            {
-                if (selected != null && pointer.press.wasPressedThisFrame)
-                    selected.RequestInteraction(this);
-                return;
-            }
-
             if (!Physics.Raycast(worldCamera.ScreenPointToRay(screen), out RaycastHit hit, 200f, ~(1 << 2), QueryTriggerInteraction.Collide))
                 return;
-            var target = hit.collider.GetComponentInParent<WorldInteractable>();
+            target = hit.collider.GetComponentInParent<WorldInteractable>();
+            if (target != null && !target.CanInteract)
+                return;
             HoveredCrop = target as HarvestableCrop;
             HoveredPickup = target as GroundPickup;
             HoveredInteraction = target as VillageInteractable;
-            if (!pointer.press.wasPressedThisFrame)
+            if (!WorkerbornInput.Pressed("Gameplay/Interact"))
                 return;
             if (target != null)
                 target.RequestInteraction(this);
@@ -145,18 +126,26 @@ namespace Workerborn
 
         public void CommandPickup(GroundPickup item)
         {
-            if (village != null && village.ControlsBlocked)
+            if (!AcceptsInteractionCommands || item == null || !item.CanCollect)
                 return;
-            if (item == null || !item.isActiveAndEnabled)
-                return;
-            if (item == pickupTarget && (Action == WorkerAction.Moving || Action == WorkerAction.PickingUp))
-                return;
-            Cancel();
-            pickupTarget = item;
-            if (!NavigateNear(item.LandingPosition, item.InteractionDistance * 0.7f))
-                return;
-            if (village == null)
-                Message?.Invoke($"떨어진 {item.DisplayName}를 주우러 가요.");
+            // Picking up never changes the agent path, animation or current harvest.
+            if (village != null)
+                village.TryCollectPickup(item);
+            else
+            {
+                CropDefinition definition = item.Definition;
+                int quantity = item.Quantity;
+                if (!item.TryCollect())
+                    return;
+                if (definition != null)
+                {
+                    inventory.TryGetValue(definition, out int count);
+                    inventory[definition] = count + quantity;
+                }
+
+                collectedCount += quantity;
+                Message?.Invoke($"{item.DisplayName} +{quantity}");
+            }
         }
 
         public void CommandMove(Vector3 destination)
@@ -233,12 +222,6 @@ namespace Workerborn
                 if (village == null)
                     Message?.Invoke("수확 중이에요. 완료하면 감자가 바닥에 떨어져요.");
             }
-            else if (pickupTarget != null)
-            {
-                Action = WorkerAction.PickingUp;
-                pickupTime = 0f;
-                Face(pickupTarget.LandingPosition);
-            }
             else if (interactionTarget != null)
             {
                 var target = interactionTarget;
@@ -272,34 +255,6 @@ namespace Workerborn
             Action = WorkerAction.Idle;
         }
 
-        private void UpdatePickup()
-        {
-            if (pickupTarget == null || !pickupTarget.isActiveAndEnabled || !InReach(pickupTarget.LandingPosition, pickupTarget.InteractionDistance + 0.25f))
-            {
-                Cancel();
-                return;
-            }
-
-            pickupTime += Time.deltaTime;
-            if (pickupTime < 0.3f || !pickupTarget.CanCollect)
-                return;
-            CropDefinition definition = pickupTarget.Definition;
-            if (village != null)
-            {
-                village.TryCollectPickup(pickupTarget);
-            }
-            else if (pickupTarget.TryCollect())
-            {
-                inventory.TryGetValue(definition, out int count);
-                inventory[definition] = count + 1;
-                collectedCount++;
-                Message?.Invoke($"{definition.DisplayName} +1  ·  가방에 담았어요.");
-            }
-
-            pickupTarget = null;
-            Action = WorkerAction.Idle;
-        }
-
         private bool InReach(Vector3 position, float range)
         {
             Vector3 delta = position - transform.position;
@@ -320,7 +275,6 @@ namespace Workerborn
             if (cropTarget != null)
                 cropTarget.Cancel(this);
             cropTarget = null;
-            pickupTarget = null;
             interactionTarget = null;
             Action = WorkerAction.Idle;
             if (agent != null && agent.isOnNavMesh)

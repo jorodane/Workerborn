@@ -33,7 +33,7 @@
   },
   "NpcName": {
     "path": "Assets/Workerborn/Prefabs/UI/NpcName.prefab",
-    "component": 100004
+    "component": 100014
   },
   "FloatingText": {
     "path": "Assets/Workerborn/Prefabs/UI/FloatingText.prefab",

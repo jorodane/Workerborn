@@ -180,20 +180,148 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator ClickingAnItemNameUsesTheSamePickupCommandAsTheWorldItem()
+        public IEnumerator ClickingAnItemNameUsesTheSameImmediatePickupRoute()
         {
-            var end = game.Worker.transform.position + Vector3.forward * .6f;
+            var mouse = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Mouse>();
+            var keyboard = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
             var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
-            item.Initialize(game.Crops[0].Definition, end, end, true);
-            var prefab = game.Hud.Library.PickupName;
-            var view = UnityEngine.Object.Instantiate(prefab, game.Hud.transform);
-            view.Bind(item, game.Worker);
-            view.SetBox(true);
+            try
+            {
+                Vector3 at = game.Worker.transform.position + Vector3.right * 2;
+                item.Initialize(game.Crops[0].Definition, at, at, true);
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.LeftAlt));
+                yield return null;
+                yield return null;
+                PickupNameView view = null;
+                foreach (var candidate in UnityEngine.Object.FindObjectsByType<PickupNameView>(FindObjectsSortMode.None))
+                    if (candidate.Target == item)
+                        view = candidate;
+                Assert.That(view, Is.Not.Null);
+                Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, view.Rect.TransformPoint(view.Rect.rect.center));
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = screen });
+                yield return null;
+                Assert.That(game.Targeting.CurrentTarget, Is.SameAs(item));
+                int before = game.State.Inventory.Count(ItemIds.Potato);
+                int quantity = item.Quantity;
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = screen, buttons = 1 });
+                yield return null;
+                Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before + quantity));
+                Assert.That(item == null || !item.gameObject.activeSelf, Is.True);
+            }
+            finally
+            {
+                if (item != null)
+                    UnityEngine.Object.Destroy(item.gameObject);
+                UnityEngine.InputSystem.InputSystem.RemoveDevice(mouse);
+                UnityEngine.InputSystem.InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator PickupDuringHarvestDoesNotMoveOrCancelTheWorkerEvenDuringDropFlight()
+        {
+            var crop = game.Crops[0];
+            game.Worker.CommandHarvest(crop);
+            yield return Until(() => game.Worker.Action == WorkerAction.Harvesting, 10f);
+            var at = game.Worker.transform.position;
+            var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
+            item.Initialize(crop.Definition, at + Vector3.up * 3, at + Vector3.right * 10, false);
             int before = game.State.Inventory.Count(ItemIds.Potato);
-            view.OnPointerClick(new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current) { button = UnityEngine.EventSystems.PointerEventData.InputButton.Left });
-            yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) > before, 4f);
-            Assert.That(item == null || !item.gameObject.activeSelf, Is.True);
+            item.RequestInteraction(game.Worker);
+            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before + item.Quantity));
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Harvesting));
+            Assert.That(game.Worker.ActiveCrop, Is.SameAs(crop));
+            Assert.That(game.Worker.transform.position, Is.EqualTo(at));
+            Assert.That(item.gameObject.activeSelf, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator DepletedCropLeavesRaycastsAndRestoresItsInteractionAfterReset()
+        {
+            var crop = game.Crops[0];
+            var collider = crop.GetComponent<Collider>();
+            crop.RestoreRemaining(0);
+            Physics.SyncTransforms();
+            Assert.That(crop.CanInteract, Is.False);
+            Assert.That(collider.enabled, Is.False);
+            foreach (var hit in Physics.RaycastAll(crop.transform.position + Vector3.up * 4, Vector3.down, 5, ~(1 << 2), QueryTriggerInteraction.Collide))
+                Assert.That(hit.collider.GetComponentInParent<HarvestableCrop>(), Is.Not.SameAs(crop));
+            crop.ResetHarvests();
+            Assert.That(crop.CanInteract, Is.True);
+            Assert.That(collider.enabled, Is.True);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator NameplateColorsRespondToEnterDownUpAndExit()
+        {
+            var view = UnityEngine.Object.Instantiate(game.Hud.Library.NpcName, game.Hud.transform);
+            view.Bind(game.FindInteraction(VillageRole.Farmer), null);
+            view.SetBox(true);
+            var background = view.GetComponent<UnityEngine.UI.Image>();
+            var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+            {
+                button = UnityEngine.EventSystems.PointerEventData.InputButton.Left
+            };
+            Color normal = background.color;
+            view.OnPointerEnter(pointer);
+            Color hover = background.color;
+            view.OnPointerDown(pointer);
+            Color pressed = background.color;
+            Assert.That(hover, Is.Not.EqualTo(normal));
+            Assert.That(pressed, Is.Not.EqualTo(hover));
+            view.OnPointerUp(pointer);
+            Assert.That(background.color, Is.EqualTo(hover));
+            view.OnPointerExit(pointer);
+            Assert.That(background.color, Is.EqualTo(normal));
             UnityEngine.Object.Destroy(view.gameObject);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator CameraHidesSceneryWithoutZoomingAndHidesActorsOnlyFromInsideTheirCapsule()
+        {
+            var camera = game.WorldCamera;
+            var visibility = camera.GetComponent<CameraVisibility>();
+            Vector3 cameraPosition = camera.transform.position;
+            float distance = game.CameraRig.Distance;
+            var prop = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            prop.transform.position = Vector3.Lerp(cameraPosition, game.Worker.transform.position + Vector3.up, .5f);
+            prop.transform.localScale = Vector3.one * 2;
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            Vector3 farmerPosition = farmer.transform.position;
+            try
+            {
+                visibility.RefreshVisibility();
+                Assert.That(visibility.IsHidden(prop.GetComponent<Renderer>()), Is.True);
+                Assert.That(prop.GetComponent<Collider>().enabled, Is.True);
+                Assert.That(visibility.IgnorePointerCollider(prop.GetComponent<Collider>()), Is.True);
+                yield return null;
+                Assert.That(game.CameraRig.Distance, Is.EqualTo(distance));
+                Assert.That(Vector3.Distance(camera.transform.position, game.Worker.transform.position + Vector3.up * 1.1f), Is.EqualTo(distance).Within(.01f));
+                farmer.transform.position = prop.transform.position;
+                Physics.SyncTransforms();
+                visibility.RefreshVisibility();
+                foreach (var renderer in farmer.GetComponentsInChildren<Renderer>())
+                    Assert.That(visibility.IsHidden(renderer), Is.False);
+                var capsule = farmer.GetComponent<CapsuleCollider>();
+                camera.transform.position = farmer.transform.TransformPoint(capsule.center);
+                Physics.SyncTransforms();
+                visibility.RefreshVisibility();
+                foreach (var renderer in farmer.GetComponentsInChildren<Renderer>())
+                    Assert.That(visibility.IsHidden(renderer), Is.True);
+                camera.transform.position = cameraPosition;
+                visibility.RefreshVisibility();
+                foreach (var renderer in farmer.GetComponentsInChildren<Renderer>())
+                    Assert.That(visibility.IsHidden(renderer), Is.False);
+            }
+            finally
+            {
+                camera.transform.position = cameraPosition;
+                farmer.transform.position = farmerPosition;
+                UnityEngine.Object.Destroy(prop);
+                visibility.RefreshVisibility();
+            }
         }
 
         [UnityTest]

@@ -42,7 +42,7 @@ def validate(path):
         for field,type in fields.items():
             value=mono.get(field)
             # All UI view object references must be authored; runtime only binds data/listeners.
-            if name.endswith('View') and type in {'Text','Image','Button','RawImage','RectTransform','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget'}:
+            if name.endswith('View') and type in {'TMP_Text','Image','Button','RawImage','RectTransform','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget'}:
                 assert value and value.get('fileID'),f'{path.name}: missing {name}.{field}'
             if not isinstance(value,dict) or not value.get('fileID'):continue
             target=None
@@ -54,6 +54,8 @@ def validate(path):
             if target is None:continue # vendor import subobjects are validated by Unity/asset pointer checks
             expected={'RectTransform':'RectTransform','Transform':('Transform','RectTransform'),'GameObject':'GameObject','Camera':'Camera','Light':'Light','BoxCollider':'BoxCollider'}.get(type)
             if expected:assert kind(target)in ((expected,)if isinstance(expected,str)else expected),f'{path.name}: {name}.{field} expects {type}, got {kind(target)}'
+            if type=='TMP_Text':
+                assert target.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='f4688fdb7df04437aeb418b961361dc5',f'{path.name}: {name}.{field} expects TMP_Text'
             if type in UI_GUIDS:
                 assert target.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')==UI_GUIDS[type],f'{path.name}: {name}.{field} expects {type}'
             if type in CLASSES:

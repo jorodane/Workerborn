@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,11 +13,11 @@ namespace Workerborn
         [SerializeField]
         private Button use;
         [SerializeField]
-        private Text advanceText;
+        private TMP_Text advanceText;
         [SerializeField]
-        private Text ap;
+        private TMP_Text ap;
         [SerializeField]
-        private Text details;
+        private TMP_Text details;
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);

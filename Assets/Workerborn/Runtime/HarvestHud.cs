@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -14,24 +15,22 @@ namespace Workerborn
         private HarvestPrototype prototype;
         private Camera worldCamera;
         private Canvas canvas;
-        private Font font;
+        private TMP_FontAsset font;
         private Sprite panelSprite;
         private Texture2D panelTexture;
-        private Text bagCount;
-        private Text fieldCount;
-        private Text groundCount;
-        private Text message;
+        private TMP_Text bagCount;
+        private TMP_Text fieldCount;
+        private TMP_Text groundCount;
+        private TMP_Text message;
         private RectTransform skillBubble;
-        private Text skillTitle;
-        private Text skillDetail;
+        private TMP_Text skillTitle;
+        private TMP_Text skillDetail;
         private Image progressFill;
         private RectTransform tooltip;
-        private Text tooltipTitle;
-        private Text tooltipDetail;
+        private TMP_Text tooltipTitle;
         private string latestMessage;
         private float messageUntil;
-
-        public void Initialize(HarvestPrototype farm, Camera camera, Font interfaceFont)
+        public void Initialize(HarvestPrototype farm, Camera camera, TMP_FontAsset interfaceFont)
         {
             prototype = farm;
             worldCamera = camera;
@@ -49,8 +48,9 @@ namespace Workerborn
             {
                 var events = new GameObject("Input events", typeof(EventSystem), typeof(InputSystemUIInputModule));
                 events.transform.SetParent(transform, false);
-                events.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
+                WorkerbornInput.Current?.BindUi(events.GetComponent<InputSystemUIInputModule>());
             }
+
             BuildHeader();
             BuildFooter();
             BuildSkillBubble();
@@ -61,26 +61,20 @@ namespace Workerborn
 
         private void BuildHeader()
         {
-            var title = Panel("Farm title", transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(318f, 100f), new Vector2(28f, -26f), ink);
+            var title = Panel("Farm title", transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(318f, 100f), new Vector2(28f, -26f), ink);
             Label("WORKERBORN", title, new Vector2(20f, -14f), new Vector2(280f, 38f), 27, paper, true);
             Label("작은 감자밭  /  첫 번째 일거리", title, new Vector2(22f, -62f), new Vector2(280f, 24f), 15, soft);
-
-            var bag = Panel("Bag", transform, Vector2.one, Vector2.one,
-                new Vector2(226f, 100f), new Vector2(-28f, -26f), paper);
+            var bag = Panel("Bag", transform, Vector2.one, Vector2.one, new Vector2(226f, 100f), new Vector2(-28f, -26f), paper);
             Label("가방  /  주운 감자", bag, new Vector2(19f, -13f), new Vector2(190f, 25f), 15, ink);
             bagCount = Label("0 개", bag, new Vector2(19f, -42f), new Vector2(190f, 48f), 34, ink, true);
-
-            var field = Panel("Field status", transform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(240f, 89f), new Vector2(28f, -138f), new Color(0.12f, 0.22f, 0.19f, 0.9f));
+            var field = Panel("Field status", transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(240f, 89f), new Vector2(28f, -138f), new Color(0.12f, 0.22f, 0.19f, 0.9f));
             fieldCount = Label("", field, new Vector2(17f, -12f), new Vector2(210f, 28f), 17, paper, true);
             groundCount = Label("", field, new Vector2(17f, -47f), new Vector2(210f, 24f), 14, soft);
         }
 
         private void BuildFooter()
         {
-            var footer = Panel("Instructions", transform, Vector2.zero, Vector2.zero,
-                Vector2.zero, Vector2.zero, ink);
+            var footer = Panel("Instructions", transform, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, ink);
             footer.anchorMin = Vector2.zero;
             footer.anchorMax = new Vector2(1f, 0f);
             footer.offsetMin = new Vector2(28f, 26f);
@@ -91,15 +85,12 @@ namespace Workerborn
             textRect.anchorMax = Vector2.one;
             textRect.offsetMin = new Vector2(20f, -59f);
             textRect.offsetMax = new Vector2(-20f, -15f);
-            var instructions = Label("작물 클릭: 이동·수확    감자 클릭: 줍기    땅 클릭: 이동\n우클릭·Esc: 작업 취소    R: 밭 다시 준비",
-                footer, new Vector2(20f, -68f), new Vector2(0f, 47f), 14, soft);
+            var instructions = Label("작물 클릭: 이동·수확    감자 클릭: 줍기    땅 클릭: 이동\n우클릭·Esc: 작업 취소    R: 밭 다시 준비", footer, new Vector2(20f, -68f), new Vector2(0f, 47f), 14, soft);
             var instructionsRect = instructions.rectTransform;
             instructionsRect.anchorMax = Vector2.one;
             instructionsRect.offsetMin = new Vector2(20f, -115f);
             instructionsRect.offsetMax = new Vector2(-20f, -68f);
-
-            var reset = Panel("Reset farm", transform, new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(200f, 122f), new Vector2(-28f, 26f), accent);
+            var reset = Panel("Reset farm", transform, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(200f, 122f), new Vector2(-28f, 26f), accent);
             reset.GetComponent<Image>().raycastTarget = true;
             var button = reset.gameObject.AddComponent<Button>();
             button.targetGraphic = reset.GetComponent<Image>();
@@ -109,36 +100,34 @@ namespace Workerborn
             button.colors = colors;
             button.onClick.AddListener(prototype.ResetFarm);
             var resetText = Label("밭 다시 준비\n[R]", reset, Vector2.zero, Vector2.zero, 19, ink, true);
-            resetText.alignment = TextAnchor.MiddleCenter;
+            resetText.alignment = TextAlignmentOptions.Center;
             Stretch(resetText.rectTransform);
         }
 
         private void BuildSkillBubble()
         {
-            skillBubble = Panel("Harvest skill balloon", transform, Vector2.zero, new Vector2(0.5f, 0f),
-                new Vector2(250f, 112f), Vector2.zero, paper);
+            skillBubble = Panel("Harvest skill balloon", transform, Vector2.zero, new Vector2(0.5f, 0f), new Vector2(250f, 112f), Vector2.zero, paper);
             skillTitle = Label("감자 수확 중", skillBubble, new Vector2(18f, -12f), new Vector2(215f, 31f), 20, ink, true);
             skillDetail = Label("", skillBubble, new Vector2(18f, -48f), new Vector2(215f, 24f), 14, ink);
-            var track = Panel("Progress track", skillBubble, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(214f, 10f), new Vector2(18f, -84f), new Color(0.8f, 0.82f, 0.72f));
+            var track = Panel("Progress track", skillBubble, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(214f, 10f), new Vector2(18f, -84f), new Color(0.8f, 0.82f, 0.72f));
             var fill = Panel("Progress", track, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, ink);
             Stretch(fill);
             progressFill = fill.GetComponent<Image>();
             progressFill.type = Image.Type.Filled;
             progressFill.fillMethod = Image.FillMethod.Horizontal;
             progressFill.fillOrigin = 0;
-            var tail = Panel("Balloon tail", skillBubble, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
-                new Vector2(15f, 15f), new Vector2(0f, -4f), paper);
+            var tail = Panel("Balloon tail", skillBubble, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f), new Vector2(15f, 15f), new Vector2(0f, -4f), paper);
             tail.localRotation = Quaternion.Euler(0f, 0f, 45f);
             skillBubble.gameObject.SetActive(false);
         }
 
         private void BuildTooltip()
         {
-            tooltip = Panel("Crop tooltip", transform, Vector2.zero, new Vector2(0.5f, 0f),
-                new Vector2(232f, 72f), Vector2.zero, ink);
-            tooltipTitle = Label("", tooltip, new Vector2(14f, -10f), new Vector2(206f, 27f), 17, paper, true);
-            tooltipDetail = Label("", tooltip, new Vector2(14f, -40f), new Vector2(206f, 23f), 13, soft);
+            tooltipTitle = Label("", transform, Vector2.zero, new Vector2(140f, 28f), 14, Color.white);
+            tooltip = tooltipTitle.rectTransform;
+            tooltip.pivot = new Vector2(0, 1);
+            tooltipTitle.outlineColor = Color.black;
+            tooltipTitle.outlineWidth = .22f;
             tooltip.gameObject.SetActive(false);
         }
 
@@ -150,18 +139,22 @@ namespace Workerborn
 
         private void LateUpdate()
         {
-            if (prototype == null || prototype.Worker == null) return;
+            if (prototype == null || prototype.Worker == null)
+                return;
             var worker = prototype.Worker;
             bagCount.text = $"{worker.TotalCollected} 개";
             fieldCount.text = $"남은 수확  {prototype.RemainingHarvests} 회";
             groundCount.text = $"바닥에 떨어진 감자  {prototype.GroundItemCount} 개";
             if (prototype.RemainingHarvests == 0 && prototype.GroundItemCount == 0)
                 message.text = "오늘의 수확을 모두 마쳤어요! 밭을 다시 준비해서 한 번 더 해보세요.";
-            else if (Time.unscaledTime < messageUntil) message.text = latestMessage;
-            else if (worker.Action == WorkerAction.Harvesting) message.text = "수확 중이에요. 다른 곳을 클릭하면 작업을 중단하고 이동해요.";
-            else if (prototype.GroundItemCount > 0) message.text = "바닥에 감자가 있어요. 감자를 클릭하면 가까이 가서 주워요.";
-            else message.text = "수확할 작물을 선택해 주세요. 작은 금색 점은 남은 수확 횟수예요.";
-
+            else if (Time.unscaledTime < messageUntil)
+                message.text = latestMessage;
+            else if (worker.Action == WorkerAction.Harvesting)
+                message.text = "수확 중이에요. 다른 곳을 클릭하면 작업을 중단하고 이동해요.";
+            else if (prototype.GroundItemCount > 0)
+                message.text = "바닥에 감자가 있어요. 클릭하면 즉시 가방에 담아요.";
+            else
+                message.text = "수확할 작물을 선택해 주세요. 작은 금색 점은 남은 수확 횟수예요.";
             var active = worker.ActiveCrop;
             skillBubble.gameObject.SetActive(active != null);
             if (active != null)
@@ -177,17 +170,12 @@ namespace Workerborn
             var item = worker.HoveredPickup;
             bool show = item != null || (hovered != null && hovered != active);
             tooltip.gameObject.SetActive(show);
-            if (item != null)
+            if (show)
             {
-                tooltipTitle.text = $"{item.Definition.DisplayName}  ·  1 개";
-                tooltipDetail.text = "클릭해서 가방에 담기";
-                PlaceAtWorld(tooltip, item.transform.position + Vector3.up * 0.7f);
-            }
-            else if (show)
-            {
-                tooltipTitle.text = $"{hovered.Definition.DisplayName}  ·  {hovered.Remaining}/{hovered.Capacity} 회";
-                tooltipDetail.text = hovered.IsDepleted ? "수확을 모두 마친 작물이에요" : "클릭해서 한 번 수확하기";
-                PlaceAtWorld(tooltip, hovered.transform.position + Vector3.up * 1.2f);
+                tooltipTitle.text = item != null ? "줍기" : "수확하기";
+                var canvasRect = (RectTransform)canvas.transform;
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, WorkerbornInput.Point, null, out var cursor);
+                tooltip.anchoredPosition = cursor + new Vector2(18, -22) - canvasRect.rect.min;
             }
         }
 
@@ -221,26 +209,26 @@ namespace Workerborn
             return rect;
         }
 
-        private Text Label(string content, Transform parent, Vector2 position, Vector2 size, int fontSize, Color color, bool bold = false)
+        private TMP_Text Label(string content, Transform parent, Vector2 position, Vector2 size, int fontSize, Color color, bool bold = false)
         {
-            var root = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            var root = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
             var rect = (RectTransform)root.transform;
             rect.SetParent(parent, false);
             rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
             rect.anchoredPosition = position;
             rect.sizeDelta = size;
-            var text = root.GetComponent<Text>();
+            var text = root.GetComponent<TextMeshProUGUI>();
             text.font = font;
             text.text = content;
             text.fontSize = fontSize;
-            text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            text.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
             text.color = color;
-            text.alignment = TextAnchor.UpperLeft;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.alignment = TextAlignmentOptions.TopLeft;
+            text.enableWordWrapping = true;
+            text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = false;
-            text.supportRichText = false;
+            text.richText = false;
             return text;
         }
 
@@ -255,7 +243,10 @@ namespace Workerborn
         {
             const int size = 32;
             const float radius = 8f;
-            panelTexture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "Farm UI corners" };
+            panelTexture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "Farm UI corners"
+            };
             var pixels = new Color[size * size];
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
@@ -265,17 +256,20 @@ namespace Workerborn
                     float distance = new Vector2(Mathf.Max(0f, dx), Mathf.Max(0f, dy)).magnitude;
                     pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(radius + 0.5f - distance));
                 }
+
             panelTexture.SetPixels(pixels);
             panelTexture.Apply();
-            panelSprite = Sprite.Create(panelTexture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
-                SpriteMeshType.FullRect, new Vector4(9f, 9f, 9f, 9f));
+            panelSprite = Sprite.Create(panelTexture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(9f, 9f, 9f, 9f));
         }
 
         private void OnDestroy()
         {
-            if (prototype != null && prototype.Worker != null) prototype.Worker.Message -= ShowMessage;
-            if (panelSprite != null) Destroy(panelSprite);
-            if (panelTexture != null) Destroy(panelTexture);
+            if (prototype != null && prototype.Worker != null)
+                prototype.Worker.Message -= ShowMessage;
+            if (panelSprite != null)
+                Destroy(panelSprite);
+            if (panelTexture != null)
+                Destroy(panelTexture);
         }
     }
 }

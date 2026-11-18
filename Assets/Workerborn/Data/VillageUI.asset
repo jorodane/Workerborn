@@ -3,34 +3,89 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9f11ce7c1e845575b00f531d975ab179, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: 9f11ce7c1e845575b00f531d975ab179
+    type: 3
   m_Name: VillageUI
   m_EditorClassIdentifier: ''
   windows:
-  - {fileID: 100287, guid: 1deff7cbedd45f01b8cccb173386aa27, type: 3}
-  - {fileID: 100075, guid: b5635d0662d655d584f9ca5a936d54a1, type: 3}
-  - {fileID: 100051, guid: 2dc5731f57ac5b0985dbad64c27784fc, type: 3}
-  - {fileID: 100058, guid: 9563039882935c5bb6f4a00c81a362bd, type: 3}
-  - {fileID: 100070, guid: b1104bca64675d34a10fce349b747605, type: 3}
-  - {fileID: 100056, guid: 6a60a39f8aa55d1a8f7333e19894b97c, type: 3}
-  - {fileID: 100056, guid: 6e9bca8b19005637baa43f5dc5361716, type: 3}
-  - {fileID: 100046, guid: f299364f7a465a96b5773f9198fcc30f, type: 3}
-  - {fileID: 100056, guid: 416477c532795db599a2bedb31dc71ba, type: 3}
-  - {fileID: 100328, guid: bb70af19c09956caaf149d8347a3aa8c, type: 3}
-  - {fileID: 100080, guid: ab72a3c9d4285d4b8ef0c7590848afe9, type: 3}
-  - {fileID: 100073, guid: 983abd1dfeb151acb381ba5f320bb7b1, type: 3}
-  item: {fileID: 100023, guid: b25d2df002c55a0082970f072fcd1039, type: 3}
-  inventoryCell: {fileID: 100002, guid: e07d54202b035ccf8625b6812a7224bb, type: 3}
-  actionButton: {fileID: 100011, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
-  listRow: {fileID: 100027, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
-  pickupName: {fileID: 100009, guid: 2822bb6d0a0b5ecd8364935424ead97c, type: 3}
-  skillBalloon: {fileID: 100017, guid: 63f07672c68e54a19172c2268a12a49b, type: 3}
-  worldTooltip: {fileID: 100009, guid: 80465a0389e15d29a1bb3517000055c4, type: 3}
-  npcName: {fileID: 100004, guid: 30534ca7b5ce5ed38885367dd135a975, type: 3}
-  floatingText: {fileID: 100004, guid: 7b196214a1c05a5a8196cf9de2ba37a6, type: 3}
+  - fileID: 100287
+    guid: 1deff7cbedd45f01b8cccb173386aa27
+    type: 3
+  - fileID: 100075
+    guid: b5635d0662d655d584f9ca5a936d54a1
+    type: 3
+  - fileID: 100051
+    guid: 2dc5731f57ac5b0985dbad64c27784fc
+    type: 3
+  - fileID: 100058
+    guid: 9563039882935c5bb6f4a00c81a362bd
+    type: 3
+  - fileID: 100070
+    guid: b1104bca64675d34a10fce349b747605
+    type: 3
+  - fileID: 100056
+    guid: 6a60a39f8aa55d1a8f7333e19894b97c
+    type: 3
+  - fileID: 100056
+    guid: 6e9bca8b19005637baa43f5dc5361716
+    type: 3
+  - fileID: 100046
+    guid: f299364f7a465a96b5773f9198fcc30f
+    type: 3
+  - fileID: 100056
+    guid: 416477c532795db599a2bedb31dc71ba
+    type: 3
+  - fileID: 100328
+    guid: bb70af19c09956caaf149d8347a3aa8c
+    type: 3
+  - fileID: 100080
+    guid: ab72a3c9d4285d4b8ef0c7590848afe9
+    type: 3
+  - fileID: 100073
+    guid: 983abd1dfeb151acb381ba5f320bb7b1
+    type: 3
+  item:
+    fileID: 100023
+    guid: b25d2df002c55a0082970f072fcd1039
+    type: 3
+  inventoryCell:
+    fileID: 100002
+    guid: e07d54202b035ccf8625b6812a7224bb
+    type: 3
+  actionButton:
+    fileID: 100011
+    guid: 2abb2ece670a5059814be47a4b64cb1e
+    type: 3
+  listRow:
+    fileID: 100027
+    guid: d7ac2b6406ce5d7b968739566072ba04
+    type: 3
+  pickupName:
+    fileID: 100009
+    guid: 2822bb6d0a0b5ecd8364935424ead97c
+    type: 3
+  skillBalloon:
+    fileID: 100017
+    guid: 63f07672c68e54a19172c2268a12a49b
+    type: 3
+  worldTooltip:
+    fileID: 100009
+    guid: 80465a0389e15d29a1bb3517000055c4
+    type: 3
+  npcName: {fileID: 100014, guid: 30534ca7b5ce5ed38885367dd135a975, type: 3}
+  floatingText:
+    fileID: 100004
+    guid: 7b196214a1c05a5a8196cf9de2ba37a6
+    type: 3

@@ -26,6 +26,19 @@ namespace Workerborn
         protected virtual float DefaultDistance => 1.8f;
         public virtual float InteractionDistance => Mathf.Max(.1f, interactionDistance > 0 ? interactionDistance : DefaultDistance);
         public virtual bool CanTarget => false;
+        public virtual bool CanInteract => isActiveAndEnabled;
+        public virtual string InteractionVerb => "살펴보기";
+
+        // A capsule center stays steady while individual skinned vertices animate.
+        public virtual Vector3 TargetCenter
+        {
+            get
+            {
+                var capsule = GetComponent<CapsuleCollider>();
+                return capsule != null ? transform.TransformPoint(capsule.center) : transform.position + Vector3.up * .9f;
+            }
+        }
+
         public virtual Vector3 NamePosition => transform.position + nameOffset;
 
         protected virtual void OnEnable()
@@ -37,7 +50,7 @@ namespace Workerborn
         protected virtual void OnDisable() => active.Remove(this);
         public void RequestInteraction(HarvestWorker worker)
         {
-            if (worker == null || !worker.AcceptsInteractionCommands || !isActiveAndEnabled)
+            if (worker == null || !worker.AcceptsInteractionCommands || !CanInteract)
                 return;
             onInteractionRequested.Invoke();
             Interact(worker);
@@ -45,7 +58,7 @@ namespace Workerborn
 
         public void Arrive(VillagePrototype village, HarvestWorker worker)
         {
-            if (!isActiveAndEnabled)
+            if (!CanInteract)
                 return;
             NotifyInteractionCompleted();
             OnArrived(village, worker);

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
 
 namespace Workerborn
 {
@@ -29,10 +28,6 @@ namespace Workerborn
         private float orbitSensitivity = 0.18f;
         [SerializeField, Range(0.05f, 0.5f)]
         private float zoomSensitivity = 0.18f;
-        [SerializeField, Min(0f)]
-        private float followSmoothness = 10f;
-        [SerializeField]
-        private LayerMask collisionMask = 1 << 8;
         private Transform target;
         private VillagePrototype game;
         private Camera cameraComponent;
@@ -61,7 +56,7 @@ namespace Workerborn
             pitch = initialPitch;
             distance = Mathf.Clamp(initialDistance, minimumDistance, maximumDistance);
             focus = target.position + Vector3.up * pivotHeight;
-            UpdatePose(true);
+            UpdatePose();
         }
 
         private bool OverUi(Vector2 position)
@@ -76,36 +71,35 @@ namespace Workerborn
         private void Update()
         {
             CancelClickThisFrame = false;
-            if (target == null || Mouse.current == null)
+            if (target == null || WorkerbornInput.Current == null)
                 return;
-            var mouse = Mouse.current;
-            Vector2 position = mouse.position.ReadValue();
+            Vector2 position = WorkerbornInput.Point;
             bool blocked = game != null && game.ControlsBlocked;
             bool overUi = OverUi(position);
-            if (mouse.rightButton.wasPressedThisFrame && !blocked && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitRight") && !blocked && !overUi)
             {
                 rightPressed = true;
                 rightDragged = false;
                 pressPoint = position;
             }
 
-            if (mouse.middleButton.wasPressedThisFrame && !blocked && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitMiddle") && !blocked && !overUi)
                 middlePressed = true;
-            if (mouse.middleButton.wasReleasedThisFrame)
+            if (WorkerbornInput.Released("Camera/OrbitMiddle"))
                 middlePressed = false;
-            if ((rightPressed && mouse.rightButton.isPressed) || (middlePressed && mouse.middleButton.isPressed))
+            if ((rightPressed && WorkerbornInput.Held("Camera/OrbitRight")) || (middlePressed && WorkerbornInput.Held("Camera/OrbitMiddle")))
             {
                 if (rightPressed && (position - pressPoint).sqrMagnitude > 25f)
                     rightDragged = true;
                 if ((rightDragged || middlePressed) && !blocked)
                 {
-                    Vector2 delta = mouse.delta.ReadValue();
+                    Vector2 delta = WorkerbornInput.Look;
                     yaw += delta.x * orbitSensitivity;
                     pitch = Mathf.Clamp(pitch - delta.y * orbitSensitivity, pitchLimits.x, pitchLimits.y);
                 }
             }
 
-            if (mouse.rightButton.wasReleasedThisFrame)
+            if (WorkerbornInput.Released("Camera/OrbitRight"))
             {
                 CancelClickThisFrame = rightPressed && !rightDragged && !middlePressed && !blocked && !overUi;
                 rightPressed = false;
@@ -118,25 +112,21 @@ namespace Workerborn
             }
 
             if (!blocked && !overUi)
-                distance = OrbitZoom.Apply(distance, mouse.scroll.ReadValue().y, minimumDistance, maximumDistance, zoomSensitivity);
+                distance = OrbitZoom.Apply(distance, WorkerbornInput.Scroll, minimumDistance, maximumDistance, zoomSensitivity);
         }
 
         private void LateUpdate()
         {
             if (target != null)
-                UpdatePose(false);
+                UpdatePose();
         }
 
-        private void UpdatePose(bool instant)
+        private void UpdatePose()
         {
-            Vector3 desiredFocus = target.position + Vector3.up * pivotHeight;
-            focus = instant ? desiredFocus : Vector3.Lerp(focus, desiredFocus, 1f - Mathf.Exp(-Time.unscaledDeltaTime * followSmoothness));
+            focus = target.position + Vector3.up * pivotHeight;
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
             Vector3 direction = rotation * Vector3.back;
-            float resolved = distance;
-            if (Physics.SphereCast(focus, 0.18f, direction, out RaycastHit hit, distance, collisionMask, QueryTriggerInteraction.Ignore))
-                resolved = Mathf.Max(0.35f, hit.distance - 0.08f);
-            Vector3 position = focus + direction * resolved;
+            Vector3 position = focus + direction * distance;
             position.y = Mathf.Max(position.y, target.position.y + 0.2f);
             transform.SetPositionAndRotation(position, Quaternion.LookRotation(focus - position, Vector3.up));
         }

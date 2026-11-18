@@ -1,0 +1,13 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: fc1515ab76e54f068e2f2207940fab32, type: 3}
+  m_Name: UI Move
+  m_EditorClassIdentifier: ''
+  m_Asset: {fileID: -944628639613478452, guid: 968ff0f490b85dbc91a43943a3508a8f, type: 3}
+  m_ActionId: 3751004f-5e93-5f1e-976d-72262824f38e

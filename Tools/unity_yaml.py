@@ -102,7 +102,11 @@ class Scene:
         return self.graphic(n,'fe87c0e1cc204ed48ad3b37840f39efc',m_Material=ref(),m_Color=color(*tint),m_RaycastTarget=1,m_RaycastPadding=vec(0,0,0,0),m_Maskable=1,m_OnCullStateChanged=dict(m_PersistentCalls=dict(m_Calls=[])),m_Sprite=ref(),m_Type=0,m_PreserveAspect=0,m_FillCenter=1,m_FillMethod=4,m_FillAmount=1,m_FillClockwise=1,m_FillOrigin=0,m_UseSpriteMesh=0,m_PixelsPerUnitMultiplier=1)
     def text(self,name,parent,content,size,pos=(0,0),fontSize=13,tint=(.19,.21,.19,1),align=3,anchor=(0,1),pivot=(0,1)):
         n=self.ui(name,parent,size,pos,anchor,pivot)
-        i=self.graphic(n,'5f7201a12d95ffc409449d95f23cf332',m_Material=ref(),m_Color=color(*tint),m_RaycastTarget=0,m_RaycastPadding=vec(0,0,0,0),m_Maskable=1,m_OnCullStateChanged=dict(m_PersistentCalls=dict(m_Calls=[])),m_FontData=dict(m_Font=assetref(BASE/'Fonts/WorkerbornKorean-Regular.otf'),m_FontSize=fontSize,m_FontStyle=0,m_BestFit=0,m_MinSize=10,m_MaxSize=40,m_Alignment=align,m_AlignByGeometry=0,m_RichText=1,m_HorizontalOverflow=0,m_VerticalOverflow=1,m_LineSpacing=1),m_Text=content)
+        from tmp_ui import convert_text,TMP_GUID
+        fields=dict(m_Material=ref(),m_Color=color(*tint),m_RaycastTarget=0,m_RaycastPadding=vec(0,0,0,0),m_Maskable=1,m_OnCullStateChanged=dict(m_PersistentCalls=dict(m_Calls=[])),m_FontData=dict(m_Font=assetref(BASE/'Fonts/WorkerbornKorean-Regular.otf'),m_FontSize=fontSize,m_FontStyle=0,m_BestFit=0,m_MinSize=10,m_MaxSize=40,m_Alignment=align,m_AlignByGeometry=0,m_RichText=1,m_HorizontalOverflow=0,m_VerticalOverflow=1,m_LineSpacing=1),m_Text=content)
+        convert_text(fields,name in ['NpcName','Name','FloatingText','Object name'])
+        fields.pop('m_Script')
+        i=self.graphic(n,TMP_GUID,**fields)
         return n,i
 original=geo.documents(ROOT/BASE/'Scenes/VillagePrototype.unity')
 materials={}

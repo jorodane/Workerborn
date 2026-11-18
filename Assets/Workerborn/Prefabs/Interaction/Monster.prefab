@@ -113,23 +113,29 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 392893829235781568, guid: cafadc097b1637844a54212dae61c46e, type: 3}
   m_PrefabInstance: {fileID: 100005}
   m_PrefabAsset: {fileID: 0}
---- !u!65 &100007
-BoxCollider:
+--- !u!136 &100007
+CapsuleCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100001}
   m_Material: {fileID: 0}
-  m_IncludeLayers: {serializedVersion: 2, m_Bits: 0}
-  m_ExcludeLayers: {serializedVersion: 2, m_Bits: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
   m_LayerOverridePriority: 0
   m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.2, y: 1.2, z: 1.8}
   m_Center: {x: 0, y: 0.6, z: 0}
+  m_Radius: 0.6
+  m_Height: 1.2
+  m_Direction: 1
 --- !u!114 &100008
 MonoBehaviour:
   m_ObjectHideFlags: 0

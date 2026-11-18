@@ -24,7 +24,9 @@ namespace Workerborn
         public int Quantity => quantity;
         public override string DisplayName => item != null ? item.DisplayName : definition != null ? definition.DisplayName : name;
         protected override float DefaultDistance => .75f;
-        public bool CanCollect => !collected && age >= flightSeconds && isActiveAndEnabled;
+        public bool CanCollect => !collected && isActiveAndEnabled;
+        public override bool CanInteract => CanCollect;
+        public override string InteractionVerb => "줍기";
         public Vector3 LandingPosition => landing;
 
         protected override void Interact(HarvestWorker worker) => worker.CommandPickup(this);

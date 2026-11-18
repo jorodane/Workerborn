@@ -199,8 +199,8 @@ Transform:
     fileID: 100005
   m_PrefabAsset:
     fileID: 0
---- !u!135 &100007
-SphereCollider:
+--- !u!136 &100007
+CapsuleCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject:
     fileID: 0
@@ -228,6 +228,8 @@ SphereCollider:
     x: 0
     y: 0.15
     z: 0
+  m_Height: 0.76
+  m_Direction: 1
 --- !u!114 &100008
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -260,7 +262,10 @@ MonoBehaviour:
   quantity: 1
   flightSeconds: 0.48
   persistentId: ''
-  nameOffset: {x: 0, y: 0.38, z: 0}
+  nameOffset:
+    x: 0
+    y: 0.38
+    z: 0
 --- !u!114 &100009
 MonoBehaviour:
   m_ObjectHideFlags: 0

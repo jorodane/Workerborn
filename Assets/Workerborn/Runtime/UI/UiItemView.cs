@@ -1,3 +1,4 @@
+using TMPro;
 using System;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,9 +10,9 @@ namespace Workerborn
         [SerializeField]
         private Image icon;
         [SerializeField]
-        private Text count;
+        private TMP_Text count;
         [SerializeField]
-        private Text fallback;
+        private TMP_Text fallback;
         [SerializeField]
         private Image background;
         [SerializeField]

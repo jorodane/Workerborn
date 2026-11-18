@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -6,13 +7,13 @@ namespace Workerborn
     public sealed class ConversationWindowView : VillageWindowView
     {
         [SerializeField]
-        private Text speaker;
+        private TMP_Text speaker;
         [SerializeField]
-        private Text occupation;
+        private TMP_Text occupation;
         [SerializeField]
-        private Text bodyTitle;
+        private TMP_Text bodyTitle;
         [SerializeField]
-        private Text body;
+        private TMP_Text body;
         [SerializeField]
         private RectTransform keywords;
         [SerializeField]

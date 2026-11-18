@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace Workerborn
 {
@@ -23,7 +22,7 @@ namespace Workerborn
         {
             if (game == null || namePrefab == null)
                 return;
-            bool alt = Keyboard.current != null && (Keyboard.current.leftAltKey.isPressed || Keyboard.current.rightAltKey.isPressed);
+            bool alt = WorkerbornInput.Held("Gameplay/Names");
             var canvas = (RectTransform)transform;
             foreach (var target in WorldInteractable.Active)
             {
@@ -68,9 +67,9 @@ namespace Workerborn
                 names.Remove(item);
             }
 
-            if (alt && hovering && Mouse.current != null)
+            if (alt && hovering && WorkerbornInput.Current != null)
             {
-                float delta = Mouse.current.scroll.ReadValue().y;
+                float delta = WorkerbornInput.Scroll;
                 if (Mathf.Abs(delta) >= 10f)
                     delta /= 120f;
                 scroll -= delta * 30f;

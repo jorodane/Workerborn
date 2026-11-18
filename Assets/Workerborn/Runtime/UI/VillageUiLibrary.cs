@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 
 namespace Workerborn
@@ -22,13 +23,13 @@ namespace Workerborn
         [SerializeField]
         private WorldTooltipView worldTooltip;
         [SerializeField]
-        private UnityEngine.UI.Text npcName;
+        private WorldNameplateView npcName;
         [SerializeField]
-        private UnityEngine.UI.Text floatingText;
+        private TMP_Text floatingText;
         public SkillBalloonView SkillBalloon => skillBalloon;
         public WorldTooltipView WorldTooltip => worldTooltip;
-        public UnityEngine.UI.Text NpcName => npcName;
-        public UnityEngine.UI.Text FloatingText => floatingText;
+        public WorldNameplateView NpcName => npcName;
+        public TMP_Text FloatingText => floatingText;
         public UiItemView Item => item;
         public RectTransform InventoryCell => inventoryCell;
         public UiActionView ActionButton => actionButton;

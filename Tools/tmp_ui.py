@@ -1,0 +1,12 @@
+"""Native TextMeshPro UGUI serialization shared by explicit offline authoring tools."""
+from unity_yaml import BASE, Flow, assetref, color, ref
+TMP_GUID='f4688fdb7df04437aeb418b961361dc5'
+FONT=BASE/'Fonts/WorkerbornKorean-SDF.asset'
+OUTLINE=BASE/'Fonts/WorkerbornKorean-NameOutline.mat'
+
+def convert_text(value, outline=False):
+    old=value.pop('m_FontData');text=value.pop('m_Text');tint=value.get('m_Color',color(1,1,1,1))
+    value['m_Script']=Flow(fileID=11500000,guid=TMP_GUID,type=3)
+    alignment=old.get('m_Alignment',3);size=old.get('m_FontSize',13)
+    value.update(m_text=text,m_isRightToLeft=0,m_fontAsset=assetref(FONT,11400000),m_sharedMaterial=assetref(OUTLINE,2100000) if outline else assetref(FONT,2180264),m_fontSharedMaterials=[],m_fontMaterial=ref(),m_fontMaterials=[],m_fontColor32=dict(serializedVersion=2,rgba=sum(round(tint[c]*255)<<(8*i)for i,c in enumerate('rgba'))),m_fontColor=tint,m_enableVertexGradient=0,m_colorMode=3,m_fontColorGradient=dict(topLeft=color(1,1,1,1),topRight=color(1,1,1,1),bottomLeft=color(1,1,1,1),bottomRight=color(1,1,1,1)),m_fontColorGradientPreset=ref(),m_spriteAsset=ref(),m_tintAllSprites=0,m_StyleSheet=ref(),m_TextStyleHashCode=-1183493901,m_overrideHtmlColors=0,m_faceColor=color(1,1,1,1),m_fontSize=size,m_fontSizeBase=size,m_fontWeight=400,m_enableAutoSizing=0,m_fontSizeMin=old.get('m_MinSize',10),m_fontSizeMax=old.get('m_MaxSize',40),m_fontStyle=old.get('m_FontStyle',0),m_HorizontalAlignment=[1,2,4][alignment%3],m_VerticalAlignment=[256,512,1024][alignment//3],m_textAlignment=[1,2,4][alignment%3]+[256,512,1024][alignment//3],m_isAlignmentEnumConverted=1,m_characterSpacing=0,m_wordSpacing=0,m_lineSpacing=0,m_lineSpacingMax=0,m_paragraphSpacing=0,m_charWidthMaxAdj=0,m_enableWordWrapping=1,m_TextWrappingMode=1,m_wordWrappingRatios=.4,m_overflowMode=0,m_linkedTextComponent=ref(),parentLinkedComponent=ref(),m_enableKerning=1,m_ActiveFontFeatures=[],m_enableExtraPadding=1,checkPaddingRequired=0,m_isRichText=old.get('m_RichText',1),m_EmojiFallbackSupport=0,m_parseCtrlCharacters=1,m_isOrthographic=1,m_isCullingEnabled=0,m_horizontalMapping=0,m_verticalMapping=0,m_uvLineOffset=0,m_geometrySortingOrder=0,m_IsTextObjectScaleStatic=0,m_VertexBufferAutoSizeReduction=0,m_useMaxVisibleDescender=1,m_pageToDisplay=1,m_margin=Flow(x=0,y=0,z=0,w=0),m_isUsingLegacyAnimationComponent=0,m_isVolumetricText=0,m_hasFontAssetChanged=0,m_baseMaterial=ref(),m_maskOffset=Flow(x=0,y=0,z=0,w=0))
+    return value

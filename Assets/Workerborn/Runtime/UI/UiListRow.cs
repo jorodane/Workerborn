@@ -1,3 +1,4 @@
+using TMPro;
 using System;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,9 +8,9 @@ namespace Workerborn
     public sealed class UiListRow : MonoBehaviour
     {
         [SerializeField]
-        private Text title;
+        private TMP_Text title;
         [SerializeField]
-        private Text details;
+        private TMP_Text details;
         [SerializeField]
         private Image icon;
         [SerializeField]

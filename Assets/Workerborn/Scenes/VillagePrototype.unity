@@ -180,6 +180,8 @@ GameObject:
       fileID: 330585547
   - component:
       fileID: 100589
+  - component:
+      fileID: 900000011
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -2904,10 +2906,6 @@ MonoBehaviour:
     y: 75
   orbitSensitivity: 0.18
   zoomSensitivity: 0.18
-  followSmoothness: 10
-  collisionMask:
-    serializedVersion: 2
-    m_Bits: 256
 --- !u!1 &100704
 GameObject:
   m_ObjectHideFlags: 0
@@ -2925,6 +2923,8 @@ GameObject:
       fileID: 100706
   - component:
       fileID: 100707
+  - component:
+      fileID: 900000010
   m_Layer: 0
   m_Name: EventSystem
   m_TagString: Untagged
@@ -3014,11 +3014,21 @@ MonoBehaviour:
   m_XRTrackingOrigin:
     fileID: 0
   m_ActionsAsset:
-    fileID: 0
+    fileID: -944628639613478452
+    guid: 968ff0f490b85dbc91a43943a3508a8f
+    type: 3
   m_DeselectOnBackgroundClick: 1
   m_PointerBehavior: 0
   m_CursorLockBehavior: 0
   m_ScrollDeltaPerTick: 6
+  m_PointAction: {fileID: 11400000, guid: a0b94ce826d65ad0bab7a9defaa5b3e3, type: 2}
+  m_LeftClickAction: {fileID: 11400000, guid: ad09e61a43665837b3a0b314b008658c, type: 2}
+  m_RightClickAction: {fileID: 11400000, guid: ce0402bc85a55c27afdfcf1d7808fe1e, type: 2}
+  m_MiddleClickAction: {fileID: 11400000, guid: 4dc1c65577b55e9ea530cf55078848fc, type: 2}
+  m_ScrollWheelAction: {fileID: 11400000, guid: 6fb4b73e680450728c8b9999f63b0388, type: 2}
+  m_MoveAction: {fileID: 11400000, guid: 31cf629a9da65528bf3357576e5f41f3, type: 2}
+  m_SubmitAction: {fileID: 11400000, guid: 959afbe1c8c15bb48663341a24c91561, type: 2}
+  m_CancelAction: {fileID: 11400000, guid: 503f39d77f4456479f4886148b5dfa1e, type: 2}
 --- !u!114 &100708
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9624,3 +9634,56 @@ MonoBehaviour:
   highlightWidth: 1.8
   link:
     fileID: 0
+--- !u!114 &900000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100704
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script:
+    fileID: 11500000
+    guid: fadc0cfc17a9518c849dc4986ba1640b
+    type: 3
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  actions:
+    fileID: -944628639613478452
+    guid: 968ff0f490b85dbc91a43943a3508a8f
+    type: 3
+--- !u!114 &900000011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 330585543
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script:
+    fileID: 11500000
+    guid: 5eb5b78058dd5c12ac59351406ee2207
+    type: 3
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  player:
+    fileID: 0
+  lowerSightPoint:
+    x: 0
+    y: 0.6
+    z: 0
+  upperSightPoint:
+    x: 0
+    y: 1.5
+    z: 0
+  playerClearance: 0.35

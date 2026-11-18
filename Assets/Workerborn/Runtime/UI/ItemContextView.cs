@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,7 +9,7 @@ namespace Workerborn
         [SerializeField]
         private Button use;
         [SerializeField]
-        private Text useLabel;
+        private TMP_Text useLabel;
         [SerializeField]
         private Button split;
         public override void Bind(VillagePrototype game, VillageHud hud)

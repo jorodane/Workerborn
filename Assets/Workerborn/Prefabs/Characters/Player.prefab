@@ -21,7 +21,9 @@ GameObject:
       fileID: 100572
   - component:
       fileID: 100573
-  m_Layer: 0
+  - component:
+      fileID: 100577
+  m_Layer: 2
   m_Name: Player
   m_TagString: Untagged
   m_Icon:
@@ -40,8 +42,15 @@ Transform:
     fileID: 0
   m_GameObject:
     fileID: 100564
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalRotation:
+    x: 0
+    y: 0
+    z: 0
+    w: 1
+  m_LocalPosition:
+    x: 0
+    y: 0
+    z: 0
   m_LocalScale:
     x: 1
     y: 1
@@ -50,7 +59,8 @@ Transform:
   m_Children:
   - fileID: 100567
   - fileID: 100575
-  m_Father: {fileID: 0}
+  m_Father:
+    fileID: 0
   m_LocalEulerAnglesHint:
     x: 0
     y: 0
@@ -412,3 +422,34 @@ Camera:
   m_OcclusionCulling: 0
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
+--- !u!136 &100577
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 100564
+  m_Material:
+    fileID: 0
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.4
+  m_Height: 1.8
+  m_Direction: 1
+  m_Center:
+    x: 0
+    y: 0.9
+    z: 0

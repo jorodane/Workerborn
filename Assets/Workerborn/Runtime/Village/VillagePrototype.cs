@@ -158,6 +158,7 @@ namespace Workerborn
                     pickups.Add(item);
             hud.Initialize(this, settings.InterfaceFont);
             targeting?.Initialize(this, hud.TargetLink);
+            worldCamera.GetComponent<CameraVisibility>()?.Initialize(player.transform);
             cameraRig.Initialize(worker.transform, this);
             RestoreWorldObjects();
             initialized = true;

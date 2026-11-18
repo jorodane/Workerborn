@@ -1,7 +1,16 @@
 {
   "name": "Workerborn.EditModeTests",
   "rootNamespace": "Workerborn.Tests",
-  "references": ["Workerborn.Runtime"],
-  "includePlatforms": ["Editor"],
-  "optionalUnityReferences": ["TestAssemblies"]
+  "references": [
+    "Workerborn.Runtime",
+    "Unity.TextMeshPro",
+    "UnityEngine.UI",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
 }

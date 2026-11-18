@@ -105,8 +105,8 @@ def author():
     _,label=b.text('Name',root,'감자',(74,26),(0,0),13,align=4,anchor=(.5,.5),pivot=(.5,.5))
     label_transform=next(v for c,i,k,v,st in b.docs if k=='RectTransform' and v['m_GameObject']['fileID']==next(v for c,i,k,v,st in b.docs if i==label)['m_GameObject']['fileID'])
     label_transform.update(m_AnchorMin=vec(0,0),m_AnchorMax=vec(1,1),m_SizeDelta=vec(0,0),m_AnchoredPosition=vec(0,0))
-    view=b.script(root,'UI/PickupNameView.cs',label=ref(label),background=ref(background),padding=vec(14,6),boxColor=color(0,0,0,.65));save(b,'PickupName',view)
-    b=UIBuilder();root=b.ui('Target link',None,(0,0),(0,0),(.5,.5),(.5,.5));line=b.ui('Line',root,(100,1.5),(0,0),(.5,.5),(0,.5),(1,.88,.36,1));line_id=b.image_component(line);next(v for c,i,k,v,st in b.docs if i==line_id)['m_RaycastTarget']=0
+    view=b.script(root,'UI/PickupNameView.cs',label=ref(label),background=ref(background),padding=vec(14,6),normalColor=color(0,0,0,.65),hoverColor=color(.23,.29,.32,.85),pressedColor=color(.42,.31,.12,.95));save(b,'PickupName',view)
+    b=UIBuilder();root=b.ui('Target link',None,(0,0),(0,0),(.5,.5),(.5,.5));line=b.ui('Line',root,(100,1.5),(0,0),(.5,.5),(0,.5),(1,.88,.36,1));line_id=b.image_component(line);next(v for c,i,k,v,st in b.docs if i==line_id).update(m_RaycastTarget=0,m_Material=assetref(BASE/'Materials/TargetLink.mat'))
     view=b.script(root,'UI/TargetLinkView.cs',line=ref(line_id),thickness=1.5);save(b,'TargetLink',view)
 
     b=UIBuilder();root=b.ui('Skill balloon',None,(240,110),(0,0),(0,0),(.5,0),(.88,.86,.79,.95))
@@ -116,14 +116,16 @@ def author():
     for c,i,k,v,st in b.docs:
         if 'm_RaycastTarget'in v:v['m_RaycastTarget']=0
     view=b.script(root,'UI/SkillBalloonView.cs',title=ref(title),remaining=ref(remaining),progress=ref(progress),worldHeight=2.25);save(b,'SkillBalloon',view)
-    b=UIBuilder();root=b.ui('Object tooltip',None,(260,40),(0,0),(0,0),(.5,0),(.12,.14,.15,.85))
-    _,label=b.text('Object name',root,'',(240,32),(10,-4),13,align=4)
-    view=b.script(root,'UI/WorldTooltipView.cs',label=ref(label))
-    for c,i,k,v,st in b.docs:
-        if 'm_RaycastTarget'in v:v['m_RaycastTarget']=0
+    b=UIBuilder();root=b.ui('Cursor action',None,(136,28),(0,0),(0,0),(0,1))
+    _,label=b.text('Action',root,'',(136,28),(0,0),13,align=0)
+    view=b.script(root,'UI/WorldTooltipView.cs',label=ref(label),cursorOffset=vec(18,-22))
     save(b,'WorldTooltip',view)
-    for name,size,font in [('NpcName',(160,28),13),('FloatingText',(260,42),21)]:
-        b=UIBuilder();root,text=b.text(name,None,'',size,(0,0),font,align=4,anchor=(0,0),pivot=(.5,0));save(b,name,text)
+    b=UIBuilder();root=b.ui('NPC name',None,(160,28),(0,0),(0,0),(.5,0),(0,0,0,0));background=b.image_component(root)
+    _,label=b.text('Name',root,'',(160,28),(0,0),13,align=4)
+    label_transform=next(v for c,i,k,v,st in b.docs if k=='RectTransform' and v['m_GameObject']['fileID']==next(v for c,i,k,v,st in b.docs if i==label)['m_GameObject']['fileID'])
+    label_transform.update(m_AnchorMin=vec(0,0),m_AnchorMax=vec(1,1),m_SizeDelta=vec(0,0),m_AnchoredPosition=vec(0,0),m_Pivot=vec(.5,.5))
+    view=b.script(root,'UI/WorldNameplateView.cs',label=ref(label),background=ref(background),padding=vec(14,6),normalColor=color(0,0,0,0),hoverColor=color(.23,.29,.32,.85),pressedColor=color(.42,.31,.12,.95));save(b,'NpcName',view)
+    b=UIBuilder();root,text=b.text('FloatingText',None,'',(260,42),(0,0),21,align=4,anchor=(0,0),pivot=(.5,0));save(b,'FloatingText',text)
 
     # Real window content is saved in each prefab, rather than reconstructed by a window factory.
     b,root,body,fields=window('inventory','소지품',588,424,(280,-25))
