@@ -4,14 +4,7 @@ using UnityEngine.Rendering;
 
 namespace Workerborn
 {
-    [System.Serializable]
-    public sealed class CameraFadeShaderPair
-    {
-        public Shader source;
-        public Shader fading;
-    }
-
-    // Visibility and temporary material changes belong only to this camera's render.
+    // Per-camera property blocks preserve each renderer's assigned shader and material.
     [DefaultExecutionOrder(-35)]
     [RequireComponent(typeof(Camera))]
     public sealed class CameraVisibility : MonoBehaviour
@@ -32,17 +25,10 @@ namespace Workerborn
         private float fadeOutSeconds = .16f;
         [SerializeField, Min(.01f)]
         private float fadeInSeconds = .28f;
-        [SerializeField]
-        private Shader fadeShader;
-        [SerializeField]
-        private ShaderVariantCollection fadeVariants;
-        [SerializeField]
-        private CameraFadeShaderPair[] fadeShaders;
         private Camera view;
         private readonly HashSet<Renderer> hidden = new HashSet<Renderer>();
         private readonly HashSet<VillageMapProp> hiddenProps = new HashSet<VillageMapProp>();
         private readonly Dictionary<Renderer, FadeState> states = new Dictionary<Renderer, FadeState>();
-        private readonly Dictionary<Material, Material> fadeMaterials = new Dictionary<Material, Material>();
         private readonly List<Renderer> removed = new List<Renderer>();
         private readonly List<Renderer> applied = new List<Renderer>();
         // Native Unity objects cannot be constructed during MonoBehaviour deserialization.
@@ -50,7 +36,6 @@ namespace Workerborn
         private sealed class FadeState
         {
             public float Opacity = 1;
-            public Material[] Originals;
             public MaterialPropertyBlock[] Blocks;
             public bool ForceOff;
         }
@@ -72,8 +57,6 @@ namespace Workerborn
         {
             working = new MaterialPropertyBlock();
             view = GetComponent<Camera>();
-            if (fadeVariants != null)
-                fadeVariants.WarmUp();
         }
 
         public void Initialize(Transform followedPlayer) => player = followedPlayer;
@@ -244,47 +227,6 @@ namespace Workerborn
             return (offset - nearest).sqrMagnitude <= (radius + padding) * (radius + padding);
         }
 
-        private Material FadeMaterial(Material source)
-        {
-            if (source == null)
-                return null;
-            if (fadeMaterials.TryGetValue(source, out var material))
-                return material;
-            material = new Material(source)
-            {
-                name = source.name + " (camera fade)",
-                hideFlags = HideFlags.HideAndDontSave
-            };
-            if (fadeShader != null && source.shader.name.StartsWith("FlatKit/") && source.HasProperty("_OutlineWidth"))
-                material.shader = fadeShader;
-            if (fadeShaders != null)
-                foreach (var pair in fadeShaders)
-                    if (pair.source == source.shader && pair.fading != null)
-                    {
-                        material.shader = pair.fading;
-                        break;
-                    }
-
-            material.SetFloat("_Surface", 1);
-            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
-            material.SetFloat("_ZWrite", 0);
-            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            // Transparent blending preserves texture cutouts without clipping the fade halfway.
-            material.DisableKeyword("_ALPHATEST_ON");
-            if (material.HasProperty("_AlphaClip"))
-                material.SetFloat("_AlphaClip", 0);
-            if (material.HasProperty("_BUILTIN_Surface"))
-                material.SetFloat("_BUILTIN_Surface", 1);
-            if (material.HasProperty("_BUILTIN_ZWrite"))
-                material.SetFloat("_BUILTIN_ZWrite", 0);
-            material.SetOverrideTag("RenderType", "Transparent");
-            material.renderQueue = (int)RenderQueue.Transparent;
-            fadeMaterials.Add(source, material);
-            return material;
-        }
-
         private void BeginCamera(ScriptableRenderContext context, Camera camera)
         {
             if (camera != view)
@@ -297,8 +239,8 @@ namespace Workerborn
                 if (renderer == null || state.Opacity >= 1)
                     continue;
                 state.ForceOff = renderer.forceRenderingOff;
-                state.Originals = renderer.sharedMaterials;
-                state.Blocks = new MaterialPropertyBlock[state.Originals.Length];
+                var materials = renderer.sharedMaterials;
+                state.Blocks = new MaterialPropertyBlock[materials.Length];
                 applied.Add(renderer);
                 if (state.Opacity <= .001f)
                 {
@@ -306,11 +248,10 @@ namespace Workerborn
                     continue;
                 }
 
-                var materials = new Material[state.Originals.Length];
                 for (int i = 0; i < materials.Length; i++)
                 {
-                    Material source = state.Originals[i];
-                    materials[i] = FadeMaterial(source);
+                    if (materials[i] == null || !materials[i].HasProperty("_CameraOpacity"))
+                        continue;
                     var saved = new MaterialPropertyBlock();
                     renderer.GetPropertyBlock(saved, i);
                     state.Blocks[i] = saved;
@@ -318,27 +259,10 @@ namespace Workerborn
                     renderer.GetPropertyBlock(working, i);
                     if (working.isEmpty)
                         renderer.GetPropertyBlock(working);
-                    if (materials[i] != null && materials[i].HasProperty("_CameraOpacity"))
-                        working.SetFloat("_CameraOpacity", state.Opacity);
-                    FadeColor(source, "_BaseColor", state.Opacity);
-                    FadeColor(source, "_Color", state.Opacity);
-                    FadeColor(source, "_OutlineColor", state.Opacity);
-                    if (source != null && source.HasProperty("_Cutoff"))
-                        working.SetFloat("_Cutoff", source.GetFloat("_Cutoff") * state.Opacity);
+                    working.SetFloat("_CameraOpacity", state.Opacity);
                     renderer.SetPropertyBlock(working, i);
                 }
-
-                renderer.sharedMaterials = materials;
             }
-        }
-
-        private void FadeColor(Material source, string property, float opacity)
-        {
-            if (source == null || !source.HasProperty(property))
-                return;
-            Color color = working.HasProperty(property) ? working.GetColor(property) : source.GetColor(property);
-            color.a *= opacity;
-            working.SetColor(property, color);
         }
 
         private void EndCamera(ScriptableRenderContext context, Camera camera)
@@ -354,7 +278,6 @@ namespace Workerborn
                 if (renderer == null || !states.TryGetValue(renderer, out var state))
                     continue;
                 renderer.forceRenderingOff = state.ForceOff;
-                renderer.sharedMaterials = state.Originals;
                 for (int i = 0; i < state.Blocks.Length; i++)
                     if (state.Blocks[i] != null)
                         renderer.SetPropertyBlock(state.Blocks[i].isEmpty ? null : state.Blocks[i], i);
@@ -371,14 +294,6 @@ namespace Workerborn
             hidden.Clear();
             hiddenProps.Clear();
             states.Clear();
-        }
-
-        private void OnDestroy()
-        {
-            foreach (var material in fadeMaterials.Values)
-                if (material != null)
-                    Destroy(material);
-            fadeMaterials.Clear();
         }
     }
 }

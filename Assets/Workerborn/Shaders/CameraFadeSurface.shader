@@ -1,8 +1,9 @@
-// Camera-only fade variant of the supplied FlatKit Stylized Surface.
+// Supplied FlatKit shading with a stable per-renderer camera opacity property.
 Shader "Workerborn/Camera Fade Surface"
 {
     Properties
     {
+        [HideInInspector] _CameraOpacity ("Camera opacity", Range(0, 1)) = 1
         [MainColor] _BaseColor ("Color", Color) = (1,1,1,1)
 
         [KeywordEnum(None, Single, Steps, Curve)]_CelPrimaryMode("Cel Shading Mode", Float) = 1
@@ -230,8 +231,15 @@ Shader "Workerborn/Camera Fade Surface"
             // TODO: Toggle _NORMALMAP from the editor script.
             #define _NORMALMAP
 
-            #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/StylizedInput.hlsl"
+            #include "Assets/Workerborn/Shaders/CameraFadeInput.hlsl"
+            #define StylizedPassFragment WorkerbornOriginalFragment
             #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/LitForwardPass_DR.hlsl"
+            #undef StylizedPassFragment
+            half4 StylizedPassFragment(Varyings input) : SV_Target
+            {
+                WorkerbornCameraClip(input.positionCS.xy);
+                return WorkerbornOriginalFragment(input);
+            }
             #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/Lighting_DR.hlsl"
 
             /* start CurvedWorld */
@@ -250,12 +258,11 @@ Shader "Workerborn/Camera Fade Surface"
             // Renderer Feature outline pass.
             Name "Outline"
             Tags{"LightMode" = "Outline"}
-            Blend SrcAlpha OneMinusSrcAlpha
-            ZWrite Off
+            ZWrite On
             Cull Front
 
             HLSLPROGRAM
-            #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/StylizedInput.hlsl"
+            #include "Assets/Workerborn/Shaders/CameraFadeInput.hlsl"
 
             #pragma vertex VertexProgram
             #pragma fragment FragmentProgram
@@ -351,6 +358,7 @@ Shader "Workerborn/Camera Fade Surface"
             half4 FragmentProgram(VertexOutput i) : SV_TARGET
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
+                WorkerbornCameraClip(i.position.xy);
                 half4 color = _OutlineColor;
                 color.rgb = MixFog(color.rgb, i.fogCoord);
                 return color;
@@ -401,8 +409,15 @@ Shader "Workerborn/Camera Fade Surface"
             #pragma vertex ShadowPassVertex
             #pragma fragment ShadowPassFragment
 
-            #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/StylizedInput.hlsl"
+            #include "Assets/Workerborn/Shaders/CameraFadeInput.hlsl"
+            #define ShadowPassFragment WorkerbornOriginalShadowPassFragment
             #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
+            #undef ShadowPassFragment
+            half4 ShadowPassFragment(Varyings input) : SV_Target
+            {
+                WorkerbornCameraClip(input.positionCS.xy);
+                return WorkerbornOriginalShadowPassFragment(input);
+            }
 
             /* start CurvedWorld */
             //#define CURVEDWORLD_BEND_TYPE_CLASSICRUNNER_X_POSITIVE
@@ -412,79 +427,6 @@ Shader "Workerborn/Camera Fade Surface"
             //#include "Assets/Amazing Assets/Curved World/Shaders/Core/CurvedWorldTransform.cginc"
             /* end CurvedWorld */
 
-            ENDHLSL
-        }
-
-        Pass
-        {
-            Name "GBuffer"
-            Tags{"LightMode" = "UniversalGBuffer"}
-
-            ZWrite[_ZWrite]
-            ZTest LEqual
-            Cull[_Cull]
-
-            HLSLPROGRAM
-            // -------------------------------------
-            // Material Keywords
-            #pragma shader_feature_local_fragment _ALPHATEST_ON
-            // #pragma shader_feature _ALPHAPREMULTIPLY_ON
-            // #pragma shader_feature_local_fragment _ _SPECGLOSSMAP _SPECULAR_COLOR
-            // #pragma shader_feature_local_fragment _GLOSSINESS_FROM_BASE_ALPHA
-            #pragma shader_feature_local _NORMALMAP
-            #pragma shader_feature_local_fragment _EMISSION
-            #pragma shader_feature_local _RECEIVE_SHADOWS_OFF
-            #if UNITY_VERSION >= 600000
-            #pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
-            #endif
-
-            // -------------------------------------
-            // Universal Pipeline keywords
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
-            //#pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
-            //#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
-            #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
-            #pragma multi_compile_fragment _ _LIGHT_LAYERS
-            #if UNITY_VERSION >= 600000
-            #define _ENVIRONMENTREFLECTIONS_OFF 1 // Fixes flickering when Probe Blending is enabled on Renderer.
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
-            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
-            #else
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT
-            #endif
-            #if UNITY_VERSION >= 60000012
-            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ProbeVolumeVariants.hlsl"
-            #endif
-
-            // -------------------------------------
-            // Unity defined keywords
-            #pragma multi_compile _ DIRLIGHTMAP_COMBINED
-            #pragma multi_compile _ LIGHTMAP_ON
-            #pragma multi_compile _ DYNAMICLIGHTMAP_ON
-            #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
-            #pragma multi_compile _ SHADOWS_SHADOWMASK
-            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
-            #if UNITY_VERSION >= 600000
-            #pragma multi_compile_fragment _ _RENDER_PASS_ENABLED
-            #endif
-
-            //--------------------------------------
-            // GPU Instancing
-            #pragma multi_compile_instancing
-            #pragma instancing_options renderinglayer
-            #if defined(FLAT_KIT_DOTS_INSTANCING_ON)
-            #pragma target 4.5
-            #pragma multi_compile _ DOTS_INSTANCING_ON
-            #endif
-
-            #pragma vertex LitPassVertexSimple
-            #pragma fragment LitPassFragmentSimple
-
-            #define BUMP_SCALE_NOT_SUPPORTED 1
-
-            #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/StylizedInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/SimpleLitGBufferPass.hlsl"
             ENDHLSL
         }
 
@@ -520,8 +462,15 @@ Shader "Workerborn/Camera Fade Surface"
             #pragma multi_compile _ DOTS_INSTANCING_ON
             #endif
 
-            #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/StylizedInput.hlsl"
+            #include "Assets/Workerborn/Shaders/CameraFadeInput.hlsl"
+            #define DepthOnlyFragment WorkerbornOriginalDepthOnlyFragment
             #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
+            #undef DepthOnlyFragment
+            half DepthOnlyFragment(Varyings input) : SV_Target
+            {
+                WorkerbornCameraClip(input.positionCS.xy);
+                return WorkerbornOriginalDepthOnlyFragment(input);
+            }
 
             /* start CurvedWorld */
             //#define CURVEDWORLD_BEND_TYPE_CLASSICRUNNER_X_POSITIVE
@@ -569,8 +518,23 @@ Shader "Workerborn/Camera Fade Surface"
             #pragma multi_compile _ DOTS_INSTANCING_ON
             #endif
 
-            #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/StylizedInput.hlsl"
+            #include "Assets/Workerborn/Shaders/CameraFadeInput.hlsl"
+            #define DepthNormalsFragment WorkerbornOriginalDepthNormals
             #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthNormalsPass.hlsl"
+            #undef DepthNormalsFragment
+            void DepthNormalsFragment(Varyings input, out half4 outNormalWS : SV_Target0
+            #ifdef _WRITE_RENDERING_LAYERS
+                , out uint outRenderingLayers : SV_Target1
+            #endif
+            )
+            {
+                WorkerbornCameraClip(input.positionCS.xy);
+                WorkerbornOriginalDepthNormals(input, outNormalWS
+                #ifdef _WRITE_RENDERING_LAYERS
+                    , outRenderingLayers
+                #endif
+                );
+            }
 
             /* start CurvedWorld */
             //#define CURVEDWORLD_BEND_TYPE_CLASSICRUNNER_X_POSITIVE
@@ -601,7 +565,7 @@ Shader "Workerborn/Camera Fade Surface"
             #pragma shader_feature_local_fragment _EMISSION
             #pragma shader_feature_local_fragment _SPECGLOSSMAP
 
-            #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/StylizedInput.hlsl"
+            #include "Assets/Workerborn/Shaders/CameraFadeInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/SimpleLitMetaPass.hlsl"
 
             /* start CurvedWorld */
@@ -626,7 +590,7 @@ Shader "Workerborn/Camera Fade Surface"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _ALPHAPREMULTIPLY_ON
 
-            #include "Assets/FlatKit/Shaders/StylizedSurface/LibraryUrp/StylizedInput.hlsl"
+            #include "Assets/Workerborn/Shaders/CameraFadeInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/Utils/Universal2D.hlsl"
 
             /* start CurvedWorld */

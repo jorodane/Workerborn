@@ -4,12 +4,32 @@ namespace Workerborn
 {
     public sealed class VillageMapProp : MonoBehaviour
     {
-        [SerializeField] private Transform visual;
+        // Navigation volumes describe the footprint, not the visible picking surface.
+        public const int PointerLayers = ~((1 << 2) | (1 << 8));
+        public const int PointerGeometryLayer = 11;
+        [SerializeField]
+        private Transform visual;
+        [SerializeField, Tooltip("Use the model importer's exact mesh colliders for a directly imported FBX visual.")]
+        private bool useImportedMeshColliders;
         private void Awake()
         {
-            if (visual == null) return;
-            foreach (var collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
-            foreach (var child in visual.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 2;
+            if (visual == null)
+                return;
+            foreach (var child in visual.GetComponentsInChildren<Transform>(true))
+                child.gameObject.layer = 2;
+            foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
+            {
+                var filter = collider.GetComponent<MeshFilter>();
+                if (useImportedMeshColliders && collider is MeshCollider mesh && filter != null && filter.sharedMesh != null)
+                {
+                    mesh.sharedMesh = filter.sharedMesh;
+                    mesh.convex = false;
+                    mesh.enabled = true;
+                    mesh.gameObject.layer = PointerGeometryLayer;
+                }
+                else
+                    collider.enabled = false;
+            }
         }
     }
 }

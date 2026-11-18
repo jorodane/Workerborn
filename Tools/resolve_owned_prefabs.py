@@ -13,7 +13,7 @@ def remap(value,ids):
     if isinstance(value,list):return [remap(v,ids)for v in value]
     return value
 
-def expand(path):
+def expand(path, include_vendor_geometry=False):
     result=documents(path)
     for iteration in range(500):
         chosen=None;source=None
@@ -21,7 +21,7 @@ def expand(path):
             instance=d.get('PrefabInstance')
             if instance is None:continue
             candidate=GUIDS.get(instance['m_SourcePrefab']['guid'])
-            if candidate is not None and candidate.is_relative_to(ROOT/'Assets/Workerborn/Prefabs'):
+            if candidate is not None and (candidate.is_relative_to(ROOT/'Assets/Workerborn/Prefabs') or include_vendor_geometry and candidate.suffix=='.prefab'):
                 chosen=d;source=candidate;break
         if chosen is None:return result
         original=documents(source);instance_id=chosen['_id'];guid=chosen['PrefabInstance']['m_SourcePrefab']['guid']
@@ -42,6 +42,7 @@ def expand(path):
             for part in parts[:-1]:current=current.setdefault(part,{})
             key=parts[-1];old=current.get(key)
             if mod.get('objectReference',{}).get('fileID'):new=mod['objectReference']
+            elif parts[0] in {'m_LocalPosition','m_LocalRotation','m_LocalScale'}:new=float(mod['value'])
             elif isinstance(old,int):
                 try:new=int(mod['value'])
                 except ValueError:new=float(mod['value'])

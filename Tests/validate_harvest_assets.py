@@ -225,11 +225,13 @@ progress=next(d['MonoBehaviour']for d in balloon if d.get('MonoBehaviour',{}).ge
 assert progress['m_FillMethod']==4 and progress['m_FillOrigin']==2 and progress['m_FillClockwise']==1
 visibility=behaviours(scene,'Rendering/CameraVisibility.cs')[0]
 assert visibility['fadeOutSeconds']>0 and visibility['fadeInSeconds']>0 and visibility['containmentPadding']>=.25
-assert visibility['fadeShader']['fileID'] and visibility['fadeVariants']['fileID'] and len(visibility['fadeShaders'])==3
+assert not any(k in visibility for k in ['fadeShader','fadeVariants','fadeShaders'])
+visibility_code=(CONTENT/'Runtime/Rendering/CameraVisibility.cs').read_text()
+assert 'new Material(' not in visibility_code and '.sharedMaterials =' not in visibility_code and '.shader =' not in visibility_code
 for renderer in ['PC_Renderer.asset','Mobile_Renderer.asset']:
     features=[d['MonoBehaviour']for d in docs(CONTENT/'Rendering'/renderer)if d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='576f949be0794f548b825c9ce6f556db']
-    assert {f['settings']['filterSettings']['RenderQueueType']for f in features}=={0,1}
-print('Validated sculptable forest Terrain, supplied ground materials, radial skill icon, camera fade libraries and both outline queues.')
+    assert {f['settings']['filterSettings']['RenderQueueType']for f in features}=={0}
+print('Validated sculptable forest Terrain, supplied ground materials, radial skill icon, stable material opacity and opaque outlines.')
 
 # Validate the active render-pipeline assets, their typed renderer data and the graphics/quality bindings.
 for platform in ['PC','Mobile']:

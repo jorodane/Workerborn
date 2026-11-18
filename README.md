@@ -32,6 +32,10 @@ Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다
 
 마을은 `Prefabs/World/ForestTerrain.prefab`과 `World/ForestVillageTerrain.asset`에 저장한 **120×100m Unity Terrain** 위에 있습니다. Terrain 도구로 높이·지형 페인팅을 직접 수정할 수 있습니다. 기존 FarmCrops의 잔디·흙·자갈 TerrainLayer와 FlatKit Valley의 지형 머티리얼을 재사용합니다. 이전 평면 Ground·Paths·Soil row 오브젝트는 비활성 상태로 보관합니다. 숲의 나무 127개·관목 36개·바위 10개는 Synty 원본에 연결된 완성 프리팹 인스턴스입니다. 농장과 건물 기초는 완만한 평지로 다듬고 주변은 낮은 능선으로 둘렀습니다. 높이 수정 후 **VillageNavigation Inspector의 “현재 Scene의 길찾기 데이터 저장” 버튼**으로 이동 영역을 다시 베이크할 수 있습니다.
 
+건물·나무·바위의 클릭 판정은 각 월드 프리팹의 **Pointer geometry** 아래에 저장한 원본 메시 기반 MeshCollider를 사용합니다. 이 계층은 `PointerGeometry` 레이어(11)에 있으며 물리 충돌은 하지 않습니다. `VillageObstacle` 레이어(8)의 이동 제한 박스는 마우스 레이캐스트에서 제외하므로 지붕 주변의 빈 공간을 가로막지 않습니다. 원본 모델을 수정했다면 Prefab Mode에서 `VillageMapProp` 컴포넌트의 컨텍스트 메뉴 **Rebuild Pointer Geometry**로 클릭 메시를 다시 저장할 수 있습니다. 직접 FBX로 배치된 대장간은 ModelImporter의 메시 콜라이더를 사용합니다.
+
+재사용한 FlatKit 지형 재질은 Valley 데모의 어두운 틴트와 특정 높이용 그라데이션을 해제했습니다. 감자 잎·뿌리와 마을 식물은 원본 Shader Graph의 고유 이름으로 저장된 알베도·노멀 슬롯을 카툰 재질에 연결합니다. 잎은 알파 컷아웃과 양면 렌더링을 유지합니다.
+
 수확 중에는 `Prefabs/UI/SkillBalloon.prefab`의 **원형 아이콘과 위에서 시계방향으로 채워지는 게이지**만 표시합니다. 아이콘·크기·색·높이는 프리팹에서 수정합니다. 이동 중 새 목적지를 클릭해도 걷기 애니메이션의 재생 위치를 초기화하지 않습니다.
 
 NPC 설정 에셋에서는 외형을 펼쳐 머리·의상·눈·눈썹·입·양손 파츠를 고르고 3D 미리보기를 드래그·휠로 회전·확대할 수 있습니다. 주인공은 `Data/Characters/Player_Default.asset`을 같은 형식으로 사용합니다. 파츠가 비어 있으면 기본 프리팹의 부분을 유지하고, 스킨 메시의 본은 이름으로 연결합니다. 공통 파츠 에셋은 사용하는 외형에 공유되므로 개인 변형은 복제해서 사용하세요. 외형 변경과 새 프리팹 배치 시 캐릭터 외형은 **Edit 모드에서** 갱신합니다.
@@ -61,7 +65,7 @@ Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까
 
 게임 내 텍스트는 TMP입니다. `Fonts/WorkerbornKorean-SDF.asset`은 포함된 한글 OTF를 사용하는 동적 SDF 폰트이며 여러 아틀라스를 지원합니다. 이름표·행동 안내의 검은 외곽선은 `Fonts/WorkerbornKorean-NameOutline.mat`, 일반 UI 외곽선은 폰트 에셋의 Material에서 조정합니다.
 
-카메라는 지정한 줌 거리를 유지합니다. `Main camera/CameraVisibility`가 플레이어를 가리는 일반 배경의 렌더러를 메인 카메라에서만 숨깁니다. 배경 판정에는 Renderer bounds와 두 시선 지점을 사용합니다. 갑자기 사라지는 대신 지정한 시간에 걸쳐 몸체와 외곽선이 함께 페이드됩니다. 임시 머티리얼과 색상은 메인 카메라의 렌더 동안에만 적용하고 복구합니다. NPC·작물·아이템이 플레이어를 가려도 숨기지 않으며, 캐릭터·아이템은 여유 공간을 확장한 캡슐과 모델의 전체 bounds, 카메라 near plane까지 함께 판정해 관통 전에 페이드를 시작합니다. 감자의 회전·부유, 머리카락·모자·장비도 판정에 포함됩니다. 숨긴 배경은 마우스 대상 감지에서 건너뛰고, 미니맵·초상화·충돌·내비게이션은 그대로 작동합니다. 캡슐 크기는 각 캐릭터·아이템 프리팹에서 수정합니다.
+카메라는 지정한 줌 거리를 유지합니다. `Main camera/CameraVisibility`가 플레이어를 가리는 일반 배경의 렌더러를 메인 카메라에서만 숨깁니다. 배경 판정에는 Renderer bounds와 두 시선 지점을 사용합니다. 갑자기 사라지는 대신 지정한 시간에 걸쳐 몸체와 외곽선이 함께 페이드됩니다. 재질은 처음부터 페이드를 지원하는 셰이더에 연결하며, 사라질 때 머티리얼·셰이더·텍스처를 교체하지 않습니다. `_CameraOpacity`만 메인 카메라의 MaterialPropertyBlock으로 적용하고 렌더 직후 복구합니다. 불투명 디더 방식으로 몸체·외곽선·깊이·그림자가 같은 기준으로 사라집니다. 숲은 제공된 Synty 그래프의 원래 텍스처·이끼·바람 노드를 유지합니다. NPC·작물·아이템이 플레이어를 가려도 숨기지 않으며, 캐릭터·아이템은 여유 공간을 확장한 캡슐과 모델의 전체 bounds, 카메라 near plane까지 함께 판정해 관통 전에 페이드를 시작합니다. 감자의 회전·부유, 머리카락·모자·장비도 판정에 포함됩니다. 숨긴 배경은 마우스 대상 감지에서 건너뛰고, 미니맵·초상화·충돌·내비게이션은 그대로 작동합니다. 캡슐 크기는 각 캐릭터·아이템 프리팹에서 수정합니다.
 
 바닥 아이템 이름은 항상 표시합니다. **Alt를 누르는 동안** 검은 반투명 이름 박스가 나타나고, 박스를 클릭해도 실제 아이템과 같은 경로로 접근·획득합니다. 획득 거리는 아이템 프리팹의 공통 Interaction Distance에서 수정하며 기본값은 1m입니다. 떨어지는 도중에도 획득할 수 있습니다. **Alt를 누르는 동안만** 박스는 화면 가장자리와 겹침을 보정하며, 화면상 높이가 같은 항목은 **생성 순서대로 위→아래** 정렬합니다. 한 화면의 높이보다 큰 더미는 Alt를 누르고 이름 위에서 휠을 돌려 세로로 살펴볼 수 있습니다. 글꼴·여백·일반·호버·누름 색상과 투명도는 `PickupName.prefab`에서 조정합니다.
 
@@ -113,12 +117,13 @@ python -m pip install -r Tests/requirements.txt
 python Tests/validate_harvest_assets.py
 python Tests/validate_prefab_contracts.py
 python Tests/validate_camera_graphs.py
+python Tests/validate_surface_picking.py
 ```
 
-.NET NUnit 테스트 76개는 수확·시점 줌·이름 박스 배치와 생성 순서·윤곽의 가까운 점·아이템 배치·수량 거래·장비·저장 변환·시간·마감·보상·성장·환생 규칙을 검증합니다. Unity EditMode에는 외형 파츠 조합·본 연결·프리팹의 사전 배치와 UI 구성 검증이 있으며, PlayMode에는 이동·대화·수확·납품·환생·저장 재로드·프리팹 창 연결·이름 클릭 즉시 줍기·수확 유지·고갈 작물의 Collider·이름 박스 상태 색상·카메라 가림 검증이 있습니다. 테스트 저장 폴더는 플레이어 데이터와 분리됩니다.
+.NET NUnit 테스트 76개는 수확·시점 줌·이름 박스 배치와 생성 순서·윤곽의 가까운 점·아이템 배치·수량 거래·장비·저장 변환·시간·마감·보상·성장·환생 규칙을 검증합니다. Unity EditMode에는 셰이더 임포트 오류·메시 클릭 판정의 원본 일치·재질을 교체하지 않는 페이드와 속성 복구·컷오프 속성 부재·감자 텍스처 연결·외형 파츠 조합·본 연결·프리팹의 사전 배치와 UI 구성 검증이 있으며, PlayMode에는 이동·대화·수확·납품·환생·저장 재로드·프리팹 창 연결·이름 클릭 즉시 줍기·수확 유지·고갈 작물의 Collider·이름 박스 상태 색상·카메라 가림 검증이 있습니다. 테스트 저장 폴더는 플레이어 데이터와 분리됩니다.
 
 이 작업 환경에는 Unity Editor가 없어 실제 Unity 6 임포트·PlayMode 실행·미리보기 및 화면 검증은 수행하지 못했습니다. .NET 테스트, C# 구문·참조 컴파일, Scene 및 에셋 연결 정적 검사를 수행했습니다.
 
-원본 에셋과 `SampleScene`은 보존합니다. `HarvestPrototype`은 기존 수확 전용 데모입니다. `Tools/author_*`는 예제 에셋을 작성할 때 사용한 명시적 오프라인 도구입니다. Unity의 import·Play에서는 실행되지 않습니다. 재실행은 예제 배치를 덮어쓰므로 일반 작업에는 Scene과 Prefab Mode를 사용하세요.
+원본 메시·텍스처와 `SampleScene`은 보존합니다. 재사용하는 FlatKit 지형 재질의 색상 설정과 대장간 FBX의 콜라이더 임포트 옵션은 마을에 맞게 조정했습니다. `HarvestPrototype`은 기존 수확 전용 데모입니다. `Tools/author_*`는 예제 에셋을 작성할 때 사용한 명시적 오프라인 도구입니다. Unity의 import·Play에서는 실행되지 않습니다. 재실행은 예제 배치를 덮어쓰므로 일반 작업에는 Scene과 Prefab Mode를 사용하세요.
 
 Unity가 실패한 import에서 기본 Renderer 참조를 비워둔 경우, Editor가 준비된 뒤 `VillageRenderPipelineReferences`가 Workerborn PC·Mobile 파이프라인의 **누락된 기본 슬롯만** 복구합니다. 이미 지정한 Renderer와 Renderer Feature는 유지합니다. 수동으로 실행하려면 **Workerborn → Rendering → Repair Missing Renderer References**를 사용합니다.

@@ -9711,18 +9711,7 @@ MonoBehaviour:
   fadeLeadDistance: 0.45
   fadeOutSeconds: 0.16
   fadeInSeconds: 0.28
-  fadeShader:
-    fileID: 4800000
-    guid: d0ec2e7f20c057e99f0bbe40f8c55b95
-    type: 3
-  fadeVariants: {fileID: 20000000, guid: 04473040deea5638a7aaa5400f39abc9, type: 2}
-  fadeShaders:
-  - source: {fileID: -6465566751694194690, guid: 5aee23263024cdf42a24ad956be999f6, type: 3}
-    fading: {fileID: -6465566751694194690, guid: 4030a5b153355b928a4be81ae3ebb810, type: 3}
-  - source: {fileID: -6465566751694194690, guid: a528ffacf2930d242b8e1651d9ba9638, type: 3}
-    fading: {fileID: -6465566751694194690, guid: c76a12a275e85ee197983d9e5fffb3ac, type: 3}
-  - source: {fileID: -6465566751694194690, guid: 048d3f2f56dab16409b54890aa2f700f, type: 3}
-    fading: {fileID: -6465566751694194690, guid: c75e02bfab0a5c4db63ef5d2c722fb2d, type: 3}
+
 --- !u!1001 &950000001
 PrefabInstance:
   m_ObjectHideFlags: 0

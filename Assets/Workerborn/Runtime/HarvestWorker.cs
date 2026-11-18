@@ -85,7 +85,7 @@ namespace Workerborn
                     return;
             }
 
-            if (!Physics.Raycast(worldCamera.ScreenPointToRay(screen), out RaycastHit hit, 200f, ~(1 << 2), QueryTriggerInteraction.Collide))
+            if (!Physics.Raycast(worldCamera.ScreenPointToRay(screen), out RaycastHit hit, 200f, VillageMapProp.PointerLayers, QueryTriggerInteraction.Collide))
                 return;
             target = hit.collider.GetComponentInParent<WorldInteractable>();
             if (target != null && !target.CanInteract)

@@ -28,7 +28,11 @@ for path in sorted((ROOT/'Assets/Workerborn/Shaders').glob('CameraFade*.shadergr
     final=next(e for e in graph['m_Edges']if e['m_InputSlot']['m_Node']['m_Id']==alpha['m_ObjectId'])
     multiply=by[final['m_OutputSlot']['m_Node']['m_Id']]
     assert multiply['m_Type']=='UnityEditor.ShaderGraph.MultiplyNode'
-    assert any(e['m_OutputSlot']['m_Node']['m_Id']==propnode['m_ObjectId']and e['m_InputSlot']['m_Node']['m_Id']==multiply['m_ObjectId']for e in graph['m_Edges'])
+    coverage=next(d for d in objects if d.get('m_FunctionName')=='WorkerbornCameraCoverage')
+    assert coverage['m_SourceType']==1 and 'step(' in coverage['m_FunctionBody']
+    assert any(e['m_OutputSlot']['m_Node']['m_Id']==propnode['m_ObjectId']and e['m_InputSlot']['m_Node']['m_Id']==coverage['m_ObjectId']for e in graph['m_Edges'])
+    assert any(e['m_OutputSlot']['m_Node']['m_Id']==coverage['m_ObjectId']and e['m_InputSlot']['m_Node']['m_Id']==multiply['m_ObjectId']for e in graph['m_Edges'])
+    assert any(d.get('m_Name')=='SurfaceDescription.AlphaClipThreshold'for d in objects)
     target=next(d for d in objects if d.get('m_Type','').endswith('UniversalTarget'))
-    assert target['m_AllowMaterialOverride']and target['m_SurfaceType']==1 and not target['m_AlphaClip']
-    print(f'{path.name}: {len(objects)} unique objects, valid edge slots, transparent alpha multiplied by camera opacity.')
+    assert not target['m_AllowMaterialOverride']and target['m_SurfaceType']==0 and target['m_AlphaClip']
+    print(f'{path.name}: {len(objects)} unique objects, valid edge slots, opaque coverage fade preserving source alpha/cutouts.')

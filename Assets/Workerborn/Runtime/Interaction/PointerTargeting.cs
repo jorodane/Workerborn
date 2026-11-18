@@ -176,11 +176,11 @@ namespace Workerborn
         private bool TryWorldHit(Vector2 cursor, out RaycastHit nearest)
         {
             Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
-            int count = Physics.RaycastNonAlloc(ray, worldHits, 200f, ~(1 << 2), QueryTriggerInteraction.Collide);
+            int count = Physics.RaycastNonAlloc(ray, worldHits, 200f, VillageMapProp.PointerLayers, QueryTriggerInteraction.Collide);
             var hits = worldHits;
             if (count == worldHits.Length)
             {
-                hits = Physics.RaycastAll(ray, 200f, ~(1 << 2), QueryTriggerInteraction.Collide);
+                hits = Physics.RaycastAll(ray, 200f, VillageMapProp.PointerLayers, QueryTriggerInteraction.Collide);
                 count = hits.Length;
             }
 
@@ -354,18 +354,44 @@ namespace Workerborn
                 var material = materials[index];
                 if (material == null || material.renderQueue >= 3000)
                     continue;
-                string property = material.HasProperty("_BaseMap") ? "_BaseMap" : material.HasProperty("_Main_Texture") ? "_Main_Texture" : "_MainTex";
+                string property = "_BaseMap";
+                foreach (string candidate in SurfaceTextures)
+                    if (material.HasProperty(candidate) && material.GetTexture(candidate) != null)
+                    {
+                        property = candidate;
+                        break;
+                    }
+
                 Texture texture = material.HasProperty(property) ? material.GetTexture(property) : null;
                 var scale = material.HasProperty(property) ? material.GetTextureScale(property) : Vector2.one;
                 var offset = material.HasProperty(property) ? material.GetTextureOffset(property) : Vector2.zero;
                 command.SetGlobalTexture("_SelectionBaseMap", texture != null ? texture : Texture2D.whiteTexture);
                 command.SetGlobalVector("_SelectionMapST", new Vector4(scale.x, scale.y, offset.x, offset.y));
-                command.SetGlobalFloat("_SelectionCutoff", material.HasProperty("_AlphaClip") && material.GetFloat("_AlphaClip") > .5f ? material.GetFloat("_Cutoff") : 0f);
+                command.SetGlobalFloat("_SelectionCutoff", SelectionCutoff(material));
                 command.SetGlobalVector("_SelectionId", new Vector4((id & 255) / 255f, ((id >> 8) & 255) / 255f, ((id >> 16) & 255) / 255f, 1));
                 command.DrawRenderer(renderer, maskMaterial, index, 0);
                 if (id > 0 && material.HasProperty("_OutlineWidth") && material.IsKeywordEnabled("DR_OUTLINE_ON"))
                     command.DrawRenderer(renderer, maskMaterial, index, 1);
             }
+        }
+
+        private static readonly string[] SurfaceTextures =
+        {
+            "_BaseMap",
+            "_Main_Texture",
+            "_MainTex",
+            "_Texture_Map"
+        };
+        public static float SelectionCutoff(Material material)
+        {
+            if (material == null || !(material.IsKeywordEnabled("_ALPHATEST_ON") || material.HasProperty("_AlphaClip") && material.GetFloat("_AlphaClip") > .5f))
+                return 0;
+            // Shader Graph foliage can use a constant threshold without exposing _Cutoff.
+            if (material.HasProperty("_Cutoff"))
+                return material.GetFloat("_Cutoff");
+            if (material.HasProperty("_AlphaClipThreshold"))
+                return material.GetFloat("_AlphaClipThreshold");
+            return .5f;
         }
 
         private void Select(WorldInteractable target)

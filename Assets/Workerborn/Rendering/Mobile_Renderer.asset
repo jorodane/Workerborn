@@ -49,8 +49,7 @@ MonoBehaviour:
       fileID: 0
   m_RendererFeatures:
   - fileID: 7361452315859170001
-  - {fileID: 7361452315859170002}
-  m_RendererFeatureMap: d132c3ede0212966d232c3ede0212966
+  m_RendererFeatureMap: d132c3ede0212966
   m_UseNativeRenderPass: 1
   postProcessData:
     fileID: 11400000
@@ -117,64 +116,6 @@ MonoBehaviour:
     overrideMode: 0
     overrideDepthState: 0
     enableWrite: 1
-    depthCompareFunction: 4
-    stencilSettings:
-      overrideStencilState: 0
-      stencilReference: 0
-      stencilCompareFunction: 8
-      passOperation: 0
-      failOperation: 0
-      zFailOperation: 0
-    cameraSettings:
-      overrideCamera: 0
-      restoreCamera: 1
-      offset:
-        x: 0
-        y: 0
-        z: 0
-        w: 0
-      cameraFieldOfView: 60
---- !u!114 &7361452315859170002
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject:
-    fileID: 0
-  m_PrefabInstance:
-    fileID: 0
-  m_PrefabAsset:
-    fileID: 0
-  m_GameObject:
-    fileID: 0
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script:
-    fileID: 11500000
-    guid: 576f949be0794f548b825c9ce6f556db
-    type: 3
-  m_Name: Camera fade outlines
-  m_EditorClassIdentifier: ''
-  m_Active: 1
-  autoReferenceMaterials: 0
-  materials: []
-  settings:
-    passTag: Camera fade outlines
-    Event: 500
-    filterSettings:
-      RenderQueueType: 1
-      LayerMask:
-        serializedVersion: 2
-        m_Bits: 4294967295
-      PassNames:
-      - Outline
-    overrideMaterial:
-      fileID: 0
-    overrideMaterialPassIndex: 0
-    overrideShader:
-      fileID: 0
-    overrideShaderPassIndex: 0
-    overrideMode: 0
-    overrideDepthState: 0
-    enableWrite: 0
     depthCompareFunction: 4
     stencilSettings:
       overrideStencilState: 0
