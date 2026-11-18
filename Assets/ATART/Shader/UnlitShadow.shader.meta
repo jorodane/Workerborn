@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: eadb82cd09299bf40b4decb38a46aefe
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 199551
+  packageName: ATART Animset
+  packageVersion: 1.0
+  assetPath: Assets/ATART/Shader/UnlitShadow.shader
+  uploadId: 443848

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: af642d243e29ef44393b4fe051654fbd
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 199551
+  packageName: ATART Animset
+  packageVersion: 1.0
+  assetPath: Assets/ATART/Animset/Timelines/Timeline_Animset_Warrior.playable
+  uploadId: 443848
