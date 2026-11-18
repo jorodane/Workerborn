@@ -20,6 +20,7 @@ for meta in (ROOT / 'Assets').rglob('*.meta'):
 PACKAGE_GUIDS = {
     '933532a4fcc9baf4fa0491de14d08ed7', # URP Lit
     'd0353a89b1f911e48b9e16bdc9f2e058', # URP Editor/AssetVersion.cs (material import stamp)
+    '639247ca83abc874e893eb93af2b5e44', # Shader Graph BuiltIn/Editor/AssetVersion.cs (multi-target graph import stamp)
     'a79441f348de89743a2939f4d699eac1', # UniversalAdditionalCameraData
     '474bcb49853aa07438625e644c072ee6', # UniversalAdditionalLightData
     '172515602e62fb746b5d573b38a5fe58', # Volume

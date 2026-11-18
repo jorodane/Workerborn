@@ -79,12 +79,17 @@ public class SyntyPackageHelper
 
         foreach(var config in configs)
         {
+            int previousRequiredCount = requiredPackageCount;
             BuildInstallList(config, forceInstall);
-            config.hasPromptedUser = true;
-        }
+            if (requiredPackageCount == previousRequiredCount || config.hasPromptedUser)
+                continue;
 
-        AssetDatabase.SaveAssets();
-        AssetDatabase.Refresh();
+            // Save only a config that actually prompted. Refreshing on projectChanged
+            // can restart import while URP's default renderer data is still loading.
+            config.hasPromptedUser = true;
+            EditorUtility.SetDirty(config);
+            AssetDatabase.SaveAssetIfDirty(config);
+        }
 
         if(packagesToInstall.Count == 0)
         {
