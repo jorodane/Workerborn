@@ -1,7 +1,11 @@
 ﻿<Solution>
+  <Project Path="Workerborn.Runtime.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Runtime.csproj" />
   <Project Path="FlatKit.Utils.Editor.csproj" />
   <Project Path="ExternAttributes.Editor.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="Workerborn.Editor.csproj" />
+  <Project Path="Workerborn.EditModeTests.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="Workerborn.PlayModeTests.csproj" />
 </Solution>
