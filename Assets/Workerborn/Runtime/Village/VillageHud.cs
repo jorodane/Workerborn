@@ -38,9 +38,7 @@ namespace Workerborn
         private RectTransform toast;
         private float toastUntil;
         private RectTransform skillBubble;
-        private TMP_Text skillTitle;
-        private TMP_Text skillTime;
-        private Image skillFill;
+        private SkillBalloonView skillBalloon;
         private RectTransform hoverTip;
         private TMP_Text hoverText;
         private readonly Queue<string> log = new Queue<string>();
@@ -99,7 +97,7 @@ namespace Workerborn
             {
                 var text = Instantiate(library.NpcName, transform);
                 text.Bind(target, game.Targeting);
-                text.SetBox(true);
+                text.SetBox(WorkerbornInput.Held("Gameplay/Names"));
                 npcLabels.Add(target, text);
             }
         }
@@ -109,9 +107,7 @@ namespace Workerborn
         {
             var balloon = Instantiate(library.SkillBalloon, transform);
             skillBubble = balloon.Rect;
-            skillTitle = balloon.Title;
-            skillTime = balloon.Remaining;
-            skillFill = balloon.Progress;
+            skillBalloon = balloon;
             skillWorldHeight = balloon.WorldHeight;
             skillBubble.gameObject.SetActive(false);
             var tooltip = Instantiate(library.WorldTooltip, transform);
@@ -218,10 +214,7 @@ namespace Workerborn
             skillBubble.gameObject.SetActive(active != null && !HasModal);
             if (active != null && !HasModal)
             {
-                skillTitle.text = "감자 수확  ·  " + RankName(game.State.SkillRank);
-                float seconds = active.Definition.HarvestSeconds * (1f - active.Progress) / game.State.WorkRate;
-                skillTime.text = $"{seconds:0.0}초 남음  ·  남은 수확 {active.Remaining}/{active.Capacity}";
-                skillFill.fillAmount = active.Progress;
+                skillBalloon.SetProgress(active.Progress);
                 PlaceWorld(skillBubble, worker.transform.position + Vector3.up * skillWorldHeight);
             }
 
@@ -242,7 +235,7 @@ namespace Workerborn
             foreach (var pair in npcLabels)
             {
                 pair.Value.SetText(pair.Key.DisplayName);
-                pair.Value.SetBox(true);
+                pair.Value.SetBox(WorkerbornInput.Held("Gameplay/Names"));
                 PlaceWorld(pair.Value.Rect, pair.Key.LabelPosition);
             }
 

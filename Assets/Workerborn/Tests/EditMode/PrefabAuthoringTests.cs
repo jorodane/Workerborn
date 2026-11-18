@@ -149,5 +149,28 @@ namespace Workerborn.Tests
                 Object.DestroyImmediate(root);
             }
         }
+
+        [Test]
+        public void ForestTerrainUsesSuppliedGroundAssetsAndKeepsTheFarmAtItsAuthoredHeight()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Workerborn/Prefabs/World/ForestTerrain.prefab");
+            var terrain = prefab.GetComponent<Terrain>();
+            Assert.That(terrain.terrainData.size, Is.EqualTo(new Vector3(120, 18, 100)));
+            Assert.That(terrain.terrainData.GetInterpolatedHeight(50f / 120f, 52.5f / 100f), Is.EqualTo(.55f).Within(.02f));
+            Assert.That(AssetDatabase.GetAssetPath(terrain.materialTemplate), Does.StartWith("Assets/FlatKit/"));
+            foreach (var layer in terrain.terrainData.terrainLayers)
+                Assert.That(AssetDatabase.GetAssetPath(layer), Does.StartWith("Assets/FarmCrops/Terrain/"));
+        }
+
+        [Test]
+        public void SkillBalloonContainsOnlyItsEditableIconAndClockwiseRadialProgress()
+        {
+            var view = AssetDatabase.LoadAssetAtPath<SkillBalloonView>("Assets/Workerborn/Prefabs/UI/SkillBalloon.prefab");
+            Assert.That(view.Icon.sprite, Is.Not.Null);
+            Assert.That(view.GetComponentsInChildren<TMP_Text>(true), Is.Empty);
+            Assert.That(view.Progress.fillMethod, Is.EqualTo(UnityEngine.UI.Image.FillMethod.Radial360));
+            Assert.That(view.Progress.fillClockwise, Is.True);
+            Assert.That(view.Progress.fillOrigin, Is.EqualTo((int)UnityEngine.UI.Image.Origin360.Top));
+        }
     }
 }

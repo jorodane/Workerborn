@@ -228,6 +228,6 @@ MonoBehaviour:
   label: {fileID: 100004}
   background: {fileID: 100013}
   padding: {x: 14, y: 6}
-  normalColor: {r: 0, g: 0, b: 0, a: 0}
+  normalColor: {r: 0, g: 0, b: 0, a: 0.65}
   hoverColor: {r: 0.23, g: 0.29, b: 0.32, a: 0.85}
   pressedColor: {r: 0.42, g: 0.31, b: 0.12, a: 0.95}

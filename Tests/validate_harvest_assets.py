@@ -68,9 +68,9 @@ def check_pointers(path):
         elif guid.startswith('0000000000000000') or guid in PACKAGE_GUIDS: pass
         else:
             target=resolve(pointer);assert target.is_file(),target
-            ext=target.suffix.lower();expected=2 if ext in ('.asset','.anim','.mat','.rendertexture') else 3
+            ext=target.suffix.lower();expected=2 if ext in ('.asset','.anim','.mat','.rendertexture','.terrainlayer','.shadervariants') else 3
             assert pointer['type']==expected, f'Wrong pointer type {pointer} for {target}'
-            if ext in ('.prefab','.asset','.anim','.mat','.rendertexture'):
+            if ext in ('.prefab','.asset','.anim','.mat','.rendertexture','.terrainlayer','.shadervariants'):
                 if ext=='.prefab' and identifier==100100000: pass # Unity's prefab asset handle.
                 else: assert identifier in {d['_id'] for d in docs(target)}, f'Missing native ID {identifier} in {target}'
             elif ext=='.fbx':
@@ -90,7 +90,7 @@ for path in [CONTENT,*CONTENT.rglob('*')]:
     if not path.is_file():continue
     files+=1
     if path.suffix=='.asmdef':json.loads(path.read_text())
-    if path.suffix in ('.unity','.prefab','.asset','.mat','.rendertexture'): pointers+=check_pointers(path)
+    if path.suffix in ('.unity','.prefab','.asset','.mat','.rendertexture','.shadervariants'): pointers+=check_pointers(path)
 
 scene_path=CONTENT/'Scenes/VillagePrototype.unity'
 from resolve_owned_prefabs import expand
@@ -192,3 +192,27 @@ assert not any(d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='fe87c0
 for p in (CONTENT/'Runtime').rglob('*.cs'):
     assert not re.search(r'UnityEngine\.Input(?!System)\b|Keyboard\.current|Mouse\.current|Pointer\.current',p.read_text()),p
 print(f'Validated {texts} TMP labels, Korean outlined SDF assets, authored input actions/UI references, camera visibility and interaction capsules.')
+
+# The starter world is an editable Unity Terrain with supplied materials/layers and authored forest instances.
+terrains=[d['Terrain']for d in scene if 'Terrain'in d]
+assert len(terrains)==1
+terrain=terrains[0]
+assert resolve(terrain['m_MaterialTemplate']).is_relative_to(ROOT/'Assets/FlatKit/Demos')
+data=next(d['TerrainData']for d in docs(resolve(terrain['m_TerrainData']))if'TerrainData'in d)
+h=data['m_Heightmap'];resolution=h['m_Resolution'];heights=h['m_Heights']
+assert len(heights)==resolution*resolution and (max(heights)-min(heights))*h['m_Scale']['y']/32767>10
+assert abs(h['m_Scale']['x']*(resolution-1)-120)<.001
+assert all(resolve(p).is_relative_to(ROOT/'Assets/FarmCrops/Terrain')for p in data['m_SplatDatabase']['m_TerrainLayers'])
+assert all(a['m_IsActive']==0 for a in gos.values()if a['m_Name']in ['Ground','Paths']or a['m_Name'].startswith('Soil row'))
+assert len(behaviours(scene,'World/VillageMapProp.cs'))>150
+balloon=docs(CONTENT/'Prefabs/UI/SkillBalloon.prefab')
+assert not any(d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='f4688fdb7df04437aeb418b961361dc5'for d in balloon)
+progress=next(d['MonoBehaviour']for d in balloon if d.get('MonoBehaviour',{}).get('m_Type')==3)
+assert progress['m_FillMethod']==4 and progress['m_FillOrigin']==2 and progress['m_FillClockwise']==1
+visibility=behaviours(scene,'Rendering/CameraVisibility.cs')[0]
+assert visibility['fadeOutSeconds']>0 and visibility['fadeInSeconds']>0 and visibility['containmentPadding']>=.25
+assert visibility['fadeShader']['fileID'] and visibility['fadeVariants']['fileID'] and len(visibility['fadeShaders'])==3
+for renderer in ['PC_Renderer.asset','Mobile_Renderer.asset']:
+    features=[d['MonoBehaviour']for d in docs(CONTENT/'Rendering'/renderer)if d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='576f949be0794f548b825c9ce6f556db']
+    assert {f['settings']['filterSettings']['RenderQueueType']for f in features}=={0,1}
+print('Validated sculptable forest Terrain, supplied ground materials, radial skill icon, camera fade libraries and both outline queues.')

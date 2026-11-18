@@ -127,7 +127,10 @@ namespace Workerborn
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
             Vector3 direction = rotation * Vector3.back;
             Vector3 position = focus + direction * distance;
-            position.y = Mathf.Max(position.y, target.position.y + 0.2f);
+            float floor = target.position.y + .2f;
+            if (game != null && game.GroundTerrain != null)
+                floor = game.GroundTerrain.SampleHeight(position) + game.GroundTerrain.transform.position.y + cameraComponent.nearClipPlane + .2f;
+            position.y = Mathf.Max(position.y, floor);
             transform.SetPositionAndRotation(position, Quaternion.LookRotation(focus - position, Vector3.up));
         }
     }

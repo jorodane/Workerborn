@@ -728,6 +728,7 @@ MonoBehaviour:
     type: 2
   columns: 4
   rows: 3
+  skillBalloonPrefab: {fileID: 100017, guid: 63f07672c68e54a19172c2268a12a49b, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

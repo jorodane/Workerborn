@@ -109,13 +109,13 @@ def author():
     b=UIBuilder();root=b.ui('Target link',None,(0,0),(0,0),(.5,.5),(.5,.5));line=b.ui('Line',root,(100,1.5),(0,0),(.5,.5),(0,.5),(1,.88,.36,1));line_id=b.image_component(line);next(v for c,i,k,v,st in b.docs if i==line_id).update(m_RaycastTarget=0,m_Material=assetref(BASE/'Materials/TargetLink.mat'))
     view=b.script(root,'UI/TargetLinkView.cs',line=ref(line_id),thickness=1.5);save(b,'TargetLink',view)
 
-    b=UIBuilder();root=b.ui('Skill balloon',None,(240,110),(0,0),(0,0),(.5,0),(.88,.86,.79,.95))
-    _,title=b.text('Skill',root,'수확',(208,28),(16,-10),18,(.16,.17,.16,1))
-    _,remaining=b.text('Remaining',root,'',(208,24),(16,-43),12,(.16,.17,.16,1))
-    progress=b.bar('Progress',root,(208,8),(16,-82),(.4,.6,.35,1))
-    for c,i,k,v,st in b.docs:
-        if 'm_RaycastTarget'in v:v['m_RaycastTarget']=0
-    view=b.script(root,'UI/SkillBalloonView.cs',title=ref(title),remaining=ref(remaining),progress=ref(progress),worldHeight=2.25);save(b,'SkillBalloon',view)
+    b=UIBuilder();root=b.ui('Harvest skill',None,(68,68),(0,0),(0,0),(.5,0),(.12,.15,.16,.92))
+    next(v for c,i,k,v,st in b.docs if i==b.image_component(root)).update(m_Sprite=assetref(BASE/'UI/Icons/SkillDisc.png'),m_RaycastTarget=0)
+    n=b.ui('Skill icon',root,(40,40),(14,-14),bg=(1,1,1,1));icon=b.image_component(n)
+    next(v for c,i,k,v,st in b.docs if i==icon).update(m_Sprite=assetref(BASE/'UI/Icons/hoe.png'),m_PreserveAspect=1,m_RaycastTarget=0)
+    n=b.ui('Clockwise progress',root,(68,68),bg=(.86,.76,.38,1));progress=b.image_component(n)
+    next(v for c,i,k,v,st in b.docs if i==progress).update(m_Sprite=assetref(BASE/'UI/Icons/SkillRing.png'),m_Type=3,m_FillMethod=4,m_FillOrigin=2,m_FillClockwise=1,m_FillAmount=0,m_RaycastTarget=0)
+    view=b.script(root,'UI/SkillBalloonView.cs',icon=ref(icon),progress=ref(progress),worldHeight=2.25);save(b,'SkillBalloon',view)
     b=UIBuilder();root=b.ui('Cursor action',None,(136,28),(0,0),(0,0),(0,1))
     _,label=b.text('Action',root,'',(136,28),(0,0),13,align=0)
     view=b.script(root,'UI/WorldTooltipView.cs',label=ref(label),cursorOffset=vec(18,-22))
@@ -124,7 +124,7 @@ def author():
     _,label=b.text('Name',root,'',(160,28),(0,0),13,align=4)
     label_transform=next(v for c,i,k,v,st in b.docs if k=='RectTransform' and v['m_GameObject']['fileID']==next(v for c,i,k,v,st in b.docs if i==label)['m_GameObject']['fileID'])
     label_transform.update(m_AnchorMin=vec(0,0),m_AnchorMax=vec(1,1),m_SizeDelta=vec(0,0),m_AnchoredPosition=vec(0,0),m_Pivot=vec(.5,.5))
-    view=b.script(root,'UI/WorldNameplateView.cs',label=ref(label),background=ref(background),padding=vec(14,6),normalColor=color(0,0,0,0),hoverColor=color(.23,.29,.32,.85),pressedColor=color(.42,.31,.12,.95));save(b,'NpcName',view)
+    view=b.script(root,'UI/WorldNameplateView.cs',label=ref(label),background=ref(background),padding=vec(14,6),normalColor=color(0,0,0,.65),hoverColor=color(.23,.29,.32,.85),pressedColor=color(.42,.31,.12,.95));save(b,'NpcName',view)
     b=UIBuilder();root,text=b.text('FloatingText',None,'',(260,42),(0,0),21,align=4,anchor=(0,0),pivot=(.5,0));save(b,'FloatingText',text)
 
     # Real window content is saved in each prefab, rather than reconstructed by a window factory.

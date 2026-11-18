@@ -4,7 +4,14 @@ using UnityEngine.Rendering;
 
 namespace Workerborn
 {
-    // Changes rendering only for the orbit camera. Other cameras, physics and navigation keep working.
+    [System.Serializable]
+    public sealed class CameraFadeShaderPair
+    {
+        public Shader source;
+        public Shader fading;
+    }
+
+    // Visibility and temporary material changes belong only to this camera's render.
     [DefaultExecutionOrder(-35)]
     [RequireComponent(typeof(Camera))]
     public sealed class CameraVisibility : MonoBehaviour
@@ -15,14 +22,40 @@ namespace Workerborn
         private Vector3 lowerSightPoint = new Vector3(0, .6f, 0);
         [SerializeField]
         private Vector3 upperSightPoint = new Vector3(0, 1.5f, 0);
-        [SerializeField, Min(0f)]
+        [SerializeField, Min(0)]
         private float playerClearance = .35f;
+        [SerializeField, Min(0)]
+        private float containmentPadding = .35f;
+        [SerializeField, Min(0)]
+        private float fadeLeadDistance = .45f;
+        [SerializeField, Min(.01f)]
+        private float fadeOutSeconds = .16f;
+        [SerializeField, Min(.01f)]
+        private float fadeInSeconds = .28f;
+        [SerializeField]
+        private Shader fadeShader;
+        [SerializeField]
+        private ShaderVariantCollection fadeVariants;
+        [SerializeField]
+        private CameraFadeShaderPair[] fadeShaders;
         private Camera view;
-        private Renderer[] renderers;
         private readonly HashSet<Renderer> hidden = new HashSet<Renderer>();
         private readonly HashSet<VillageMapProp> hiddenProps = new HashSet<VillageMapProp>();
-        private readonly Dictionary<Renderer, bool> saved = new Dictionary<Renderer, bool>();
+        private readonly Dictionary<Renderer, FadeState> states = new Dictionary<Renderer, FadeState>();
+        private readonly Dictionary<Material, Material> fadeMaterials = new Dictionary<Material, Material>();
+        private readonly List<Renderer> removed = new List<Renderer>();
+        private readonly List<Renderer> applied = new List<Renderer>();
+        private readonly MaterialPropertyBlock working = new MaterialPropertyBlock();
+        private sealed class FadeState
+        {
+            public float Opacity = 1;
+            public Material[] Originals;
+            public MaterialPropertyBlock[] Blocks;
+            public bool ForceOff;
+        }
+
         public bool IsHidden(Renderer renderer) => hidden.Contains(renderer);
+        public float Opacity(Renderer renderer) => states.TryGetValue(renderer, out var state) ? state.Opacity : 1;
         public bool IgnorePointerCollider(Collider collider)
         {
             if (collider.GetComponentInParent<WorldInteractable>() != null)
@@ -34,7 +67,13 @@ namespace Workerborn
             return renderer != null && hidden.Contains(renderer);
         }
 
-        private void Awake() => view = GetComponent<Camera>();
+        private void Awake()
+        {
+            view = GetComponent<Camera>();
+            if (fadeVariants != null)
+                fadeVariants.WarmUp();
+        }
+
         public void Initialize(Transform followedPlayer) => player = followedPlayer;
         private void OnEnable()
         {
@@ -45,6 +84,7 @@ namespace Workerborn
         private void LateUpdate()
         {
             RefreshVisibility();
+            AdvanceFade(Time.unscaledDeltaTime);
         }
 
         public void RefreshVisibility()
@@ -53,14 +93,14 @@ namespace Workerborn
             hiddenProps.Clear();
             if (player == null)
                 return;
-            renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
-            Vector3 cameraPosition = transform.position;
+            Vector3 position = transform.position;
+            var renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
             Vector3 low = player.TransformPoint(lowerSightPoint), high = player.TransformPoint(upperSightPoint);
             foreach (var renderer in renderers)
             {
                 if (!renderer.enabled || renderer.forceRenderingOff || renderer is ParticleSystemRenderer || renderer.GetComponentInParent<WorldInteractable>() != null || renderer.GetComponentInParent<CharacterActor>() != null)
                     continue;
-                if (!Blocks(renderer.bounds, cameraPosition, low) && !Blocks(renderer.bounds, cameraPosition, high))
+                if (!Blocks(renderer.bounds, position, low) && !Blocks(renderer.bounds, position, high))
                     continue;
                 var prop = renderer.GetComponentInParent<VillageMapProp>();
                 if (prop != null)
@@ -72,26 +112,114 @@ namespace Workerborn
             foreach (var prop in hiddenProps)
                 foreach (var renderer in prop.GetComponentsInChildren<Renderer>())
                     hidden.Add(renderer);
-            // Interactive objects may cover the player. Hide them only if the camera enters a capsule.
+            // Visual bounds cover hats, hair, equipment and the bobbing/rotating pickup model.
+            // Expanded capsules and near-plane corners begin fading before the camera cuts the mesh.
             foreach (var capsule in FindObjectsByType<CapsuleCollider>(FindObjectsSortMode.None))
             {
-                if (!capsule.enabled || !capsule.gameObject.activeInHierarchy || !Contains(capsule, cameraPosition))
+                if (!capsule.enabled || !capsule.gameObject.activeInHierarchy)
                     continue;
-                Transform actor = null;
                 var interaction = capsule.GetComponentInParent<WorldInteractable>();
-                if (interaction != null)
-                    actor = interaction.transform;
-                else
+                var character = capsule.GetComponentInParent<CharacterActor>();
+                Transform actor = interaction != null ? interaction.transform : character != null ? character.transform : null;
+                if (actor == null)
+                    continue;
+                var visuals = actor.GetComponentsInChildren<Renderer>();
+                Bounds bounds = default;
+                bool hasBounds = false;
+                foreach (var renderer in visuals)
                 {
-                    var character = capsule.GetComponentInParent<CharacterActor>();
-                    if (character != null)
-                        actor = character.transform;
+                    if (!renderer.enabled)
+                        continue;
+                    if (!hasBounds)
+                    {
+                        bounds = renderer.bounds;
+                        hasBounds = true;
+                    }
+                    else
+                        bounds.Encapsulate(renderer.bounds);
                 }
 
-                if (actor != null)
-                    foreach (var renderer in actor.GetComponentsInChildren<Renderer>())
+                float margin = containmentPadding + fadeLeadDistance + (view != null ? view.nearClipPlane : .08f);
+                bool inside = Contains(capsule, position, margin);
+                if (hasBounds)
+                {
+                    bounds.Expand(margin * 2);
+                    inside |= bounds.Contains(position);
+                }
+
+                if (!inside && view != null)
+                    for (int corner = 0; corner < 4; corner++)
+                    {
+                        Vector3 near = view.ViewportToWorldPoint(new Vector3(corner & 1, corner >> 1, view.nearClipPlane));
+                        if (Contains(capsule, near, containmentPadding) || hasBounds && bounds.Contains(near))
+                        {
+                            inside = true;
+                            break;
+                        }
+                    }
+
+                if (inside)
+                    foreach (var renderer in visuals)
                         hidden.Add(renderer);
             }
+
+            CheckBoundsOnlyInteractions(position);
+        }
+
+        private void CheckBoundsOnlyInteractions(Vector3 position)
+        {
+            float padding = containmentPadding + fadeLeadDistance + (view != null ? view.nearClipPlane : .08f);
+            foreach (var target in WorldInteractable.Active)
+            {
+                if (target == null || !target.CanInteract || target.GetComponent<CapsuleCollider>() != null)
+                    continue;
+                var renderers = target.GetComponentsInChildren<Renderer>();
+                Bounds bounds = default;
+                bool found = false;
+                foreach (var renderer in renderers)
+                {
+                    if (!renderer.enabled)
+                        continue;
+                    if (!found)
+                    {
+                        bounds = renderer.bounds;
+                        found = true;
+                    }
+                    else
+                        bounds.Encapsulate(renderer.bounds);
+                }
+
+                if (!found)
+                    continue;
+                bounds.Expand(padding * 2);
+                if (bounds.Contains(position))
+                    foreach (var renderer in renderers)
+                        hidden.Add(renderer);
+            }
+        }
+
+        public void AdvanceFade(float deltaTime)
+        {
+            foreach (var renderer in hidden)
+                if (renderer != null && !states.ContainsKey(renderer))
+                    states.Add(renderer, new FadeState());
+            removed.Clear();
+            foreach (var pair in states)
+            {
+                if (pair.Key == null)
+                {
+                    removed.Add(pair.Key);
+                    continue;
+                }
+
+                bool hide = hidden.Contains(pair.Key);
+                pair.Value.Opacity = Mathf.MoveTowards(pair.Value.Opacity, hide ? 0 : 1, Mathf.Max(0, deltaTime) / (hide ? fadeOutSeconds : fadeInSeconds));
+                if (!hide && pair.Value.Opacity >= 1)
+                    removed.Add(pair.Key);
+            }
+
+            foreach (var renderer in removed)
+                states.Remove(renderer);
         }
 
         private bool Blocks(Bounds bounds, Vector3 origin, Vector3 destination)
@@ -101,18 +229,58 @@ namespace Workerborn
             return length > playerClearance && bounds.IntersectRay(new Ray(origin, delta / length), out float entry) && entry < length - playerClearance;
         }
 
-        // Use current transforms rather than the previous physics step's collider pose.
-        public static bool Contains(CapsuleCollider capsule, Vector3 point)
+        public static bool Contains(CapsuleCollider capsule, Vector3 point, float padding = 0)
         {
             Vector3 scale = capsule.transform.lossyScale;
             scale = new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
-            int axisIndex = capsule.direction;
-            float radius = capsule.radius * Mathf.Max(scale[(axisIndex + 1) % 3], scale[(axisIndex + 2) % 3]);
-            float halfSegment = Mathf.Max(0, capsule.height * scale[axisIndex] * .5f - radius);
-            Vector3 axis = capsule.transform.rotation * (axisIndex == 0 ? Vector3.right : axisIndex == 1 ? Vector3.up : Vector3.forward);
+            int direction = capsule.direction;
+            float radius = capsule.radius * Mathf.Max(scale[(direction + 1) % 3], scale[(direction + 2) % 3]);
+            float halfSegment = Mathf.Max(0, capsule.height * scale[direction] * .5f - radius);
+            Vector3 axis = capsule.transform.rotation * (direction == 0 ? Vector3.right : direction == 1 ? Vector3.up : Vector3.forward);
             Vector3 offset = point - capsule.transform.TransformPoint(capsule.center);
             Vector3 nearest = axis * Mathf.Clamp(Vector3.Dot(offset, axis), -halfSegment, halfSegment);
-            return (offset - nearest).sqrMagnitude <= radius * radius;
+            return (offset - nearest).sqrMagnitude <= (radius + padding) * (radius + padding);
+        }
+
+        private Material FadeMaterial(Material source)
+        {
+            if (source == null)
+                return null;
+            if (fadeMaterials.TryGetValue(source, out var material))
+                return material;
+            material = new Material(source)
+            {
+                name = source.name + " (camera fade)",
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            if (fadeShader != null && source.shader.name.StartsWith("FlatKit/") && source.HasProperty("_OutlineWidth"))
+                material.shader = fadeShader;
+            if (fadeShaders != null)
+                foreach (var pair in fadeShaders)
+                    if (pair.source == source.shader && pair.fading != null)
+                    {
+                        material.shader = pair.fading;
+                        break;
+                    }
+
+            material.SetFloat("_Surface", 1);
+            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            // Transparent blending preserves texture cutouts without clipping the fade halfway.
+            material.DisableKeyword("_ALPHATEST_ON");
+            if (material.HasProperty("_AlphaClip"))
+                material.SetFloat("_AlphaClip", 0);
+            if (material.HasProperty("_BUILTIN_Surface"))
+                material.SetFloat("_BUILTIN_Surface", 1);
+            if (material.HasProperty("_BUILTIN_ZWrite"))
+                material.SetFloat("_BUILTIN_ZWrite", 0);
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.renderQueue = (int)RenderQueue.Transparent;
+            fadeMaterials.Add(source, material);
+            return material;
         }
 
         private void BeginCamera(ScriptableRenderContext context, Camera camera)
@@ -120,13 +288,55 @@ namespace Workerborn
             if (camera != view)
                 return;
             Restore();
-            foreach (var renderer in hidden)
+            foreach (var pair in states)
             {
-                if (renderer == null)
+                var renderer = pair.Key;
+                var state = pair.Value;
+                if (renderer == null || state.Opacity >= 1)
                     continue;
-                saved.Add(renderer, renderer.forceRenderingOff);
-                renderer.forceRenderingOff = true;
+                state.ForceOff = renderer.forceRenderingOff;
+                state.Originals = renderer.sharedMaterials;
+                state.Blocks = new MaterialPropertyBlock[state.Originals.Length];
+                applied.Add(renderer);
+                if (state.Opacity <= .001f)
+                {
+                    renderer.forceRenderingOff = true;
+                    continue;
+                }
+
+                var materials = new Material[state.Originals.Length];
+                for (int i = 0; i < materials.Length; i++)
+                {
+                    Material source = state.Originals[i];
+                    materials[i] = FadeMaterial(source);
+                    var saved = new MaterialPropertyBlock();
+                    renderer.GetPropertyBlock(saved, i);
+                    state.Blocks[i] = saved;
+                    working.Clear();
+                    renderer.GetPropertyBlock(working, i);
+                    if (working.isEmpty)
+                        renderer.GetPropertyBlock(working);
+                    if (materials[i] != null && materials[i].HasProperty("_CameraOpacity"))
+                        working.SetFloat("_CameraOpacity", state.Opacity);
+                    FadeColor(source, "_BaseColor", state.Opacity);
+                    FadeColor(source, "_Color", state.Opacity);
+                    FadeColor(source, "_OutlineColor", state.Opacity);
+                    if (source != null && source.HasProperty("_Cutoff"))
+                        working.SetFloat("_Cutoff", source.GetFloat("_Cutoff") * state.Opacity);
+                    renderer.SetPropertyBlock(working, i);
+                }
+
+                renderer.sharedMaterials = materials;
             }
+        }
+
+        private void FadeColor(Material source, string property, float opacity)
+        {
+            if (source == null || !source.HasProperty(property))
+                return;
+            Color color = working.HasProperty(property) ? working.GetColor(property) : source.GetColor(property);
+            color.a *= opacity;
+            working.SetColor(property, color);
         }
 
         private void EndCamera(ScriptableRenderContext context, Camera camera)
@@ -137,10 +347,18 @@ namespace Workerborn
 
         private void Restore()
         {
-            foreach (var pair in saved)
-                if (pair.Key != null)
-                    pair.Key.forceRenderingOff = pair.Value;
-            saved.Clear();
+            foreach (var renderer in applied)
+            {
+                if (renderer == null || !states.TryGetValue(renderer, out var state))
+                    continue;
+                renderer.forceRenderingOff = state.ForceOff;
+                renderer.sharedMaterials = state.Originals;
+                for (int i = 0; i < state.Blocks.Length; i++)
+                    if (state.Blocks[i] != null)
+                        renderer.SetPropertyBlock(state.Blocks[i].isEmpty ? null : state.Blocks[i], i);
+            }
+
+            applied.Clear();
         }
 
         private void OnDisable()
@@ -150,6 +368,15 @@ namespace Workerborn
             Restore();
             hidden.Clear();
             hiddenProps.Clear();
+            states.Clear();
+        }
+
+        private void OnDestroy()
+        {
+            foreach (var material in fadeMaterials.Values)
+                if (material != null)
+                    Destroy(material);
+            fadeMaterials.Clear();
         }
     }
 }

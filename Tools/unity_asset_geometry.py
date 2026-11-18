@@ -18,7 +18,25 @@ CACHE = {}
 
 
 def documents(path):
-    text = Path(path).read_text()
+    raw = Path(path).read_bytes()
+    if not raw.startswith(b'%YAML'):
+        # Supplied TerrainData uses Unity's native binary serialization.
+        # UnityPy is an offline validation/authoring dependency, never a game dependency.
+        import UnityPy
+        env = UnityPy.load(str(path))
+        def convert(value, external):
+            if isinstance(value, dict):
+                if set(value)=={'m_FileID','m_PathID'}:
+                    pointer={'fileID':value['m_PathID']}
+                    if value['m_FileID'] and value['m_PathID']:
+                        item=external[value['m_FileID']-1]
+                        pointer.update(guid=''.join(f'{b&15:x}{b>>4:x}' for b in item.guid),type=2)
+                    return pointer
+                return {k:convert(v,external)for k,v in value.items()}
+            if isinstance(value,list):return [convert(v,external)for v in value]
+            return value
+        return [{'_class':o.type.value,'_id':o.path_id,o.type.name:convert(o.read_typetree(),o.assets_file.externals)}for o in env.objects]
+    text = raw.decode()
     text = re.sub(r'^%.*\n', '', text, flags=re.M)
     text = re.sub(r'^--- !u!(\d+) &(-?\d+)(?: stripped)?\s*$', r'---\n_class: \1\n_id: \2', text, flags=re.M)
     return [d for d in yaml.safe_load_all(text) if isinstance(d, dict)]

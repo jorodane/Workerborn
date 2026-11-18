@@ -180,7 +180,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator ClickingAnItemNameUsesTheSameImmediatePickupRoute()
+        public IEnumerator ClickingAnItemNameApproachesThenCollectsWithinOneMetre()
         {
             var mouse = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Mouse>();
             var keyboard = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
@@ -205,7 +205,10 @@ namespace Workerborn.Tests
                 int quantity = item.Quantity;
                 UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = screen, buttons = 1 });
                 yield return null;
-                Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before + quantity));
+                Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before));
+                Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+                yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) == before + quantity, 6f);
+                Assert.That(Vector3.Distance(game.Worker.transform.position, at), Is.LessThanOrEqualTo(1.001f));
                 Assert.That(item == null || !item.gameObject.activeSelf, Is.True);
             }
             finally
@@ -225,7 +228,7 @@ namespace Workerborn.Tests
             yield return Until(() => game.Worker.Action == WorkerAction.Harvesting, 10f);
             var at = game.Worker.transform.position;
             var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
-            item.Initialize(crop.Definition, at + Vector3.up * 3, at + Vector3.right * 10, false);
+            item.Initialize(crop.Definition, at + Vector3.up * 3, at + Vector3.right * .5f, false);
             int before = game.State.Inventory.Count(ItemIds.Potato);
             item.RequestInteraction(game.Worker);
             Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before + item.Quantity));
@@ -253,33 +256,108 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator NameplateColorsRespondToEnterDownUpAndExit()
+        public IEnumerator NameplateColorsAndPointerAreaOnlyActivateWithAlt()
         {
+            var keyboard = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
             var view = UnityEngine.Object.Instantiate(game.Hud.Library.NpcName, game.Hud.transform);
-            view.Bind(game.FindInteraction(VillageRole.Farmer), null);
-            view.SetBox(true);
-            var background = view.GetComponent<UnityEngine.UI.Image>();
-            var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+            try
             {
-                button = UnityEngine.EventSystems.PointerEventData.InputButton.Left
-            };
-            Color normal = background.color;
-            view.OnPointerEnter(pointer);
-            Color hover = background.color;
-            view.OnPointerDown(pointer);
-            Color pressed = background.color;
-            Assert.That(hover, Is.Not.EqualTo(normal));
-            Assert.That(pressed, Is.Not.EqualTo(hover));
-            view.OnPointerUp(pointer);
-            Assert.That(background.color, Is.EqualTo(hover));
-            view.OnPointerExit(pointer);
-            Assert.That(background.color, Is.EqualTo(normal));
-            UnityEngine.Object.Destroy(view.gameObject);
-            yield return null;
+                view.Bind(game.FindInteraction(VillageRole.Farmer), null);
+                var background = view.GetComponent<UnityEngine.UI.Image>();
+                var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+                {
+                    button = UnityEngine.EventSystems.PointerEventData.InputButton.Left
+                };
+                view.SetBox(true);
+                view.OnPointerEnter(pointer);
+                Assert.That(background.color.a, Is.Zero);
+                Assert.That(background.raycastTarget, Is.False);
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.LeftAlt));
+                yield return null;
+                view.SetBox(true);
+                Color normal = background.color;
+                view.OnPointerEnter(pointer);
+                Color hover = background.color;
+                view.OnPointerDown(pointer);
+                Color pressed = background.color;
+                Assert.That(hover, Is.Not.EqualTo(normal));
+                Assert.That(pressed, Is.Not.EqualTo(hover));
+                view.OnPointerUp(pointer);
+                Assert.That(background.color, Is.EqualTo(hover));
+                view.OnPointerExit(pointer);
+                Assert.That(background.color, Is.EqualTo(normal));
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState());
+                yield return null;
+                Assert.That(background.color.a, Is.Zero);
+                Assert.That(background.raycastTarget, Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(view.gameObject);
+                UnityEngine.InputSystem.InputSystem.RemoveDevice(keyboard);
+            }
         }
 
         [UnityTest]
-        public IEnumerator CameraHidesSceneryWithoutZoomingAndHidesActorsOnlyFromInsideTheirCapsule()
+        public IEnumerator RepeatedMoveCommandsKeepTheWalkAnimationPhase()
+        {
+            Vector3 at = game.Worker.transform.position;
+            Vector3 goal = at + Vector3.forward * 3;
+            goal.y = game.GroundTerrain.SampleHeight(goal) + game.GroundTerrain.transform.position.y;
+            game.Worker.CommandMove(goal);
+            yield return null;
+            var animation = game.Worker.GetComponent<WorkerAnimation>();
+            Assert.That(animation.CurrentAction, Is.EqualTo(1));
+            double phase = animation.ActionTime;
+            game.Worker.CommandMove(goal + Vector3.right * .1f);
+            Assert.That(animation.CurrentAction, Is.EqualTo(1));
+            Assert.That(animation.ActionTime, Is.EqualTo(phase));
+            yield return null;
+            Assert.That(animation.CurrentAction, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator OverlappingPickupNamesOnlyMoveApartWhileAltIsHeld()
+        {
+            var first = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
+            var second = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
+            var keyboard = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
+            try
+            {
+                Vector3 at = game.Worker.transform.position + Vector3.right;
+                first.Initialize(game.Crops[0].Definition, at, at, true);
+                second.Initialize(game.Crops[0].Definition, at, at, true);
+                yield return null;
+                yield return null;
+                PickupNameView one = null, two = null;
+                foreach (var view in UnityEngine.Object.FindObjectsByType<PickupNameView>(FindObjectsSortMode.None))
+                {
+                    if (view.Target == first)
+                        one = view;
+                    if (view.Target == second)
+                        two = view;
+                }
+
+                Assert.That(one.Rect.anchoredPosition, Is.EqualTo(two.Rect.anchoredPosition));
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.LeftAlt));
+                yield return null;
+                yield return null;
+                Assert.That(one.Rect.anchoredPosition.y, Is.GreaterThan(two.Rect.anchoredPosition.y));
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState());
+                yield return null;
+                yield return null;
+                Assert.That(one.Rect.anchoredPosition, Is.EqualTo(two.Rect.anchoredPosition));
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(first.gameObject);
+                UnityEngine.Object.Destroy(second.gameObject);
+                UnityEngine.InputSystem.InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator CameraFadesSceneryAndExpandedActorVolumesWithoutZooming()
         {
             var camera = game.WorldCamera;
             var visibility = camera.GetComponent<CameraVisibility>();
@@ -294,11 +372,21 @@ namespace Workerborn.Tests
             {
                 visibility.RefreshVisibility();
                 Assert.That(visibility.IsHidden(prop.GetComponent<Renderer>()), Is.True);
+                visibility.AdvanceFade(.04f);
+                Assert.That(visibility.Opacity(prop.GetComponent<Renderer>()), Is.InRange(.001f, .999f));
+                visibility.AdvanceFade(.2f);
+                Assert.That(visibility.Opacity(prop.GetComponent<Renderer>()), Is.Zero);
                 Assert.That(prop.GetComponent<Collider>().enabled, Is.True);
                 Assert.That(visibility.IgnorePointerCollider(prop.GetComponent<Collider>()), Is.True);
                 yield return null;
                 Assert.That(game.CameraRig.Distance, Is.EqualTo(distance));
                 Assert.That(Vector3.Distance(camera.transform.position, game.Worker.transform.position + Vector3.up * 1.1f), Is.EqualTo(distance).Within(.01f));
+                prop.SetActive(false);
+                visibility.RefreshVisibility();
+                visibility.AdvanceFade(.05f);
+                Assert.That(visibility.Opacity(prop.GetComponent<Renderer>()), Is.InRange(.001f, .999f));
+                visibility.AdvanceFade(.4f);
+                Assert.That(visibility.Opacity(prop.GetComponent<Renderer>()), Is.EqualTo(1));
                 farmer.transform.position = prop.transform.position;
                 Physics.SyncTransforms();
                 visibility.RefreshVisibility();

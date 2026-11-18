@@ -55,7 +55,7 @@ namespace Workerborn
                 hovering |= pair.Value.Hovered;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out var point);
                 Vector2 size = pair.Value.Rect.sizeDelta;
-                float x = Mathf.Clamp(point.x, canvas.rect.xMin + edgeMargin + size.x * .5f, canvas.rect.xMax - edgeMargin - size.x * .5f);
+                float x = alt ? Mathf.Clamp(point.x, canvas.rect.xMin + edgeMargin + size.x * .5f, canvas.rect.xMax - edgeMargin - size.x * .5f) : point.x;
                 slots.Add(new NameplateSlot { Order = pair.Key.CreationOrder, X = x, Y = point.y, Width = size.x, Height = size.y });
                 visible.Add(pair.Key.CreationOrder, pair.Value);
             }
@@ -75,22 +75,15 @@ namespace Workerborn
                 scroll -= delta * 30f;
             }
 
-            foreach (var item in removed)
-            {
-                if (names.TryGetValue(item, out var view) && view != null)
-                    Destroy(view.gameObject);
-                names.Remove(item);
-            }
-
             if (!alt)
                 scroll = 0f;
-            float overflow = NameplateLayout.Arrange(slots, canvas.rect.yMin + edgeMargin + 32, canvas.rect.yMax - edgeMargin, spacing, scroll);
+            float overflow = NameplateLayout.Present(slots, alt, canvas.rect.yMin + edgeMargin + 32, canvas.rect.yMax - edgeMargin, spacing, scroll);
             scroll = Mathf.Clamp(scroll, 0, overflow);
             foreach (var slot in slots)
             {
                 var view = visible[slot.Order];
                 view.Rect.anchoredPosition = new Vector2(slot.X, slot.PlacedY);
-                view.gameObject.SetActive(slot.PlacedY - slot.Height * .5f >= canvas.rect.yMin + 32 && slot.PlacedY + slot.Height * .5f <= canvas.rect.yMax);
+                view.gameObject.SetActive(!alt || slot.PlacedY - slot.Height * .5f >= canvas.rect.yMin + 32 && slot.PlacedY + slot.Height * .5f <= canvas.rect.yMax);
             }
         }
     }

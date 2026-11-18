@@ -6,6 +6,7 @@ using UnityEngine.UI;
 namespace Workerborn
 {
     // A pointer proxy for the same WorldInteractable as its 3D collider.
+    [DefaultExecutionOrder(-40)]
     public class WorldNameplateView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
     {
         [SerializeField]
@@ -45,19 +46,24 @@ namespace Workerborn
         public void SetBox(bool visible)
         {
             boxVisible = visible;
-            background.raycastTarget = visible && Target != null && Target.CanInteract;
+            background.raycastTarget = visible && WorkerbornInput.Held("Gameplay/Names") && Target != null && Target.CanInteract;
             label.raycastTarget = false;
             if (!visible)
                 pointerInside = pointerDown = false;
             Refresh();
         }
 
-        private void LateUpdate() => Refresh();
+        private void Awake() => SetBox(false);
+        private void Update() => Refresh();
         private void Refresh()
         {
+            bool alt = boxVisible && WorkerbornInput.Held("Gameplay/Names");
+            background.raycastTarget = alt && Target != null && Target.CanInteract;
+            if (!alt)
+                pointerInside = pointerDown = false;
             bool selected = targeting != null && targeting.CurrentTarget == Target && Target != null;
             bool pressed = selected && targeting.IsPressed;
-            background.color = !boxVisible ? Color.clear : pressed || pointerDown ? pressedColor : selected || pointerInside ? hoverColor : normalColor;
+            background.color = !alt ? Color.clear : pressed || pointerDown ? pressedColor : selected || pointerInside ? hoverColor : normalColor;
         }
 
         public void OnPointerEnter(PointerEventData data)

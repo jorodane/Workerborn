@@ -22,6 +22,7 @@ namespace Workerborn
         private NavMeshAgent agent;
         private WorkerAnimation animationDriver;
         private HarvestableCrop cropTarget;
+        private GroundPickup pickupTarget;
         private WorldInteractable interactionTarget;
         private VillagePrototype village;
         private int collectedCount;
@@ -61,7 +62,7 @@ namespace Workerborn
                 UpdateMovement();
             else if (Action == WorkerAction.Harvesting)
                 UpdateHarvest();
-            animationDriver?.SetAction(Action == WorkerAction.Moving && agent.velocity.sqrMagnitude > 0.02f ? 1 : Action == WorkerAction.Harvesting ? 2 : 0);
+            animationDriver?.SetAction(Action == WorkerAction.Moving ? 1 : Action == WorkerAction.Harvesting ? 2 : 0);
         }
 
         private void ReadInput()
@@ -115,7 +116,7 @@ namespace Workerborn
                 return;
             }
 
-            Cancel();
+            ClearInteractionTargets();
             cropTarget = crop;
             LastCrop = crop;
             if (!NavigateNear(crop.transform.position, crop.InteractionDistance * 0.85f))
@@ -124,35 +125,50 @@ namespace Workerborn
                 Message?.Invoke($"{crop.Definition.DisplayName} 밭으로 이동해요.");
         }
 
+        public bool IsInPickupRange(GroundPickup item) => item != null && (item.LandingPosition - transform.position).sqrMagnitude <= item.InteractionDistance * item.InteractionDistance;
         public void CommandPickup(GroundPickup item)
         {
             if (!AcceptsInteractionCommands || item == null || !item.CanCollect)
                 return;
-            // Picking up never changes the agent path, animation or current harvest.
-            if (village != null)
-                village.TryCollectPickup(item);
-            else
+            if (IsInPickupRange(item))
             {
-                CropDefinition definition = item.Definition;
-                int quantity = item.Quantity;
-                if (!item.TryCollect())
-                    return;
-                if (definition != null)
-                {
-                    inventory.TryGetValue(definition, out int count);
-                    inventory[definition] = count + quantity;
-                }
-
-                collectedCount += quantity;
-                Message?.Invoke($"{item.DisplayName} +{quantity}");
+                CollectPickup(item);
+                return;
             }
+
+            if (pickupTarget == item && Action == WorkerAction.Moving)
+                return;
+            ClearInteractionTargets();
+            pickupTarget = item;
+            NavigateNear(item.LandingPosition, item.InteractionDistance * .8f);
+        }
+
+        private bool CollectPickup(GroundPickup item)
+        {
+            if (!IsInPickupRange(item) || !item.CanCollect)
+                return false;
+            if (village != null)
+                return village.TryCollectPickup(item);
+            CropDefinition definition = item.Definition;
+            int quantity = item.Quantity;
+            if (!item.TryCollect())
+                return false;
+            if (definition != null)
+            {
+                inventory.TryGetValue(definition, out int count);
+                inventory[definition] = count + quantity;
+            }
+
+            collectedCount += quantity;
+            Message?.Invoke($"{item.DisplayName} +{quantity}");
+            return true;
         }
 
         public void CommandMove(Vector3 destination)
         {
             if (village != null && village.ControlsBlocked)
                 return;
-            Cancel();
+            ClearInteractionTargets();
             NavigateNear(destination, 0f);
         }
 
@@ -161,7 +177,7 @@ namespace Workerborn
         {
             if (village == null || target == null || village.ControlsBlocked)
                 return;
-            Cancel();
+            ClearInteractionTargets();
             interactionTarget = target;
             NavigateNear(target.transform.position, target.InteractionDistance * 0.7f);
         }
@@ -196,6 +212,26 @@ namespace Workerborn
 
         private void UpdateMovement()
         {
+            if (pickupTarget != null)
+            {
+                if (!pickupTarget.CanCollect)
+                {
+                    Cancel();
+                    return;
+                }
+
+                if (IsInPickupRange(pickupTarget))
+                {
+                    var item = pickupTarget;
+                    pickupTarget = null;
+                    CollectPickup(item);
+                    agent.isStopped = true;
+                    agent.ResetPath();
+                    Action = WorkerAction.Idle;
+                    return;
+                }
+            }
+
             if (agent.pathPending)
                 return;
             if (agent.pathStatus != NavMeshPathStatus.PathComplete)
@@ -221,6 +257,13 @@ namespace Workerborn
                 Face(cropTarget.transform.position);
                 if (village == null)
                     Message?.Invoke("수확 중이에요. 완료하면 감자가 바닥에 떨어져요.");
+            }
+            else if (pickupTarget != null)
+            {
+                // A sampled approach point may land outside reach near obstacles.
+                pickupTarget = null;
+                Action = WorkerAction.Idle;
+                Message?.Invoke("아이템에서 1m 안으로 다가갈 수 없어요.");
             }
             else if (interactionTarget != null)
             {
@@ -270,12 +313,18 @@ namespace Workerborn
                 transform.rotation = Quaternion.LookRotation(direction);
         }
 
-        public void Cancel()
+        private void ClearInteractionTargets()
         {
             if (cropTarget != null)
                 cropTarget.Cancel(this);
             cropTarget = null;
+            pickupTarget = null;
             interactionTarget = null;
+        }
+
+        public void Cancel()
+        {
+            ClearInteractionTargets();
             Action = WorkerAction.Idle;
             if (agent != null && agent.isOnNavMesh)
             {

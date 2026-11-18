@@ -11,7 +11,7 @@ namespace Workerborn.Editor
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
-            EditorGUILayout.HelpBox("마을과 장애물은 Scene에 저장됩니다. 길찾기 데이터만 선택적으로 베이크할 수 있습니다. 비어 있으면 Play 시 배치된 Collider로 길찾기 데이터만 계산합니다.", MessageType.Info);
+            EditorGUILayout.HelpBox("마을과 장애물은 Scene에 저장됩니다. 길찾기 데이터만 선택적으로 베이크할 수 있습니다. 비어 있으면 Play 시 Scene의 Terrain·Collider로 길찾기 데이터만 계산합니다.", MessageType.Info);
             if (!GUILayout.Button("현재 Scene의 길찾기 데이터 저장"))
                 return;
             string path = EditorUtility.SaveFilePanelInProject("Save navigation", "VillageNavigation", "asset", "Scene의 장애물 위치를 변경했다면 다시 베이크하세요.");

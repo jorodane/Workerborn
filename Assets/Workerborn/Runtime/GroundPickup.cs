@@ -23,11 +23,11 @@ namespace Workerborn
         public string ItemId => item != null ? item.Id : definition != null ? definition.ItemId : string.Empty;
         public int Quantity => quantity;
         public override string DisplayName => item != null ? item.DisplayName : definition != null ? definition.DisplayName : name;
-        protected override float DefaultDistance => .75f;
+        protected override float DefaultDistance => 1f;
         public bool CanCollect => !collected && isActiveAndEnabled;
         public override bool CanInteract => CanCollect;
         public override string InteractionVerb => "줍기";
-        public Vector3 LandingPosition => landing;
+        public Vector3 LandingPosition => initialized ? landing : transform.position;
 
         protected override void Interact(HarvestWorker worker) => worker.CommandPickup(this);
         protected override void OnEnable()

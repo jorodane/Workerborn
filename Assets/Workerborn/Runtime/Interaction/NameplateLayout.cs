@@ -12,6 +12,15 @@ namespace Workerborn
     // Canvas coordinates, positive Y upwards. Horizontal positions never change.
     public static class NameplateLayout
     {
+        public static float Present(List<NameplateSlot> labels, bool alt, float bottom, float top, float gap, float overflowScroll = 0f)
+        {
+            if (alt)
+                return Arrange(labels, bottom, top, gap, overflowScroll);
+            foreach (var label in labels)
+                label.PlacedY = label.Y;
+            return 0;
+        }
+
         public static float Arrange(List<NameplateSlot> labels, float bottom, float top, float gap, float overflowScroll = 0f)
         {
             labels.Sort((a, b) =>

@@ -52,7 +52,7 @@ def validate(path):
                     target=next((d for d in documents(asset)if d['_id']==value['fileID']),None)
             else:target=objects.get(value['fileID'])
             if target is None:continue # vendor import subobjects are validated by Unity/asset pointer checks
-            expected={'RectTransform':'RectTransform','Transform':('Transform','RectTransform'),'GameObject':'GameObject','Camera':'Camera','Light':'Light','BoxCollider':'BoxCollider'}.get(type)
+            expected={'RectTransform':'RectTransform','Transform':('Transform','RectTransform'),'GameObject':'GameObject','Camera':'Camera','Light':'Light','BoxCollider':'BoxCollider','Terrain':'Terrain'}.get(type)
             if expected:assert kind(target)in ((expected,)if isinstance(expected,str)else expected),f'{path.name}: {name}.{field} expects {type}, got {kind(target)}'
             if type=='TMP_Text':
                 assert target.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='f4688fdb7df04437aeb418b961361dc5',f'{path.name}: {name}.{field} expects TMP_Text'

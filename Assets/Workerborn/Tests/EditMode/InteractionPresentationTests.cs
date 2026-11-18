@@ -8,6 +8,37 @@ namespace Workerborn.Tests
     public sealed class InteractionPresentationTests
     {
         [Test]
+        public void PlainNamesKeepTheirOriginalPositionsIncludingViewportEdges()
+        {
+            var labels = new List<NameplateSlot>
+            {
+                new NameplateSlot
+                {
+                    Order = 2,
+                    X = -20,
+                    Y = -5,
+                    Width = 80,
+                    Height = 24
+                },
+                new NameplateSlot
+                {
+                    Order = 1,
+                    X = -20,
+                    Y = -5,
+                    Width = 80,
+                    Height = 24
+                }
+            };
+            NameplateLayout.Present(labels, false, 0, 100, 3);
+            Assert.That(labels.TrueForAll(l => l.PlacedY == -5 && l.X == -20), Is.True);
+            NameplateLayout.Present(labels, true, 0, 100, 3);
+            Assert.That(labels[0].Order, Is.EqualTo(1));
+            Assert.That(labels[0].PlacedY, Is.GreaterThan(labels[1].PlacedY));
+            NameplateLayout.Present(labels, false, 0, 100, 3);
+            Assert.That(labels.TrueForAll(l => l.PlacedY == -5 && l.X == -20), Is.True);
+        }
+
+        [Test]
         public void EqualScreenHeightsStackInCreationOrderAndKeepTheirHorizontalPositions()
         {
             var slots = new List<NameplateSlot>();

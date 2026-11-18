@@ -29,6 +29,8 @@ namespace Workerborn
         protected Material surfaceMaterial;
         [SerializeField]
         protected TMP_FontAsset interfaceFont;
+        [SerializeField]
+        private SkillBalloonView skillBalloonPrefab;
         [SerializeField, Range(1, 6)]
         private int columns = 4;
         [SerializeField, Range(1, 4)]
@@ -75,7 +77,7 @@ namespace Workerborn
 
         protected virtual void Awake()
         {
-            if (potato == null || potato.PlantPrefab == null || potato.DropPrefab == null || heroPrefab == null || surfaceMaterial == null || interfaceFont == null || idleClip == null || walkClip == null || workClip == null)
+            if (potato == null || potato.PlantPrefab == null || potato.DropPrefab == null || heroPrefab == null || surfaceMaterial == null || interfaceFont == null || skillBalloonPrefab == null || idleClip == null || walkClip == null || workClip == null)
             {
                 Debug.LogError("Workerborn: the harvest scene is missing a configured asset reference.", this);
                 enabled = false;
@@ -106,7 +108,7 @@ namespace Workerborn
         {
             hud = new GameObject("Harvest interface", typeof(RectTransform)).AddComponent<HarvestHud>();
             hud.transform.SetParent(transform, false);
-            hud.Initialize(this, worldCamera, interfaceFont);
+            hud.Initialize(this, worldCamera, interfaceFont, skillBalloonPrefab);
         }
 
         protected virtual void ConfigureCamera()

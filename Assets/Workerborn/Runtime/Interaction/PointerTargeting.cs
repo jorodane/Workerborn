@@ -26,6 +26,8 @@ namespace Workerborn
         private WorldInteractable pressTarget;
         private bool highlightedPressed;
         private CameraVisibility visibility;
+        private Terrain terrain;
+        private Mesh terrainMask;
         public bool IsPressed => CurrentTarget != null && CurrentTarget == pressTarget && WorkerbornInput.Held("Gameplay/Interact");
 
         private VillagePrototype game;
@@ -51,7 +53,61 @@ namespace Workerborn
             game = owner;
             link = targetLink;
             visibility = game.WorldCamera.GetComponent<CameraVisibility>();
+            terrain = game.GroundTerrain;
+            RebuildTerrainMask();
+            TerrainCallbacks.heightmapChanged += TerrainChanged;
             sceneRenderers = game.gameObject.scene.GetRootGameObjects().Length > 0 ? FindObjectsByType<Renderer>(FindObjectsSortMode.None) : new Renderer[0];
+        }
+
+        private void TerrainChanged(Terrain changed, RectInt region, bool synced)
+        {
+            if (changed == terrain)
+                RebuildTerrainMask();
+        }
+
+        // Selection-only depth proxy, derived from the authored Terrain. It never creates map objects.
+        private void RebuildTerrainMask()
+        {
+            if (terrainMask != null)
+                Destroy(terrainMask);
+            if (terrain == null || terrain.terrainData == null)
+                return;
+            var data = terrain.terrainData;
+            int steps = Mathf.Min(128, data.heightmapResolution - 1), side = steps + 1;
+            var vertices = new Vector3[side * side];
+            var uv = new Vector2[vertices.Length];
+            var triangles = new int[steps * steps * 6];
+            for (int z = 0; z <= steps; z++)
+                for (int x = 0; x <= steps; x++)
+                {
+                    float u = (float)x / steps, v = (float)z / steps;
+                    int i = z * side + x;
+                    vertices[i] = new Vector3(u * data.size.x, data.GetInterpolatedHeight(u, v), v * data.size.z);
+                    uv[i] = new Vector2(u, v);
+                }
+
+            int t = 0;
+            for (int z = 0; z < steps; z++)
+                for (int x = 0; x < steps; x++)
+                {
+                    int a = z * side + x, b = a + side;
+                    triangles[t++] = a;
+                    triangles[t++] = b;
+                    triangles[t++] = a + 1;
+                    triangles[t++] = a + 1;
+                    triangles[t++] = b;
+                    triangles[t++] = b + 1;
+                }
+
+            terrainMask = new Mesh
+            {
+                name = "Authored terrain selection depth",
+                hideFlags = HideFlags.HideAndDontSave,
+                vertices = vertices,
+                uv = uv,
+                triangles = triangles
+            };
+            terrainMask.RecalculateBounds();
         }
 
         public bool OverUi(Vector2 position)
@@ -231,6 +287,15 @@ namespace Workerborn
             command.SetGlobalMatrix("_SelectionViewProjection", GL.GetGPUProjectionMatrix(game.WorldCamera.projectionMatrix, false) * game.WorldCamera.worldToCameraMatrix);
             foreach (var renderer in sceneRenderers)
                 Draw(command, renderer, 0);
+            if (terrainMask != null && terrain != null)
+            {
+                command.SetGlobalTexture("_SelectionBaseMap", Texture2D.whiteTexture);
+                command.SetGlobalVector("_SelectionMapST", new Vector4(1, 1, 0, 0));
+                command.SetGlobalFloat("_SelectionCutoff", 0);
+                command.SetGlobalVector("_SelectionId", new Vector4(0, 0, 0, 1));
+                command.DrawMesh(terrainMask, terrain.transform.localToWorldMatrix, maskMaterial, 0, 0);
+            }
+
             foreach (var pair in targetIds)
                 Draw(command, pair.Key, pair.Value);
             Graphics.ExecuteCommandBuffer(command);
@@ -289,7 +354,7 @@ namespace Workerborn
                 var material = materials[index];
                 if (material == null || material.renderQueue >= 3000)
                     continue;
-                string property = material.HasProperty("_BaseMap") ? "_BaseMap" : "_MainTex";
+                string property = material.HasProperty("_BaseMap") ? "_BaseMap" : material.HasProperty("_Main_Texture") ? "_Main_Texture" : "_MainTex";
                 Texture texture = material.HasProperty(property) ? material.GetTexture(property) : null;
                 var scale = material.HasProperty(property) ? material.GetTextureScale(property) : Vector2.one;
                 var offset = material.HasProperty(property) ? material.GetTextureOffset(property) : Vector2.zero;
@@ -339,6 +404,9 @@ namespace Workerborn
 
         private void OnDestroy()
         {
+            TerrainCallbacks.heightmapChanged -= TerrainChanged;
+            if (terrainMask != null)
+                Destroy(terrainMask);
             if (waiting)
                 request.WaitForCompletion();
             if (mask != null)

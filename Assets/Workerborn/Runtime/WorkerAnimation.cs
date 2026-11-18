@@ -10,17 +10,24 @@ namespace Workerborn
         private AnimationMixerPlayable mixer;
         private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[3];
         private readonly float[] lengths = new float[3];
-        private readonly float[] weights = { 1f, 0f, 0f };
+        private readonly float[] weights =
+        {
+            1f,
+            0f,
+            0f
+        };
         private int target;
-
         public void Initialize(Animator animator, AnimationClip idle, AnimationClip walk, AnimationClip work)
         {
-            if (graph.IsValid()) graph.Destroy();
-            if (animator == null || idle == null) return;
+            if (graph.IsValid())
+                graph.Destroy();
+            if (animator == null || idle == null)
+                return;
             walk = walk != null ? walk : idle;
             work = work != null ? work : idle;
             target = 0;
-            weights[0] = 1f; weights[1] = weights[2] = 0f;
+            weights[0] = 1f;
+            weights[1] = weights[2] = 0f;
             animator.runtimeAnimatorController = null;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -29,7 +36,12 @@ namespace Workerborn
             mixer = AnimationMixerPlayable.Create(graph, 3);
             var output = AnimationPlayableOutput.Create(graph, "Character", animator);
             output.SetSourcePlayable(mixer);
-            AnimationClip[] source = { idle, walk, work };
+            AnimationClip[] source =
+            {
+                idle,
+                walk,
+                work
+            };
             for (int i = 0; i < source.Length; i++)
             {
                 clips[i] = AnimationClipPlayable.Create(graph, source[i]);
@@ -38,35 +50,45 @@ namespace Workerborn
                 graph.Connect(clips[i], 0, mixer, i);
                 mixer.SetInputWeight(i, weights[i]);
             }
+
             graph.Play();
         }
+
+        public int CurrentAction => target;
+        public double ActionTime => graph.IsValid() ? clips[target].GetTime() : 0d;
 
         public void SetAction(int action)
         {
             int next = Mathf.Clamp(action, 0, 2);
-            if (next == target) return;
+            if (next == target)
+                return;
             target = next;
-            if (graph.IsValid()) clips[target].SetTime(0d);
+            if (graph.IsValid() && target == 2)
+                clips[target].SetTime(0d);
         }
 
         private void Update()
         {
-            if (!graph.IsValid()) return;
+            if (!graph.IsValid())
+                return;
             float total = 0f;
             for (int i = 0; i < clips.Length; i++)
             {
                 // The supplied sword attack is non-looping; repeat it as a temporary work gesture.
-                if (clips[i].GetTime() >= lengths[i]) clips[i].SetTime(clips[i].GetTime() % lengths[i]);
+                if (clips[i].GetTime() >= lengths[i])
+                    clips[i].SetTime(clips[i].GetTime() % lengths[i]);
                 weights[i] = Mathf.MoveTowards(weights[i], i == target ? 1f : 0f, Time.deltaTime * 8f);
                 total += weights[i];
             }
+
             for (int i = 0; i < clips.Length; i++)
                 mixer.SetInputWeight(i, weights[i] / Mathf.Max(0.001f, total));
         }
 
         private void OnDestroy()
         {
-            if (graph.IsValid()) graph.Destroy();
+            if (graph.IsValid())
+                graph.Destroy();
         }
     }
 }

@@ -33,7 +33,7 @@ def assetref(path, identifier=None):
     if identifier is None:
         identifier={'.cs':11500000,'.asset':11400000,'.anim':7400000,'.mat':2100000,'.otf':12800000,'.png':21300000,'.rendertexture':8400000}.get(ext)
         if identifier is None:identifier=geo.root_ids(ROOT/path)[0]
-    return Flow(fileID=identifier,guid=guid(path),type=2 if ext in ('.asset','.anim','.mat','.rendertexture') else 3)
+    return Flow(fileID=identifier,guid=guid(path),type=2 if ext in ('.asset','.anim','.mat','.rendertexture','.terrainlayer','.shadervariants') else 3)
 
 def write(path,docs):
     path=ROOT/path;path.parent.mkdir(parents=True,exist_ok=True)

@@ -23,18 +23,18 @@ namespace Workerborn
         private TMP_Text groundCount;
         private TMP_Text message;
         private RectTransform skillBubble;
-        private TMP_Text skillTitle;
-        private TMP_Text skillDetail;
-        private Image progressFill;
+        private SkillBalloonView skillView;
+        private SkillBalloonView skillPrefab;
         private RectTransform tooltip;
         private TMP_Text tooltipTitle;
         private string latestMessage;
         private float messageUntil;
-        public void Initialize(HarvestPrototype farm, Camera camera, TMP_FontAsset interfaceFont)
+        public void Initialize(HarvestPrototype farm, Camera camera, TMP_FontAsset interfaceFont, SkillBalloonView balloonPrefab)
         {
             prototype = farm;
             worldCamera = camera;
             font = interfaceFont;
+            skillPrefab = balloonPrefab;
             CreatePanelSprite();
             canvas = gameObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -106,18 +106,8 @@ namespace Workerborn
 
         private void BuildSkillBubble()
         {
-            skillBubble = Panel("Harvest skill balloon", transform, Vector2.zero, new Vector2(0.5f, 0f), new Vector2(250f, 112f), Vector2.zero, paper);
-            skillTitle = Label("감자 수확 중", skillBubble, new Vector2(18f, -12f), new Vector2(215f, 31f), 20, ink, true);
-            skillDetail = Label("", skillBubble, new Vector2(18f, -48f), new Vector2(215f, 24f), 14, ink);
-            var track = Panel("Progress track", skillBubble, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(214f, 10f), new Vector2(18f, -84f), new Color(0.8f, 0.82f, 0.72f));
-            var fill = Panel("Progress", track, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, ink);
-            Stretch(fill);
-            progressFill = fill.GetComponent<Image>();
-            progressFill.type = Image.Type.Filled;
-            progressFill.fillMethod = Image.FillMethod.Horizontal;
-            progressFill.fillOrigin = 0;
-            var tail = Panel("Balloon tail", skillBubble, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f), new Vector2(15f, 15f), new Vector2(0f, -4f), paper);
-            tail.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            skillView = Instantiate(skillPrefab, transform);
+            skillBubble = skillView.Rect;
             skillBubble.gameObject.SetActive(false);
         }
 
@@ -159,10 +149,7 @@ namespace Workerborn
             skillBubble.gameObject.SetActive(active != null);
             if (active != null)
             {
-                skillTitle.text = $"{active.Definition.DisplayName} 수확 중";
-                float seconds = active.Definition.HarvestSeconds * (1f - active.Progress);
-                skillDetail.text = $"남은 수확 {active.Remaining}/{active.Capacity} 회  ·  {seconds:0.0}초";
-                progressFill.fillAmount = active.Progress;
+                skillView.SetProgress(active.Progress);
                 PlaceAtWorld(skillBubble, worker.transform.position + Vector3.up * 2.25f);
             }
 

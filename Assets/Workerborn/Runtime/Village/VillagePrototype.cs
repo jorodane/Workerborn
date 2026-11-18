@@ -55,6 +55,7 @@ namespace Workerborn
         [SerializeField]
         private RenderTexture npcPortraitTexture;
         public PointerTargeting Targeting => targeting;
+        public Terrain GroundTerrain => navigation != null ? navigation.GroundTerrain : null;
         public RenderTexture NpcPortraitTexture => npcPortraitTexture;
 
         public void ShowNpcPortrait(CharacterActor actor)
@@ -260,7 +261,7 @@ namespace Workerborn
 
         public bool TryCollectPickup(GroundPickup item)
         {
-            if (!item.CanCollect)
+            if (item == null || !item.CanCollect || !worker.IsInPickupRange(item))
                 return false;
             string id = item.ItemId;
             if (!State.Inventory.CanAdd(id, item.Quantity))
@@ -366,6 +367,14 @@ namespace Workerborn
                 worker.CommandHarvest(nearest);
         }
 
+        private Vector3 SurfacePosition(float x, float z)
+        {
+            var point = new Vector3(x, 0, z);
+            if (GroundTerrain != null)
+                point.y = GroundTerrain.SampleHeight(point) + GroundTerrain.transform.position.y;
+            return point;
+        }
+
         private void RestoreWorldObjects()
         {
             if (restoredWorld == null)
@@ -380,7 +389,7 @@ namespace Workerborn
                     Destroy(item.gameObject);
                 }
 
-            if (!float.IsNaN(restoredWorld.playerX) && !float.IsNaN(restoredWorld.playerZ) && !float.IsInfinity(restoredWorld.playerX) && !float.IsInfinity(restoredWorld.playerZ) && NavMesh.SamplePosition(new Vector3(restoredWorld.playerX, 0f, restoredWorld.playerZ), out var position, 1f, NavMesh.AllAreas))
+            if (!float.IsNaN(restoredWorld.playerX) && !float.IsNaN(restoredWorld.playerZ) && !float.IsInfinity(restoredWorld.playerX) && !float.IsInfinity(restoredWorld.playerZ) && NavMesh.SamplePosition(SurfacePosition(restoredWorld.playerX, restoredWorld.playerZ), out var position, 2f, NavMesh.AllAreas))
                 worker.WarpTo(position.position);
             if (restoredWorld.cropStates != null && restoredWorld.cropStates.Length > 0)
             {
