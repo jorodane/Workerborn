@@ -16,6 +16,9 @@ namespace Workerborn
         [SerializeField] private Vector3 localScale = Vector3.one;
         [SerializeField] private Material[] materials;
         [SerializeField] private Color tint = Color.white;
+        [SerializeField, Tooltip("For a material-only part, leave Prefab empty and provide one material above.")]
+        private string materialRenderer;
+        [SerializeField, Min(0)] private int materialIndex;
 
         public CharacterPartSlot Slot => slot;
         public GameObject Prefab => prefab;
@@ -25,5 +28,7 @@ namespace Workerborn
         public Vector3 LocalScale => localScale;
         public Material[] Materials => materials;
         public Color Tint => tint;
+        public string MaterialRenderer => materialRenderer;
+        public int MaterialIndex => materialIndex;
     }
 }

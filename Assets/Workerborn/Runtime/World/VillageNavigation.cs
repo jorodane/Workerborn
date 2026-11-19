@@ -20,6 +20,10 @@ namespace Workerborn
         private NavMeshData bakedData;
         private NavMeshData generated;
         private NavMeshDataInstance instance;
+
+        public bool IsGround(Collider hit) => hit != null && (hit == ground ||
+            (terrain != null && hit is TerrainCollider && hit.gameObject == terrain.gameObject));
+
         public NavMeshData BuildData()
         {
             if (ground == null && terrain == null)

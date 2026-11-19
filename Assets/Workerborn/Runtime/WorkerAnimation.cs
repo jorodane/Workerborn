@@ -8,39 +8,42 @@ namespace Workerborn
     {
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
-        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[3];
-        private readonly float[] lengths = new float[3];
+        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[4];
+        private readonly float[] lengths = new float[4];
         private readonly float[] weights =
         {
             1f,
             0f,
+            0f,
             0f
         };
         private int target;
-        public void Initialize(Animator animator, AnimationClip idle, AnimationClip walk, AnimationClip work)
+        public void Initialize(Animator animator, AnimationClip idle, AnimationClip move, AnimationClip work, AnimationClip walk = null)
         {
             if (graph.IsValid())
                 graph.Destroy();
             if (animator == null || idle == null)
                 return;
-            walk = walk != null ? walk : idle;
+            move = move != null ? move : idle;
+            walk = walk != null ? walk : move;
             work = work != null ? work : idle;
             target = 0;
             weights[0] = 1f;
-            weights[1] = weights[2] = 0f;
+            weights[1] = weights[2] = weights[3] = 0f;
             animator.runtimeAnimatorController = null;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             graph = PlayableGraph.Create("Workerborn existing character animations");
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
-            mixer = AnimationMixerPlayable.Create(graph, 3);
+            mixer = AnimationMixerPlayable.Create(graph, clips.Length);
             var output = AnimationPlayableOutput.Create(graph, "Character", animator);
             output.SetSourcePlayable(mixer);
             AnimationClip[] source =
             {
                 idle,
-                walk,
-                work
+                move,
+                work,
+                walk
             };
             for (int i = 0; i < source.Length; i++)
             {
@@ -59,12 +62,17 @@ namespace Workerborn
 
         public void SetAction(int action)
         {
-            int next = Mathf.Clamp(action, 0, 2);
+            int next = Mathf.Clamp(action, 0, clips.Length - 1);
             if (next == target)
                 return;
+            if (graph.IsValid())
+            {
+                if (next == 2)
+                    clips[next].SetTime(0d);
+                else if ((next == 1 || next == 3) && (target == 1 || target == 3))
+                    clips[next].SetTime(clips[target].GetTime() % lengths[target] / lengths[target] * lengths[next]);
+            }
             target = next;
-            if (graph.IsValid() && target == 2)
-                clips[target].SetTime(0d);
         }
 
         private void Update()

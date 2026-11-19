@@ -181,6 +181,7 @@ namespace Workerborn
         {
             if (game == null || game.Worker == null)
                 return;
+            ReleaseDraggedItem();
             var state = game.State;
             int minute = Mathf.FloorToInt(state.Minute);
             clockText.text = $"{minute / 60:00} : {minute % 60:00}";
@@ -205,6 +206,12 @@ namespace Workerborn
             }
 
             UpdateWorldFeedback();
+        }
+
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused && IsHoldingItem)
+                CancelItemDrag();
         }
 
         private void UpdateWorldFeedback()
@@ -312,6 +319,29 @@ namespace Workerborn
         }
 
         public void OpenQuestDetail(bool expansion) => OpenQuestDetail(expansion ? VillageQuestPage.Expansion : VillageQuestPage.FirstWork);
+
+        public void OpenWorldContext(WorldInteractable subject, Vector2 screen)
+        {
+            if (subject == null || !subject.CanInteract || HasModal || IsHoldingItem)
+                return;
+            HideItemTooltip();
+            CloseItemContext();
+            var view = OpenWindow("worldcontext") as WorldContextView;
+            if (view == null)
+                return;
+            view.Show(subject);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(CanvasRect, screen, null, out var point);
+            var bounds = CanvasRect.rect;
+            point.x = Mathf.Clamp(point.x, bounds.xMin, bounds.xMax - view.Rect.rect.width);
+            point.y = Mathf.Clamp(point.y, bounds.yMin + view.Rect.rect.height, bounds.yMax);
+            view.Rect.anchoredPosition = point;
+        }
+
+        public void CloseWorldContext()
+        {
+            if (views.TryGetValue("worldcontext", out var view))
+                view.gameObject.SetActive(false);
+        }
 
         public void OpenQuestDetail(VillageQuestPage page)
         {

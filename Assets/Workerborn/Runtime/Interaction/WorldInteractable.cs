@@ -4,6 +4,18 @@ using UnityEngine.Events;
 
 namespace Workerborn
 {
+    public readonly struct WorldContextAction
+    {
+        public readonly string Label;
+        public readonly System.Action Select;
+
+        public WorldContextAction(string label, System.Action select)
+        {
+            Label = label;
+            Select = select;
+        }
+    }
+
     // Shared click/selection contract. Subclasses own their gameplay behavior.
     public abstract class WorldInteractable : MonoBehaviour
     {
@@ -50,18 +62,33 @@ namespace Workerborn
         protected virtual void OnDisable() => active.Remove(this);
         public void RequestInteraction(HarvestWorker worker)
         {
-            if (worker == null || !worker.AcceptsInteractionCommands || !CanInteract)
+            if (!BeginInteraction(worker))
                 return;
-            onInteractionRequested.Invoke();
             Interact(worker);
         }
 
-        public void Arrive(VillagePrototype village, HarvestWorker worker)
+        protected bool BeginInteraction(HarvestWorker worker)
+        {
+            if (worker == null || !worker.AcceptsInteractionCommands || !CanInteract)
+                return false;
+            onInteractionRequested.Invoke();
+            return true;
+        }
+
+        public virtual void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
+        {
+            actions.Add(new WorldContextAction(InteractionVerb, () => RequestInteraction(village.Worker)));
+        }
+
+        public void Arrive(VillagePrototype village, HarvestWorker worker, System.Action arrival = null)
         {
             if (!CanInteract)
                 return;
             NotifyInteractionCompleted();
-            OnArrived(village, worker);
+            if (arrival != null)
+                arrival();
+            else
+                OnArrived(village, worker);
         }
 
         protected void NotifyInteractionCompleted() => onInteractionCompleted.Invoke();

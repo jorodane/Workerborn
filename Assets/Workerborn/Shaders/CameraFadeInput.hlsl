@@ -28,6 +28,14 @@ half4 _BaseColor;
 half _Cutoff;
 half _Surface;
 float _CameraOpacity;
+half4 _Color_A_1;
+half4 _Color_A_2;
+half4 _Color_B_1;
+half4 _Color_B_2;
+half4 _Color_C_1;
+half4 _Color_C_2;
+half4 _CharacterMaskRange;
+half _Mask_Factor;
 #endif
 
 half4 _EmissionColor;
@@ -197,6 +205,16 @@ inline void InitializeSimpleLitSurfaceData(float2 uv, out SurfaceData outSurface
     AlphaDiscard(outSurfaceData.alpha, _Cutoff);
 
     outSurfaceData.albedo = albedo.rgb;
+    #if defined(_CHARACTER_COLOR_MASK) && !defined(FLATKIT_TERRAIN)
+    half3 amount = saturate((albedo.rgb - _CharacterMaskRange.x) / max(.001h, _CharacterMaskRange.y - _CharacterMaskRange.x));
+    half3 coverage = smoothstep(0.0h, max(.01h, _Mask_Factor), albedo.rgb);
+    half3 red = lerp(_Color_A_1.rgb, _Color_A_2.rgb, amount.r);
+    half3 green = lerp(_Color_B_1.rgb, _Color_B_2.rgb, amount.g);
+    half3 blue = lerp(_Color_C_1.rgb, _Color_C_2.rgb, amount.b);
+    half3 combined = lerp(_Color_A_1.rgb, red, coverage.r);
+    combined = lerp(combined, green, coverage.g);
+    outSurfaceData.albedo = lerp(combined, blue, coverage.b);
+    #endif
     #ifdef _ALPHAPREMULTIPLY_ON
     outSurfaceData.albedo *= outSurfaceData.alpha;
     #endif

@@ -1,10 +1,14 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 
 namespace Workerborn.Tests
 {
@@ -226,7 +230,7 @@ namespace Workerborn.Tests
             yield return Until(() => game.Worker.Action == WorkerAction.Harvesting, 10f);
             var at = game.Worker.transform.position;
             var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
-            item.Initialize(crop.Definition, at + Vector3.up * 3, at + Vector3.right * .5f, false);
+            item.Initialize(crop.Definition, at + Vector3.up * 4, at + Vector3.up * 3 + Vector3.right * .5f, false);
             int before = game.State.Inventory.Count(ItemIds.Potato);
             item.RequestInteraction(game.Worker);
             Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before + item.Quantity));
@@ -429,6 +433,101 @@ namespace Workerborn.Tests
             {
                 UnityEngine.InputSystem.InputSystem.RemoveDevice(mouse);
             }
+        }
+
+        [UnityTest]
+        public IEnumerator RightClickOnAWorldNameOpensActionsUnlessTheCameraOrbits()
+        {
+            var mouse = InputSystem.AddDevice<Mouse>();
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
+            try
+            {
+                Vector3 position = game.Worker.transform.position + Vector3.right * .5f;
+                item.Initialize(null, position, position, true);
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftAlt));
+                yield return null;
+                yield return null;
+                var name = UnityEngine.Object.FindObjectsByType<PickupNameView>(FindObjectsSortMode.None).Single(v => v.Target == item);
+                Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, name.Rect.TransformPoint(name.Rect.rect.center));
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = screen, buttons = 2 });
+                yield return null;
+                Assert.That(UnityEngine.Object.FindFirstObjectByType<WorldContextView>(), Is.Null);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = screen });
+                yield return null;
+                Assert.That(UnityEngine.Object.FindFirstObjectByType<WorldContextView>(), Is.Not.Null);
+
+                game.Hud.CloseWorldContext();
+                Quaternion pose = game.WorldCamera.transform.rotation;
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = screen, buttons = 2 });
+                yield return null;
+                Vector2 delta = new Vector2(50, 10);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = screen + delta, delta = delta, buttons = 2 });
+                yield return null;
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = screen + delta });
+                yield return null;
+                Assert.That(Quaternion.Angle(pose, game.WorldCamera.transform.rotation), Is.GreaterThan(4f));
+                Assert.That(UnityEngine.Object.FindFirstObjectByType<WorldContextView>(), Is.Null);
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(item.gameObject);
+                InputSystem.RemoveDevice(mouse);
+                InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator InventoryDropWaitsForArrivalAndShiftChangesTheGait()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            try
+            {
+                Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 3), Is.True);
+                var stack = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
+                Vector3 destination = NearbyDestination();
+                int before = game.GroundItemCount;
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftShift));
+                yield return null;
+
+                Assert.That(game.Worker.CommandDrop(stack.Id, destination), Is.True);
+                yield return Until(() => game.Worker.IsWalking, 1f);
+                yield return null;
+                Assert.That(game.Worker.GetComponent<WorkerAnimation>().CurrentAction, Is.EqualTo(3));
+                Assert.That(game.State.Inventory.Find(stack.Id).Quantity, Is.EqualTo(3));
+                Assert.That(game.GroundItemCount, Is.EqualTo(before));
+                game.Worker.Cancel();
+                Assert.That(game.Worker.HasPendingDrop, Is.False);
+                Assert.That(game.State.Inventory.Find(stack.Id).Quantity, Is.EqualTo(3));
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                Assert.That(game.Worker.CommandDrop(stack.Id, destination), Is.True);
+                yield return Until(() => game.GroundItemCount == before + 1, 5f);
+                var drop = UnityEngine.Object.FindObjectsByType<GroundPickup>(FindObjectsSortMode.None)
+                    .Single(i => i.ItemId == ItemIds.Potato && i.Quantity == 3);
+                Assert.That(game.State.Inventory.Find(stack.Id), Is.Null);
+                Assert.That(Vector2.Distance(new Vector2(drop.LandingPosition.x, drop.LandingPosition.z), new Vector2(destination.x, destination.z)), Is.LessThan(.01f));
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        private Vector3 NearbyDestination()
+        {
+            var worker = game.Worker.transform;
+            var agent = worker.GetComponent<NavMeshAgent>();
+            var path = new NavMeshPath();
+            for (int angle = 0; angle < 360; angle += 45)
+            {
+                var point = worker.position + Quaternion.Euler(0, angle, 0) * Vector3.forward * 3.5f;
+                if (NavMesh.SamplePosition(point, out var hit, .7f, NavMesh.AllAreas) && agent.CalculatePath(hit.position, path)
+                    && path.status == NavMeshPathStatus.PathComplete)
+                    return hit.position;
+            }
+            Assert.Fail("No reachable ground near the village spawn.");
+            return default;
         }
 
         private static IEnumerator Until(Func<bool> condition, float timeout)

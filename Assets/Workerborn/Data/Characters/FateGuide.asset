@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script:
+    fileID: 11500000
+    guid: 3b771ac446165e05b830257e3a000550
+    type: 3
+  m_Name: FateGuide
+  m_EditorClassIdentifier: ''
+  basePrefab: {fileID: 100001, guid: fc77cd9a885e5e96a07ff286dae44520, type: 3}
+  height: 1.7
+  hair:
+    fileID: 0
+  outfit:
+    fileID: 0
+  eyes:
+    fileID: 0
+  eyebrows:
+    fileID: 0
+  mouth:
+    fileID: 0
+  headwear:
+    fileID: 0
+  rightHand:
+    fileID: 0
+  leftHand:
+    fileID: 0
+  hideBaseWeapons: 1
+  hideBaseHair: 0
+  skinTint:
+    r: 1
+    g: 1
+    b: 1
+    a: 1
+  clothingTint:
+    r: 1
+    g: 1
+    b: 1
+    a: 1
+  idle: {fileID: 1827226128182048838, guid: faffb858330f0b848b847a5f392b88ac, type: 3}
+  walk: {fileID: 1827226128182048838, guid: 1b544380f23db0248a420f3cf2984c3b, type: 3}
+  work: {fileID: 1827226128182048838, guid: 1bc375bdea84e0648b45787c0497bd28, type: 3}
+  toonPalette:
+    fileID: 11400000
+    guid: d83d85ba5a8454c281d58a2e2ff40a7f
+    type: 2
+  run: {fileID: 1827226128182048838, guid: 6a7d7d61145c8194fbba9ce8b5f88210, type: 3}

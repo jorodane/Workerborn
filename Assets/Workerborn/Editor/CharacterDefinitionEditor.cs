@@ -48,6 +48,7 @@ namespace Workerborn.Editor
                 "clothingTint",
                 "idle",
                 "walk",
+                "run",
                 "work"
             }
 

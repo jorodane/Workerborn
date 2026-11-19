@@ -41,6 +41,8 @@ namespace Workerborn
         [SerializeField]
         private AnimationClip walk;
         [SerializeField]
+        private AnimationClip run;
+        [SerializeField]
         private AnimationClip work;
         [SerializeField]
         private ToonMaterialPalette toonPalette;
@@ -53,6 +55,7 @@ namespace Workerborn
         public Color ClothingTint => clothingTint;
         public AnimationClip Idle => idle;
         public AnimationClip Walk => walk;
+        public AnimationClip Run => run != null ? run : walk;
         public AnimationClip Work => work;
 
         public IEnumerable<CharacterPartDefinition> Parts

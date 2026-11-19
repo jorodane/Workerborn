@@ -19,10 +19,7 @@ MonoBehaviour:
     type: 3
   m_Name: Lena
   m_EditorClassIdentifier: ''
-  basePrefab:
-    fileID: 24870900267524473
-    guid: 528a6ba64c91bfe47b77ccc66da25786
-    type: 3
+  basePrefab: {fileID: 100001, guid: 7ee93247dc615c5eb0915c7d11b37001, type: 3}
   height: 1.7
   hair:
     fileID: 0
@@ -52,16 +49,11 @@ MonoBehaviour:
     g: 1
     b: 1
     a: 1
-  idle:
-    fileID: 7400000
-    guid: 13d34448388872c409f472a83b2416e6
+  idle: {fileID: 1827226128182048838, guid: faffb858330f0b848b847a5f392b88ac, type: 3}
+  walk: {fileID: 1827226128182048838, guid: 1b544380f23db0248a420f3cf2984c3b, type: 3}
+  work: {fileID: 1827226128182048838, guid: 1bc375bdea84e0648b45787c0497bd28, type: 3}
+  toonPalette:
+    fileID: 11400000
+    guid: d83d85ba5a8454c281d58a2e2ff40a7f
     type: 2
-  walk:
-    fileID: 7400000
-    guid: b81dc44704c10524faa27e053f94279e
-    type: 2
-  work:
-    fileID: 7400000
-    guid: c2b393beeb97fcc42840ddf845ae7efb
-    type: 2
-  toonPalette: {fileID: 11400000, guid: d83d85ba5a8454c281d58a2e2ff40a7f, type: 2}
+  run: {fileID: 1827226128182048838, guid: 6a7d7d61145c8194fbba9ce8b5f88210, type: 3}

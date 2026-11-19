@@ -9,6 +9,7 @@ namespace Workerborn
         private int selectedEntry;
         private int draggedEntry;
         private Vector2 dragGrabOffset;
+        private bool releaseHeldOnMouseUp;
         private float CellX => views.TryGetValue("inventory", out var view) ? ((InventoryWindowView)view).CellSize.x : 32f;
         private float CellY => views.TryGetValue("inventory", out var view) ? ((InventoryWindowView)view).CellSize.y : 32f;
 
@@ -192,12 +193,13 @@ namespace Workerborn
                 ShowToast("나눌 공간이 부족합니다.");
         }
 
-        public void BeginItemDrag(int id, Vector2 screen)
+        public void BeginItemDrag(int id, Vector2 screen, bool releaseOnMouseUp = false)
         {
             CancelItemDrag();
             var item = game.State.Inventory.Find(id);
-            if (item == null)
+            if (item == null || inventoryGrid == null || HasModal)
                 return;
+            releaseHeldOnMouseUp = releaseOnMouseUp;
             draggedEntry = id;
             selectedEntry = id;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(inventoryGrid, screen, null, out Vector2 local);
@@ -236,15 +238,22 @@ namespace Workerborn
                 return;
             RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screen, null, out Vector2 local);
             dragGhost.anchoredPosition = local - dragGrabOffset;
+            if (views.TryGetValue("inventory", out var window) && window is InventoryWindowView view)
+            {
+                var entry = game.State.Inventory.Find(draggedEntry);
+                if (entry != null && TryInventoryCell(screen, view, out var cell) && game.State.Inventory.CanPlaceHeld(draggedEntry, cell.x, cell.y))
+                    view.ShowPlacement(cell.x, cell.y, entry.Spec.Width, entry.Spec.Height);
+                else
+                    view.ShowPlacement(0, 0, 0, 0);
+            }
         }
 
         public void EndItemDrag(Vector2 screen)
         {
-            if (!IsHoldingItem || inventoryGrid == null)
+            if (!IsHoldingItem || !views.TryGetValue("inventory", out var window) || !(window is InventoryWindowView view)
+                || !TryInventoryCell(screen, view, out var cell))
                 return;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(inventoryGrid, screen, null, out Vector2 local);
-            local -= dragGrabOffset;
-            bool success = game.State.Inventory.TryPlaceHeld(draggedEntry, Mathf.FloorToInt(local.x / CellX), Mathf.FloorToInt(-local.y / CellY), out int next);
+            bool success = game.State.Inventory.TryPlaceHeld(draggedEntry, cell.x, cell.y, out int next);
             if (!success)
                 return;
             draggedEntry = next;
@@ -255,6 +264,55 @@ namespace Workerborn
             RenderInventory();
             MoveItemDrag(screen);
             game.SaveGame(false);
+        }
+
+        private bool TryInventoryCell(Vector2 screen, InventoryWindowView view, out Vector2Int cell)
+        {
+            cell = default;
+            if (!InventoryOpen || view.ItemViewport == null || !view.ItemViewport.gameObject.activeInHierarchy
+                || !RectTransformUtility.RectangleContainsScreenPoint(view.ItemViewport, screen)
+                || !RectTransformUtility.RectangleContainsScreenPoint(inventoryGrid, screen))
+                return false;
+            GameObject hit = game.Targeting?.UiAt(screen);
+            if (hit != null && hit.GetComponentInParent<InventoryWindowView>() != view)
+                return false;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(inventoryGrid, screen, null, out var local))
+                return false;
+            local -= dragGrabOffset;
+            cell = new Vector2Int(Mathf.FloorToInt(local.x / CellX), Mathf.FloorToInt(-local.y / CellY));
+            return true;
+        }
+
+        public void DropHeldOnGround(Vector2 screen)
+        {
+            if (!IsHoldingItem || HasModal || releaseHeldOnMouseUp || game.Targeting == null)
+                return;
+            if (!game.Targeting.TryDropPoint(screen, out var ground))
+            {
+                ShowToast("아이템을 놓을 바닥을 선택해 주세요.");
+                return;
+            }
+            if (game.Worker.CommandDrop(draggedEntry, ground))
+                CancelItemDrag();
+        }
+
+        private void ReleaseDraggedItem()
+        {
+            if (!releaseHeldOnMouseUp || !WorkerbornInput.Released("Gameplay/Interact"))
+                return;
+            releaseHeldOnMouseUp = false;
+            if (!IsHoldingItem || game.Targeting == null)
+                return;
+            Vector2 screen = WorkerbornInput.Point;
+            GameObject hit = game.Targeting.UiAt(screen);
+            if (hit == null)
+                DropHeldOnGround(screen);
+            else if (hit.GetComponentInParent<ShopSellTarget>() != null)
+                SellHeldItem();
+            else if (hit.GetComponentInParent<EquipmentSlotPointer>() is EquipmentSlotPointer equipment)
+                ClickEquipment(equipment.Slot, screen);
+            else
+                EndItemDrag(screen);
         }
 
         public void CancelItemDrag()
@@ -268,6 +326,9 @@ namespace Workerborn
 
             dragGhost = null;
             draggedEntry = 0;
+            releaseHeldOnMouseUp = false;
+            if (views.TryGetValue("inventory", out var window) && window is InventoryWindowView view)
+                view.ShowPlacement(0, 0, 0, 0);
             HideItemTooltip();
             CloseItemContext();
             if (wasHolding && InventoryOpen)

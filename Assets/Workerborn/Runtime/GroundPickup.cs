@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace Workerborn
@@ -28,6 +29,7 @@ namespace Workerborn
         public override bool CanInteract => CanCollect;
         public override string InteractionVerb => "줍기";
         public Vector3 LandingPosition => initialized ? landing : transform.position;
+        public event Action<Vector3> Landed;
 
         protected override void Interact(HarvestWorker worker) => worker.CommandPickup(this);
         protected override void OnEnable()
@@ -61,16 +63,19 @@ namespace Workerborn
         {
             if (!initialized)
                 return;
+            bool inFlight = age < flightSeconds;
             age += Time.deltaTime;
             float t = Mathf.Clamp01(age / flightSeconds);
             transform.position = Vector3.Lerp(origin, landing, t) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * 1.25f);
+            if (inFlight && t >= 1f)
+                Landed?.Invoke(landing);
             if (visual == null)
                 return;
             visual.localPosition = visualOrigin + Vector3.up * (t < 1f ? 0f : .04f + Mathf.Sin(age * 3f) * .035f);
             visual.Rotate(Vector3.up, Time.deltaTime * 28f, Space.World);
         }
 
-        public bool TryCollect(System.Func<bool> receive = null)
+        public bool TryCollect(Func<bool> receive = null)
         {
             if (!CanCollect)
                 return false;

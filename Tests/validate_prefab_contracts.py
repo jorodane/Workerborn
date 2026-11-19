@@ -42,7 +42,8 @@ def validate(path):
         for field,type in fields.items():
             value=mono.get(field)
             # All UI view object references must be authored; runtime only binds data/listeners.
-            if name.endswith('View') and type in {'TMP_Text','Image','Button','RawImage','RectTransform','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget'}:
+            is_popup_chrome=name=='WorldContextView' and field in {'closeButton','dragHandle','minimizeButton','windowBody'}
+            if name.endswith('View') and not is_popup_chrome and type in {'TMP_Text','Image','Button','RawImage','RectTransform','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget'}:
                 assert value and value.get('fileID'),f'{path.name}: missing {name}.{field}'
             if not isinstance(value,dict) or not value.get('fileID'):continue
             target=None

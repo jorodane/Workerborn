@@ -3,8 +3,7 @@ using UnityEngine.EventSystems;
 
 namespace Workerborn
 {
-    // A click picks the item up; no held mouse button or drag gesture is required.
-    public sealed class InventoryItemDrag : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
+    public sealed class InventoryItemDrag : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler, IBeginDragHandler, IDragHandler
     {
         public VillageHud Hud { get; set; }
         public int EntryId { get; set; }
@@ -15,5 +14,15 @@ namespace Workerborn
         }
         public void OnPointerEnter(PointerEventData data) => Hud.ShowItemTooltip(EntryId, data.position);
         public void OnPointerExit(PointerEventData data) => Hud.HideItemTooltip();
+        public void OnBeginDrag(PointerEventData data)
+        {
+            if (data.button == PointerEventData.InputButton.Left && !Hud.IsHoldingItem)
+                Hud.BeginItemDrag(EntryId, data.pressPosition, releaseOnMouseUp: true);
+        }
+        public void OnDrag(PointerEventData data)
+        {
+            if (data.button == PointerEventData.InputButton.Left && Hud.IsHoldingItem)
+                Hud.MoveItemDrag(data.position);
+        }
     }
 }

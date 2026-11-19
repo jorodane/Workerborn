@@ -51,6 +51,23 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void HeldFootprintUsesTheSameRulesAsPlacementWithoutMutatingInventory()
+        {
+            var bag = new GridInventory(4, 3);
+            Assert.That(bag.TryAdd(ItemIds.Hoe, 1), Is.True);
+            Assert.That(bag.TryAdd(ItemIds.Bread, 2), Is.True);
+            int hoe = bag.Entries[0].Id;
+            int version = bag.Version;
+            for (int y = -1; y <= bag.Rows; y++)
+                for (int x = -1; x <= bag.Columns; x++)
+                {
+                    var trial = GridInventory.Restore(bag.Columns, bag.Rows, bag.Export());
+                    Assert.That(bag.CanPlaceHeld(hoe, x, y), Is.EqualTo(trial.TryPlaceHeld(hoe, x, y, out _)), $"{x}, {y}");
+                }
+            Assert.That(bag.Version, Is.EqualTo(version));
+        }
+
+        [Test]
         public void TradingCanUseTheSpaceVacatedByTheSpentCoins()
         {
             var bag = new GridInventory(1, 1);

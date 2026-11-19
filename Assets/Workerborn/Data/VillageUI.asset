@@ -56,6 +56,7 @@ MonoBehaviour:
   - fileID: 100073
     guid: 983abd1dfeb151acb381ba5f320bb7b1
     type: 3
+  - {fileID: 100012, guid: 55b0ecea6fe859158d6deaa08b31c4b1, type: 3}
   item:
     fileID: 100023
     guid: b25d2df002c55a0082970f072fcd1039
@@ -84,7 +85,10 @@ MonoBehaviour:
     fileID: 100009
     guid: 80465a0389e15d29a1bb3517000055c4
     type: 3
-  npcName: {fileID: 100014, guid: 30534ca7b5ce5ed38885367dd135a975, type: 3}
+  npcName:
+    fileID: 100014
+    guid: 30534ca7b5ce5ed38885367dd135a975
+    type: 3
   floatingText:
     fileID: 100004
     guid: 7b196214a1c05a5a8196cf9de2ba37a6

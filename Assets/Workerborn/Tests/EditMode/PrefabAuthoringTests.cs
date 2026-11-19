@@ -74,6 +74,7 @@ namespace Workerborn.Tests
 
             var bag = library.Find("inventory");
             Assert.That(bag.GetComponentsInChildren<EquipmentSlotPointer>(true).Length, Is.EqualTo(7));
+            Assert.That(library.Find("worldcontext"), Is.TypeOf<WorldContextView>());
         }
 
         [Test]

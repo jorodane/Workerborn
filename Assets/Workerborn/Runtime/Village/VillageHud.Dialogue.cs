@@ -3,12 +3,13 @@ namespace Workerborn
     public sealed partial class VillageHud
     {
         private VillageInteractable dialogueTarget;
-        public void OpenDialogue(VillageInteractable target)
+        public void OpenDialogue(VillageInteractable target, DialogueAction? topic = null)
         {
             CloseDialogue();
+            CloseWorldContext();
             CancelItemDrag();
             dialogueTarget = target;
-            (OpenWindow("conversation") as ConversationWindowView)?.Open(target);
+            (OpenWindow("conversation") as ConversationWindowView)?.Open(target, topic);
         }
 
         public void CloseDialogue()

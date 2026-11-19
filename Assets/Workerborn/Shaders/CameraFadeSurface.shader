@@ -76,6 +76,15 @@ Shader "Workerborn/Camera Fade Surface"
         [Toggle(_UNITYSHADOW_OCCLUSION)]_UnityShadowOcclusion("Shadow Occlusion", Int) = 0
 
         [MainTexture] _BaseMap("[FOLDOUT(Texture Maps){11}]Albedo", 2D) = "white" {}
+        [Toggle(_CHARACTER_COLOR_MASK)] _CharacterColorMask("Use RGB Wardrobe Mask", Float) = 0
+        _Color_A_1("Red Mask Shadow", Color) = (0.25, 0.25, 0.25, 1)
+        _Color_A_2("Red Mask Light", Color) = (1, 1, 1, 1)
+        _Color_B_1("Green Mask Shadow", Color) = (0.25, 0.25, 0.25, 1)
+        _Color_B_2("Green Mask Light", Color) = (1, 1, 1, 1)
+        _Color_C_1("Blue Mask Shadow", Color) = (0.25, 0.25, 0.25, 1)
+        _Color_C_2("Blue Mask Light", Color) = (1, 1, 1, 1)
+        _CharacterMaskRange("Mask Range", Vector) = (0, 1, 0, 0)
+        _Mask_Factor("Mask Edge", Range(0.01, 1)) = 0.45
         [Toggle(_BASEMAP_PREMULTIPLY)]_BaseMapPremultiply("[_]Mix Into Shading", Int) = 0
         [KeywordEnum(Multiply, Add)]_TextureBlendingMode("[_]Blending Mode", Float) = 0
         _TextureImpact("[_]Texture Impact", Range(0, 1)) = 1.0
@@ -145,6 +154,7 @@ Shader "Workerborn/Camera Fade Surface"
             // -------------------------------------
             // Material Keywords
             #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _CHARACTER_COLOR_MASK
             #pragma shader_feature_local_fragment _ALPHAPREMULTIPLY_ON
             // #pragma shader_feature_local_fragment _ _SPECGLOSSMAP _SPECULAR_COLOR
             // #pragma shader_feature_local_fragment _GLOSSINESS_FROM_BASE_ALPHA

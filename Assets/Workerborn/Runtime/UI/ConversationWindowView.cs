@@ -32,7 +32,7 @@ namespace Workerborn
             portrait.texture = game.NpcPortraitTexture;
         }
 
-        public void Open(VillageInteractable target)
+        public void Open(VillageInteractable target, DialogueAction? requestedTopic = null)
         {
             npc = target;
             confirming = false;
@@ -45,13 +45,14 @@ namespace Workerborn
                 VillageRole.Guide when !beforeFarm => DialogueAction.GuideAfter,
                 _ => DialogueAction.Greeting
             };
+            if (requestedTopic.HasValue && npc.IsTopicAvailable(Game, requestedTopic.Value))
+                topic = requestedTopic.Value;
             InventoryWindowView.Clear(keywords);
             var topics = npc.Definition != null && npc.Definition.Dialogue != null ? npc.Definition.Dialogue.Topics : null;
             if (topics != null)
                 foreach (var entry in topics)
                 {
-                    if (string.IsNullOrWhiteSpace(entry.keyword) || npc.Role == VillageRole.Farmer
-                        && (beforeFarm ? entry.action != DialogueAction.Foundation : entry.action == DialogueAction.Foundation))
+                    if (string.IsNullOrWhiteSpace(entry.keyword) || !npc.IsTopicAvailable(Game, entry.action))
                         continue;
                     var selected = entry.action;
                     var button = Instantiate(Hud.Library.ActionButton, keywords);

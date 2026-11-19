@@ -13,6 +13,10 @@ namespace Workerborn
         [SerializeField]
         private RectTransform cellLayer;
         [SerializeField]
+        private RectTransform itemViewport;
+        [SerializeField]
+        private Image placementPreview;
+        [SerializeField]
         private GridLayoutGroup gridLayout;
         [SerializeField]
         private RawImage portrait;
@@ -25,7 +29,20 @@ namespace Workerborn
         [SerializeField]
         private RectTransform[] equipmentIcons;
         public RectTransform ItemLayer => itemLayer;
+        public RectTransform ItemViewport => itemViewport;
         public Vector2 CellSize => gridLayout.cellSize + gridLayout.spacing;
+
+        public void ShowPlacement(int x, int y, int width, int height)
+        {
+            if (placementPreview == null)
+                return;
+            placementPreview.gameObject.SetActive(width > 0 && height > 0);
+            if (width < 1 || height < 1)
+                return;
+            Vector2 step = CellSize;
+            placementPreview.rectTransform.anchoredPosition = new Vector2(x * step.x, -y * step.y);
+            placementPreview.rectTransform.sizeDelta = new Vector2(width * step.x, height * step.y);
+        }
 
         public override void Bind(VillagePrototype game, VillageHud hud)
         {

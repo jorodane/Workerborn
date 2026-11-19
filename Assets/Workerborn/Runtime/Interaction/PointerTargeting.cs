@@ -110,13 +110,26 @@ namespace Workerborn
             terrainMask.RecalculateBounds();
         }
 
-        public bool OverUi(Vector2 position)
+        private WorldInteractable rightTarget;
+
+        public bool OverUi(Vector2 position) => UiAt(position) != null;
+
+        public GameObject UiAt(Vector2 position)
         {
             if (EventSystem.current == null)
-                return false;
+                return null;
             uiHits.Clear();
             EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = position }, uiHits);
-            return uiHits.Count > 0;
+            return uiHits.Count > 0 ? uiHits[0].gameObject : null;
+        }
+
+        public bool TryDropPoint(Vector2 screen, out Vector3 point)
+        {
+            point = default;
+            if (OverUi(screen) || !TryWorldHit(screen, out var hit) || !game.IsGround(hit.collider))
+                return false;
+            point = hit.point;
+            return true;
         }
 
         private void Update()
@@ -124,53 +137,69 @@ namespace Workerborn
             if (game == null || WorkerbornInput.Current == null)
                 return;
             var cursor = WorkerbornInput.Point;
-            WorldInteractable target = null;
-            bool overUi = false;
-            if (EventSystem.current != null)
+            var ui = UiAt(cursor);
+            bool overUi = ui != null;
+            var plate = overUi ? ui.GetComponentInParent<WorldNameplateView>() : null;
+            WorldInteractable target = plate != null ? plate.Target : null;
+            RaycastHit hit = default;
+            bool hitWorld = !overUi && TryWorldHit(cursor, out hit);
+            if (hitWorld)
+                target = hit.collider.GetComponentInParent<WorldInteractable>();
+
+            if (WorkerbornInput.Pressed("Camera/OrbitRight"))
             {
-                uiHits.Clear();
-                EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = cursor }, uiHits);
-                overUi = uiHits.Count > 0;
-                if (overUi)
+                rightTarget = !game.ControlsBlocked && target != null && target.CanInteract ? target : null;
+                game.Hud.CloseWorldContext();
+            }
+            if (WorkerbornInput.Released("Camera/OrbitRight"))
+            {
+                if (game.CameraRig.RightClickThisFrame)
                 {
-                    var nameplate = uiHits[0].gameObject.GetComponentInParent<WorldNameplateView>();
-                    if (nameplate != null)
-                        target = nameplate.Target;
+                    if (rightTarget != null)
+                        game.Hud.OpenWorldContext(rightTarget, cursor);
+                    else if (!overUi)
+                        game.Worker.Cancel();
                 }
+                rightTarget = null;
             }
 
-            bool groundHit = false;
-            Vector3 ground = Vector3.zero;
             bool control = WorkerbornInput.Held("Gameplay/Target");
-            if (!overUi)
+            if (control && !overUi)
             {
-                if (control)
-                {
-                    if (HasMask && TargetMaskGeometry.Closest(pixels, mask.width, mask.height, SystemInfo.graphicsUVStartsAtTop, cursor.x, cursor.y, Screen.width, Screen.height, out var hit) && snapshot != null && hit.Id < snapshot.Length)
-                        target = snapshot[hit.Id];
-                }
-                else if (TryWorldHit(cursor, out RaycastHit hit))
-                {
-                    target = hit.collider.GetComponentInParent<WorldInteractable>();
-                    groundHit = target == null;
-                    ground = hit.point;
-                }
+                target = null;
+                if (HasMask && TargetMaskGeometry.Closest(pixels, mask.width, mask.height, SystemInfo.graphicsUVStartsAtTop, cursor.x, cursor.y, Screen.width, Screen.height, out var closest)
+                    && snapshot != null && closest.Id < snapshot.Length)
+                    target = snapshot[closest.Id];
             }
 
             if (game.ControlsBlocked || target != null && !target.CanInteract)
                 target = null;
-            if (WorkerbornInput.Pressed("Gameplay/Interact"))
+            bool pressed = WorkerbornInput.Pressed("Gameplay/Interact");
+            if (pressed)
                 pressTarget = target;
             if (!WorkerbornInput.Held("Gameplay/Interact"))
                 pressTarget = null;
             Select(target);
-            if (!game.ControlsBlocked && WorkerbornInput.Pressed("Gameplay/Interact"))
+            if (!pressed)
+                return;
+
+            if (!overUi || ui.GetComponentInParent<WorldContextView>() == null)
+                game.Hud.CloseWorldContext();
+            if (game.Hud.HasModal)
+                return;
+            if (game.Hud.IsHoldingItem)
             {
-                if (CurrentTarget != null)
-                    CurrentTarget.RequestInteraction(game.Worker);
-                else if (!overUi && !control && groundHit)
-                    game.Worker.CommandMove(ground);
+                if (!overUi)
+                    game.Hud.DropHeldOnGround(cursor);
+                return;
             }
+            if (CurrentTarget != null)
+            {
+                game.ShowClick(CurrentTarget.transform.position);
+                CurrentTarget.RequestInteraction(game.Worker);
+            }
+            else if (!overUi && !control && hitWorld && hit.collider.GetComponentInParent<WorldInteractable>() == null)
+                game.Worker.CommandMove(hit.point);
         }
 
         private bool TryWorldHit(Vector2 cursor, out RaycastHit nearest)

@@ -171,15 +171,10 @@ namespace Workerborn
             nextHeld = id;
             var entry = Find(id);
             if (entry == null) { nextHeld = 0; return false; }
-            var target = entries.Find(other => other.Id != id && x >= other.X && x < other.X + other.Spec.Width
-                && y >= other.Y && y < other.Y + other.Spec.Height);
+            if (!CanPlace(entry, x, y, out var target)) return false;
             if (target != null && target.ItemId != entry.ItemId)
             {
-                var others = entries.FindAll(item => item.Id != id && item.Id != target.Id);
                 int oldX = entry.X, oldY = entry.Y;
-                if (!Fits(others, entry.Spec, x, y) || !Fits(others, target.Spec, oldX, oldY)) return false;
-                if (x < oldX + target.Spec.Width && x + entry.Spec.Width > oldX
-                    && y < oldY + target.Spec.Height && y + entry.Spec.Height > oldY) return false;
                 entry.X = x; entry.Y = y; target.X = oldX; target.Y = oldY;
                 nextHeld = target.Id; Version++;
                 return true;
@@ -187,6 +182,33 @@ namespace Workerborn
             if (!TryMove(id, x, y)) return false;
             nextHeld = target != null && Find(id) != null ? id : 0;
             return true;
+        }
+
+        public bool CanPlaceHeld(int id, int x, int y)
+        {
+            var entry = Find(id);
+            return entry != null && CanPlace(entry, x, y, out _);
+        }
+
+        private bool CanPlace(InventoryEntry entry, int x, int y, out InventoryEntry target)
+        {
+            target = null;
+            foreach (var other in entries)
+                if (other.Id != entry.Id && x >= other.X && x < other.X + other.Spec.Width
+                    && y >= other.Y && y < other.Y + other.Spec.Height)
+                {
+                    target = other;
+                    break;
+                }
+            if (target == null)
+                return Fits(entries, entry.Spec, x, y, entry.Id);
+            if (target.ItemId == entry.ItemId)
+                return target.X == x && target.Y == y && target.Quantity < target.Spec.MaxStack;
+
+            return Fits(entries, entry.Spec, x, y, entry.Id, target.Id)
+                && Fits(entries, target.Spec, entry.X, entry.Y, entry.Id, target.Id)
+                && (x >= entry.X + target.Spec.Width || x + entry.Spec.Width <= entry.X
+                    || y >= entry.Y + target.Spec.Height || y + entry.Spec.Height <= entry.Y);
         }
 
         public void ExpandRows(int rows)
@@ -205,12 +227,12 @@ namespace Workerborn
             return false;
         }
 
-        private bool Fits(List<InventoryEntry> items, ItemSpec spec, int x, int y, int ignore = -1)
+        private bool Fits(List<InventoryEntry> items, ItemSpec spec, int x, int y, int ignore = -1, int secondIgnore = -1)
         {
             if (x < 0 || y < 0 || x + spec.Width > Columns || y + spec.Height > Rows) return false;
             foreach (var item in items)
             {
-                if (item.Id == ignore) continue;
+                if (item.Id == ignore || item.Id == secondIgnore) continue;
                 if (x < item.X + item.Spec.Width && x + spec.Width > item.X
                     && y < item.Y + item.Spec.Height && y + spec.Height > item.Y) return false;
             }

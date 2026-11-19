@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace Workerborn
 {
@@ -38,10 +36,10 @@ namespace Workerborn
         private float distance;
         private bool rightPressed;
         private bool rightDragged;
+        private bool rightViewMoved;
         private bool middlePressed;
         private Vector2 pressPoint;
-        private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
-        public bool CancelClickThisFrame { get; private set; }
+        public bool RightClickThisFrame { get; private set; }
         public float Distance => distance;
 
         public void SetViewOverride(Transform pose)
@@ -68,27 +66,20 @@ namespace Workerborn
             UpdatePose();
         }
 
-        private bool OverUi(Vector2 position)
-        {
-            if (EventSystem.current == null)
-                return false;
-            uiHits.Clear();
-            EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = position }, uiHits);
-            return uiHits.Count > 0;
-        }
-
         private void Update()
         {
-            CancelClickThisFrame = false;
+            RightClickThisFrame = false;
             if (target == null || WorkerbornInput.Current == null)
                 return;
             Vector2 position = WorkerbornInput.Point;
             bool blocked = game != null && game.ControlsBlocked;
-            bool overUi = OverUi(position);
+            var ui = game?.Targeting?.UiAt(position);
+            bool overUi = ui != null && ui.GetComponentInParent<WorldNameplateView>() == null;
             if (WorkerbornInput.Pressed("Camera/OrbitRight") && !blocked && !overUi)
             {
                 rightPressed = true;
                 rightDragged = false;
+                rightViewMoved = false;
                 pressPoint = position;
             }
 
@@ -96,6 +87,7 @@ namespace Workerborn
                 middlePressed = true;
             if (WorkerbornInput.Released("Camera/OrbitMiddle"))
                 middlePressed = false;
+            float previousYaw = yaw, previousPitch = pitch, previousDistance = distance;
             if ((rightPressed && WorkerbornInput.Held("Camera/OrbitRight")) || (middlePressed && WorkerbornInput.Held("Camera/OrbitMiddle")))
             {
                 if (rightPressed && (position - pressPoint).sqrMagnitude > 25f)
@@ -108,20 +100,25 @@ namespace Workerborn
                 }
             }
 
+            if (!blocked && !overUi)
+                distance = OrbitZoom.Apply(distance, WorkerbornInput.Scroll, minimumDistance, maximumDistance, zoomSensitivity);
+            if (rightPressed && (yaw != previousYaw || pitch != previousPitch || distance != previousDistance))
+                rightViewMoved = true;
+
             if (WorkerbornInput.Released("Camera/OrbitRight"))
             {
-                CancelClickThisFrame = rightPressed && !rightDragged && !middlePressed && !blocked && !overUi;
+                RightClickThisFrame = rightPressed && !rightViewMoved && !blocked && !overUi;
                 rightPressed = false;
             }
+        }
 
-            if (!Application.isFocused)
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused)
             {
                 rightPressed = false;
                 middlePressed = false;
             }
-
-            if (!blocked && !overUi)
-                distance = OrbitZoom.Apply(distance, WorkerbornInput.Scroll, minimumDistance, maximumDistance, zoomSensitivity);
         }
 
         private void LateUpdate()

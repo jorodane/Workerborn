@@ -15,7 +15,7 @@ Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다
 | 시계·미니맵·하단 메뉴·월드 이름 레이어 | `Prefabs/UI/VillageHUD.prefab` |
 | 아이템 칸·아이콘·목록 행·버튼·이름 박스·대상 연결선 | `Prefabs/UI/InventoryCell.prefab`, `ItemTile.prefab`, `ListRow.prefab`, `ActionButton.prefab`, `PickupName.prefab`, `TargetLink.prefab` |
 | 창과 위젯 프리팹 연결 목록 | `Data/VillageUI.asset` |
-| 주인공과 NPC 전체 | `Prefabs/Characters/Player.prefab`, `Mira.prefab`, `Noah.prefab`, `Lena.prefab` |
+| 주인공과 NPC 전체 | `Prefabs/Characters/Player.prefab`, `Mira.prefab`, `Noah.prefab`, `Lena.prefab`, `FateGuide.prefab` |
 | 게시판·우물·몬스터 예제 | `Prefabs/Interaction/Board.prefab`, `Shrine.prefab`, `Monster.prefab` |
 | 감자 작물 전체 | `Prefabs/Crops/Potato.prefab` |
 | 바닥 아이템 전체 | `Prefabs/Items/potato.prefab`, `bread.prefab`, `hoe.prefab`, `bag.prefab`, `gold.prefab` |
@@ -40,14 +40,18 @@ Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다
 
 NPC 설정 에셋에서는 외형을 펼쳐 머리·의상·눈·눈썹·입·양손 파츠를 고르고 3D 미리보기를 드래그·휠로 회전·확대할 수 있습니다. 주인공은 `Data/Characters/Player_Default.asset`을 같은 형식으로 사용합니다. 파츠가 비어 있으면 기본 프리팹의 부분을 유지하고, 스킨 메시의 본은 이름으로 연결합니다. 공통 파츠 에셋은 사용하는 외형에 공유되므로 개인 변형은 복제해서 사용하세요. 외형 변경과 새 프리팹 배치 시 캐릭터 외형은 **Edit 모드에서** 갱신합니다.
 
+마을의 기본 외형은 Rukha93 **Modular Anime Character 2**를 사용하는 `Prefabs/Characters/Looks`에 있습니다. 같은 리그용 머리와 의상, 눈·눈썹·입 재질은 `Data/Characters/Parts/ModularAnime2`에서 고릅니다. 의상 텍스처의 RGB 채널별 색상은 `Materials/Characters`에서 수정합니다. 주인공은 ATART의 대기·걷기·달리기 애니메이션을 사용하며, 채집에는 기존 휘두르기 동작을 연결했습니다. 달리기와 걷기 속도는 Player 프리팹의 `HarvestWorker`에서 조정합니다.
+
 상호작용은 공통 `WorldInteractable`을 상속합니다.
 
 - `VillageInteractable`: NPC·게시판·우물. NPC의 ScriptableObject로 대화·역할을 설정합니다.
 - `HarvestableCrop`: 이동·수확. 작물 ScriptableObject로 횟수·시간·드롭을 설정합니다.
-- `GroundPickup`: 1m 안에서는 별도 줍기 동작 없이 즉시 획득합니다. 멀리 있는 물품은 먼저 접근하며, 범위 안의 물품 획득은 진행 중인 수확·이동을 취소하지 않습니다. 아이템·수량·시각 오브젝트·비행 시간을 프리팹에 저장합니다.
+- `GroundPickup`: 수평 거리 1m 안에서는 별도 줍기 동작 없이 즉시 획득합니다. 멀리 있는 물품은 먼저 접근하며, 범위 안의 물품 획득은 진행 중인 수확·이동을 취소하지 않습니다. 아이템·수량·시각 오브젝트·비행 시간을 프리팹에 저장합니다.
 - `MonsterInteractable`: Ctrl 선택과 접근. 도착 후 행동은 공통 완료 이벤트 또는 `OnArrived` 재정의로 확장합니다. 전투는 구현하지 않았습니다.
 
 공통 상호작용 거리·이름 위치·요청/완료 UnityEvent를 Inspector에서 설정할 수 있습니다. 새 유형은 `Interact`를 재정의하고 기존 `HarvestWorker` 명령을 연결합니다. 몬스터 예제는 제공된 도마뱀 에셋을 사용하며 Scene에는 자동 배치하지 않습니다. 프리팹을 직접 배치해 선택과 접근을 시험할 수 있습니다.
+
+대상 우클릭 메뉴는 `Prefabs/UI/WorldContextMenu.prefab`에 있습니다. 공통 상호작용과 NPC가 제공하는 대화 주제를 표시합니다. 소지품의 어두운 배치 미리보기는 `InventoryWindow`의 `Placement preview`에서 조정합니다. 바닥으로 놓는 물품은 캐릭터가 도착하면 가방에서 빠져나옵니다. 도착 전에 이동을 취소하면 소지품에 남습니다.
 
 작물과 Scene에 놓은 아이템은 고유 ID로 저장합니다. 복제하면 Editor에서 새 ID를 부여해 서로 다른 개체의 수확 상태가 공유되지 않게 합니다. 새 외형·NPC·아이템 등의 데이터는 **Create → Workerborn**에서 생성합니다. NPC 프리팹의 CharacterActor와 VillageInteractable에 같은 NPC 에셋을 연결하세요. 현재 농장 일자리는 한 종류와 그 경력을 공유합니다.
 
@@ -65,6 +69,8 @@ Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까
 
 게임 내 텍스트는 TMP입니다. `Fonts/WorkerbornKorean-SDF.asset`은 포함된 한글 OTF를 사용하는 동적 SDF 폰트이며 여러 아틀라스를 지원합니다. 이름표·행동 안내의 검은 외곽선은 `Fonts/WorkerbornKorean-NameOutline.mat`, 일반 UI 외곽선은 폰트 에셋의 Material에서 조정합니다.
 
+`Village session/VillageLighting`에서 아침과 저녁 전환 시간, 밤 하늘 틴트, 주변광과 가로등을 조정합니다. 클릭·착지·줍기·레벨업 이펙트는 `Village effects`에 연결된 `Prefabs/Effects`를 편집합니다.
+
 카메라는 지정한 줌 거리를 유지합니다. `Main camera/CameraVisibility`가 플레이어를 가리는 일반 배경의 렌더러를 메인 카메라에서만 숨깁니다. 배경 판정에는 Renderer bounds와 두 시선 지점을 사용합니다. 갑자기 사라지는 대신 지정한 시간에 걸쳐 몸체와 외곽선이 함께 페이드됩니다. 재질은 처음부터 페이드를 지원하는 셰이더에 연결하며, 사라질 때 머티리얼·셰이더·텍스처를 교체하지 않습니다. `_CameraOpacity`만 메인 카메라의 MaterialPropertyBlock으로 적용하고 렌더 직후 복구합니다. 불투명 디더 방식으로 몸체·외곽선·깊이·그림자가 같은 기준으로 사라집니다. 숲은 제공된 Synty 그래프의 원래 텍스처·이끼·바람 노드를 유지합니다. NPC·작물·아이템이 플레이어를 가려도 숨기지 않으며, 캐릭터·아이템은 여유 공간을 확장한 캡슐과 모델의 전체 bounds, 카메라 near plane까지 함께 판정해 관통 전에 페이드를 시작합니다. 감자의 회전·부유, 머리카락·모자·장비도 판정에 포함됩니다. 숨긴 배경은 마우스 대상 감지에서 건너뛰고, 미니맵·초상화·충돌·내비게이션은 그대로 작동합니다. 캡슐 크기는 각 캐릭터·아이템 프리팹에서 수정합니다.
 
 바닥 아이템 이름은 항상 표시합니다. **Alt를 누르는 동안** 검은 반투명 이름 박스가 나타나고, 박스를 클릭해도 실제 아이템과 같은 경로로 접근·획득합니다. 획득 거리는 아이템 프리팹의 공통 Interaction Distance에서 수정하며 기본값은 1m입니다. 떨어지는 도중에도 획득할 수 있습니다. **Alt를 누르는 동안만** 박스는 화면 가장자리와 겹침을 보정하며, 화면상 높이가 같은 항목은 **생성 순서대로 위→아래** 정렬합니다. 한 화면의 높이보다 큰 더미는 Alt를 누르고 이름 위에서 휠을 돌려 세로로 살펴볼 수 있습니다. 글꼴·여백·일반·호버·누름 색상과 투명도는 `PickupName.prefab`에서 조정합니다.
@@ -74,14 +80,17 @@ Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까
 | 입력 | 동작 |
 | --- | --- |
 | 좌클릭 | 이동, 작물 수확, 바닥 물품으로 접근·획득, NPC와 대화 |
-| 우클릭 또는 휠 버튼 드래그 | 3인칭 자유 시점의 좌우·상하 회전 |
+| 우클릭 드래그 또는 휠 버튼 드래그 | 3인칭 자유 시점의 좌우·상하 회전 |
+| 대상 위에서 짧은 우클릭 | 대화·채집·줍기 등 대상의 상호작용 메뉴 열기 |
+| 이동 중 Shift | 누르는 동안 걷기 |
 | 마우스 휠 | 줌. 기본 거리 범위 1.8~22m |
 | Ctrl / Ctrl+클릭 | 가까운 NPC·몬스터의 윤곽과 연결선 / 해당 대상에게 접근 |
 | Alt / Alt 이름 박스 클릭 | 바닥 물품의 검정 반투명 이름 박스 표시 / 해당 물품 줍기 |
-| 짧은 우클릭 / Esc | 이동·미완료 작업 취소 |
+| 빈 곳에서 짧은 우클릭 / Esc | 이동·미완료 작업 취소 |
 | I / Q / Z 또는 K / C | 소지품 / 퀘스트 / 스킬 / 캐릭터 |
 | M | 미니맵 표시·숨김. 하단 지도 버튼은 큰 지도를 엽니다. |
 | 소지품 아이템 좌클릭 | 물건을 집거나 계약서를 펼칩니다. 집은 물건은 다시 클릭해 놓습니다. |
+| 소지품 아이템을 땅으로 드래그 | 놓은 위치로 이동한 뒤 아이템 내려놓기 |
 | 들고 있는 물건 우클릭 / Esc | 원래 보관 자리로 복귀 |
 | 아이템 우클릭 / Ctrl+클릭 | 사용·장착·나누기 메뉴 / 바로 사용·장착 |
 | 왼쪽 장비 칸 클릭 | 들고 있는 장비 장착, 또는 장착 장비를 소지품으로 꺼내 들기 |

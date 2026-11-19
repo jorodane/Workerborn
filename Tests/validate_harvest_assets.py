@@ -101,8 +101,10 @@ def check_pointers(path):
                 pattern=f'fileID: {identifier}, guid: {guid}'
                 pack=ROOT/'Assets'/target.relative_to(ROOT/'Assets').parts[0]
                 witnessed=any(pattern in p.read_text() for p in pack.rglob('*.prefab'))
-                canonical=identifier in (919132149155446097,-8679921383154817045,100100000) and 'fileIdsGeneration: 2' in Path(str(target)+'.meta').read_text()
-                assert witnessed or canonical, f'Unverified model ID {pattern}'
+                importer=Path(str(target)+'.meta').read_text()
+                canonical=identifier in (919132149155446097,-8679921383154817045,100100000) and 'fileIdsGeneration: 2' in importer
+                clip=bool(re.search(rf'^\s+74: {identifier}\s*$',importer,re.M))
+                assert witnessed or canonical or clip, f'Unverified model ID {pattern}'
         count+=1
     return count
 
@@ -122,21 +124,34 @@ scene=expand(scene_path)
 ids=[d['_id'] for d in scene];assert len(ids)==len(set(ids)),'Duplicate scene IDs'
 transforms={d['_id']:d.get('Transform',d.get('RectTransform')) for d in scene if 'Transform'in d or 'RectTransform'in d}
 gos={d['_id']:d['GameObject'] for d in scene if 'GameObject'in d}
+opaque_instances={d['_id']:d['PrefabInstance'] for d in scene if 'PrefabInstance' in d}
 roots=next(d['SceneRoots']['m_Roots'] for d in scene if 'SceneRoots'in d)
 root_ids={p['fileID'] for p in roots}
 for id,t in transforms.items():
     if 'm_GameObject' not in t: continue # stripped vendor prefab root
     assert t['m_GameObject']['fileID'] in gos, f'Orphan transform {id}'
     parent=t['m_Father']['fileID']
-    if parent: assert id in [p['fileID'] for p in transforms[parent]['m_Children']],f'Missing hierarchy child {id}'
+    if parent:
+        parent_transform=transforms[parent]
+        if 'm_Children' in parent_transform:
+            assert id in [p['fileID'] for p in parent_transform['m_Children']],f'Missing hierarchy child {id}'
+        else:
+            overrides=opaque_instances[parent_transform['m_PrefabInstance']['fileID']]['m_Modification']
+            assert any(a['addedObject']['fileID']==id and a['targetCorrespondingSourceObject']==parent_transform['m_CorrespondingSourceObject']
+                       for a in overrides.get('m_AddedGameObjects',[])),f'Missing override adding {id} to a vendor rig'
     else: assert id in root_ids,f'Unregistered scene root {id}'
     assert not gos[t['m_GameObject']['fileID']]['m_Name'].startswith('Workerborn Harvest')
 for id,go in gos.items():
     for c in go['m_Component']: assert c['component']['fileID'] in ids,f'Missing component in {go["m_Name"]}'
 
 controller=behaviours(scene,'Village/VillagePrototype.cs');assert len(controller)==1
-for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','sun','farm','guideStage','fateGuide','guideCameraPose']:
+for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','guideStage','fateGuide','guideCameraPose']:
     assert controller[0][field]['fileID'],f'Missing binding: {field}'
+lighting=behaviours(scene,'World/VillageLighting.cs')[0]
+assert lighting['sun']['fileID'] and lighting['nightIntensity']>.6
+assert len(lighting['lanterns'])>=4 and all(lamp['fileID'] for lamp in lighting['lanterns'])
+effects=behaviours(scene,'World/VillageEffects.cs')[0]
+assert all(resolve(effects[name]).is_relative_to(CONTENT/'Prefabs/Effects') for name in ('click','itemLanding','itemPickup','levelUp'))
 assert not behaviours(scene,'HarvestPrototype.cs'),'Village must not generate its map from the harvest demo'
 crops=behaviours(scene,'HarvestableCrop.cs')
 assert Counter(docs(resolve(c['definition']))[0]['MonoBehaviour']['itemId'] for c in crops)=={'potato':24,'egg':2,'timber':3}
@@ -169,7 +184,11 @@ assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5
 for actor in actors:
     definition=docs(resolve(actor['npc']))[0]['MonoBehaviour']['appearance'] if actor['npc']['fileID'] else settings['player']
     appearance=docs(resolve(definition))[0]['MonoBehaviour']
-    assert appearance['basePrefab']['fileID'] and all(appearance[k]['fileID'] for k in ['idle','walk','work'])
+    look=docs(resolve(appearance['basePrefab']))
+    sources=[resolve(d['PrefabInstance']['m_SourcePrefab']).stem for d in look if 'PrefabInstance' in d]
+    assert {'M02_body','F02_body'} & set(sources) and any(name.startswith('C_hair_') for name in sources)
+    assert sum('SkinnedMeshRenderer' in d for d in look)>=2
+    assert all(appearance[k]['fileID'] for k in ['idle','walk','run','work'])
 parts=list((CONTENT/'Data/Characters/Parts').glob('*.asset'));assert len(parts)>=30
 assert {docs(p)[0]['MonoBehaviour']['slot'] for p in parts}>={0,1,2,3,4,6}
 
@@ -186,7 +205,7 @@ actions=json.loads(actions_path.read_text());maps={m['name']:m for m in actions[
 assert set(maps)=={'Gameplay','Camera','UI'}
 allids=[a['id']for m in maps.values()for a in m['actions']]+[b['id']for m in maps.values()for b in m['bindings']]
 assert len(allids)==len(set(allids))
-required={'Gameplay':{'Interact':'<Mouse>/leftButton','Target':'<Keyboard>/leftCtrl','Names':'<Keyboard>/leftAlt'},'Camera':{'OrbitMiddle':'<Mouse>/middleButton','OrbitRight':'<Mouse>/rightButton','Zoom':'<Mouse>/scroll/y'}}
+required={'Gameplay':{'Interact':'<Mouse>/leftButton','Target':'<Keyboard>/leftCtrl','Names':'<Keyboard>/leftAlt','Walk':'<Keyboard>/leftShift'},'Camera':{'OrbitMiddle':'<Mouse>/middleButton','OrbitRight':'<Mouse>/rightButton','Zoom':'<Mouse>/scroll/y'}}
 for mapname,bindings in required.items():
     for name,binding in bindings.items():assert any(b['action']==name and b['path']==binding for b in maps[mapname]['bindings'])
 assert len(behaviours(scene,'Interaction/WorkerbornInput.cs'))==1

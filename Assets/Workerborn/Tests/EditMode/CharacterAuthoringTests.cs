@@ -18,16 +18,17 @@ namespace Workerborn.Tests
             try
             {
                 var serialized = new SerializedObject(definition);
-                foreach (var pair in new[] { ("hair", "hair_3"), ("outfit", "thief_1"), ("eyes", "eye_1"), ("mouth", "mouth_1") })
-                    serialized.FindProperty(pair.Item1).objectReferenceValue = AssetDatabase.LoadAssetAtPath<CharacterPartDefinition>("Assets/Workerborn/Data/Characters/Parts/" + pair.Item2 + ".asset");
+                foreach (var pair in new[] { ("hair", "DarkCrop"), ("outfit", "VillageTravelwearM"), ("eyes", "SageEyes") })
+                    serialized.FindProperty(pair.Item1).objectReferenceValue = AssetDatabase.LoadAssetAtPath<CharacterPartDefinition>("Assets/Workerborn/Data/Characters/Parts/ModularAnime2/" + pair.Item2 + ".asset");
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 model = CharacterAssembler.Build(definition, null);
                 var rig = model.transform.GetChild(0);
                 var parts = model.GetComponentsInChildren<CharacterPartInstance>(true);
-                Assert.That(parts.Length, Is.EqualTo(4));
-                var head = rig.GetComponentsInChildren<Transform>(true).First(t => t.name == "head_dummy");
-                foreach (var part in parts.Where(p => p.Definition.Slot != CharacterPartSlot.Outfit))
-                    Assert.That(part.transform.parent, Is.EqualTo(head));
+                Assert.That(parts.Length, Is.EqualTo(2));
+                var head = rig.GetComponentsInChildren<Transform>(true).First(t => t.name == "CC_Base_Head");
+                Assert.That(parts.Single(p => p.Definition.Slot == CharacterPartSlot.Hair).transform.parent, Is.EqualTo(head));
+                var face = rig.GetComponentsInChildren<SkinnedMeshRenderer>().Single(renderer => renderer.name == "Head");
+                Assert.That(face.sharedMaterials[0].name, Is.EqualTo("SageEyes"));
                 var outfit = parts.First(p => p.Definition.Slot == CharacterPartSlot.Outfit);
                 var skins = outfit.GetComponentsInChildren<SkinnedMeshRenderer>(true);
                 Assert.That(skins.Length, Is.GreaterThan(0));
@@ -56,7 +57,8 @@ namespace Workerborn.Tests
                 var actors = roots.SelectMany(r => r.GetComponentsInChildren<CharacterActor>(true)).ToArray();
                 var crops = roots.SelectMany(r => r.GetComponentsInChildren<HarvestableCrop>(true)).ToArray();
                 Assert.That(actors.Length, Is.EqualTo(5));
-                Assert.That(actors.All(a => a.VisualRoot != null && a.Appearance != null && a.VisualRoot.GetComponentInChildren<Animator>(true) != null), Is.True);
+                Assert.That(actors.All(a => a.VisualRoot != null && a.Appearance != null && a.Appearance.Run != null
+                    && a.Appearance.Run != a.Appearance.Walk && a.VisualRoot.GetComponentInChildren<Animator>(true)?.avatar?.isHuman == true), Is.True);
                 Assert.That(crops.Count(c => c.Definition.ItemId == ItemIds.Potato), Is.EqualTo(24));
                 Assert.That(crops.Count(c => c.Definition.ItemId == ItemIds.Egg), Is.EqualTo(2));
                 Assert.That(crops.Count(c => c.Definition.ItemId == ItemIds.Timber), Is.EqualTo(3));

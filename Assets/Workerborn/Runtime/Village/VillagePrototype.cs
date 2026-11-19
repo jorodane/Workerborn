@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.Rendering;
 
 namespace Workerborn
 {
@@ -43,9 +42,9 @@ namespace Workerborn
         [SerializeField]
         private CropDefinition potato;
         [SerializeField]
-        private Light sun;
+        private VillageLighting lighting;
         [SerializeField]
-        private Light[] lanterns;
+        private VillageEffects effects;
         [SerializeField]
         private bool loadSavedGame = true;
         [SerializeField]
@@ -61,6 +60,7 @@ namespace Workerborn
         [SerializeField] private Transform guideCameraPose;
         public PointerTargeting Targeting => targeting;
         public Terrain GroundTerrain => navigation != null ? navigation.GroundTerrain : null;
+        public bool IsGround(Collider hit) => navigation != null && navigation.IsGround(hit);
         public RenderTexture NpcPortraitTexture => npcPortraitTexture;
 
         public void ShowNpcPortrait(CharacterActor actor)
@@ -173,6 +173,7 @@ namespace Workerborn
             worldCamera.GetComponent<CameraVisibility>()?.Initialize(player.transform);
             cameraRig.Initialize(worker.transform, this);
             RestoreWorldObjects();
+            lighting?.SetTime(State.Minute);
             initialized = true;
             nextSave = Time.unscaledTime + 15f;
             if (!string.IsNullOrEmpty(notice))
@@ -222,7 +223,8 @@ namespace Workerborn
                 return;
             }
 
-            driver.Initialize(actor.Animator, definition.Idle, idleOnly ? definition.Idle : definition.Walk, idleOnly ? definition.Idle : definition.Work);
+            driver.Initialize(actor.Animator, definition.Idle, idleOnly ? definition.Idle : definition.Run,
+                idleOnly ? definition.Idle : definition.Work, idleOnly ? definition.Idle : definition.Walk);
         }
 
         private void ApplyWorldStage()
@@ -269,7 +271,7 @@ namespace Workerborn
             return null;
         }
 
-        public void OpenConversation(VillageInteractable target)
+        public void OpenConversation(VillageInteractable target, DialogueAction? topic = null)
         {
             worker.Cancel();
             if (target.Role == VillageRole.Farmer)
@@ -282,7 +284,7 @@ namespace Workerborn
                     target.transform.rotation = Quaternion.LookRotation(forward);
             }
 
-            hud.OpenDialogue(target);
+            hud.OpenDialogue(target, topic);
         }
 
         private int BaseWorkCost(CropDefinition work) => work.StaminaCost > 0 ? work.StaminaCost : State.Rules.HarvestEnergy;
@@ -313,31 +315,61 @@ namespace Workerborn
                 hud.ShowFloatingText(crop.transform.position + Vector3.up, "실패", new Color(1f, .65f, .55f));
                 return;
             }
-            pickups.RemoveAll(item => item == null);
             Vector3 towardWorker = Vector3.Lerp(crop.transform.position, worker.transform.position, .65f);
             Vector3 end = SurfacePosition(towardWorker.x, towardWorker.z) + Vector3.up * .08f;
-            SpawnPickup(work, count, crop.transform.position + Vector3.up * .5f, end);
+            var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
+            if (prefab != null)
+                SpawnPickup(prefab, work, count, crop.transform.position + Vector3.up * .5f, end);
+            else
+                Debug.LogError("Assign a ground-item prefab to " + work.name, this);
 
             if (outcome == WorkOutcome.Lucky || outcome == WorkOutcome.GreatLucky)
                 hud.ShowFloatingText(crop.transform.position + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "+" + State.Rules.HarvestExperience + " EXP", Color.white);
-            if (State.Level > level)
-                hud.ShowFloatingText(worker.transform.position + Vector3.up * 2.3f, "LEVEL UP", new Color(1f, 0.88f, 0.5f));
+            ShowLevelUp(level);
         }
 
-        private void SpawnPickup(CropDefinition definition, int quantity, Vector3 start, Vector3 end)
+        private void SpawnPickup(GroundPickup prefab, CropDefinition definition, int quantity, Vector3 start, Vector3 end)
         {
-            var prefab = definition.PickupPrefab != null ? definition.PickupPrefab : settings.FindItem(definition.ItemId)?.GroundPrefab;
-            if (prefab == null)
-            {
-                Debug.LogError("Assign a ground-item prefab to " + definition.name, this);
-                return;
-            }
-
+            pickups.RemoveAll(item => item == null);
             var item = Instantiate(prefab, droppedItems);
             item.SetQuantity(quantity);
             item.Initialize(definition, start, end);
+            if (effects != null)
+                item.Landed += effects.PlayLanding;
             pickups.Add(item);
+        }
+
+        public void ShowClick(Vector3 position) => effects?.PlayClick(SurfacePosition(position.x, position.z) + Vector3.up * .04f);
+
+        internal GroundPickup DropPrefabFor(InventoryEntry entry)
+        {
+            if (entry != null && !(entry.ItemId == ItemIds.Bag && State.BagExpanded) &&
+                settings.FindItem(entry.ItemId)?.GroundPrefab is GroundPickup prefab &&
+                prefab.ItemId == entry.ItemId)
+                return prefab;
+            hud.ShowToast("이 아이템은 바닥에 놓을 수 없어요.");
+            return null;
+        }
+
+        internal bool PlaceInventoryDrop(InventoryEntry request, Vector3 destination)
+        {
+            var entry = State.Inventory.Find(request.Id);
+            if (entry == null || entry.ItemId != request.ItemId || entry.Quantity != request.Quantity)
+            {
+                hud.ShowToast("아이템 수량이 바뀌었습니다. 다시 놓아 주세요.");
+                return false;
+            }
+            var prefab = DropPrefabFor(entry);
+            if (prefab == null || !State.Inventory.TryRemoveAt(entry.Id, entry.Quantity))
+                return false;
+
+            var end = SurfacePosition(destination.x, destination.z) + Vector3.up * .08f;
+            SpawnPickup(prefab, null, request.Quantity,
+                worker.transform.position + Vector3.up * .45f, end);
+            hud.RefreshWindows();
+            SaveGame(false);
+            return true;
         }
 
         public bool TryCollectPickup(GroundPickup item)
@@ -351,10 +383,12 @@ namespace Workerborn
                 return false;
             }
 
+            Vector3 itemPosition = item.transform.position;
             if (!item.TryCollect(() => State.Inventory.TryAdd(id, item.Quantity)))
                 return false;
             if (!string.IsNullOrEmpty(item.PersistentId))
                 collectedPickups.Add(item.PersistentId);
+            effects?.PlayPickup(itemPosition + Vector3.up * .12f);
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.5f, item.DisplayName + " +" + item.Quantity, Color.white);
             return true;
         }
@@ -363,13 +397,20 @@ namespace Workerborn
         {
             int level = State.Level;
             bool success = operation();
-            if (State.Level > level)
-                hud.ShowFloatingText(worker.transform.position + Vector3.up * 2.1f, "LEVEL UP", new Color(1f, 0.88f, 0.5f));
+            ShowLevelUp(level);
             hud.ShowToast(State.LastMessage);
             hud.RefreshWindows();
             if (success)
                 SaveGame(false);
             return success;
+        }
+
+        private void ShowLevelUp(int previousLevel)
+        {
+            if (State.Level <= previousLevel)
+                return;
+            effects?.PlayLevelUp(worker.transform.position);
+            hud.ShowFloatingText(worker.transform.position + Vector3.up * 2.1f, "LEVEL UP", new Color(1f, 0.88f, 0.5f));
         }
 
         public void Sleep(bool paidRoom)
@@ -586,21 +627,7 @@ namespace Workerborn
 
             if (Time.unscaledTime >= nextSave)
                 SaveGame(false);
-            float daylight = Mathf.Clamp01(Mathf.Sin((State.Minute - 360f) / 1440f * Mathf.PI * 2f) * 2f);
-            if (sun != null)
-            {
-                sun.transform.rotation = Quaternion.Euler(Mathf.Lerp(15f, 150f, State.Minute / 1440f), -35f, 0f);
-                sun.intensity = Mathf.Lerp(0.15f, 1.5f, daylight);
-            }
-
-            worldCamera.backgroundColor = Color.Lerp(new Color(0.15f, 0.2f, 0.3f), new Color(0.75f, 0.84f, 0.82f), daylight);
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = Color.Lerp(new Color(0.24f, 0.29f, 0.41f), new Color(0.79f, 0.84f, 0.77f), daylight);
-            RenderSettings.ambientEquatorColor = Color.Lerp(new Color(0.15f, 0.22f, 0.29f), new Color(0.54f, 0.61f, 0.49f), daylight);
-            if (lanterns != null)
-                foreach (var lamp in lanterns)
-                    if (lamp != null)
-                        lamp.enabled = daylight < 0.3f;
+            lighting?.SetTime(State.Minute);
         }
 
         private void OnDestroy()

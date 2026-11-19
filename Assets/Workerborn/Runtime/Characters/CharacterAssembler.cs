@@ -25,14 +25,17 @@ namespace Workerborn
                 string name = renderer.name.ToLowerInvariant();
                 if (definition.HideBaseWeapons && IsWeapon(name))
                     renderer.enabled = false;
-                if (definition.HideBaseHair && name.StartsWith("hair_"))
+                if (definition.HideBaseHair && Matches(name, CharacterPartSlot.Hair))
                     renderer.enabled = false;
             }
 
             foreach (var part in definition.Parts)
             {
                 if (part.Prefab == null)
+                {
+                    ApplyMaterialPart(part, baseRenderers);
                     continue;
+                }
                 if (AttachPart(part, rig.transform, bones) == null)
                     continue;
                 foreach (var renderer in baseRenderers)
@@ -74,6 +77,21 @@ namespace Workerborn
             }
 
             return root;
+        }
+
+        private static void ApplyMaterialPart(CharacterPartDefinition part, Renderer[] renderers)
+        {
+            if (string.IsNullOrEmpty(part.MaterialRenderer) || part.Materials == null || part.Materials.Length != 1 || part.Materials[0] == null)
+                return;
+            var renderer = Array.Find(renderers, mesh => mesh.name == part.MaterialRenderer);
+            if (renderer == null)
+                return;
+            var materials = renderer.sharedMaterials;
+            if (part.MaterialIndex >= 0 && part.MaterialIndex < materials.Length)
+            {
+                materials[part.MaterialIndex] = part.Materials[0];
+                renderer.sharedMaterials = materials;
+            }
         }
 
         public static GameObject AttachPart(CharacterPartDefinition part, Transform rig, Dictionary<string, Transform> bones = null)
@@ -171,9 +189,9 @@ namespace Workerborn
                 string name = renderer.name.ToLowerInvariant();
                 if (definition.HideBaseWeapons && IsWeapon(name))
                     renderer.enabled = false;
-                if (definition.HideBaseHair && name.StartsWith("hair_"))
+                if (definition.HideBaseHair && Matches(name, CharacterPartSlot.Hair))
                     renderer.enabled = false;
-                if (name == "char_head" || name == "char_body")
+                if (name == "char_head" || name == "char_body" || name.StartsWith("m02_body_") || name.StartsWith("f02_body_"))
                     Tint(renderer, definition.SkinTint);
                 else if (Matches(name, CharacterPartSlot.Outfit))
                     Tint(renderer, definition.ClothingTint);
@@ -211,9 +229,9 @@ namespace Workerborn
             switch (slot)
             {
                 case CharacterPartSlot.Hair:
-                    return name.StartsWith("hair_");
+                    return name.StartsWith("hair_") || name.StartsWith("c_hair_");
                 case CharacterPartSlot.Outfit:
-                    return name == "char_body" || name.StartsWith("warrior_") || name.StartsWith("thief_") || name.StartsWith("archer_");
+                    return name == "char_body" || name.StartsWith("outfit_") || name.StartsWith("warrior_") || name.StartsWith("thief_") || name.StartsWith("archer_");
                 case CharacterPartSlot.Eyes:
                     return name.StartsWith("eye_");
                 case CharacterPartSlot.Eyebrows:

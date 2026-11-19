@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Workerborn
@@ -30,6 +31,31 @@ namespace Workerborn
         protected override void Interact(HarvestWorker worker) => worker.CommandInteract(this);
         protected override void OnArrived(VillagePrototype village, HarvestWorker worker) => village?.OpenConversation(this);
         public Vector3 LabelPosition => NamePosition;
+
+        public bool IsTopicAvailable(VillagePrototype village, DialogueAction action)
+        {
+            if (Role != VillageRole.Farmer)
+                return true;
+            return village.State.FarmAvailable ? action != DialogueAction.Foundation : action == DialogueAction.Foundation;
+        }
+
+        public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
+        {
+            base.AddContextActions(village, actions);
+            if (Role == VillageRole.NoticeBoard || Definition?.Dialogue?.Topics == null)
+                return;
+            foreach (var topic in Definition.Dialogue.Topics)
+            {
+                var action = topic.action;
+                if (action == DialogueAction.Greeting || string.IsNullOrWhiteSpace(topic.keyword) || !IsTopicAvailable(village, action))
+                    continue;
+                actions.Add(new WorldContextAction(topic.keyword, () =>
+                {
+                    if (BeginInteraction(village.Worker))
+                        village.Worker.CommandApproach(this, () => village.OpenConversation(this, action));
+                }));
+            }
+        }
 
         public void Initialize(VillageRole role, string displayName, string subtitle)
         {
