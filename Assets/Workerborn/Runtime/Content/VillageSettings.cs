@@ -16,6 +16,8 @@ namespace Workerborn
         [SerializeField]
         private QuestDefinition expansionQuest;
         [SerializeField]
+        private QuestDefinition farmFoundation;
+        [SerializeField]
         private CharacterDefinition player;
         [SerializeField]
         private TMP_FontAsset interfaceFont;
@@ -98,7 +100,9 @@ namespace Workerborn
             {
                 rules.JobTitle = jobDefinition.Title;
                 rules.JobId = jobDefinition.Id;
+                rules.JobDescription = jobDefinition.Description;
                 rules.JobItemId = jobDefinition.Item != null ? jobDefinition.Item.Id : ItemIds.Potato;
+                rules.JobDocumentItemId = jobDefinition.ContractItem?.Id;
                 rules.JobStart = jobDefinition.StartMinute;
                 rules.JobEnd = jobDefinition.EndMinute;
                 var tiers = jobDefinition.Tiers;
@@ -106,7 +110,8 @@ namespace Workerborn
                 {
                     rules.JobTiers = new JobTier[tiers.Length];
                     for (int i = 0; i < tiers.Length; i++)
-                        rules.JobTiers[i] = new JobTier(tiers[i].requiredCompletions, tiers[i].quantity, tiers[i].gold, tiers[i].experience);
+                        rules.JobTiers[i] = new JobTier(tiers[i].requiredCompletions, tiers[i].quantity, tiers[i].gold, tiers[i].experience,
+                            tiers[i].rewardItem?.Id, tiers[i].rewardItem != null ? tiers[i].rewardItemCount : 0);
                 }
 
                 rules.WorldJobQuantity = jobDefinition.ExtraQuantity;
@@ -135,6 +140,18 @@ namespace Workerborn
                 rules.DonationItemStep = expansion.ItemsPerContribution;
                 rules.ExpandedStage = expansion.ResultingWorldStage;
             }
+
+            if (farmFoundation != null && farmFoundation.ContractItem != null && farmFoundation.ContributionItem != null)
+                rules.Foundation = new FarmFoundationRules
+                {
+                    Title = farmFoundation.Title,
+                    Description = farmFoundation.Description,
+                    DocumentItemId = farmFoundation.ContractItem.Id,
+                    TimberItemId = farmFoundation.ContributionItem.Id,
+                    TimberCount = farmFoundation.RequiredItems,
+                    RewardAP = farmFoundation.RewardAP,
+                    RewardExperience = farmFoundation.RewardExperience
+                };
 
             return rules;
         }

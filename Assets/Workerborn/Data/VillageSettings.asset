@@ -35,6 +35,11 @@ MonoBehaviour:
   - fileID: 11400000
     guid: 6de5ad19e9765aeba9e31a1e72b56c89
     type: 2
+  - {fileID: 11400000, guid: f799ea29c7015a35b22d16958d15ffde, type: 2}
+  - {fileID: 11400000, guid: 4e56cd6ed70b5d8b9ce7e3011d8a40e0, type: 2}
+  - {fileID: 11400000, guid: fb89a1163c7f57bf89f3be42a30ab97c, type: 2}
+  - {fileID: 11400000, guid: 4aca5391145a59108b6ae8cb1db30b35, type: 2}
+  - {fileID: 11400000, guid: a6775afb11c05a77a0b1f68fa97eebd7, type: 2}
   defaultJob:
     fileID: 11400000
     guid: 1d7c5edaa4915cc08ad45cc31d2a79e7
@@ -51,7 +56,10 @@ MonoBehaviour:
     fileID: 11400000
     guid: 1ba8002aba425f66a1f39dff4e92351b
     type: 2
-  interfaceFont: {fileID: 11400000, guid: 983a7b11a9c95d02b17b50fcf036fa03, type: 2}
+  interfaceFont:
+    fileID: 11400000
+    guid: 983a7b11a9c95d02b17b50fcf036fa03
+    type: 2
   minutesPerSecond: 3
   wakeHour: 6
   collapseHour: 24
@@ -62,3 +70,4 @@ MonoBehaviour:
   apPerLevel: 2
   harvestExperience: 8
   harvestEnergy: 5
+  farmFoundation: {fileID: 11400000, guid: 077e12d014f15e7a98111c8bfcdfa87b, type: 2}

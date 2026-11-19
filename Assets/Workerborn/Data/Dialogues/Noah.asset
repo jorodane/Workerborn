@@ -3,13 +3,20 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c880f5978ffe5d1db7d7be853c9cc17c, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: c880f5978ffe5d1db7d7be853c9cc17c
+    type: 3
   m_Name: Noah
   m_EditorClassIdentifier: ''
   topics:
@@ -18,4 +25,4 @@ MonoBehaviour:
     text: 어서 와. 오늘도 쓸 만한 물건을 가져왔어.
   - keyword: 거래
     action: 4
-    text: 필요한 물건을 골라 봐. 수확한 감자도 매입하고 있어.
+    text: 달걀, 목재와 감자를 사들이고 있어. 팔 물건을 집어 매입 칸에 놓아 줘.

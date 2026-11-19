@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: egg
+  m_EditorClassIdentifier: ''
+  id: egg
+  displayName: 달걀
+  description: 맨손으로 모은 달걀. 잡화점에서 한 개에 4G를 받습니다.
+  icon: {fileID: 21300000, guid: b326b971adc75cfb87dcff75006cb978, type: 3}
+  worldPrefab: {fileID: 4574704123574907231, guid: b726332c84a54b145b86b07829497c34, type: 3}
+  width: 1
+  height: 1
+  maxStack: 999
+  price: 4
+  equipmentSlot: 0
+  equipmentPart: {fileID: 0}
+  groundPrefab: {fileID: 100008, guid: 336b14261a355917a46d236f1e26ecb8, type: 3}

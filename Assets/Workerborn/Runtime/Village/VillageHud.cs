@@ -214,6 +214,7 @@ namespace Workerborn
             skillBubble.gameObject.SetActive(active != null && !HasModal);
             if (active != null && !HasModal)
             {
+                skillBalloon.SetIcon(active.Definition.SkillIcon);
                 skillBalloon.SetProgress(active.Progress);
                 PlaceWorld(skillBubble, worker.transform.position + Vector3.up * skillWorldHeight);
             }
@@ -310,10 +311,12 @@ namespace Workerborn
             OpenWindow(id)?.Refresh();
         }
 
-        public void OpenQuestDetail(bool expansion)
+        public void OpenQuestDetail(bool expansion) => OpenQuestDetail(expansion ? VillageQuestPage.Expansion : VillageQuestPage.FirstWork);
+
+        public void OpenQuestDetail(VillageQuestPage page)
         {
             var view = OpenWindow("questdetail") as QuestDetailWindowView;
-            view?.Select(expansion);
+            view?.Select(page);
         }
 
         public void OpenShop(VillageInteractable npc)
@@ -336,6 +339,11 @@ namespace Workerborn
                 return;
             string id = item.ItemId;
             CancelItemDrag();
+            if (game.State.TryGetDocumentPage(id, out _))
+            {
+                ShowToast("계약서는 판매할 수 없습니다.");
+                return;
+            }
             OpenQuantity(id, true);
         }
 

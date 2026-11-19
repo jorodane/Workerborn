@@ -13,11 +13,16 @@ namespace Workerborn
 
         public void CloseDialogue()
         {
+            bool leavingGuide = dialogueTarget != null && dialogueTarget.Role == VillageRole.Guide;
             dialogueTarget = null;
             if (views.TryGetValue("conversation", out var view))
                 view.gameObject.SetActive(false);
             if (game != null)
+            {
                 game.ShowNpcPortrait(null);
+                if (leavingGuide)
+                    game.FinishGuideVisit();
+            }
         }
     }
 }

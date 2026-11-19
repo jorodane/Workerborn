@@ -76,15 +76,15 @@ namespace Workerborn.Tests
         {
             var state = new VillageState();
             state.Inventory.TryAdd(ItemIds.Hoe, 1);
-            float rate = state.WorkRate;
+            int cost = state.HarvestEnergyCost;
             Assert.That(state.HasHoe, Is.False);
             Assert.That(state.TryEquip(state.Inventory.Entries[0].Id), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.Hoe), Is.Zero);
-            Assert.That(state.WorkRate, Is.GreaterThan(rate));
+            Assert.That(state.HarvestEnergyCost, Is.EqualTo(cost - 1));
             var restored = VillageState.Restore(state.Export());
             Assert.That(restored.HasHoe, Is.True);
             Assert.That(restored.TryUnequip(EquipmentSlot.MainHand), Is.True);
-            Assert.That(restored.WorkRate, Is.EqualTo(rate));
+            Assert.That(restored.HarvestEnergyCost, Is.EqualTo(cost));
             Assert.That(restored.Inventory.Count(ItemIds.Hoe), Is.EqualTo(1));
         }
 
@@ -108,7 +108,7 @@ namespace Workerborn.Tests
             Assert.That(state.Inventory.Rows, Is.GreaterThan(4));
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(640));
             var saved = state.Export();
-            Assert.That(saved.schema, Is.EqualTo(2)); Assert.That(saved.gold, Is.Zero);
+            Assert.That(saved.schema, Is.EqualTo(3)); Assert.That(saved.gold, Is.Zero);
             Assert.That(VillageState.Restore(saved).Gold, Is.EqualTo(2500));
         }
 

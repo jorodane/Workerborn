@@ -67,6 +67,12 @@ namespace Workerborn
             }
 
             selectedEntry = id;
+            var item = game.State.Inventory.Find(id);
+            if (item != null && game.State.TryGetDocumentPage(item.ItemId, out var page))
+            {
+                OpenQuestDetail(page);
+                return;
+            }
             if (WorkerbornInput.Held("Gameplay/Target"))
             {
                 UseSelectedInventoryItem();
@@ -82,7 +88,9 @@ namespace Workerborn
             var item = game.State.Inventory.Find(selectedEntry);
             if (item == null)
                 return;
-            if (item.ItemId == ItemIds.Bread)
+            if (game.State.TryGetDocumentPage(item.ItemId, out var page))
+                OpenQuestDetail(page);
+            else if (item.ItemId == ItemIds.Bread)
                 game.Perform(game.State.TryEatBread);
             else if (item.Spec.EquipmentSlot != EquipmentSlot.None)
                 game.Perform(() => game.State.TryEquip(item.Id));
@@ -166,6 +174,13 @@ namespace Workerborn
 
         public void SplitSelectedInventoryItem()
         {
+            var item = game.State.Inventory.Find(selectedEntry);
+            if (item != null && game.State.TryGetDocumentPage(item.ItemId, out _))
+            {
+                CloseItemContext();
+                BeginItemDrag(item.Id, WorkerbornInput.Point);
+                return;
+            }
             bool success = game.State.Inventory.TrySplit(selectedEntry);
             CloseItemContext();
             if (success)

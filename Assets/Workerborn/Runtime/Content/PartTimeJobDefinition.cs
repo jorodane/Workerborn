@@ -9,6 +9,8 @@ namespace Workerborn
         [Min(1)] public int quantity = 6;
         [Min(0)] public int gold = 45;
         [Min(0)] public int experience = 35;
+        public ItemDefinition rewardItem;
+        [Min(0)] public int rewardItemCount;
     }
 
     [CreateAssetMenu(menuName = "Workerborn/Content/Part-time Job", fileName = "Job")]
@@ -18,6 +20,7 @@ namespace Workerborn
         [SerializeField] private string title = "감자 납품";
         [SerializeField, TextArea(3, 8)] private string description;
         [SerializeField] private ItemDefinition item;
+        [SerializeField] private ItemDefinition contractItem;
         [SerializeField, Range(0, 23)] private int startHour = 8;
         [SerializeField, Range(1, 24)] private int endHour = 18;
         [SerializeField] private JobTierDefinition[] tiers = { new JobTierDefinition() };
@@ -30,6 +33,7 @@ namespace Workerborn
         public string Title => title;
         public string Description => description;
         public ItemDefinition Item => item;
+        public ItemDefinition ContractItem => contractItem;
         public int StartMinute => startHour * 60;
         public int EndMinute => endHour * 60;
         public JobTierDefinition[] Tiers => tiers;

@@ -6,10 +6,24 @@ namespace Workerborn
         public int Quantity;
         public int Gold;
         public int Experience;
-        public JobTier(int required, int quantity, int gold, int experience)
+        public string RewardItemId;
+        public int RewardItemCount;
+        public JobTier(int required, int quantity, int gold, int experience, string rewardItemId = null, int rewardItemCount = 0)
         {
             RequiredCompletions = required; Quantity = quantity; Gold = gold; Experience = experience;
+            RewardItemId = rewardItemId; RewardItemCount = rewardItemCount;
         }
+    }
+
+    public sealed class FarmFoundationRules
+    {
+        public string Title;
+        public string Description;
+        public string TimberItemId;
+        public int TimberCount;
+        public string DocumentItemId;
+        public int RewardAP;
+        public int RewardExperience;
     }
 
     public sealed class VillageRules
@@ -26,7 +40,9 @@ namespace Workerborn
         public int HarvestEnergy = 5;
         public string JobId = "potato_delivery";
         public string JobTitle = "감자 납품";
+        public string JobDescription = "";
         public string JobItemId = ItemIds.Potato;
+        public string JobDocumentItemId;
         public int JobStart = 480;
         public int JobEnd = 1080;
         public JobTier[] JobTiers = { new JobTier(0, 6, 45, 35), new JobTier(3, 10, 80, 60), new JobTier(8, 16, 140, 100) };
@@ -47,5 +63,6 @@ namespace Workerborn
         public int DonationGoldStep = 25;
         public int DonationItemStep = 5;
         public int ExpandedStage = 2;
+        public FarmFoundationRules Foundation;
     }
 }

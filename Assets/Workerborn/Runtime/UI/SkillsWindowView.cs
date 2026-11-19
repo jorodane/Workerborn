@@ -40,11 +40,11 @@ namespace Workerborn
                 "8",
                 "7"
             }[state.SkillRank];
-            harvest.Bind("수확", $"생활  ·  랭크 {rank}", Game.Settings.FindItem(ItemIds.Hoe)?.Icon, state.SkillRank / 8f, null);
+            harvest.Bind("채집", $"생활  ·  랭크 {rank}", Game.Settings.FindItem(ItemIds.Hoe)?.Icon, state.SkillRank / 8f, null);
             ap.text = $"어빌리티 포인트  {state.AP}";
             advanceText.text = $"승급  AP {state.NextSkillCost}";
             advance.interactable = state.SkillRank < 8 && state.AP >= state.NextSkillCost;
-            details.text = $"작업 속도 ×{state.WorkRate:0.00}\n스태미나 소모 {state.HarvestEnergyCost}\n럭키 보너스 {10 + state.SkillRank * 2}%";
+            details.text = $"채집량 ×{state.YieldMultiplier}\n럭키 보너스 ×2\n대박 보너스 ×50";
         }
     }
 }

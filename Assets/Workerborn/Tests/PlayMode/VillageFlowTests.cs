@@ -18,6 +18,7 @@ namespace Workerborn.Tests
         {
             saveDirectory = Path.Combine(Application.temporaryCachePath, "workerborn-test-" + Guid.NewGuid().ToString("N"));
             VillageSaveStore.DirectoryOverride = saveDirectory;
+            Assert.That(VillageSaveStore.TrySave(new VillageSave { schema = 2 }, out _), Is.True);
             yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
             yield return null;
             game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
@@ -64,17 +65,14 @@ namespace Workerborn.Tests
         public IEnumerator HarvestPickUpDeliverClaimQuestAndRebirth()
         {
             Assert.That(game.Perform(game.State.TryAcceptJob), Is.True);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < game.Crops.Count && game.State.Inventory.Count(ItemIds.Potato) < game.State.JobRequirement; i++)
             {
                 var crop = game.Crops[i];
                 game.Worker.CommandHarvest(crop);
                 yield return Until(() => crop.Remaining == crop.Capacity - 1, 12f);
-            }
-
-            while (game.State.Inventory.Count(ItemIds.Potato) < 6)
-            {
                 var item = UnityEngine.Object.FindFirstObjectByType<GroundPickup>();
-                Assert.That(item, Is.Not.Null);
+                if (item == null)
+                    continue; // A failed work attempt yields no drop.
                 int before = game.State.Inventory.Count(ItemIds.Potato);
                 game.Worker.CommandPickup(item);
                 yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) > before, 8f);

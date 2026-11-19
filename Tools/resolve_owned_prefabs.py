@@ -50,7 +50,45 @@ def expand(path, include_vendor_geometry=False):
             else:new=mod['value']
             current[key]=new
         root=next(d for d in cloned if ('Transform'in d or 'RectTransform'in d) and 'm_GameObject'in body(d) and body(d).get('m_Father',{}).get('fileID')==0)
-        body(root)['m_Father']=chosen['PrefabInstance']['m_Modification']['m_TransformParent']
+        overrides=chosen['PrefabInstance']['m_Modification']
+        body(root)['m_Father']=overrides['m_TransformParent']
+        # A scene root can reference the prefab instance handle instead of a stripped Transform.
+        for d in result:
+            for slot in d.get('SceneRoots',{}).get('m_Roots',[]):
+                if slot['fileID']==instance_id:
+                    slot['fileID']=root['_id']
+        # Unity saves structural overrides separately from property modifications.
+        # Follow the added child's actual local transform alias, not the vendor asset.
+        for added in overrides.get('m_AddedGameObjects',[]):
+            parent=indexed.get(ids.get(added['targetCorrespondingSourceObject']['fileID']))
+            if parent and ('Transform' in parent or 'RectTransform' in parent):
+                children=body(parent).setdefault('m_Children',[])
+                at=added.get('insertIndex',-1)
+                children.insert(at if at>=0 else len(children),added['addedObject'])
+        removed_gos={ids[p['fileID']] for p in overrides.get('m_RemovedGameObjects',[]) if p['fileID'] in ids}
+        removed_ids=set(removed_gos)
+        if removed_gos:
+            transforms={d['_id']:body(d) for d in cloned if 'Transform' in d or 'RectTransform' in d}
+            def remove_branch(tid):
+                removed_ids.add(tid)
+                transform=transforms.get(tid)
+                if transform is None:return
+                go=transform.get('m_GameObject',{}).get('fileID')
+                if go in indexed:
+                    removed_ids.add(go)
+                    removed_ids.update(c['component']['fileID'] for c in body(indexed[go]).get('m_Component',[]))
+                instance=transform.get('m_PrefabInstance',{}).get('fileID')
+                if instance:
+                    removed_ids.add(instance)
+                for child in transform.get('m_Children',[]):
+                    remove_branch(child['fileID'])
+            for tid,transform in transforms.items():
+                if transform.get('m_GameObject',{}).get('fileID') in removed_gos:
+                    remove_branch(tid)
+            for transform in transforms.values():
+                if 'm_Children' in transform:
+                    transform['m_Children']=[c for c in transform['m_Children'] if c['fileID'] not in removed_ids]
+            cloned=[d for d in cloned if d['_id'] not in removed_ids and body(d).get('m_PrefabInstance',{}).get('fileID') not in removed_ids]
         deleted={d['_id']for d in aliases}|{instance_id}
         result=[d for d in result if d['_id']not in deleted]+cloned
     raise AssertionError('Recursive or unexpectedly deep project-owned prefab graph')

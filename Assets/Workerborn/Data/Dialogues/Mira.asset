@@ -3,13 +3,20 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c880f5978ffe5d1db7d7be853c9cc17c, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: c880f5978ffe5d1db7d7be853c9cc17c
+    type: 3
   m_Name: Mira
   m_EditorClassIdentifier: ''
   topics:
@@ -25,3 +32,6 @@ MonoBehaviour:
   - keyword: 마을 농장
     action: 3
     text: 모두가 조금씩 힘을 보태면 농장을 넓힐 수 있어.
+  - keyword: 농장 건설
+    action: 7
+    text: 목재를 모으면 농장을 지을 수 있어. 광장 가장자리의 암탉에게서 달걀을 모아 노아에게 팔아 봐. 도끼를 사서 주무기에 장착한 다음, 마을 서쪽의 소나무를 베면 돼.

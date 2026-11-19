@@ -54,6 +54,11 @@ namespace Workerborn
         private NpcPortrait npcPortrait;
         [SerializeField]
         private RenderTexture npcPortraitTexture;
+        [Header("Farm foundation")]
+        [SerializeField] private Transform farm;
+        [SerializeField] private GameObject guideStage;
+        [SerializeField] private VillageInteractable fateGuide;
+        [SerializeField] private Transform guideCameraPose;
         public PointerTargeting Targeting => targeting;
         public Terrain GroundTerrain => navigation != null ? navigation.GroundTerrain : null;
         public RenderTexture NpcPortraitTexture => npcPortraitTexture;
@@ -69,6 +74,9 @@ namespace Workerborn
         private readonly List<HarvestableCrop> crops = new List<HarvestableCrop>();
         private readonly List<VillageInteractable> npcs = new List<VillageInteractable>();
         private readonly List<GroundPickup> pickups = new List<GroundPickup>();
+        private VillageFarmSite[] farmSites;
+        private Vector3 originalFarmPosition;
+        private bool restoreCameraVisibility;
         private VillageWorldStage[] stages;
         private VillageSave restoredWorld;
         private float nextSave;
@@ -123,6 +131,9 @@ namespace Workerborn
             allCrops.AddRange(mapRoot.GetComponentsInChildren<HarvestableCrop>(true));
             npcs.AddRange(mapRoot.GetComponentsInChildren<VillageInteractable>(true));
             stages = mapRoot.GetComponentsInChildren<VillageWorldStage>(true);
+            farmSites = mapRoot.GetComponentsInChildren<VillageFarmSite>(true);
+            if (farm != null)
+                originalFarmPosition = farm.position;
             var rules = settings.CreateRules(FindInteraction(VillageRole.Farmer)?.Definition);
             State = new VillageState(rules);
             string notice = null;
@@ -139,10 +150,10 @@ namespace Workerborn
             }
 
             ApplyWorldStage();
-            navigation.Activate();
+            navigation.Activate(useBakedData: State.FarmAvailable && string.IsNullOrEmpty(State.FarmSiteId));
             var agent = worker.GetComponent<NavMeshAgent>();
             agent.enabled = true;
-            if (NavMesh.SamplePosition(spawnPoint.position, out var initialPosition, 2f, NavMesh.AllAreas))
+            if (NavMesh.SamplePosition(SurfacePosition(spawnPoint.position.x, spawnPoint.position.z), out var initialPosition, 2f, NavMesh.AllAreas))
                 agent.Warp(initialPosition.position);
             BindCharacter(player, false);
             worker.Initialize(worldCamera, player.GetComponent<WorkerAnimation>());
@@ -168,6 +179,39 @@ namespace Workerborn
                 hud.ShowToast(notice);
         }
 
+        private void Start()
+        {
+            if (initialized)
+                OpenGuideIfNeeded();
+        }
+
+        private void OpenGuideIfNeeded()
+        {
+            if (!State.NeedsGuide || guideStage == null || fateGuide == null || guideCameraPose == null)
+                return;
+            guideStage.SetActive(true);
+            var actor = fateGuide.GetComponent<CharacterActor>();
+            if (actor != null)
+                BindCharacter(actor, true);
+            var visibility = worldCamera.GetComponent<CameraVisibility>();
+            restoreCameraVisibility = visibility != null && visibility.enabled;
+            if (restoreCameraVisibility)
+                visibility.enabled = false;
+            cameraRig.SetViewOverride(guideCameraPose);
+            hud.OpenDialogue(fateGuide);
+        }
+
+        public void FinishGuideVisit()
+        {
+            cameraRig.SetViewOverride(null);
+            if (guideStage != null)
+                guideStage.SetActive(false);
+            if (restoreCameraVisibility && worldCamera.TryGetComponent<CameraVisibility>(out var visibility))
+                visibility.enabled = true;
+            State.FinishGuideVisit();
+            SaveGame(false);
+        }
+
         private static void BindCharacter(CharacterActor actor, bool idleOnly)
         {
             var definition = actor.Appearance;
@@ -183,12 +227,38 @@ namespace Workerborn
 
         private void ApplyWorldStage()
         {
+            if (farm != null)
+            {
+                var site = FindFarmSite(State.FarmSiteId);
+                farm.position = site != null && State.FarmAvailable ? site.FarmOrigin.position : originalFarmPosition;
+                farm.gameObject.SetActive(State.FarmAvailable);
+            }
+            foreach (var plot in farmSites)
+                plot.gameObject.SetActive(!State.FarmAvailable);
             foreach (var stage in stages)
                 stage.Apply(State.FarmLevel);
             crops.Clear();
             foreach (var crop in allCrops)
-                if (crop.gameObject.activeInHierarchy)
+                if (crop.gameObject.activeInHierarchy && crop.Definition != null && crop.Definition.ItemId == ItemIds.Potato)
                     crops.Add(crop);
+        }
+
+        private VillageFarmSite FindFarmSite(string id)
+        {
+            if (!string.IsNullOrEmpty(id))
+                foreach (var site in farmSites)
+                    if (site.SiteId == id)
+                        return site;
+            return null;
+        }
+
+        public string FarmSiteName => FindFarmSite(State.FarmSiteId)?.DisplayName ?? "";
+
+        public bool ChooseFarmSite(VillageFarmSite site)
+        {
+            if (site == null || site != FindFarmSite(site.SiteId))
+                return false;
+            return Perform(() => State.TryChooseFarmSite(site.SiteId, site.DisplayName));
         }
 
         public VillageInteractable FindInteraction(VillageRole role)
@@ -215,37 +285,47 @@ namespace Workerborn
             hud.OpenDialogue(target);
         }
 
-        public bool CanHarvest()
+        private int BaseWorkCost(CropDefinition work) => work.StaminaCost > 0 ? work.StaminaCost : State.Rules.HarvestEnergy;
+
+        public bool CanHarvest(HarvestableCrop target)
         {
-            if (State.Energy >= State.HarvestEnergyCost)
+            var work = target.Definition;
+            if (work.RequiredTool != null && !State.HasTool(work.RequiredTool.Id))
+            {
+                hud.ShowToast(work.RequiredTool.DisplayName + "을 주무기에 장착해 주세요.");
+                return false;
+            }
+            if (State.Energy >= State.WorkEnergyCost(work.ItemId, BaseWorkCost(work)))
                 return true;
-            hud.ShowToast("에너지가 부족합니다.");
+            hud.ShowToast("스태미나가 부족합니다.");
             return false;
         }
 
         private void DropHarvest(HarvestableCrop crop)
         {
-            bool lucky = UnityEngine.Random.value < 0.1f + State.SkillRank * 0.02f;
+            var work = crop.Definition;
+            var outcome = work.RollOutcome(State.SkillRank, UnityEngine.Random.value, UnityEngine.Random.value);
             int level = State.Level;
-            if (!State.TryHarvest(crop.Definition.ItemsPerHarvest, lucky, out int count))
+            if (!CanHarvest(crop))
                 return;
-            pickups.RemoveAll(item => item == null);
-            for (int i = 0; i < count; i++)
+            if (!State.TryGather(work.ItemId, work.ItemsPerHarvest, BaseWorkCost(work), outcome, out int count))
             {
-                float angle = (-100f + (i + 0.5f) * 160f / count) * Mathf.Deg2Rad;
-                Vector3 end = crop.transform.position + new Vector3(Mathf.Sin(angle) * 1.05f, 0f, -0.9f - Mathf.Cos(angle) * 0.25f);
-                end.y = 0.08f;
-                SpawnPickup(crop.Definition, crop.transform.position + Vector3.up * 0.5f, end, false);
+                hud.ShowFloatingText(crop.transform.position + Vector3.up, "실패", new Color(1f, .65f, .55f));
+                return;
             }
+            pickups.RemoveAll(item => item == null);
+            Vector3 towardWorker = Vector3.Lerp(crop.transform.position, worker.transform.position, .65f);
+            Vector3 end = SurfacePosition(towardWorker.x, towardWorker.z) + Vector3.up * .08f;
+            SpawnPickup(work, count, crop.transform.position + Vector3.up * .5f, end);
 
-            if (lucky)
-                hud.ShowFloatingText(crop.transform.position + Vector3.up, "LUCKY BONUS", new Color(1f, 0.88f, 0.5f));
+            if (outcome == WorkOutcome.Lucky || outcome == WorkOutcome.GreatLucky)
+                hud.ShowFloatingText(crop.transform.position + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "+" + State.Rules.HarvestExperience + " EXP", Color.white);
             if (State.Level > level)
                 hud.ShowFloatingText(worker.transform.position + Vector3.up * 2.3f, "LEVEL UP", new Color(1f, 0.88f, 0.5f));
         }
 
-        private void SpawnPickup(CropDefinition definition, Vector3 start, Vector3 end, bool settled)
+        private void SpawnPickup(CropDefinition definition, int quantity, Vector3 start, Vector3 end)
         {
             var prefab = definition.PickupPrefab != null ? definition.PickupPrefab : settings.FindItem(definition.ItemId)?.GroundPrefab;
             if (prefab == null)
@@ -255,7 +335,8 @@ namespace Workerborn
             }
 
             var item = Instantiate(prefab, droppedItems);
-            item.Initialize(definition, start, end, settled);
+            item.SetQuantity(quantity);
+            item.Initialize(definition, start, end);
             pickups.Add(item);
         }
 
@@ -307,13 +388,17 @@ namespace Workerborn
 
         private void BeginDay()
         {
-            worker.WarpTo(restPoint.position);
+            var rest = SurfacePosition(restPoint.position.x, restPoint.position.z);
+            if (NavMesh.SamplePosition(rest, out var point, 2f, NavMesh.AllAreas))
+                worker.WarpTo(point.position);
             foreach (var crop in allCrops)
                 crop.ResetHarvests();
         }
 
         public void Rebirth()
         {
+            bool farmWasAvailable = State.FarmAvailable;
+            int previousFarmLevel = State.FarmLevel;
             if (!State.TryRebirth())
             {
                 hud.ShowToast(State.LastMessage);
@@ -332,13 +417,22 @@ namespace Workerborn
             pickups.Clear();
             collectedPickups.Clear();
             ApplyWorldStage();
+            if (farmWasAvailable != State.FarmAvailable || previousFarmLevel != State.FarmLevel)
+            {
+                var agent = worker.GetComponent<NavMeshAgent>();
+                agent.enabled = false;
+                navigation.Activate(useBakedData: false);
+                agent.enabled = true;
+            }
             foreach (var crop in allCrops)
                 crop.ResetHarvests();
-            worker.ResetWorker(spawnPoint.position);
+            var spawn = SurfacePosition(spawnPoint.position.x, spawnPoint.position.z);
+            worker.ResetWorker(NavMesh.SamplePosition(spawn, out var point, 2f, NavMesh.AllAreas) ? point.position : spawn);
             hud.CloseDialogue();
             hud.RefreshWindows();
             hud.ShowToast(State.LastMessage);
             SaveGame(false);
+            OpenGuideIfNeeded();
         }
 
         public void WalkTo(VillageRole role)
@@ -351,9 +445,9 @@ namespace Workerborn
         {
             HarvestableCrop nearest = null;
             float distance = float.MaxValue;
-            foreach (var crop in crops)
+            foreach (var crop in allCrops)
             {
-                if (crop.IsDepleted)
+                if (!crop.CanInteract || !State.HasTool(crop.Definition.RequiredTool?.Id))
                     continue;
                 float candidate = (crop.transform.position - worker.transform.position).sqrMagnitude;
                 if (candidate < distance)
@@ -367,7 +461,7 @@ namespace Workerborn
                 worker.CommandHarvest(nearest);
         }
 
-        private Vector3 SurfacePosition(float x, float z)
+        internal Vector3 SurfacePosition(float x, float z)
         {
             var point = new Vector3(x, 0, z);
             if (GroundTerrain != null)
@@ -418,7 +512,7 @@ namespace Workerborn
                                 break;
                             }
 
-                    var end = new Vector3(drop.x, .08f, drop.z);
+                    var end = SurfacePosition(drop.x, drop.z) + Vector3.up * .08f;
                     if (authored != null)
                     {
                         authored.SetQuantity(drop.quantity);
@@ -440,6 +534,12 @@ namespace Workerborn
         {
             if (!initialized)
                 return false;
+            if (!loadSavedGame)
+            {
+                if (notify)
+                    hud.ShowToast("이 세션은 저장을 사용하지 않습니다.");
+                return false;
+            }
             var save = State.Export();
             save.playerX = worker.transform.position.x;
             save.playerZ = worker.transform.position.z;

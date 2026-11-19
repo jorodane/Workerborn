@@ -14,6 +14,9 @@ namespace Workerborn
         private Vector3 restScale;
         [SerializeField]
         private Renderer[] charges;
+        [SerializeField] private bool keepVisualWhenDepleted;
+        [SerializeField] private GameObject depletedVisual;
+        [SerializeField] private Collider[] interactionColliders;
         public CropDefinition Definition => definition;
         public override string DisplayName => definition != null ? definition.DisplayName : name;
         protected override float DefaultDistance => 1.05f;
@@ -23,7 +26,7 @@ namespace Workerborn
         public int Capacity => cycle?.Capacity ?? 0;
         public bool IsDepleted => cycle == null || cycle.IsDepleted;
         public override bool CanInteract => base.CanInteract && !IsDepleted;
-        public override string InteractionVerb => "수확하기";
+        public override string InteractionVerb => definition != null ? definition.InteractionVerb : base.InteractionVerb;
         public float Progress => cycle?.Progress ?? 0f;
 
         public event Action<HarvestableCrop> Harvested;
@@ -95,13 +98,16 @@ namespace Workerborn
         private void RefreshVisuals()
         {
             // Root colliders are the interaction surface; decorative model colliders stay disabled.
-            foreach (var collider in GetComponents<Collider>())
+            var colliders = interactionColliders != null && interactionColliders.Length > 0 ? interactionColliders : GetComponents<Collider>();
+            foreach (var collider in colliders)
                 collider.enabled = !IsDepleted;
             if (visual != null)
             {
-                visual.gameObject.SetActive(!IsDepleted);
+                visual.gameObject.SetActive(keepVisualWhenDepleted || !IsDepleted);
                 visual.localScale = restScale;
             }
+            if (depletedVisual != null)
+                depletedVisual.SetActive(IsDepleted);
 
             if (charges == null)
                 return;

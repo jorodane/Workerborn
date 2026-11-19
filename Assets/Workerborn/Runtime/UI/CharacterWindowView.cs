@@ -29,7 +29,8 @@ namespace Workerborn
             ap.text = $"어빌리티 포인트  {s.AP}";
             staminaBar.fillAmount = (float)s.Energy / VillageState.MaxEnergy;
             experienceBar.fillAmount = (float)s.Experience / s.NextLevelExperience;
-            statistics.text = $"수확 경력      {s.LifetimeHarvests}회\n아르바이트      {s.Career}회\n작업 속도      ×{s.WorkRate:0.00}\n소지금          {s.Gold:N0} Gold\n마을 농장      {s.FarmLevel}단계";
+            string farm = s.FarmAvailable ? $"{s.FarmLevel}단계" : "건설 예정";
+            statistics.text = $"채집 경력      {s.LifetimeHarvests}회\n아르바이트      {s.Career}회\n채집량          ×{s.YieldMultiplier}\n소지금          {s.Gold:N0} Gold\n마을 농장      {farm}";
         }
     }
 }

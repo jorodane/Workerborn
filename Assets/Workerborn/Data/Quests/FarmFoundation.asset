@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fcadf71819f58bbad658391e7ab15c0, type: 3}
+  m_Name: FarmFoundation
+  m_EditorClassIdentifier: ''
+  id: farm_foundation
+  title: 솔바람 마을의 첫 농장
+  kind: 2
+  description: 미라가 마을에 농장을 만들려 합니다. 필요한 목재를 구해 납품하고 농장이 들어설 땅을 정하세요.
+  requiredCompletions: 1
+  rewardGold: 0
+  rewardAP: 2
+  rewardExperience: 12
+  contributionItem: {fileID: 11400000, guid: 4e56cd6ed70b5d8b9ce7e3011d8a40e0, type: 2}
+  requiredGold: 0
+  requiredItems: 6
+  contractItem: {fileID: 11400000, guid: 4aca5391145a59108b6ae8cb1db30b35, type: 2}

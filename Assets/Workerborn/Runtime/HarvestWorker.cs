@@ -103,8 +103,6 @@ namespace Workerborn
 
         public void CommandHarvest(HarvestableCrop crop)
         {
-            if (village != null && (village.ControlsBlocked || !village.CanHarvest()))
-                return;
             if (crop == null || !crop.isActiveAndEnabled)
                 return;
             if (crop == cropTarget && (Action == WorkerAction.Moving || Action == WorkerAction.Harvesting))
@@ -115,6 +113,8 @@ namespace Workerborn
                 Message?.Invoke("이 작물은 수확을 모두 마쳤어요. 다른 작물을 선택해 주세요.");
                 return;
             }
+            if (village != null && (village.ControlsBlocked || !village.CanHarvest(crop)))
+                return;
 
             ClearInteractionTargets();
             cropTarget = crop;
@@ -189,6 +189,8 @@ namespace Workerborn
             if (direction.sqrMagnitude < 0.01f)
                 direction = Vector3.back;
             Vector3 approach = target + direction.normalized * Mathf.Min(offset, direction.magnitude);
+            if (offset > 0 && village != null && village.GroundTerrain != null)
+                approach = village.SurfacePosition(approach.x, approach.z);
             if (!NavMesh.SamplePosition(approach, out NavMeshHit hit, 0.8f, NavMesh.AllAreas))
             {
                 Cancel();
@@ -246,6 +248,11 @@ namespace Workerborn
             agent.ResetPath();
             if (cropTarget != null)
             {
+                if (village != null && !village.CanHarvest(cropTarget))
+                {
+                    Cancel();
+                    return;
+                }
                 if (!InReach(cropTarget.transform.position, cropTarget.InteractionDistance + 0.15f) || !cropTarget.TryBegin(this))
                 {
                     Cancel();
@@ -289,8 +296,13 @@ namespace Workerborn
                 Cancel();
                 return;
             }
+            if (village != null && !village.CanHarvest(cropTarget))
+            {
+                Cancel();
+                return;
+            }
 
-            if (!cropTarget.Advance(this, Time.deltaTime * (village != null ? village.State.WorkRate : 1f)))
+            if (!cropTarget.Advance(this, Time.deltaTime))
                 return;
             if (village == null)
                 Message?.Invoke($"수확 완료! 바닥의 {cropTarget.Definition.DisplayName}를 클릭해서 주워 주세요.");

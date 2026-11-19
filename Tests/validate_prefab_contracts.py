@@ -70,7 +70,7 @@ for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInt
 for name in ['Mira','Noah','Lena','Player']:assert (CONTENT/'Prefabs/Characters'/(name+'.prefab')).is_file()
 for name in ['Board','Shrine','Monster']:assert (CONTENT/'Prefabs/Interaction'/(name+'.prefab')).is_file()
 assert (CONTENT/'Prefabs/Crops/Potato.prefab').is_file()
-assert len(list((CONTENT/'Prefabs/Items').glob('*.prefab')))==5
+assert {p.stem for p in (CONTENT/'Prefabs/Items').glob('*.prefab')}=={'potato','bread','hoe','bag','gold','egg','timber','woodcutting_axe'}
 manifest=json.loads((ROOT/'Tools/ui-prefab-manifest.json').read_text())
 for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','ShopWindow','QuantityWindow','ConversationWindow']:
     assert name in manifest and (ROOT/manifest[name]['path']).is_file()

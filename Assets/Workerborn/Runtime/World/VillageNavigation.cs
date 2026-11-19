@@ -14,6 +14,8 @@ namespace Workerborn
 
         [SerializeField]
         private Transform obstacleRoot;
+        [SerializeField, Tooltip("World space volume for the playable region. Zero size uses the full terrain.")]
+        private Bounds buildBounds;
         [SerializeField]
         private NavMeshData bakedData;
         private NavMeshData generated;
@@ -48,15 +50,23 @@ namespace Workerborn
                     sources.Add(new NavMeshBuildSource { shape = NavMeshBuildSourceShape.ModifierBox, transform = volume.transform.localToWorldMatrix * Matrix4x4.Translate(volume.center), size = volume.size, area = 1 });
                 }
 
-            bounds.Expand(new Vector3(2f, 12f, 2f));
+            if (buildBounds.size.x > 0 && buildBounds.size.y > 0 && buildBounds.size.z > 0)
+                bounds = buildBounds;
+            else
+                bounds.Expand(new Vector3(2f, 12f, 2f));
             return NavMeshBuilder.BuildNavMeshData(NavMesh.GetSettingsByID(0), sources, bounds, Vector3.zero, Quaternion.identity);
         }
 
-        public void Activate()
+        public void Activate(bool useBakedData = true)
         {
             if (instance.valid)
                 instance.Remove();
-            var data = bakedData;
+            if (generated != null)
+            {
+                Destroy(generated);
+                generated = null;
+            }
+            var data = useBakedData ? bakedData : null;
             if (data == null)
                 data = generated = BuildData();
             if (data != null)
@@ -64,6 +74,14 @@ namespace Workerborn
         }
 
         public void SetBakedData(NavMeshData data) => bakedData = data;
+
+        private void OnDrawGizmosSelected()
+        {
+            if (buildBounds.size == Vector3.zero)
+                return;
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireCube(buildBounds.center, buildBounds.size);
+        }
         private void OnDestroy()
         {
             if (instance.valid)

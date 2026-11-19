@@ -32,9 +32,12 @@ MonoBehaviour:
     type: 3
   width: 1
   height: 1
-  maxStack: 20
+  maxStack: 999
   price: 3
   equipmentSlot: 0
   equipmentPart:
     fileID: 0
-  groundPrefab: {fileID: 100008, guid: 182273f91ec35145835c9e977b849b19, type: 3}
+  groundPrefab:
+    fileID: 100008
+    guid: 182273f91ec35145835c9e977b849b19
+    type: 3

@@ -55,11 +55,13 @@ namespace Workerborn.Tests
                 var roots = scene.GetRootGameObjects();
                 var actors = roots.SelectMany(r => r.GetComponentsInChildren<CharacterActor>(true)).ToArray();
                 var crops = roots.SelectMany(r => r.GetComponentsInChildren<HarvestableCrop>(true)).ToArray();
-                Assert.That(actors.Length, Is.EqualTo(4));
-                Assert.That(actors.All(a => a.VisualRoot != null && a.Appearance != null && a.Animator != null), Is.True);
-                Assert.That(crops.Length, Is.EqualTo(24));
-                Assert.That(crops.Count(c => c.gameObject.activeInHierarchy), Is.EqualTo(12));
-                Assert.That(crops.Select(c => c.PersistentId).Distinct().Count(), Is.EqualTo(24));
+                Assert.That(actors.Length, Is.EqualTo(5));
+                Assert.That(actors.All(a => a.VisualRoot != null && a.Appearance != null && a.VisualRoot.GetComponentInChildren<Animator>(true) != null), Is.True);
+                Assert.That(crops.Count(c => c.Definition.ItemId == ItemIds.Potato), Is.EqualTo(24));
+                Assert.That(crops.Count(c => c.Definition.ItemId == ItemIds.Egg), Is.EqualTo(2));
+                Assert.That(crops.Count(c => c.Definition.ItemId == ItemIds.Timber), Is.EqualTo(3));
+                Assert.That(crops.Select(c => c.PersistentId).Distinct().Count(), Is.EqualTo(crops.Length));
+                Assert.That(roots.SelectMany(r => r.GetComponentsInChildren<VillageFarmSite>(true)).Select(site => site.SiteId), Is.EquivalentTo(new[] { "meadow", "south" }));
                 Assert.That(roots.SelectMany(r => r.GetComponentsInChildren<VillageInteractable>(true)).All(n => n.Definition != null), Is.True);
             }
             finally { EditorSceneManager.ClosePreviewScene(scene); }

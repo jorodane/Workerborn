@@ -3,19 +3,29 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f53eff599b555b42b08a493714d6d445, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: f53eff599b555b42b08a493714d6d445
+    type: 3
   m_Name: PotatoDelivery
   m_EditorClassIdentifier: ''
   id: potato_delivery
   title: 감자 납품
   description: 해가 지기 전에 감자를 모아 농장에 납품한다.
-  item: {fileID: 11400000, guid: 74aa858d8448591fb97f2aef6f2527f3, type: 2}
+  item:
+    fileID: 11400000
+    guid: 74aa858d8448591fb97f2aef6f2527f3
+    type: 2
   startHour: 8
   endHour: 18
   tiers:
@@ -34,3 +44,4 @@ MonoBehaviour:
   extraQuantity: 4
   extraGold: 30
   extraExperience: 20
+  contractItem: {fileID: 11400000, guid: a6775afb11c05a77a0b1f68fa97eebd7, type: 2}

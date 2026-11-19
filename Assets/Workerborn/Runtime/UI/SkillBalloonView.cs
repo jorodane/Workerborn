@@ -16,6 +16,9 @@ namespace Workerborn
         public Image Progress => progress;
         public float WorldHeight => worldHeight;
 
+        private Sprite defaultIcon;
+        private void Awake() => defaultIcon = icon.sprite;
+        public void SetIcon(Sprite sprite) => icon.sprite = sprite != null ? sprite : defaultIcon;
         public void SetProgress(float amount) => progress.fillAmount = Mathf.Clamp01(amount);
     }
 }

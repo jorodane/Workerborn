@@ -8,7 +8,8 @@ namespace Workerborn
         Merchant,
         Innkeeper,
         Shrine,
-        NoticeBoard
+        NoticeBoard,
+        Guide
     }
 
     public class VillageInteractable : WorldInteractable

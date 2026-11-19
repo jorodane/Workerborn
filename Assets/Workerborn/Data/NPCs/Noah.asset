@@ -3,25 +3,46 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_CorrespondingSourceObject:
+    fileID: 0
+  m_PrefabInstance:
+    fileID: 0
+  m_PrefabAsset:
+    fileID: 0
+  m_GameObject:
+    fileID: 0
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d8a2d8bb34455a83a5bd976867b29ad5, type: 3}
+  m_Script:
+    fileID: 11500000
+    guid: d8a2d8bb34455a83a5bd976867b29ad5
+    type: 3
   m_Name: Noah
   m_EditorClassIdentifier: ''
   id: noah
   displayName: 노아
   occupation: 상인
   role: 1
-  appearance: {fileID: 11400000, guid: b2e360a79e9f59948308c09115d979c0, type: 2}
-  dialogue: {fileID: 11400000, guid: f8bddd83fdba54558bf20bf731bea3f5, type: 2}
-  job: {fileID: 0}
+  appearance:
+    fileID: 11400000
+    guid: b2e360a79e9f59948308c09115d979c0
+    type: 2
+  dialogue:
+    fileID: 11400000
+    guid: f8bddd83fdba54558bf20bf731bea3f5
+    type: 2
+  job:
+    fileID: 0
   quests: []
   shopItems:
-  - {fileID: 11400000, guid: 7b471b1e3b6d5bdd8451d9df97649c0a, type: 2}
-  - {fileID: 11400000, guid: 923022ccb7665a26bfa386401df4ae16, type: 2}
-  - {fileID: 11400000, guid: 6191d8b13f735ea6a0871f62c91f712d, type: 2}
+  - {fileID: 11400000, guid: fb89a1163c7f57bf89f3be42a30ab97c, type: 2}
+  - fileID: 11400000
+    guid: 7b471b1e3b6d5bdd8451d9df97649c0a
+    type: 2
+  - fileID: 11400000
+    guid: 923022ccb7665a26bfa386401df4ae16
+    type: 2
+  - fileID: 11400000
+    guid: 6191d8b13f735ea6a0871f62c91f712d
+    type: 2
   interactionDistance: 1.8

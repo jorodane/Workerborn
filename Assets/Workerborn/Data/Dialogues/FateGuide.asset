@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c880f5978ffe5d1db7d7be853c9cc17c, type: 3}
+  m_Name: FateGuide
+  m_EditorClassIdentifier: ''
+  topics:
+  - keyword: ''
+    action: 0
+    text: 구름 너머에 솔바람 마을이 있어. 그곳에는 아직 농장이 없단다. 미라를 찾아가 농장을 짓는 일을 도와주렴.
+  - keyword: ''
+    action: 8
+    text: 네가 남긴 목재로 농장이 완성됐어. 소지품은 새로 마련해야 하지만, 익힌 솜씨는 그대로야. 마을에서 미라를 만나 정해진 시간에 농장 계약을 받아 보렴.

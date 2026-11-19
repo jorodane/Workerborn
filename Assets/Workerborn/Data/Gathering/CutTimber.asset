@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b888291df055d56abb3c0abd0eb1542, type: 3}
+  m_Name: CutTimber
+  m_EditorClassIdentifier: ''
+  itemId: timber
+  displayName: 벌목용 소나무
+  harvestsPerPlant: 4
+  harvestSeconds: 3.5
+  itemsPerHarvest: 1
+  interactionVerb: 벌목하기
+  requiredTool: {fileID: 11400000, guid: fb89a1163c7f57bf89f3be42a30ab97c, type: 2}
+  skillIcon: {fileID: 21300000, guid: 3a6c1825591d530f82d7c3fa599990e3, type: 3}
+  staminaCost: 4
+  successChance: 0.92
+  luckyChance: 0.1
+  greatLuckyChance: 0.01
+  greatLuckyRank: 6
+  plantPrefab: {fileID: 0}
+  dropPrefab: {fileID: 0}
+  pickupPrefab: {fileID: 100008, guid: 16ab27efd530520684317a6285f0d22f, type: 3}

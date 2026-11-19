@@ -23,7 +23,7 @@ MonoBehaviour:
   displayName: 감자
   harvestsPerPlant: 3
   harvestSeconds: 2.4
-  itemsPerHarvest: 2
+  itemsPerHarvest: 1
   plantPrefab:
     fileID: 5232892095252232989
     guid: 3fd2a86c32073694e9b3e62e5b4804bc
@@ -32,4 +32,12 @@ MonoBehaviour:
     fileID: 8644971781712117094
     guid: 63ca160aa7ee7ba42afc5499d770219c
     type: 3
-  pickupPrefab: {fileID: 100008, guid: 182273f91ec35145835c9e977b849b19, type: 3}
+  pickupPrefab:
+    fileID: 100008
+    guid: 182273f91ec35145835c9e977b849b19
+    type: 3
+  successChance: 0.96
+  luckyChance: 0.1
+  greatLuckyChance: 0.01
+  greatLuckyRank: 6
+  skillIcon: {fileID: 21300000, guid: 9fc670e4153759efa4ca9573ec9cd758, type: 3}

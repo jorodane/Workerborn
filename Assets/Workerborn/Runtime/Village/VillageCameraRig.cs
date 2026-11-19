@@ -29,6 +29,7 @@ namespace Workerborn
         [SerializeField, Range(0.05f, 0.5f)]
         private float zoomSensitivity = 0.18f;
         private Transform target;
+        private Transform viewOverride;
         private VillagePrototype game;
         private Camera cameraComponent;
         private Vector3 focus;
@@ -42,6 +43,14 @@ namespace Workerborn
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
         public bool CancelClickThisFrame { get; private set; }
         public float Distance => distance;
+
+        public void SetViewOverride(Transform pose)
+        {
+            viewOverride = pose;
+            rightPressed = middlePressed = false;
+            if (target != null)
+                UpdatePose();
+        }
 
         public void Initialize(Transform follow, VillagePrototype owner = null)
         {
@@ -123,6 +132,11 @@ namespace Workerborn
 
         private void UpdatePose()
         {
+            if (viewOverride != null)
+            {
+                transform.SetPositionAndRotation(viewOverride.position, viewOverride.rotation);
+                return;
+            }
             focus = target.position + Vector3.up * pivotHeight;
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
             Vector3 direction = rotation * Vector3.back;

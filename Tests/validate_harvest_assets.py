@@ -59,9 +59,13 @@ def resolve(pointer):
 
 def check_pointers(path):
     parsed=docs(path); local={d['_id'] for d in parsed};count=0
+    override_targets=set()
     for d in parsed:
         if 'PrefabInstance'in d:
-            assert d['PrefabInstance'].get('m_SourcePrefab',{}).get('fileID'), f'Broken prefab instance without a source: {path}:{d["_id"]}'
+            instance=d['PrefabInstance']
+            assert instance.get('m_SourcePrefab',{}).get('fileID'), f'Broken prefab instance without a source: {path}:{d["_id"]}'
+            override_targets.update(id(mod['target']) for mod in instance['m_Modification'].get('m_Modifications',[])
+                                    if mod['target'].get('guid')==instance['m_SourcePrefab'].get('guid'))
     raw=path.read_bytes()
     if raw.startswith(b'%YAML'):
         assert not re.search(rb'^\s*m_EditorClassIdentifier: null\s*$',raw,re.M),f'Literal null type identifier: {path}'
@@ -84,10 +88,15 @@ def check_pointers(path):
         else:
             target=resolve(pointer);assert target.is_file(),target
             ext=target.suffix.lower();expected=2 if ext in ('.asset','.anim','.mat','.rendertexture','.terrainlayer','.shadervariants') else 3
-            assert pointer['type']==expected, f'Wrong pointer type {pointer} for {target}'
+            # Native binary PPtrs have GUID/path IDs, not Unity YAML's reference type field.
+            if raw.startswith(b'%YAML'):
+                assert pointer['type']==expected, f'Wrong pointer type {pointer} for {target}'
             if ext in ('.prefab','.asset','.anim','.mat','.rendertexture','.terrainlayer','.shadervariants'):
                 if ext=='.prefab' and identifier==100100000: pass # Unity's prefab asset handle.
-                else: assert identifier in {d['_id'] for d in docs(target)}, f'Missing native ID {identifier} in {target}'
+                elif identifier not in {d['_id'] for d in docs(target)}:
+                    # Unity can override children inside a nested vendor prefab using a composed ID
+                    # that doesn't appear as a local YAML document in the immediate source.
+                    assert ext=='.prefab' and (id(pointer) in override_targets or not raw.startswith(b'%YAML')) and any('PrefabInstance' in d for d in docs(target)), f'Missing native ID {identifier} in {target}'
             elif ext=='.fbx':
                 pattern=f'fileID: {identifier}, guid: {guid}'
                 pack=ROOT/'Assets'/target.relative_to(ROOT/'Assets').parts[0]
@@ -126,14 +135,16 @@ for id,go in gos.items():
     for c in go['m_Component']: assert c['component']['fileID'] in ids,f'Missing component in {go["m_Name"]}'
 
 controller=behaviours(scene,'Village/VillagePrototype.cs');assert len(controller)==1
-for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','portraitCamera','portraitTexture','spawnPoint','restPoint','droppedItems','potato','sun']:
+for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','sun','farm','guideStage','fateGuide','guideCameraPose']:
     assert controller[0][field]['fileID'],f'Missing binding: {field}'
 assert not behaviours(scene,'HarvestPrototype.cs'),'Village must not generate its map from the harvest demo'
-crops=behaviours(scene,'HarvestableCrop.cs');assert len(crops)==24
-assert len(set(c['persistentId'] for c in crops))==24,'Duplicated crop save IDs'
+crops=behaviours(scene,'HarvestableCrop.cs')
+assert Counter(docs(resolve(c['definition']))[0]['MonoBehaviour']['itemId'] for c in crops)=={'potato':24,'egg':2,'timber':3}
+assert len(set(c['persistentId'] for c in crops))==len(crops),'Duplicated crop save IDs'
 assert all(c['definition']['fileID'] and c['visual']['fileID'] for c in crops)
-assert len(behaviours(scene,'Village/VillageInteractable.cs'))==5
-actors=behaviours(scene,'Characters/CharacterActor.cs');assert len(actors)==4
+assert len(behaviours(scene,'Village/VillageInteractable.cs'))==6
+assert {s['siteId'] for s in behaviours(scene,'World/VillageFarmSite.cs')}=={'meadow','south'}
+actors=behaviours(scene,'Characters/CharacterActor.cs');assert len(actors)==5
 assert all(a['visualRoot']['fileID'] for a in actors)
 assert len(behaviours(scene,'Interaction/PointerTargeting.cs'))==1
 assert len(behaviours(scene,'UI/PickupNames.cs'))==1
@@ -151,7 +162,7 @@ assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values
 
 settings=docs(resolve(controller[0]['settings']))[0]['MonoBehaviour']
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
-assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold'}
+assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','timber_contract','farm_contract'}
 assert all(i['icon']['fileID'] for i in itemdefs)
 assert next(i for i in itemdefs if i['id']=='gold')['maxStack']==1000
 assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5
@@ -167,7 +178,7 @@ assert re.search(r'path: (.+)',build)[1]==str(scene_path.relative_to(ROOT))
 for name in ['VillagePrototype','HarvestPrototype']:
     p=CONTENT/'Scenes'/(name+'.unity');assert str(p.relative_to(ROOT)) in build and guid_for(p) in build
 assert (CONTENT/'Fonts/WorkerbornKorean-Regular.otf').read_bytes().startswith(b'OTTO')
-print(f'Validated {files} project files, {pointers} pointers, native Scene hierarchy, 24 stable crops, 4 modular characters, content presets, HUD and build entries.')
+print(f'Validated {files} project files, {pointers} pointers, authored fields, gatherables, farm plots, modular characters, content presets, HUD and build entries.')
 
 # Input bindings are an authored asset shared by gameplay, camera and the EventSystem.
 actions_path=CONTENT/'Input/Workerborn.inputactions'
@@ -212,14 +223,15 @@ print(f'Validated {texts} TMP labels, Korean outlined SDF assets, authored input
 terrains=[d['Terrain']for d in scene if 'Terrain'in d]
 assert len(terrains)==1
 terrain=terrains[0]
-assert resolve(terrain['m_MaterialTemplate']).is_relative_to(ROOT/'Assets/FlatKit/Demos')
+assert resolve(terrain['m_MaterialTemplate']).is_relative_to(ROOT/'Assets/BK')
 data=next(d['TerrainData']for d in docs(resolve(terrain['m_TerrainData']))if'TerrainData'in d)
 h=data['m_Heightmap'];resolution=h['m_Resolution'];heights=h['m_Heights']
-assert len(heights)==resolution*resolution and (max(heights)-min(heights))*h['m_Scale']['y']/32767>10
-assert abs(h['m_Scale']['x']*(resolution-1)-120)<.001
-assert all(resolve(p).is_relative_to(ROOT/'Assets/FarmCrops/Terrain')for p in data['m_SplatDatabase']['m_TerrainLayers'])
+assert len(heights)==resolution*resolution
+assert resolve(terrain['m_TerrainData'])==CONTENT/'Terrains/TerrainMeadows.asset'
+assert all(resolve(p).is_relative_to(ROOT/'Assets/BK')for p in data['m_SplatDatabase']['m_TerrainLayers'])
 assert all(a['m_IsActive']==0 for a in gos.values()if a['m_Name']in ['Ground','Paths']or a['m_Name'].startswith('Soil row'))
-assert len(behaviours(scene,'World/VillageMapProp.cs'))>150
+nav=behaviours(scene,'World/VillageNavigation.cs')[0]
+assert nav['terrain']['fileID'] and nav['buildBounds']['m_Extent']['x']>0
 balloon=docs(CONTENT/'Prefabs/UI/SkillBalloon.prefab')
 assert not any(d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='f4688fdb7df04437aeb418b961361dc5'for d in balloon)
 progress=next(d['MonoBehaviour']for d in balloon if d.get('MonoBehaviour',{}).get('m_Type')==3)
@@ -232,7 +244,7 @@ assert 'new Material(' not in visibility_code and '.sharedMaterials =' not in vi
 for renderer in ['PC_Renderer.asset','Mobile_Renderer.asset']:
     features=[d['MonoBehaviour']for d in docs(CONTENT/'Rendering'/renderer)if d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='576f949be0794f548b825c9ce6f556db']
     assert {f['settings']['filterSettings']['RenderQueueType']for f in features}=={0}
-print('Validated sculptable forest Terrain, supplied ground materials, radial skill icon, stable material opacity and opaque outlines.')
+print('Validated the supplied Meadows Terrain, localized navigation, radial skill icon, stable material opacity and opaque outlines.')
 
 # Validate the active render-pipeline assets, their typed renderer data and the graphics/quality bindings.
 for platform in ['PC','Mobile']:

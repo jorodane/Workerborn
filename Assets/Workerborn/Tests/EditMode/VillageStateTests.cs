@@ -149,15 +149,15 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void SkillUpgradeSpendsApAndImprovesWorkRate()
+        public void SkillUpgradeSpendsApAndIncreasesYield()
         {
             var state = Funded();
             int cost = state.NextSkillCost;
             int ap = state.AP;
-            float rate = state.WorkRate;
+            int yieldMultiplier = state.YieldMultiplier;
             Assert.That(state.TryUpgradeSkill(), Is.True);
             Assert.That(state.AP, Is.EqualTo(ap - cost));
-            Assert.That(state.WorkRate, Is.GreaterThan(rate));
+            Assert.That(state.YieldMultiplier, Is.GreaterThan(yieldMultiplier));
         }
 
         [Test]
