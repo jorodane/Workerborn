@@ -60,9 +60,10 @@ namespace Workerborn.Tests
             Assert.That(state.TryChooseFarmSite("south", "남쪽 밭터"), Is.True);
             Assert.That(state.TryUpgradeSkill(), Is.True);
             state = VillageState.Restore(state.Export(), rules);
-            Assert.That(state.CanRebirth, Is.True);
+            Assert.That(state.CanRebirth, Is.False);
+            Assert.That(state.CanAdvanceEra, Is.True);
             Assert.That(state.FarmAvailable, Is.False);
-            Assert.That(state.TryRebirth(), Is.True);
+            Assert.That(state.TryAdvanceEra(), Is.True);
             Assert.That(state.Life, Is.EqualTo(2));
             Assert.That(state.NeedsGuide, Is.True);
             Assert.That(state.FarmAvailable, Is.True);

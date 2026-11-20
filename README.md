@@ -2,7 +2,35 @@
 
 직접 일하며 생활 스킬과 경력을 쌓고, 환생을 거쳐 발전한 마을로 돌아오는 Unity 프로토타입입니다.
 
-Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다. `Assets/Workerborn/Scenes/VillagePrototype.unity`를 열어 Play하거나 **Workerborn → Village Prototype → Play Village**를 선택하세요. 빌드의 첫 Scene도 동일합니다.
+Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다. 빌드와 접속 흐름은 `Assets/Workerborn/Scenes/MainMenu.unity`에서 시작합니다. 마을을 바로 수정하고 시험하려면 `VillagePrototype.unity`를 열거나 **Workerborn → Village Prototype → Play Village**를 선택하세요.
+
+## 싱글플레이와 멀티플레이
+
+- **싱글플레이**는 기존 마을 저장을 불러옵니다.
+- **멀티플레이 → Steam 친구 초대**로 친구 공개 방을 만들고 Steam 오버레이에서 초대합니다. 방 안에서도 메뉴의 **Steam 친구 초대**로 다시 부를 수 있습니다.
+- **멀티플레이 → 친구 방 입장**에서 같은 Steam App ID로 실행 중인 친구의 방을 선택합니다. Steam이 보내는 초대와 게임 실행 시 전달되는 로비 접속도 처리합니다. 두 클라이언트에서 같은 게임 빌드를 쓰세요.
+- **멀티플레이 → 서버 입장**에서 호스트 이름 또는 IPv4 주소와 포트를 입력합니다. 기본 포트는 TCP 7777입니다.
+
+Steam 친구 방에는 실행 중인 Steam 클라이언트와 게임에 접근할 수 있는 Steam App ID가 필요합니다. Steam 밖에서 개발 빌드를 실행할 때는 권한이 있는 App ID를 담은 `steam_appid.txt`를 실행 작업 폴더에 둡니다. 싱글플레이와 주소 접속 서버는 Steam 세션 없이 실행됩니다.
+
+친구 방과 데디케이티드 서버는 최대 12명까지 같은 마을의 시간과 시대, 농장 부지·건물, 납품·기부, 전설 기록을 공유합니다. 다른 플레이어의 접속, 위치와 기본 동작도 보입니다. 이 버전의 채집·전투·아이템 드롭은 캐릭터별로 계산되며 재산과 성장 기록은 방에서 플레이어별로 저장합니다. 같은 주소로 재접속하려면 서버가 발급한 접속 기록이 들어 있는 클라이언트 설정이 필요합니다.
+
+## 데디케이티드 서버 실행
+
+1. Unity Hub에서 해당 플랫폼의 **Dedicated Server Build Support**를 설치합니다.
+2. **Workerborn → Build → Dedicated Server (Linux)** 또는 **(Windows)**를 실행합니다. 기본 출력은 Linux의 `Build/WorkerbornServer/WorkerbornServer`, Windows의 `Build/WorkerbornServer-Windows/WorkerbornServer.exe`입니다.
+3. 서버를 실행하고 클라이언트의 **서버 입장**에서 `127.0.0.1:7777`로 접속합니다.
+
+```bash
+./Build/WorkerbornServer/WorkerbornServer -batchmode -nographics -logFile - \
+  -bind 127.0.0.1 -port 7777 -world ./Build/WorkerbornServer/worlds/solbaram.json
+```
+
+Windows에서는 위 실행 파일 대신 `Build/WorkerbornServer-Windows/WorkerbornServer.exe`를 사용합니다. 로컬 시험은 일반 데스크톱 빌드를 `-workerborn-server -batchmode -nographics -logFile -`로 실행해도 됩니다. 자동 빌드는 Unity에서 `-executeMethod Workerborn.Editor.WorkerbornDedicatedBuild.BuildLinux` 또는 `.BuildWindows`와 `-workerborn-output`을 사용합니다.
+
+기본 바인딩은 로컬 접속용입니다. 같은 사설망의 다른 PC에서도 접속하려면 서버 PC의 LAN 주소를 `-bind`에 지정하고 해당 TCP 포트를 허용합니다. 주소 접속은 자체 계정 서비스나 전송 암호화 없이 신뢰하는 사설망에서 시험하는 방식입니다. Steam 친구 방은 Steam 중계 연결을 사용합니다.
+
+서버 표준 입력에서 `announce 1`로 인게임 하루 뒤의 시대 전환을 예고하고 같은 명령으로 일정을 바꿀 수 있습니다. `cancel`은 예고 철회, `save`는 즉시 저장, `stop`은 저장 후 종료입니다. `-world` 생략 시 Unity 영구 데이터 폴더 아래 `worlds/dedicated.json`에 저장합니다. Steam 방은 방장 Steam ID별 `worlds/friends-*.json`을 사용합니다.
 
 ## Unity에서 직접 수정하기
 
@@ -10,7 +38,8 @@ Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다
 
 | 수정 대상 | 에셋 |
 | --- | --- |
-| 소지품·스킬·퀘스트·캐릭터·지도·상점·대화 등 각 창 | `Assets/Workerborn/Prefabs/UI/*Window.prefab` |
+| 소지품·스킬·퀘스트·캐릭터·공동 환생·지도·상점·대화 등 각 창 | `Assets/Workerborn/Prefabs/UI/*Window.prefab` |
+| 시작 화면과 접속 입력 | `Scenes/MainMenu.unity`, `Prefabs/UI/MainMenu.prefab` |
 | 퀘스트 스크롤·툴팁·아이템 메뉴 | `Prefabs/UI/QuestScrollWindow.prefab`, `ItemTooltip.prefab`, `ItemContext.prefab` |
 | 시계·미니맵·하단 메뉴·월드 이름 레이어 | `Prefabs/UI/VillageHUD.prefab` |
 | 아이템 칸·아이콘·목록 행·버튼·이름 박스·대상 연결선 | `Prefabs/UI/InventoryCell.prefab`, `ItemTile.prefab`, `ListRow.prefab`, `ActionButton.prefab`, `PickupName.prefab`, `TargetLink.prefab` |
@@ -113,15 +142,15 @@ Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까
 
 장비 칸은 소지품 왼쪽에 있습니다. 괭이는 **장착한 동안** 작업 효과를 줍니다. 골드는 한 칸에 1,000개씩 보관하며 거래·보상·기부는 실제 금화 수량을 바꿉니다. 소지품에 공간이 없으면 거래를 취소하고 수량을 보존합니다.
 
-상시 HUD는 미니맵, 그 왼쪽의 요일과 시각, 레벨·스태미나·경험치, 하단 창 메뉴를 표시합니다.
+상시 HUD는 미니맵, 그 왼쪽의 요일과 시각, 레벨·생명력·스태미나·경험치, 하단 창 메뉴를 표시합니다.
 
 UX의 기준은 마비노기의 [공식 Rookie Guide](https://mabibook.nexon.net/usa/book_rookie_guide.html)와 [Beginner Guide](https://nxcache.nexon.net/mabinogi/microsite/BeginnerGuide/)에 나오는 클릭 이동, 오른쪽 드래그 시점, 휠 줌, 클릭으로 집고 놓는 소지품, 장비 영역과 키워드 대화입니다.
 
 ## 두 생애를 시험하기
 
 1. 새 게임은 구름 위 **운명의 인도자**와의 대화로 시작합니다. 마을에 내려가 **미라**에게 목재 납품 계약서를 받고, 소지품에서 펼쳐 보세요. 퀘스트창에도 농장 건설 목표와 납품 계약이 함께 표시됩니다.
-2. 광장 가장자리의 **암탉**을 클릭해 달걀을 모으고, 떨어진 달걀을 주워 **노아**의 잡화점에 팝니다. 달걀은 개당 4G이며 **나무꾼 도끼**는 12G입니다. 도끼를 주무기에 장착하고 마을 서쪽의 소나무를 베어 **목재 6개**를 납품하세요.
-3. 마을 옆 밭터나 남쪽 밭터의 팻말을 선택하고, **기억의 우물**에서 첫 환생을 진행하세요. 환생 뒤 고른 부지에 농가와 감자밭이 열립니다. 두 번째 삶에서도 소지품은 빈 상태로 시작합니다.
+2. 광장 가장자리의 **암탉**을 클릭해 달걀을 모으고, 떨어진 달걀을 주워 **노아**의 잡화점에 팝니다. 달걀은 개당 4G이며 **나무꾼 도끼**는 12G입니다. 도끼를 주무기에 장착하고 마을 서쪽의 소나무를 베어 **목재 6개**를 납품하세요. 목재는 나눠서 납품해도 누적됩니다.
+3. 마을 옆 밭터나 남쪽 밭터의 팻말을 선택하고, **기억의 우물**에서 **시대 전환**을 진행하세요. 2시대에 고른 부지의 농가와 감자밭이 열립니다. 두 번째 삶에서도 소지품은 빈 상태로 시작합니다.
 4. **08:00~18:00** 사이에 미라에게 농장 계약서를 받으세요. 감자 6개를 납품하면 45G와 경험치, 경력을 얻습니다. 같은 감자의 일반 판매가는 18G이며, 더 큰 계약은 누적 경력에 따라 열립니다.
 
 클릭 한 번으로 작업이 시작됩니다. 달걀 채집 2초, 벌목 3.5초, 감자 수확 2.4초가 기본입니다. 실패하면 작업 기회와 스태미나가 소모됩니다. 채집 결과의 럭키 보너스는 2배, 해당 스킬의 지정 랭크에서 열리는 대박 보너스는 50배입니다. 보상은 여러 바닥 아이템으로 나뉘어 날아갑니다. 기본 표시 상한은 24개이며 큰 보너스는 각 아이템의 수량에 나누어 담습니다. 드롭 반경과 각도, 도구·성공률·시간·수확 횟수에 더해 적용할 스킬을 `Data/Gathering`과 `Data/Potato.asset`에서 조절합니다.
@@ -130,13 +159,20 @@ UX의 기준은 마비노기의 [공식 Rookie Guide](https://mabibook.nexon.net
 
 계약서를 받으면 바로 수락합니다. 완료하거나 만료된 농장 계약서는 다음 번 계약을 받을 때 갱신됩니다. 계약서에 우클릭하면 열기와 이동을 선택할 수 있습니다. 문서는 판매할 수 없으며 환생하면 소지품과 함께 초기화됩니다. 아르바이트의 경력별 보수와 선택 보상 아이템은 `Data/Jobs/PotatoDelivery.asset`에서 지정합니다.
 
-기본 시간은 실제 1초에 게임 3분이며 대화 중에는 멈춥니다. 자정이나 스태미나 고갈 시 숙소에서 다음 날을 맞습니다. 무료 잠자리는 스태미나 70, 10G 객실은 100으로 06:00에 시작합니다. 하루가 지나면 채집 기회가 돌아옵니다.
+기본 시간은 실제 1초에 게임 3분입니다. 싱글플레이 중 대화하면 시간이 멈추고 잠을 자면 다음 날 06:00에 일어납니다. 멀티플레이는 방의 시계가 흐르며 잠을 자면 현재 시각에 생명력과 스태미나를 회복합니다. 하루가 지나면 채집 기회가 돌아옵니다.
 
-환생 후 스킬 랭크, AP, 누적 레벨, 아르바이트 경력, 농장 부지와 세계 기여가 이어집니다. 이전 저장의 공유 채집 랭크는 수확·벌목·달걀 채집의 초기 랭크로 옮깁니다. 갈무리와 맨손전투는 연습부터 시작합니다. 두 번째 삶부터는 첫 일자리 퀘스트 보상과 레벨 조건으로 다음 환생을 열 수 있습니다. 농장 확장 기부를 마치면 다음 생에 추가 밭이 열립니다. 구름 위 배치와 카메라 구도는 Scene의 `Cloud terrace`, 후보지와 채집 대상은 `Village/First life and gathering`에서 수정합니다.
+### 환생, 시대 전환과 전설
+
+- 일반 환생은 생애 시작 시각부터 인게임 7일이 지나면 기억의 우물에서 할 수 있습니다. 레벨·능력치·골드·장비·소지품을 초기화하고 스킬 랭크·AP·누적 레벨·경력·세계에 남긴 기여를 이어갑니다.
+- 농장 완공과 확장은 시대 전환으로 반영됩니다. 싱글플레이는 시대 퀘스트를 마치면 기억의 우물에서 진행합니다. 멀티플레이는 **메뉴 → 공동 환생**에서 접속자 전원이 동의하면 바로 전환합니다. 방장이나 데디케이티드 운영자가 인게임 1일 이상 앞서 예고할 수도 있습니다. 예고 시간이 지나면 참여를 선택한 접속자만 환생하며, 나머지는 재산과 생애를 가지고 새 시대의 스폰 지점에서 시작합니다.
+- 레벨업마다 최대 생명력 +2와 스태미나 +1, 배분 포인트 1개를 받습니다. 캐릭터 창에서 힘·솜씨·지식을 올립니다. 레벨 200부터는 경험치를 계속 기록합니다. 환생 기간과 레벨별 증가량은 `Data/VillageSettings.asset`에서 조절합니다.
+- 누적 벌목 100개를 달성하면 기억의 우물에서 전설을 기록할 수 있습니다. 인게임 7일이 지나거나 시대가 바뀔 때마다 해당 기록에서 인정 자리 1개가 열립니다. 자리가 남아 있을 때 처음 목재 25개를 바치는 플레이어는 창시자의 정체와 관계없이 전설의 도끼를 받습니다. 같은 생을 이어가는 창시자는 퀘스트 창에서 시련 안내를 받습니다. 숫자와 보상은 `Data/Quests/WoodcuttingLegend.asset`에서 조절합니다.
+
+구름 위 배치와 카메라 구도는 Scene의 `Cloud terrace`, 후보지와 채집 대상은 `Village/First life and gathering`에서 수정합니다. 이전 저장의 공유 채집 랭크는 수확·벌목·달걀 채집의 초기 랭크로 옮깁니다. 갈무리와 맨손전투는 연습부터 시작합니다.
 
 ## 저장과 검증
 
-`Application.persistentDataPath/workerborn-village-v1.json`에 15초마다, 주요 행동 후, 앱 일시정지·종료 시 저장합니다. 저장에는 아이템 배치·수량·장비, 위치, 시간, 성장, 의뢰, 퀘스트, 세계 변화, 작물의 고유 ID별 남은 횟수와 바닥 물품이 포함됩니다. 이전 지갑 방식의 골드는 금화 아이템으로 변환합니다. `.bak` 백업 복구도 지원합니다. 이전 버전 저장 기록은 기존 농장이 완공된 상태로 이어집니다. 첫 생애를 시험하려면 `Village session/Load Saved Game`을 끄세요. 이 상태의 플레이는 기존 저장을 덮어쓰지 않습니다.
+`Application.persistentDataPath/workerborn-village-v1.json`에 15초마다, 주요 행동 후, 앱 일시정지·종료 시 저장합니다. 저장에는 아이템 배치·수량·장비, 위치, 시간, 성장, 의뢰, 퀘스트, 세계 변화, 작물의 고유 ID별 남은 횟수와 바닥 물품이 포함됩니다. 이전 지갑 방식의 골드는 금화 아이템으로 변환합니다. `.bak` 백업 복구도 지원합니다. 기존 저장의 농장 부지, 완공 여부와 기부 기록을 이어받습니다. 첫 생애를 시험하려면 `Village session/Load Saved Game`을 끄세요. 이 상태의 플레이는 기존 저장을 덮어쓰지 않습니다.
 
 ```bash
 dotnet run --project Tests/HarvestLogic/HarvestLogic.csproj -- --noheader --nocolor --workers=0

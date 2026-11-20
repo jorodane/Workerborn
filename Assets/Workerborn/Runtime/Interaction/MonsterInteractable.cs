@@ -116,7 +116,7 @@ namespace Workerborn
                 !opponent.InReach(transform.position, InteractionDistance))
                 return;
             var village = opponent.Village;
-            if (village == null || village.Hud.HasModal || village.State.Energy <= 0)
+            if (village == null || village.Hud.HasModal || village.State.Health <= 0 || village.State.Energy <= 0)
                 return;
 
             nextCounterAt = Time.time + combat.CounterDelay;

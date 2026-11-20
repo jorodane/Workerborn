@@ -22,6 +22,7 @@ namespace Workerborn
         public const string Egg = "egg";
         public const string Timber = "timber";
         public const string Axe = "woodcutting_axe";
+        public const string LegendAxe = "legend_axe";
         public const string TimberContract = "timber_contract";
         public const string FarmContract = "farm_contract";
     }
@@ -56,6 +57,7 @@ namespace Workerborn
             new ItemSpec(ItemIds.Egg, "달걀", "암탉 주변에서 맨손으로 모을 수 있습니다.", 1, 1, 999, 4),
             new ItemSpec(ItemIds.Timber, "목재", "도끼로 나무를 베어 얻는 자재입니다.", 1, 1, 999, 3),
             new ItemSpec(ItemIds.Axe, "나무꾼 도끼", "주무기에 장착해서 나무를 벱니다.", 1, 2, 1, 12, EquipmentSlot.MainHand),
+            new ItemSpec(ItemIds.LegendAxe, "전설의 나무꾼 도끼", "전설의 시련을 통과한 나무꾼에게 주는 도끼입니다.", 1, 2, 1, 12, EquipmentSlot.MainHand),
             new ItemSpec(ItemIds.TimberContract, "목재 납품 계약서", "클릭하면 농장 건설에 필요한 납품 내용을 펼칩니다.", 1, 1, 1, 0),
             new ItemSpec(ItemIds.FarmContract, "농장 아르바이트 계약서", "클릭하면 납품 시간, 요구량과 보수를 펼칩니다.", 1, 1, 1, 0)
         };

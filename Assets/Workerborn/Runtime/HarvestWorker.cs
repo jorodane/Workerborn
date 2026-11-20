@@ -261,7 +261,7 @@ namespace Workerborn
         public void CommandAttack(WorldInteractable target)
         {
             if (village == null || !AcceptsInteractionCommands || target == null || !target.CanReceiveStrike ||
-                village.State.Energy <= 0 || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
+                (village.State.Energy <= 0 || village.State.Health <= 0) || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
                 return;
             if (InReach(target.transform.position, target.InteractionDistance))
                 StartAttack(target);
@@ -271,7 +271,7 @@ namespace Workerborn
 
         private void StartAttack(WorldInteractable target)
         {
-            if (target == null || !target.CanReceiveStrike || village.State.Energy <= 0 || !AcceptsInteractionCommands)
+            if (target == null || !target.CanReceiveStrike || (village.State.Energy <= 0 || village.State.Health <= 0) || !AcceptsInteractionCommands)
                 return;
             Cancel();
             Face(target.transform.position);
@@ -285,7 +285,7 @@ namespace Workerborn
 
         private void UpdateAttack()
         {
-            if (strikeTarget == null || !AcceptsInteractionCommands || village.State.Energy <= 0)
+            if (strikeTarget == null || !AcceptsInteractionCommands || (village.State.Energy <= 0 || village.State.Health <= 0))
             {
                 Cancel();
                 return;
@@ -298,7 +298,7 @@ namespace Workerborn
                 if (strikeTarget.CanReceiveStrike && InReach(strikeTarget.transform.position, strikeTarget.InteractionDistance))
                 {
                     int bonus = village.State.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : village.State.UnarmedDamageBonus;
-                    strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus));
+                    strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus + village.State.Strength));
                 }
             }
             if (progress >= 1f)

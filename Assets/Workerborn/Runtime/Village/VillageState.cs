@@ -45,12 +45,22 @@ namespace Workerborn
         public int day = 1;
         public int lifeDay = 1;
         public int life = 1;
+        public int era = 1;
+        public double lifeStartedAt;
+        public int health = 100;
+        public int attributePoints;
+        public int strength;
+        public int dexterity;
+        public int knowledge;
+        public int timberDelivered;
+        public int lifetimeTimber;
+        public WoodcuttingLegend legend;
         public float minute = 480f;
         public int energy = 100;
         public int gold;
         public int level = 1;
-        public int experience;
-        public int totalLevel = 1;
+        public long experience;
+        public long totalLevel = 1;
         public int ap;
         public int skillRank;
         public SkillRankSave[] skillRanks = Array.Empty<SkillRankSave>();
@@ -102,8 +112,8 @@ namespace Workerborn
         public int Energy { get; private set; } = MaxEnergy;
         public int Gold => Inventory.Count(ItemIds.Gold);
         public int Level { get; private set; } = 1;
-        public int Experience { get; private set; }
-        public int TotalLevel { get; private set; } = 1;
+        public long Experience { get; private set; }
+        public long TotalLevel { get; private set; } = 1;
         public int AP { get; private set; }
         public int Career { get; private set; }
         public int LifetimeHarvests { get; private set; }
@@ -134,7 +144,8 @@ namespace Workerborn
         public bool HasHoe => equipment.TryGetValue(EquipmentSlot.MainHand, out string item) && item == ItemIds.Hoe;
         public int HarvestEnergyCost => WorkEnergyCost(ItemIds.Potato, Rules.HarvestEnergy);
         public bool HasTool(string itemId) => string.IsNullOrEmpty(itemId) ||
-            equipment.TryGetValue(EquipmentSlot.MainHand, out var equipped) && equipped == itemId;
+            equipment.TryGetValue(EquipmentSlot.MainHand, out var equipped) &&
+                (equipped == itemId || itemId == ItemIds.Axe && equipped == ItemIds.LegendAxe);
 
         public int CareerTier
         {
@@ -152,7 +163,6 @@ namespace Workerborn
         public int OfferedJobRequirement => OfferedJobTier.Quantity + (FarmLevel - 1) * Rules.WorldJobQuantity;
         public int OfferedJobReward => OfferedJobTier.Gold + (FarmLevel - 1) * Rules.WorldJobGold;
         public int OfferedJobExperience => OfferedJobTier.Experience + (FarmLevel - 1) * Rules.WorldJobExperience;
-        public bool CanRebirth => FarmAvailable ? IntroClaimed && Level >= Rules.RebirthLevel : FoundationStage == FarmFoundationStage.ReadyToRebirth;
         public bool JobWindowOpen => Minute >= Rules.JobStart && Minute < Rules.JobEnd;
 
         public VillageState(VillageRules rules = null)
@@ -160,7 +170,9 @@ namespace Workerborn
             Rules = rules ?? new VillageRules();
             RefreshSkillStats();
             Energy = StaminaLimit;
+            Health = HealthLimit;
             Minute = Rules.JobStart;
+            lifeStartedAt = WorldMinute;
             if (Rules.Foundation == null)
                 FoundationStage = FarmFoundationStage.Built;
         }
@@ -216,7 +228,7 @@ namespace Workerborn
                 Result(false, "아르바이트 시간이 종료되었습니다.");
             }
 
-            if (Minute < Rules.CollapseMinute && Energy > 0)
+            if (Minute < Rules.CollapseMinute && Energy > 0 && Health > 0)
                 return false;
             NextDay(Rules.CollapseEnergy, true);
             Result(true, "의식을 잃고 숙소에서 깨어났습니다.");
@@ -225,10 +237,10 @@ namespace Workerborn
 
         public int TakeHit(int damage)
         {
-            int applied = Math.Min(Energy, Math.Max(0, damage));
+            int applied = Math.Min(Health, Math.Max(0, damage));
             if (applied > 0)
             {
-                Energy -= applied;
+                Health -= applied;
                 Version++;
             }
             return applied;
@@ -321,32 +333,40 @@ namespace Workerborn
             LifetimeHarvests++;
             int bonus = outcome == WorkOutcome.GreatLucky ? 50 : outcome == WorkOutcome.Lucky ? 2 : 1;
             drops = ScaledYield(skill, baseYield, bonus);
-            AddExperience(Rules.HarvestExperience);
+            if (itemId == ItemIds.Timber)
+                LifetimeTimber = (int)Math.Min(int.MaxValue, (long)LifetimeTimber + drops);
+            AddExperience(Rules.HarvestExperience + Knowledge / 5);
             string result = outcome == WorkOutcome.GreatLucky ? "대박 보너스!" : outcome == WorkOutcome.Lucky ? "럭키 보너스!" : "채집 완료!";
             return Result(true, $"{result} {ItemCatalog.Get(itemId).Name} {drops:N0}개");
         }
 
         private void AddExperience(int amount)
         {
-            if (Level >= 200)
-                return;
-            Experience += amount;
-            while (Level < 200 && Experience >= NextLevelExperience)
+            int previousLevel = Level, previousStamina = StaminaLimit, previousHealth = HealthLimit;
+            Experience += Math.Min(long.MaxValue - Experience, Math.Max(0, amount));
+            while (Level < LevelLimit && Experience >= NextLevelExperience)
             {
                 Experience -= NextLevelExperience;
                 Level++;
-                TotalLevel++;
-                AP += Rules.APPerLevel;
+                if (TotalLevel < long.MaxValue)
+                    TotalLevel++;
+                if (Rules.APPerLevel > 0)
+                    AP += Math.Min(int.MaxValue - AP, Rules.APPerLevel);
+                AttributePoints++;
             }
 
-            if (Level == 200)
-                Experience = 0;
+            if (previousLevel != Level)
+            {
+                RefreshSkillStats();
+                Energy = Math.Min(StaminaLimit, Energy + StaminaLimit - previousStamina);
+                Health = Math.Min(HealthLimit, Health + HealthLimit - previousHealth);
+            }
         }
 
         public bool TryBuy(string itemId) => TryBuy(itemId, 1);
         public int MaximumBuyQuantity(string itemId)
         {
-            if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || TryGetDocumentPage(itemId, out _) ||
+            if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || itemId == ItemIds.LegendAxe || TryGetDocumentPage(itemId, out _) ||
                 itemId == ItemIds.Hoe && (HasHoe || Inventory.Count(ItemIds.Hoe) > 0) ||
                 itemId == ItemIds.Bag && (BagExpanded || Inventory.Count(ItemIds.Bag) > 0))
                 return 0;
@@ -359,7 +379,7 @@ namespace Workerborn
         {
             if (quantity < 1 || quantity > 999)
                 return Result(false, "구입할 수 없는 수량입니다.");
-            if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || TryGetDocumentPage(itemId, out _))
+            if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || itemId == ItemIds.LegendAxe || TryGetDocumentPage(itemId, out _))
                 return Result(false, "판매하지 않는 물건입니다.");
             var spec = ItemCatalog.Get(itemId);
             if (quantity > 1 && spec.EquipmentSlot != EquipmentSlot.None)
@@ -442,45 +462,64 @@ namespace Workerborn
 
         public bool TryDonateGold()
         {
-            if (!IntroClaimed || FarmLevel > 1 || FarmUpgradePending)
+            if (!FarmAvailable || FarmLevel >= Rules.ExpandedStage || FarmUpgradePending)
                 return Result(false, "지금은 농장 확장을 위한 기부를 받지 않아요.");
             int amount = Math.Min(Rules.DonationGoldStep, Rules.DonationGold - DonatedGold);
             if (amount <= 0)
                 return Result(false, "필요한 자금은 모두 모였어요.");
             if (Gold < amount)
                 return Result(false, $"기부하려면 {amount}G가 필요해요.");
-            Inventory.TryRemove(ItemIds.Gold, amount);
+            int reward = DonatedGold + amount >= Rules.DonationGold && DonatedPotatoes >= Rules.DonationItems ? Rules.ExpansionRewardGold : 0;
+            if (!Inventory.TryExchange(ItemIds.Gold, amount, ItemIds.Gold, reward))
+                return Result(false, "기부 보상을 받을 소지품 공간이 부족합니다.");
             DonatedGold += amount;
             CheckDonation();
-            return Result(true, FarmUpgradePending ? "농장 확장 준비 완료! 다음 환생 때 넓어진 밭을 만날 수 있어요." : $"마을에 {amount}G를 기부했어요. ({DonatedGold}/{Rules.DonationGold}G)");
+            return Result(true, FarmUpgradePending ? "농장 확장 준비 완료! 시대 전환을 진행할 수 있어요." : $"마을에 {amount}G를 기부했어요. ({DonatedGold}/{Rules.DonationGold}G)");
         }
 
         public bool TryDonatePotatoes()
         {
-            if (!IntroClaimed || FarmLevel > 1 || FarmUpgradePending)
+            if (!FarmAvailable || FarmLevel >= Rules.ExpandedStage || FarmUpgradePending)
                 return Result(false, "지금은 농장 확장을 위한 기부를 받지 않아요.");
             int amount = Math.Min(Rules.DonationItemStep, Rules.DonationItems - DonatedPotatoes);
             if (amount <= 0)
                 return Result(false, "필요한 물품은 모두 모였습니다.");
-            if (!Inventory.TryRemove(Rules.DonationItemId, amount))
+            if (Inventory.Count(Rules.DonationItemId) < amount)
                 return Result(false, "기부 물품이 부족합니다.");
+            int reward = DonatedGold >= Rules.DonationGold && DonatedPotatoes + amount >= Rules.DonationItems ? Rules.ExpansionRewardGold : 0;
+            if (!Inventory.TryExchange(Rules.DonationItemId, amount, ItemIds.Gold, reward))
+                return Result(false, "기부 보상을 받을 소지품 공간이 부족합니다.");
             DonatedPotatoes += amount;
             CheckDonation();
-            return Result(true, FarmUpgradePending ? "농장 확장 준비 완료! 다음 환생 때 넓어진 밭을 만날 수 있어요." : $"마을에 {ItemCatalog.Get(Rules.DonationItemId).Name} {amount}개를 기부했어요. ({DonatedPotatoes}/{Rules.DonationItems}개)");
+            return Result(true, FarmUpgradePending ? "농장 확장 준비 완료! 시대 전환을 진행할 수 있어요." : $"마을에 {ItemCatalog.Get(Rules.DonationItemId).Name} {amount}개를 기부했어요. ({DonatedPotatoes}/{Rules.DonationItems}개)");
         }
 
         private void CheckDonation()
         {
             FarmUpgradePending = DonatedGold >= Rules.DonationGold && DonatedPotatoes >= Rules.DonationItems;
+            if (FarmUpgradePending)
+            {
+                AP += Rules.ExpansionRewardAP;
+                AddExperience(Rules.ExpansionRewardExperience);
+            }
         }
 
-        public bool TrySleep(bool paidRoom)
+        public bool TrySleep(bool paidRoom) => TrySleep(paidRoom, false);
+
+        internal bool TrySleep(bool paidRoom, bool sharedClock)
         {
             if (paidRoom && Gold < Rules.RoomPrice)
                 return Result(false, "숙박비가 부족합니다.");
             if (paidRoom && Rules.RoomPrice > 0)
                 Inventory.TryRemove(ItemIds.Gold, Rules.RoomPrice);
-            NextDay(paidRoom ? StaminaLimit : Rules.FreeRestEnergy, false);
+            int restoredEnergy = paidRoom ? StaminaLimit : Rules.FreeRestEnergy;
+            if (sharedClock)
+            {
+                Energy = Math.Min(StaminaLimit, restoredEnergy);
+                Health = HealthLimit;
+                return Result(true, $"숙소에서 쉬었습니다. 에너지 {Energy} 회복.");
+            }
+            NextDay(restoredEnergy, false);
             return Result(true, $"다음 날 {Rules.WakeMinute / 60:00}:{Rules.WakeMinute % 60:00}. 에너지 {Energy} 회복.");
         }
 
@@ -490,6 +529,7 @@ namespace Workerborn
             LifeDay++;
             Minute = Rules.WakeMinute;
             Energy = Math.Min(energy, StaminaLimit);
+            Health = HealthLimit;
             if (Job == JobStatus.Active)
                 Job = JobStatus.Failed;
             LastRestWasCollapse = collapsed;
@@ -504,36 +544,6 @@ namespace Workerborn
             return Result(true, $"{Rules.JobStart / 60:00}:{Rules.JobStart % 60:00}까지 기다렸습니다.");
         }
 
-        public bool TryRebirth()
-        {
-            if (!CanRebirth)
-                return Result(false, FarmAvailable ? $"'{Rules.IntroTitle}' 보상을 받고 레벨 {Rules.RebirthLevel}에 도달하면 환생할 수 있어요." : "목재를 납품하고 농장 부지를 지정해 주세요.");
-            if (!FarmAvailable)
-                FoundationStage = FarmFoundationStage.Built;
-            if (FarmUpgradePending)
-            {
-                FarmLevel = Rules.ExpandedStage;
-                FarmUpgradePending = false;
-            }
-
-            Life++;
-            Day++;
-            LifeDay = 1;
-            Minute = Rules.JobStart;
-            Level = 1;
-            Experience = 0;
-            Energy = StaminaLimit;
-            Inventory = new GridInventory();
-            equipment.Clear();
-            Job = JobStatus.None;
-            LastJobDay = -1;
-            JobRequirement = JobReward = JobExperience = 0;
-            JobRewardItemId = null;
-            JobRewardItemCount = 0;
-            LastRestWasCollapse = false;
-            return Result(true, $"{Life}번째 생이 시작됐어요. 스킬·AP·경력과 마을의 변화는 이어집니다.");
-        }
-
         public VillageSave Export()
         {
             var worn = new List<EquipmentEntrySave>();
@@ -541,11 +551,21 @@ namespace Workerborn
                 worn.Add(new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value });
             return new VillageSave
             {
-                schema = 5,
+                schema = CurrentSaveSchema,
                 equipment = worn.ToArray(),
                 day = Day,
                 lifeDay = LifeDay,
                 life = Life,
+                era = Era,
+                lifeStartedAt = lifeStartedAt,
+                health = Health,
+                attributePoints = AttributePoints,
+                strength = Strength,
+                dexterity = Dexterity,
+                knowledge = Knowledge,
+                timberDelivered = TimberDelivered,
+                lifetimeTimber = LifetimeTimber,
+                legend = Legend,
                 minute = Minute,
                 energy = Energy,
                 gold = 0,
@@ -582,12 +602,13 @@ namespace Workerborn
         public static VillageState Restore(VillageSave save, VillageRules rules = null)
         {
             rules = rules ?? new VillageRules();
-            if (save == null || save.schema < 1 || save.schema > 5 ||
+            if (save == null || save.schema < 1 || save.schema > CurrentSaveSchema ||
                 save.day < 1 || save.lifeDay < 1 || save.life < 1 || save.day > 1000000 || save.life > 1000000 || save.lifeDay > save.day ||
                 float.IsNaN(save.minute) || float.IsInfinity(save.minute) || save.minute < 0 || save.minute >= 1440 ||
                 save.energy < 0 || save.energy > (save.schema < 5 ? MaxEnergy : 1000000) || save.gold < 0 || save.gold > 100000000 ||
-                save.level < 1 || save.level > 200 || save.experience < 0 || save.experience >= 20 + save.level * 10 ||
-                save.totalLevel < save.level || save.totalLevel > 100000000 || save.ap < 0 || save.ap > 1000000 ||
+                save.level < 1 || save.level > LevelLimit || save.experience < 0 ||
+                (save.schema < 6 || save.level < LevelLimit) && save.experience >= 20 + save.level * 10 ||
+                save.totalLevel < save.level || save.ap < 0 ||
                 (save.schema < 5 && (save.skillRank < 0 || save.skillRank > 8)) ||
                 save.career < 0 || save.career > 1000000 || save.lifetimeHarvests < 0 ||
                 save.donatedGold < 0 || save.donatedGold > Math.Max(RequiredDonationGold, rules.DonationGold) ||
@@ -599,6 +620,13 @@ namespace Workerborn
             if ((JobStatus)save.jobStatus == JobStatus.Active && (save.lastJobDay != save.day || save.jobRequirement < 1 || save.jobRequirement > 10000 || save.jobReward < 0 || save.jobReward > 10000 || save.jobExperience < 0 || save.jobExperience > 100000))
                 throw new ArgumentException("Invalid active job.");
             var foundationStage = RestoreFoundationStage(save, rules);
+            double worldMinute = (save.day - 1) * 1440d + save.minute;
+            if (save.schema >= 6 && (double.IsNaN(save.lifeStartedAt) || save.lifeStartedAt < 0 || save.lifeStartedAt > worldMinute ||
+                save.era < 1 || save.era > 1000000 || save.health < 0 || save.health > 1000000 || save.attributePoints < 0 ||
+                save.strength < 0 || save.dexterity < 0 || save.knowledge < 0 ||
+                (long)save.attributePoints + save.strength + save.dexterity + save.knowledge > save.level - 1 ||
+                save.lifetimeTimber < 0 || save.timberDelivered < 0 || save.timberDelivered > (rules.Foundation?.TimberCount ?? 0)))
+                throw new ArgumentException("Invalid life or era progress.");
             if (save.jobRewardItemCount < 0 || save.jobRewardItemCount > 10000 || (save.jobRewardItemCount > 0 && !ItemCatalog.Contains(save.jobRewardItemId)))
                 throw new ArgumentException("Invalid job item reward.");
             var inventory = GridInventory.Restore(save.inventoryColumns, save.inventoryRows, save.inventory);
@@ -623,6 +651,14 @@ namespace Workerborn
                 Day = save.day,
                 LifeDay = save.lifeDay,
                 Life = save.life,
+                Era = save.schema >= 6 ? save.era : (foundationStage == FarmFoundationStage.Built && rules.Foundation != null ? save.farmLevel + 1 : save.farmLevel),
+                lifeStartedAt = save.schema >= 6 ? save.lifeStartedAt : worldMinute - (save.lifeDay - 1) * 1440d,
+                AttributePoints = save.schema >= 6 ? save.attributePoints : save.level - 1,
+                Strength = save.schema >= 6 ? save.strength : 0,
+                Dexterity = save.schema >= 6 ? save.dexterity : 0,
+                Knowledge = save.schema >= 6 ? save.knowledge : 0,
+                TimberDelivered = save.schema >= 6 ? save.timberDelivered :
+                    (int)foundationStage >= (int)FarmFoundationStage.SelectingSite ? rules.Foundation?.TimberCount ?? 0 : 0,
                 Minute = save.minute,
                 Energy = save.energy,
                 Level = save.level,
@@ -645,12 +681,15 @@ namespace Workerborn
                 JobRewardItemId = save.jobRewardItemId,
                 JobRewardItemCount = save.jobRewardItemCount,
                 FoundationStage = foundationStage,
+                LifetimeTimber = save.lifetimeTimber,
+                Legend = RestoreLegend(save.legend),
                 FarmSiteId = save.farmSiteId,
                 LastGuideLife = save.schema < 3 ? save.life : save.lastGuideLife,
                 Inventory = inventory
             };
             state.RestoreSkills(save);
             state.RefreshSkillStats();
+            state.Health = save.schema >= 6 ? Math.Min(save.health, state.HealthLimit) : state.HealthLimit;
             state.Energy = Math.Min(state.Energy, state.StaminaLimit);
             if (save.schema >= 2 && save.equipment != null)
                 foreach (var entry in save.equipment)

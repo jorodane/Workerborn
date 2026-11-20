@@ -169,6 +169,8 @@ namespace Workerborn.Tests
             yield return Until(() => game.Hud.HasModal, 10f);
             Assert.That(game.Perform(game.State.TryDeliverJob), Is.True);
             Assert.That(game.Perform(game.State.TryClaimIntroQuest), Is.True);
+            for (int day = 0; day <= game.State.Rules.RebirthDays; day++)
+                game.State.TrySleep(false);
             Assert.That(game.State.CanRebirth, Is.True);
             Assert.That(game.Perform(game.State.TryUpgradeSkill), Is.True);
             int rank = game.State.SkillRank;
@@ -224,7 +226,7 @@ namespace Workerborn.Tests
             game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
             Assert.That(game.State.FarmUpgradePending, Is.True);
             Assert.That(game.Crops.Count, Is.EqualTo(12));
-            game.Rebirth();
+            game.AdvanceEra();
             yield return null;
             Assert.That(game.State.FarmLevel, Is.EqualTo(2));
             Assert.That(game.Crops.Count, Is.EqualTo(24));

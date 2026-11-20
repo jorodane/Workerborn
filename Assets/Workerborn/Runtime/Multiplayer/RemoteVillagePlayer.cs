@@ -1,0 +1,59 @@
+using UnityEngine;
+
+namespace Workerborn
+{
+    public sealed class RemoteVillagePlayer : MonoBehaviour
+    {
+        [SerializeField] private Transform visual;
+        [SerializeField] private WorkerAnimation animationDriver;
+        [SerializeField, Min(0f)] private float labelHeight = 1.9f;
+        private WorldNameplateView label;
+        private VillageHud hud;
+        private Vector3 destination;
+        private Quaternion yaw;
+        private bool hasPose;
+
+        internal void Bind(CharacterActor source, VillageHud display, string name)
+        {
+            hud = display;
+            gameObject.name = name;
+            var appearance = source.Appearance;
+            if (visual != null && appearance != null && appearance.BasePrefab != null)
+            {
+                var model = CharacterAssembler.Build(appearance, visual);
+                animationDriver?.Initialize(model.GetComponentInChildren<Animator>(), appearance.Idle, appearance.Run, appearance.Work, appearance.Walk);
+            }
+            label = Instantiate(hud.Library.NpcName, hud.CanvasRect);
+            label.SetText(name);
+            label.SetBox(false);
+        }
+
+        internal void SetPose(SessionAvatar avatar, float surfaceY)
+        {
+            float height = Mathf.Abs(avatar.y - surfaceY) < 3f ? avatar.y : surfaceY;
+            destination = new Vector3(avatar.x, height, avatar.z);
+            yaw = Quaternion.Euler(0, avatar.yaw, 0);
+            if (!hasPose || Vector3.SqrMagnitude(destination - transform.position) > 64f)
+                transform.SetPositionAndRotation(destination, yaw);
+            hasPose = true;
+            animationDriver?.SetAction(avatar.motion);
+        }
+
+        private void LateUpdate()
+        {
+            if (!hasPose)
+                return;
+            float factor = 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime);
+            transform.SetPositionAndRotation(Vector3.Lerp(transform.position, destination, factor),
+                Quaternion.Slerp(transform.rotation, yaw, factor));
+            if (label != null && hud != null)
+                hud.PositionPeerLabel(label, transform.position + Vector3.up * labelHeight);
+        }
+
+        private void OnDestroy()
+        {
+            if (label != null)
+                Destroy(label.gameObject);
+        }
+    }
+}

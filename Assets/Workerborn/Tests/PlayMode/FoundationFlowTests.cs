@@ -74,11 +74,11 @@ namespace Workerborn.Tests
             game.Hud.CloseDialogue();
             var site = UnityEngine.Object.FindObjectsByType<VillageFarmSite>(FindObjectsSortMode.None).Single(p => p.SiteId == "south");
             site.RequestInteraction(game.Worker);
-            yield return Until(() => state.CanRebirth);
+            yield return Until(() => state.CanAdvanceEra);
 
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Shrine));
             yield return Until(() => game.Hud.HasModal);
-            game.Rebirth();
+            game.AdvanceEra();
             Assert.That(state.Life, Is.EqualTo(2));
             Assert.That(state.Inventory.Entries, Is.Empty);
             Assert.That(state.Equipment, Is.Empty);

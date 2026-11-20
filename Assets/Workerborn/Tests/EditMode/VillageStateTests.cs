@@ -86,7 +86,7 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void FirstJobQuestAndLevelThreeFormAPlayableRebirthPath()
+        public void FirstJobQuestGrantsGrowthBeforeRebirthBecomesAvailable()
         {
             var state = new VillageState();
             state.MeetFarmer();
@@ -99,7 +99,7 @@ namespace Workerborn.Tests
             Assert.That(state.TryDeliverJob(), Is.True);
             Assert.That(state.TryClaimIntroQuest(), Is.True);
             Assert.That(state.Level, Is.EqualTo(3));
-            Assert.That(state.CanRebirth, Is.True);
+            Assert.That(state.CanRebirth, Is.False);
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.Zero);
             Assert.That(state.Gold, Is.EqualTo(75));
         }
@@ -115,11 +115,12 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void AnimalDamageUsesStaminaAndFollowsTheExistingCollapseFlow()
+        public void AnimalDamageUsesHealthAndFollowsTheExistingCollapseFlow()
         {
             var state = new VillageState();
             Assert.That(state.TakeHit(7), Is.EqualTo(7));
-            Assert.That(state.Energy, Is.EqualTo(VillageState.MaxEnergy - 7));
+            Assert.That(state.Health, Is.EqualTo(state.HealthLimit - 7));
+            Assert.That(state.Energy, Is.EqualTo(state.StaminaLimit));
             Assert.That(state.TakeHit(1000), Is.EqualTo(VillageState.MaxEnergy - 7));
             Assert.That(state.TakeHit(7), Is.Zero);
             Assert.That(state.AdvanceTime(0), Is.True);
@@ -175,7 +176,10 @@ namespace Workerborn.Tests
             var state = Funded();
             Assert.That(state.TryAcceptJob(), Is.True);
             Assert.That(state.JobRequirement, Is.EqualTo(10));
-            state.TryRebirth();
+            for (int day = 0; day < state.Rules.RebirthDays; day++)
+                state.TrySleep(false);
+            state.TryWaitForWork();
+            Assert.That(state.TryRebirth(), Is.True);
             Assert.That(state.Career, Is.EqualTo(4));
             Assert.That(state.TryAcceptJob(), Is.True);
             Assert.That(state.JobRequirement, Is.EqualTo(10));
@@ -297,16 +301,17 @@ namespace Workerborn.Tests
         public void FullEnergyDoesNotWasteFoodAndEatingClampsAtMaximum()
         {
             var state = Funded();
+            state.TrySleep(true);
             state.TryBuy(ItemIds.Bread);
             Assert.That(state.TryEatBread(), Is.False);
             state.TryHarvest(2, false, out _);
             Assert.That(state.TryEatBread(), Is.True);
-            Assert.That(state.Energy, Is.EqualTo(100));
+            Assert.That(state.Energy, Is.EqualTo(state.StaminaLimit));
             Assert.That(state.Inventory.Count(ItemIds.Bread), Is.Zero);
         }
 
         [Test]
-        public void WorldContributionsBecomeAnUpgradeOnlyOnRebirth()
+        public void WorldContributionsBecomeAnUpgradeOnEraTransition()
         {
             var state = Funded();
             state.Inventory.TryAdd(ItemIds.Potato, 20);
@@ -317,7 +322,7 @@ namespace Workerborn.Tests
             }
             Assert.That(state.FarmUpgradePending, Is.True);
             Assert.That(state.FarmLevel, Is.EqualTo(1));
-            Assert.That(state.TryRebirth(), Is.True);
+            Assert.That(state.TryAdvanceEra(), Is.True);
             Assert.That(state.FarmLevel, Is.EqualTo(2));
             Assert.That(state.FarmUpgradePending, Is.False);
             Assert.That(state.TryDonateGold(), Is.False);
@@ -335,7 +340,9 @@ namespace Workerborn.Tests
             state.TryUpgradeSkill();
             int rank = state.SkillRank;
             int ap = state.AP;
-            int total = state.TotalLevel;
+            long total = state.TotalLevel;
+            for (int day = 0; day <= state.Rules.RebirthDays; day++)
+                state.TrySleep(false);
             Assert.That(state.TryRebirth(), Is.True);
             Assert.That(state.Level, Is.EqualTo(1));
             Assert.That(state.Experience, Is.Zero);
@@ -352,7 +359,7 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void RebirthCannotBypassTheIntroductoryQuest()
+        public void RebirthRequiresTheConfiguredLifeAge()
         {
             var state = new VillageState();
             Assert.That(state.TryRebirth(), Is.False);
@@ -366,7 +373,7 @@ namespace Workerborn.Tests
             var state = Funded();
             state.TryAcceptJob();
             Assert.That(state.TrySleep(true), Is.True);
-            Assert.That(state.Energy, Is.EqualTo(100));
+            Assert.That(state.Energy, Is.EqualTo(state.StaminaLimit));
             Assert.That(state.Gold, Is.EqualTo(490));
             Assert.That(state.Minute, Is.EqualTo(360));
             Assert.That(state.Job, Is.EqualTo(JobStatus.Failed));
@@ -378,7 +385,7 @@ namespace Workerborn.Tests
         [Test]
         public void ExhaustionForcesRestWithTheCollapsePenalty()
         {
-            var state = new VillageState();
+            var state = new VillageState(new VillageRules { HarvestExperience = 0 });
             for (int i = 0; i < 20; i++) state.TryHarvest(2, false, out _);
             Assert.That(state.TryHarvest(2, false, out _), Is.False);
             Assert.That(state.AdvanceTime(0f), Is.True);

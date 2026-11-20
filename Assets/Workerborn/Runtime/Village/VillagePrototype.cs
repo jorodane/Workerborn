@@ -7,7 +7,7 @@ namespace Workerborn
 {
     // Scene objects are authored and saved in Unity. This component binds them to session state.
     [DefaultExecutionOrder(100)]
-    public sealed class VillagePrototype : MonoBehaviour
+    public sealed partial class VillagePrototype : MonoBehaviour
     {
         [SerializeField]
         private VillageSettings settings;
@@ -79,6 +79,7 @@ namespace Workerborn
         private MonsterInteractable[] animals;
         private readonly List<VillageInteractable> npcs = new List<VillageInteractable>();
         private readonly List<GroundPickup> pickups = new List<GroundPickup>();
+        private readonly List<GroundPickup> authoredPickups = new List<GroundPickup>();
         private GroundPickupPool pickupPool;
         private Action<Vector3> playLanding;
         private VillageFarmSite[] farmSites;
@@ -102,7 +103,7 @@ namespace Workerborn
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
         internal int PrewarmGroundPickups => prewarmGroundPickups;
-        public bool ControlsBlocked => hud != null && (hud.HasModal || hud.HasQuantityPrompt || hud.IsHoldingItem);
+        public bool ControlsBlocked => AwaitingWorldCommand || hud != null && (hud.HasModal || hud.HasQuantityPrompt || hud.IsHoldingItem);
 
         public int RemainingHarvests
         {
@@ -129,6 +130,11 @@ namespace Workerborn
 
         private void Awake()
         {
+            if (Session?.IsDedicated == true)
+            {
+                StartHeadless();
+                return;
+            }
             if (settings == null || mapRoot == null || navigation == null || player == null || worker == null || worldCamera == null || cameraRig == null || hud == null || spawnPoint == null || restPoint == null || droppedItems == null ||
                 groundPickupTemplate == null || groundPickupTemplate.Visual == null || groundPickupTemplate.GetComponent<CapsuleCollider>() == null)
             {
@@ -153,7 +159,15 @@ namespace Workerborn
             var rules = settings.CreateRules(FindInteraction(VillageRole.Farmer)?.Definition);
             State = new VillageState(rules);
             string notice = null;
-            if (loadSavedGame && VillageSaveStore.TryLoad(out var savedState, out var savedWorld, out notice, rules))
+            if (IsOnline)
+            {
+                MarkOnline();
+                Session.InitializeAuthority(rules, AuthoredSites(), spawnPoint.position);
+                restoredWorld = Session.InitialCharacter;
+                if (restoredWorld != null)
+                    State = VillageState.Restore(restoredWorld, rules);
+            }
+            else if (loadSavedGame && VillageSaveStore.TryLoad(out var savedState, out var savedWorld, out notice, rules))
             {
                 State = savedState;
                 restoredWorld = savedWorld;
@@ -185,7 +199,14 @@ namespace Workerborn
 
             foreach (var item in FindObjectsByType<GroundPickup>(FindObjectsSortMode.None))
                 if (item.gameObject.scene == gameObject.scene)
+                {
                     pickups.Add(item);
+                    if (!string.IsNullOrEmpty(item.PersistentId))
+                    {
+                        item.KeepForRespawn();
+                        authoredPickups.Add(item);
+                    }
+                }
             if (minimapCamera != null && minimapTexture != null)
             {
                 minimapCamera.targetTexture = minimapTexture;
@@ -198,6 +219,7 @@ namespace Workerborn
             RestoreWorldObjects();
             lighting?.SetDate(State.Day, State.Minute);
             initialized = true;
+            Session?.Attach(this);
             nextSave = Time.unscaledTime + 15f;
             if (restoredWorld != null)
             {
@@ -292,7 +314,7 @@ namespace Workerborn
         {
             if (site == null || site != FindFarmSite(site.SiteId))
                 return false;
-            return Perform(() => State.TryChooseFarmSite(site.SiteId, site.DisplayName));
+            return PerformWorld(CampaignAction.SelectFarmSite, site.SiteId);
         }
 
         public VillageInteractable FindInteraction(VillageRole role)
@@ -413,7 +435,7 @@ namespace Workerborn
             if (applied <= 0)
                 return;
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "-" + applied, new Color(1f, .52f, .42f));
-            if (State.Energy <= 0)
+            if (State.Health <= 0)
                 worker.Cancel();
         }
 
@@ -477,6 +499,8 @@ namespace Workerborn
 
         public bool Perform(Func<bool> operation)
         {
+            if (AwaitingWorldCommand)
+                return false;
             int level = State.Level;
             bool success = operation();
             ShowLevelUp(level);
@@ -497,26 +521,29 @@ namespace Workerborn
 
         public void Sleep(bool paidRoom)
         {
-            if (!State.TrySleep(paidRoom))
+            if (AwaitingWorldCommand)
+                return;
+            if (!State.TrySleep(paidRoom, IsOnline))
             {
                 hud.ShowToast(State.LastMessage);
                 return;
             }
 
-            BeginDay();
+            BeginDay(resetResources: !IsOnline);
             hud.CloseDialogue();
             hud.ShowToast(State.LastMessage);
             SaveGame(false);
         }
 
-        private void BeginDay()
+        private void BeginDay(bool resetResources = true)
         {
             var rest = SurfacePosition(restPoint.position.x, restPoint.position.z);
             if (NavMesh.SamplePosition(rest, out var point, 2f, NavMesh.AllAreas))
                 worker.WarpTo(point.position);
             else
                 worker.Cancel();
-            ResetDailyResources();
+            if (resetResources)
+                ResetDailyResources();
             lighting?.SetDate(State.Day, State.Minute);
         }
 
@@ -529,29 +556,50 @@ namespace Workerborn
                     animal.ResetEncounter();
         }
 
-        public void Rebirth()
+        public void Rebirth() => PerformWorld(CampaignAction.Rebirth);
+
+        public void AdvanceEra()
         {
-            bool farmWasAvailable = State.FarmAvailable;
-            int previousFarmLevel = State.FarmLevel;
-            if (!State.TryRebirth())
+            if (IsOnline)
+            {
+                hud.CloseDialogue();
+                hud.ToggleWindow("era");
+                return;
+            }
+            if (!State.TryAdvanceEra())
             {
                 hud.ShowToast(State.LastMessage);
                 return;
             }
+            FinishTransition(reborn: true, eraChanged: true);
+            hud.ShowToast(State.LastMessage);
+            SaveGame(false);
+        }
 
+        private void FinishTransition(bool reborn, bool eraChanged)
+        {
             hud.CancelItemDrag();
             worker.Cancel();
             effects?.Clear();
             hud.ClearFloatingText();
-            for (int i = pickups.Count - 1; i >= 0; i--)
-                if (pickups[i] != null)
-                    pickups[i].Despawn();
-
-            pickups.Clear();
-            collectedPickups.Clear();
-            ApplyWorldStage();
-            if (farmWasAvailable != State.FarmAvailable || previousFarmLevel != State.FarmLevel)
+            if (reborn)
             {
+                for (int i = pickups.Count - 1; i >= 0; i--)
+                    if (pickups[i] != null)
+                        pickups[i].Despawn();
+                pickups.Clear();
+                collectedPickups.Clear();
+                foreach (var pickup in authoredPickups)
+                {
+                    if (pickup == null || string.IsNullOrEmpty(pickup.PersistentId))
+                        continue;
+                    pickup.RespawnAuthored();
+                    pickups.Add(pickup);
+                }
+            }
+            if (eraChanged)
+            {
+                ApplyWorldStage();
                 var agent = worker.GetComponent<NavMeshAgent>();
                 agent.enabled = false;
                 navigation.Activate(useBakedData: false);
@@ -563,9 +611,8 @@ namespace Workerborn
             lighting?.SetDate(State.Day, State.Minute);
             hud.CloseDialogue();
             hud.RefreshWindows();
-            hud.ShowToast(State.LastMessage);
-            SaveGame(false);
-            OpenGuideIfNeeded();
+            if (reborn)
+                OpenGuideIfNeeded();
         }
 
         public void WalkTo(VillageRole role)
@@ -673,12 +720,29 @@ namespace Workerborn
         {
             if (!initialized)
                 return false;
+            if (IsOnline)
+            {
+                bool submitted = Session.Checkpoint(CaptureSave());
+                if (notify)
+                    hud.ShowToast(submitted ? "방에 현재 진행을 보냈어요." : "저장 요청을 보내지 못했어요.");
+                nextSave = Time.unscaledTime + 15f;
+                return submitted;
+            }
             if (!loadSavedGame)
             {
                 if (notify)
                     hud.ShowToast("이 세션은 저장을 사용하지 않습니다.");
                 return false;
             }
+            bool success = VillageSaveStore.TrySave(CaptureSave(), out _);
+            if (notify || !success)
+                hud.ShowToast(success ? "저장했습니다." : "저장에 실패했습니다.");
+            nextSave = Time.unscaledTime + 15f;
+            return success;
+        }
+
+        internal VillageSave CaptureSave()
+        {
             var save = State.Export();
             save.playerX = worker.transform.position.x;
             save.playerZ = worker.transform.position.z;
@@ -700,16 +764,15 @@ namespace Workerborn
                     ground.Add(new GroundDropSave { id = item.PersistentId, quantity = item.Quantity, itemId = item.ItemId, x = item.LandingPosition.x, z = item.LandingPosition.z });
             save.drops = ground.ToArray();
             save.collectedPickupIds = new List<string>(collectedPickups).ToArray();
-            bool success = VillageSaveStore.TrySave(save, out _);
-            if (notify || !success)
-                hud.ShowToast(success ? "저장했습니다." : "저장에 실패했습니다.");
-            nextSave = Time.unscaledTime + 15f;
-            return success;
+            return save;
         }
 
         private void Update()
         {
             if (!initialized)
+                return;
+            hud.SetCommandPending(AwaitingWorldCommand);
+            if (AwaitingWorldCommand)
                 return;
             if (equipmentVersion != State.Version)
             {
@@ -718,9 +781,10 @@ namespace Workerborn
             }
 
             playerPortrait?.Show(hud.InventoryOpen ? player : null);
-            if (State.AdvanceTime(Time.deltaTime, hud.HasModal))
+            bool rested = IsOnline ? State.RecoverInSharedWorld() : State.AdvanceTime(Time.deltaTime, hud.HasModal);
+            if (rested)
             {
-                BeginDay();
+                BeginDay(resetResources: !IsOnline);
                 hud.CloseDialogue();
                 hud.ShowToast(State.LastMessage);
                 SaveGame(false);
@@ -733,6 +797,7 @@ namespace Workerborn
 
         private void OnDestroy()
         {
+            Session?.Detach(this);
             if (worker != null)
             {
                 worker.Cancel();
@@ -752,7 +817,7 @@ namespace Workerborn
 
         private void OnApplicationQuit()
         {
-            if (initialized)
+            if (initialized && !IsOnline)
                 SaveGame(false);
         }
     }

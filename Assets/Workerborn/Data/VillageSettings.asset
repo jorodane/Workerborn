@@ -30,6 +30,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: c8483cb65fa85278a4653ccb78981b83, type: 2}
   - {fileID: 11400000, guid: 608359c05769534d8eff00afb932220e, type: 2}
   - {fileID: 11400000, guid: 0b6aea990be9511cb653eaa17255d689, type: 2}
+  - {fileID: 11400000, guid: 94f4ff335a7d53bfb35dcbfb0481aa51, type: 2}
   skills:
   - {fileID: 11400000, guid: 621d8bbd2e435add925d683cd1874aaf, type: 2}
   - {fileID: 11400000, guid: 5c5694c0fe18556f9615ee867a0e5668, type: 2}
@@ -47,8 +48,12 @@ MonoBehaviour:
   roomPrice: 10
   freeRestEnergy: 70
   collapseEnergy: 45
-  rebirthLevel: 3
+  rebirthDays: 7
+  healthPerLevel: 2
+  staminaPerLevel: 1
   apPerLevel: 2
   harvestExperience: 8
   harvestEnergy: 5
   farmFoundation: {fileID: 11400000, guid: 077e12d014f15e7a98111c8bfcdfa87b, type: 2}
+  remotePlayerPrefab: {fileID: 100006, guid: 71dd2fe1f8ff50ffb419a8c7e25cd4ac, type: 3}
+  woodcuttingLegend: {fileID: 11400000, guid: aa07c53c62065f9d921d54c0c9d0f0c0, type: 2}

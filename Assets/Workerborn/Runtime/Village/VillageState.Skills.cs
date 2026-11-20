@@ -26,7 +26,7 @@ namespace Workerborn
 
         private void RefreshSkillStats()
         {
-            int maxStamina = MaxEnergy;
+            int maxStamina = MaxEnergy + (Level - 1) * Rules.StaminaPerLevel;
             int damage = 0;
             foreach (var skill in SkillProgression.All)
             {
@@ -40,7 +40,7 @@ namespace Workerborn
         public int WorkEnergyCost(string itemId, int baseCost) => WorkEnergyCost(SkillProgression.ForItem(itemId), itemId, baseCost);
         public int WorkEnergyCost(SkillId skill, string itemId, int baseCost) =>
             (int)Math.Max(1, Math.Min(int.MaxValue,
-                (long)baseCost - SkillBonus(skill, SkillEffect.StaminaSaving) - (itemId == ItemIds.Potato && HasHoe ? 1 : 0)));
+                (long)baseCost - Dexterity / 5 - SkillBonus(skill, SkillEffect.StaminaSaving) - (itemId == ItemIds.Potato && HasHoe ? 1 : 0)));
 
         public int ScaledYield(SkillId skill, int baseYield, int bonus = 1) =>
             (int)Math.Min(int.MaxValue, (long)baseYield * YieldMultiplierFor(skill) * bonus);

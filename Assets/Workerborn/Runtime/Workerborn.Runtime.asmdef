@@ -5,7 +5,8 @@
     "Unity.InputSystem",
     "UnityEngine.UI",
     "Unity.TextMeshPro",
-    "DistantLands.Cozy.Runtime"
+    "DistantLands.Cozy.Runtime",
+    "com.rlabrecque.steamworks.net"
   ],
   "autoReferenced": true
 }

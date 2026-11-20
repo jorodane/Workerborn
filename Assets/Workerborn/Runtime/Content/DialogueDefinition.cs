@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Workerborn
 {
-    public enum DialogueAction { Greeting, Job, IntroQuest, Contribution, Shop, Rest, Rebirth, Foundation, GuideAfter }
+    public enum DialogueAction { Greeting, Job, IntroQuest, Contribution, Shop, Rest, Rebirth, Foundation, GuideAfter, Legend }
 
     [System.Serializable]
     public sealed class DialogueTopicDefinition

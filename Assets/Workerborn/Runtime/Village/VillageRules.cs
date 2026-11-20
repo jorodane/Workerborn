@@ -22,6 +22,7 @@ namespace Workerborn
         public string TimberItemId;
         public int TimberCount;
         public string DocumentItemId;
+        public int RewardGold;
         public int RewardAP;
         public int RewardExperience;
     }
@@ -38,7 +39,16 @@ namespace Workerborn
         public int RoomPrice = 10;
         public int FreeRestEnergy = 70;
         public int CollapseEnergy = 45;
-        public int RebirthLevel = 3;
+        public int RebirthDays = 7;
+        public int LegendFoundingTimber = 100;
+        public int LegendTrialTimber = 25;
+        public int LegendMaturationDays = 7;
+        public string LegendRewardItem = ItemIds.LegendAxe;
+        public int HealthPerLevel = 2;
+        public int StaminaPerLevel = 1;
+        public int ExpansionRewardGold;
+        public int ExpansionRewardAP;
+        public int ExpansionRewardExperience;
         public int APPerLevel = 2;
         public int HarvestExperience = 8;
         public int HarvestEnergy = 5;

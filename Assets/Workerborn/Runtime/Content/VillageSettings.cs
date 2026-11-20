@@ -38,7 +38,11 @@ namespace Workerborn
         private int collapseEnergy = 45;
         [Header("Progression")]
         [SerializeField, Min(1)]
-        private int rebirthLevel = 3;
+        private int rebirthDays = 7;
+        [SerializeField, Min(0)]
+        private int healthPerLevel = 2;
+        [SerializeField, Min(0)]
+        private int staminaPerLevel = 1;
         [SerializeField, Min(1)]
         private int apPerLevel = 2;
         [SerializeField, Min(1)]
@@ -69,6 +73,10 @@ namespace Workerborn
                         return item;
             return null;
         }
+
+        [SerializeField] private RemoteVillagePlayer remotePlayerPrefab;
+        [SerializeField] private WoodcuttingLegendDefinition woodcuttingLegend;
+        public RemoteVillagePlayer RemotePlayerPrefab => remotePlayerPrefab;
 
         public VillageRules CreateRules(NpcDefinition employer = null)
         {
@@ -103,11 +111,14 @@ namespace Workerborn
                 RoomPrice = roomPrice,
                 FreeRestEnergy = freeRestEnergy,
                 CollapseEnergy = collapseEnergy,
-                RebirthLevel = rebirthLevel,
+                RebirthDays = Mathf.Max(1, rebirthDays),
+                HealthPerLevel = Mathf.Clamp(healthPerLevel, 0, 1000),
+                StaminaPerLevel = Mathf.Clamp(staminaPerLevel, 0, 1000),
                 APPerLevel = apPerLevel,
                 HarvestExperience = harvestExperience,
                 HarvestEnergy = harvestEnergy
             };
+            woodcuttingLegend?.Configure(rules);
             foreach (var id in SkillProgression.All)
             {
                 var skill = FindSkill(id);
@@ -157,6 +168,9 @@ namespace Workerborn
                 rules.DonationGoldStep = expansion.GoldPerContribution;
                 rules.DonationItemStep = expansion.ItemsPerContribution;
                 rules.ExpandedStage = expansion.ResultingWorldStage;
+                rules.ExpansionRewardGold = expansion.RewardGold;
+                rules.ExpansionRewardAP = expansion.RewardAP;
+                rules.ExpansionRewardExperience = expansion.RewardExperience;
             }
 
             if (farmFoundation != null && farmFoundation.ContractItem != null && farmFoundation.ContributionItem != null)
@@ -167,6 +181,7 @@ namespace Workerborn
                     DocumentItemId = farmFoundation.ContractItem.Id,
                     TimberItemId = farmFoundation.ContributionItem.Id,
                     TimberCount = farmFoundation.RequiredItems,
+                    RewardGold = farmFoundation.RewardGold,
                     RewardAP = farmFoundation.RewardAP,
                     RewardExperience = farmFoundation.RewardExperience
                 };

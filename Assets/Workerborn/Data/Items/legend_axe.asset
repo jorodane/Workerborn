@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: legend_axe
+  m_EditorClassIdentifier: ''
+  id: legend_axe
+  displayName: 전설의 나무꾼 도끼
+  description: 전설의 시련을 통과한 나무꾼에게 주는 도끼입니다.
+  icon: {fileID: 21300000, guid: 3a6c1825591d530f82d7c3fa599990e3, type: 3}
+  worldPrefab: {fileID: 936837361358885588, guid: c037a3d7cf0b14449a2efc99e7a8f759, type: 3}
+  width: 1
+  height: 2
+  maxStack: 1
+  price: 12
+  equipmentSlot: 5
+  equipmentPart: {fileID: 11400000, guid: a7262cef74845a7e97a0d8d607314bac, type: 2}
+  groundPrefab: {fileID: 100008, guid: 04bf77cc49dc5b868c342b68001f1645, type: 3}

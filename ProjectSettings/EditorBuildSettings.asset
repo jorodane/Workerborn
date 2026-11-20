@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Workerborn/Scenes/MainMenu.unity
+    guid: 8b546125630d5b82849790850acf928e
+  - enabled: 1
     path: Assets/Workerborn/Scenes/VillagePrototype.unity
     guid: d1b9a4c9f8bd554abdfe6608dfabdcc9
   - enabled: 1

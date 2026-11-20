@@ -115,7 +115,7 @@ namespace Workerborn
 
         public void ShowToast(string message)
         {
-            if (toastText == null)
+            if (toastText == null || string.IsNullOrEmpty(message))
                 return;
             toastText.text = message;
             toastUntil = Time.unscaledTime + 5f;
@@ -147,7 +147,7 @@ namespace Workerborn
 
         private void Update()
         {
-            if (WorkerbornInput.Current == null)
+            if (WorkerbornInput.Current == null || game == null || game.AwaitingWorldCommand)
                 return;
             if (HasQuantityPrompt)
             {
@@ -202,17 +202,18 @@ namespace Workerborn
         {
             if (game == null || game.Worker == null)
                 return;
-            ReleaseDraggedItem();
+            if (!game.AwaitingWorldCommand)
+                ReleaseDraggedItem();
             var state = game.State;
             int minute = Mathf.FloorToInt(state.Minute);
             string weekday = Weekdays[(state.Day - 1) % Weekdays.Length];
             clockText.text = $"{weekday}\n{minute / 60:00}:{minute % 60:00}";
             int stamina = state.StaminaLimit;
-            energyText.text = $"{state.Energy} / {stamina}";
+            energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
             energyFill.fillAmount = (float)state.Energy / stamina;
             growthText.text = $"Lv.{state.Level}";
-            experienceFill.fillAmount = (float)state.Experience / state.NextLevelExperience;
+            experienceFill.fillAmount = state.Level == VillageState.LevelLimit ? 1f : (float)state.Experience / state.NextLevelExperience;
             toast.gameObject.SetActive(Time.unscaledTime < toastUntil);
             if (state.NoticeSerial != seenNotice)
             {
@@ -229,6 +230,26 @@ namespace Workerborn
             }
 
             UpdateWorldFeedback();
+        }
+
+        internal void SetCommandPending(bool pending)
+        {
+            if (!TryGetComponent<CanvasGroup>(out var controls))
+            {
+                if (!pending)
+                    return;
+                controls = gameObject.AddComponent<CanvasGroup>();
+            }
+            controls.interactable = !pending;
+        }
+
+        internal void PositionPeerLabel(WorldNameplateView label, Vector3 position)
+        {
+            var screen = game.WorldCamera.WorldToViewportPoint(position);
+            bool visible = screen.z > 0 && screen.x >= 0 && screen.x <= 1 && screen.y >= 0 && screen.y <= 1;
+            label.gameObject.SetActive(visible);
+            if (visible)
+                PlaceWorld(label.Rect, position);
         }
 
         private void OnApplicationFocus(bool focused)

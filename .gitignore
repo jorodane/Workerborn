@@ -60,6 +60,7 @@ ExportedObj/
 sysinfo.txt
 
 # Builds
+steam_appid.txt
 *.apk
 *.aab
 *.unitypackage

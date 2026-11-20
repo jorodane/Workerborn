@@ -17,7 +17,9 @@ namespace Workerborn
         private float flightSeconds = .48f;
         private Vector3 origin, landing, visualOrigin;
         private float age;
-        private bool collected, initialized;
+        private bool collected, initialized, respawnable;
+        private Vector3 authoredPosition;
+        private int authoredQuantity;
         private Action<GroundPickup> returnToPool;
         private Vector3? pooledNameOffset;
         public override bool ShowNameByDefault => true;
@@ -106,6 +108,22 @@ namespace Workerborn
             return true;
         }
 
+        internal void KeepForRespawn()
+        {
+            respawnable = true;
+            authoredPosition = transform.position;
+            authoredQuantity = quantity;
+        }
+
+        internal void RespawnAuthored()
+        {
+            if (!respawnable)
+                return;
+            SetQuantity(authoredQuantity);
+            Initialize(definition, authoredPosition, authoredPosition, settled: true);
+            gameObject.SetActive(true);
+        }
+
         internal void Despawn()
         {
             if (!gameObject.activeSelf)
@@ -120,7 +138,8 @@ namespace Workerborn
                 return;
             }
             gameObject.SetActive(false);
-            Destroy(gameObject);
+            if (!respawnable)
+                Destroy(gameObject);
         }
     }
 }

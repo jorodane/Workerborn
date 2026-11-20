@@ -1,0 +1,346 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("Workerborn.EditModeTests")]
+
+namespace Workerborn
+{
+    public enum SessionKind { SteamFriends = 1, Dedicated = 2 }
+
+    public enum CampaignAction
+    {
+        AcceptFoundation, DeliverTimber, SelectFarmSite, DonateGold, DonateItems,
+        Rebirth, VoteForEra, AnnounceEra, ParticipateInEra, CancelAnnouncement,
+        RecordLegend, ProveLegend
+    }
+
+    [Serializable]
+    public sealed class SessionAvatar
+    {
+        public string id;
+        public string name;
+        public float x, y, z, yaw;
+        public int motion;
+    }
+
+    [Serializable]
+    public sealed class CampaignProfile
+    {
+        public string identity;
+        public string id;
+        public string name;
+        public VillageSave character;
+        public int enteredEra;
+        public bool optedIn;
+    }
+
+    [Serializable]
+    public sealed class CampaignRecord
+    {
+        public VillageWorldRecord world;
+        public CampaignProfile[] profiles = Array.Empty<CampaignProfile>();
+        public double deadline;
+    }
+
+    [Serializable]
+    public sealed class CampaignStatus
+    {
+        public int connected;
+        public int votes;
+        public bool voted;
+        public bool optedIn;
+        public bool canAnnounce;
+        public double deadline;
+    }
+
+    internal sealed class VillageCampaign
+    {
+        private readonly VillageRules rules;
+        private readonly IReadOnlyDictionary<string, string> sites;
+        private readonly Dictionary<string, CampaignProfile> profiles = new Dictionary<string, CampaignProfile>();
+        private readonly HashSet<string> connected = new HashSet<string>();
+        private readonly HashSet<string> votes = new HashSet<string>();
+        private readonly Dictionary<string, SessionAvatar> avatars = new Dictionary<string, SessionAvatar>();
+        private double deadline;
+        private readonly float spawnX, spawnZ;
+        public VillageWorldRecord World { get; private set; }
+
+        public VillageCampaign(VillageRules rules, IReadOnlyDictionary<string, string> sites,
+            float spawnX, float spawnZ, CampaignRecord saved = null)
+        {
+            this.rules = rules;
+            this.sites = sites;
+            this.spawnX = spawnX;
+            this.spawnZ = spawnZ;
+            World = saved?.world ?? new VillageState(rules).ExportWorld();
+            deadline = saved?.deadline ?? 0;
+            if (saved != null)
+            {
+                if (saved.world == null || saved.profiles == null || saved.profiles.Length > 256 ||
+                    double.IsNaN(deadline) || double.IsInfinity(deadline) || deadline < 0)
+                    throw new ArgumentException("Invalid campaign save.");
+                var sample = new VillageState(rules).Export();
+                sample.lifeStartedAt = World.Clock;
+                ApplyWorld(sample);
+                World = VillageState.Restore(sample, rules).ExportWorld();
+                foreach (var profile in saved.profiles)
+                {
+                    if (profile == null || string.IsNullOrEmpty(profile.identity) || string.IsNullOrEmpty(profile.id) ||
+                        profile.character == null || profiles.ContainsKey(profile.identity))
+                        throw new ArgumentException("Invalid campaign profile.");
+                    ApplyWorld(profile.character);
+                    VillageState.Restore(profile.character, rules);
+                    profiles.Add(profile.identity, profile);
+                }
+            }
+        }
+
+        public bool Connect(string identity, string name, out CampaignProfile profile)
+        {
+            profile = null;
+            if (connected.Count >= 12 || connected.Contains(identity))
+                return false;
+            if (!profiles.TryGetValue(identity, out profile))
+            {
+                if (profiles.Count >= 256)
+                    return false;
+                var state = new VillageState(rules);
+                state.BeginInWorld(World);
+                profile = new CampaignProfile
+                {
+                    identity = identity,
+                    id = Guid.NewGuid().ToString("N"),
+                    name = name,
+                    character = state.Export(),
+                    enteredEra = World.era
+                };
+                SpawnAtStart(profile);
+                profiles.Add(identity, profile);
+            }
+            if (profile.enteredEra != World.era)
+                SpawnAtStart(profile);
+            profile.name = name;
+            ApplyWorld(profile.character);
+            connected.Add(identity);
+            avatars.Add(identity, new SessionAvatar { id = profile.id, name = name, x = profile.character.playerX, z = profile.character.playerZ });
+            return true;
+        }
+
+        public void Disconnect(string identity)
+        {
+            connected.Remove(identity);
+            votes.Remove(identity);
+            avatars.Remove(identity);
+        }
+
+        public bool HasIdentity(string identity) => profiles.ContainsKey(identity);
+        public CampaignProfile Profile(string identity) => profiles[identity];
+        public SessionAvatar[] Avatars() => avatars.Values.ToArray();
+        public bool CanAdvance => World.foundationStage == (int)FarmFoundationStage.ReadyToRebirth || World.expansionReady;
+
+        public CampaignStatus Status(string identity, bool canAnnounce) => new CampaignStatus
+        {
+            connected = connected.Count,
+            votes = votes.Count,
+            voted = votes.Contains(identity),
+            optedIn = profiles[identity].optedIn,
+            canAnnounce = canAnnounce,
+            deadline = deadline
+        };
+
+        public bool Checkpoint(string identity, VillageSave save)
+        {
+            var profile = profiles[identity];
+            if (save == null || save.schema != VillageState.CurrentSaveSchema ||
+                save.era != World.era || save.life != profile.character.life ||
+                double.IsNaN(save.lifeStartedAt) || Math.Abs(save.lifeStartedAt - profile.character.lifeStartedAt) > .001 ||
+                !FiniteCoordinate(save.playerX) || !FiniteCoordinate(save.playerZ))
+                return false;
+            save.lifeStartedAt = profile.character.lifeStartedAt;
+            ApplyWorld(save);
+            try
+            {
+                VillageState.Restore(save, rules);
+                profile.character = save;
+                return true;
+            }
+            catch (ArgumentException) { return false; }
+        }
+
+        public void Move(string identity, SessionAvatar pose)
+        {
+            if (pose == null || !FiniteCoordinate(pose.x) || !FiniteCoordinate(pose.y) ||
+                !FiniteCoordinate(pose.z) || !FiniteCoordinate(pose.yaw) || pose.motion < 0 || pose.motion > 3)
+                return;
+            var target = avatars[identity];
+            target.x = pose.x;
+            target.y = pose.y;
+            target.z = pose.z;
+            target.yaw = pose.yaw;
+            target.motion = pose.motion;
+        }
+
+        private static bool FiniteCoordinate(float value) => !float.IsNaN(value) && Math.Abs(value) <= 10000f;
+
+        public bool Perform(string identity, CampaignAction action, string argument, int value, bool operatorRights, out string message)
+        {
+            message = null;
+            var profile = profiles[identity];
+            if (action == CampaignAction.VoteForEra || action == CampaignAction.AnnounceEra ||
+                action == CampaignAction.ParticipateInEra || action == CampaignAction.CancelAnnouncement)
+            {
+                if (!CanAdvance)
+                {
+                    message = "시대 퀘스트를 완료해 주세요.";
+                    return false;
+                }
+                if (action == CampaignAction.VoteForEra)
+                {
+                    if (value != 0) votes.Add(identity);
+                    else votes.Remove(identity);
+                }
+                else if (action == CampaignAction.ParticipateInEra && deadline > 0)
+                    profile.optedIn = value != 0;
+                else if (operatorRights)
+                    return Announce(action, value, out message);
+                else
+                {
+                    message = action == CampaignAction.ParticipateInEra
+                        ? "예고된 시대 전환이 없어요."
+                        : "시대 전환 예고는 호스트가 관리해요.";
+                    return false;
+                }
+                return true;
+            }
+
+            ApplyWorld(profile.character);
+            var state = VillageState.Restore(profile.character, rules);
+            bool success = action switch
+            {
+                CampaignAction.AcceptFoundation => state.TryAcceptFoundation(),
+                CampaignAction.DeliverTimber => state.TryDeliverTimber(),
+                CampaignAction.SelectFarmSite => argument != null && sites.TryGetValue(argument, out string site) && state.TryChooseFarmSite(argument, site),
+                CampaignAction.DonateGold => state.TryDonateGold(),
+                CampaignAction.DonateItems => state.TryDonatePotatoes(),
+                CampaignAction.Rebirth => state.TryRebirth(),
+                CampaignAction.RecordLegend => state.TryRecordLegend(profile.id, profile.name),
+                CampaignAction.ProveLegend => state.TryProveLegend(profile.id),
+                _ => false
+            };
+            message = state.LastMessage;
+            if (!success)
+                return false;
+            World = state.ExportWorld();
+            SaveCharacter(profile, state, action == CampaignAction.Rebirth);
+            return true;
+        }
+
+        public bool Announce(CampaignAction action, int days, out string message)
+        {
+            message = null;
+            if (action == CampaignAction.CancelAnnouncement)
+            {
+                deadline = 0;
+                foreach (var p in profiles.Values)
+                    p.optedIn = false;
+                message = "시대 전환 예고를 철회했어요.";
+                return true;
+            }
+            if (action != CampaignAction.AnnounceEra || !CanAdvance || days < 1 || days > 365)
+            {
+                message = "시대 퀘스트를 완료한 뒤 인게임 1일 이상 예고해 주세요.";
+                return false;
+            }
+            deadline = World.Clock + days * 1440d;
+            message = $"인게임 {days}일 뒤 시대 전환을 예고했어요.";
+            return true;
+        }
+
+        public bool WillAdvance(float seconds) => CanAdvance &&
+            (connected.Count > 0 && connected.SetEquals(votes) || deadline > 0 && World.Clock + seconds * rules.MinutesPerSecond >= deadline);
+
+        public bool Tick(float seconds)
+        {
+            World.AddMinutes(seconds * rules.MinutesPerSecond);
+            bool unanimous = connected.Count > 0 && connected.SetEquals(votes);
+            if (!CanAdvance || !unanimous && (deadline <= 0 || World.Clock < deadline))
+                return false;
+
+            var sample = new VillageState(rules);
+            sample.BeginInWorld(World);
+            sample.TryAdvanceEra(reincarnate: false);
+            World = sample.ExportWorld();
+            foreach (var profile in profiles.Values)
+            {
+                ApplyWorld(profile.character);
+                if (connected.Contains(profile.identity))
+                {
+                    var state = VillageState.Restore(profile.character, rules);
+                    if (unanimous || profile.optedIn)
+                        state.RebirthPersonalLife();
+                    SaveCharacter(profile, state, teleport: true);
+                    avatars[profile.identity].motion = 0;
+                }
+                profile.optedIn = false;
+            }
+            votes.Clear();
+            deadline = 0;
+            return true;
+        }
+
+        private void SaveCharacter(CampaignProfile profile, VillageState state, bool teleport)
+        {
+            var previous = profile.character;
+            profile.character = state.Export();
+            profile.character.playerX = previous.playerX;
+            profile.character.playerZ = previous.playerZ;
+            profile.character.cropStates = teleport ? Array.Empty<CropStateSave>() : previous.cropStates;
+            profile.character.animalStates = teleport ? Array.Empty<AnimalStateSave>() : previous.animalStates;
+            profile.character.collectedPickupIds = teleport && previous.life != state.Life ? Array.Empty<string>() : previous.collectedPickupIds;
+            profile.character.drops = teleport && previous.life != state.Life ? Array.Empty<GroundDropSave>() : previous.drops;
+            if (teleport)
+            {
+                SpawnAtStart(profile);
+                if (avatars.TryGetValue(profile.identity, out var avatar))
+                {
+                    avatar.x = spawnX;
+                    avatar.z = spawnZ;
+                }
+            }
+        }
+
+        private void SpawnAtStart(CampaignProfile profile)
+        {
+            profile.enteredEra = World.era;
+            profile.character.playerX = spawnX;
+            profile.character.playerZ = spawnZ;
+        }
+
+        private void ApplyWorld(VillageSave save)
+        {
+            save.era = World.era;
+            save.day = World.day;
+            save.minute = World.minute;
+            save.lifeDay = Math.Max(1, World.day - (int)(save.lifeStartedAt / 1440d));
+            save.farmLevel = World.farmLevel;
+            save.foundationStage = World.foundationStage;
+            save.timberDelivered = World.timberDelivered;
+            save.farmSiteId = World.farmSiteId;
+            save.donatedGold = World.donatedGold;
+            save.donatedPotatoes = World.donatedItems;
+            save.farmUpgradePending = World.expansionReady;
+            save.legend = World.legend;
+            if (save.jobStatus == (int)JobStatus.Active && (save.lastJobDay != World.day || World.minute >= rules.JobEnd))
+                save.jobStatus = (int)JobStatus.Failed;
+        }
+
+        public CampaignRecord Export()
+        {
+            foreach (var profile in profiles.Values)
+                ApplyWorld(profile.character);
+            return new CampaignRecord { world = World, deadline = deadline, profiles = profiles.Values.ToArray() };
+        }
+    }
+}

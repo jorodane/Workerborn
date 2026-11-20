@@ -49,7 +49,7 @@
   },
   "QuestWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/QuestWindow.prefab",
-    "component": 100051
+    "component": 100057
   },
   "QuestScrollWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/QuestScrollWindow.prefab",
@@ -57,7 +57,7 @@
   },
   "CharacterWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/CharacterWindow.prefab",
-    "component": 100070
+    "component": 100105
   },
   "MapWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/MapWindow.prefab",
@@ -65,7 +65,7 @@
   },
   "SystemWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/SystemWindow.prefab",
-    "component": 100056
+    "component": 100087
   },
   "ItemTooltip": {
     "path": "Assets/Workerborn/Prefabs/UI/ItemTooltip.prefab",
@@ -86,5 +86,13 @@
   "ConversationWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/ConversationWindow.prefab",
     "component": 100073
+  },
+  "MainMenu": {
+    "path": "Assets/Workerborn/Prefabs/UI/MainMenu.prefab",
+    "component": 100141
+  },
+  "EraWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/EraWindow.prefab",
+    "component": 100095
   }
 }

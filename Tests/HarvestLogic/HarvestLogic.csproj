@@ -23,5 +23,12 @@
     <Compile Include="../../Assets/Workerborn/Runtime/Interaction/NameplateLayout.cs" Link="NameplateLayout.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Interaction/TargetMaskGeometry.cs" Link="TargetMaskGeometry.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/InteractionPresentationTests.cs" Link="InteractionPresentationTests.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/SkillProgression.cs" Link="SkillProgression.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Skills.cs" Link="VillageState.Skills.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Life.cs" Link="VillageState.Life.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Legends.cs" Link="VillageState.Legends.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.cs" Link="VillageCampaign.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageTcpPeer.cs" Link="VillageTcpPeer.cs" />
+    <Compile Include="../../Assets/Workerborn/Tests/EditMode/VillageCampaignTests.cs" Link="VillageCampaignTests.cs" />
   </ItemGroup>
 </Project>

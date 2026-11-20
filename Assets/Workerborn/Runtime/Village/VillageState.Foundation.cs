@@ -17,12 +17,16 @@ namespace Workerborn
         Expansion,
         FarmFoundation,
         TimberContract,
-        FarmJob
+        FarmJob,
+        LegendFounding,
+        LegendTrial,
+        LegendGuidance
     }
 
     public sealed partial class VillageState
     {
         public FarmFoundationStage FoundationStage { get; private set; }
+        public int TimberDelivered { get; private set; }
         public string FarmSiteId { get; private set; }
         public int LastGuideLife { get; private set; }
         public bool FarmAvailable => Rules.Foundation == null || FoundationStage == FarmFoundationStage.Built;
@@ -57,7 +61,7 @@ namespace Workerborn
         public bool TryAcceptFoundation()
         {
             var quest = Rules.Foundation;
-            if (quest == null || FoundationStage != FarmFoundationStage.WaitingForContract)
+            if (quest == null || FoundationStage > FarmFoundationStage.CollectingTimber || Inventory.Count(quest.DocumentItemId) > 0)
                 return Result(false, "목재 계약서를 이미 받았어요.");
             if (!Inventory.TryAdd(quest.DocumentItemId, 1))
                 return Result(false, "계약서를 넣을 소지품 공간이 부족합니다.");
@@ -71,8 +75,16 @@ namespace Workerborn
             var quest = Rules.Foundation;
             if (quest == null || FoundationStage != FarmFoundationStage.CollectingTimber)
                 return Result(false, "진행 중인 목재 납품이 없어요.");
-            if (!Inventory.TryRemove(quest.TimberItemId, quest.TimberCount))
-                return Result(false, $"목재가 {quest.TimberCount}개 필요해요.");
+            int amount = Math.Min(quest.TimberCount - TimberDelivered, Inventory.Count(quest.TimberItemId));
+            if (amount < 1)
+                return Result(false, "납품할 목재가 없어요.");
+            int reward = TimberDelivered + amount == quest.TimberCount ? quest.RewardGold : 0;
+            if (!Inventory.TryExchange(quest.TimberItemId, amount, ItemIds.Gold, reward))
+                return Result(false, "목재를 납품하고 보상을 받을 소지품 공간이 부족합니다.");
+
+            TimberDelivered += amount;
+            if (TimberDelivered < quest.TimberCount)
+                return Result(true, $"목재 {amount}개를 납품했어요. ({TimberDelivered}/{quest.TimberCount})");
 
             FoundationStage = FarmFoundationStage.SelectingSite;
             AP += quest.RewardAP;
@@ -86,7 +98,7 @@ namespace Workerborn
                 return Result(false, "목재 납품을 끝낸 뒤 부지를 정할 수 있어요.");
             FarmSiteId = siteId;
             FoundationStage = FarmFoundationStage.ReadyToRebirth;
-            return Result(true, $"{siteName}에 농장을 짓기로 했어요. 기억의 우물에서 다음 삶을 준비하세요.");
+            return Result(true, $"{siteName}에 농장을 짓기로 했어요. 기억의 우물에서 시대 전환을 진행하세요.");
         }
 
         private static FarmFoundationStage RestoreFoundationStage(VillageSave save, VillageRules rules)

@@ -215,7 +215,7 @@ assert {skill['skill'] for skill in skills}==set(range(5))
 assert all(0<=row['fromRank']<=row['throughRank']<=100 for skill in skills for row in skill['rankEffects'])
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
 wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
-assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','timber_contract','farm_contract','rabbit_meat','branch'} | set(wardrobe)
+assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch'} | set(wardrobe)
 assert all(i['icon']['fileID'] for i in itemdefs)
 assert next(i for i in itemdefs if i['id']=='gold')['maxStack']==1000
 assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5
@@ -237,8 +237,8 @@ parts=list((CONTENT/'Data/Characters/Parts').glob('*.asset'));assert len(parts)>
 assert {docs(p)[0]['MonoBehaviour']['slot'] for p in parts}>={0,1,2,3,4,6}
 
 build=(ROOT/'ProjectSettings/EditorBuildSettings.asset').read_text()
-assert re.search(r'path: (.+)',build)[1]==str(scene_path.relative_to(ROOT))
-for name in ['VillagePrototype','HarvestPrototype']:
+assert re.search(r'path: (.+)',build)[1]==str((CONTENT/'Scenes/MainMenu.unity').relative_to(ROOT))
+for name in ['MainMenu','VillagePrototype','HarvestPrototype']:
     p=CONTENT/'Scenes'/(name+'.unity');assert str(p.relative_to(ROOT)) in build and guid_for(p) in build
 assert (CONTENT/'Fonts/WorkerbornKorean-Regular.otf').read_bytes().startswith(b'OTTO')
 print(f'Validated {files} project files, {pointers} pointers, authored fields, gatherables, farm plots, modular characters, content presets, HUD and build entries.')

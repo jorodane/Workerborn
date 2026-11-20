@@ -24,7 +24,8 @@ namespace Workerborn
         private RawImage portrait;
         private VillageInteractable npc;
         private DialogueAction topic;
-        private bool confirming;
+        private bool confirmingRebirth;
+        private bool confirmingEra;
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
@@ -35,13 +36,13 @@ namespace Workerborn
         public void Open(VillageInteractable target, DialogueAction? requestedTopic = null)
         {
             npc = target;
-            confirming = false;
+            confirmingRebirth = confirmingEra = false;
             bool beforeFarm = !Game.State.FarmAvailable;
             topic = npc.Role switch
             {
                 VillageRole.Farmer => beforeFarm ? DialogueAction.Foundation : DialogueAction.Job,
                 VillageRole.NoticeBoard => DialogueAction.Job,
-                VillageRole.Shrine when Game.State.CanRebirth => DialogueAction.Rebirth,
+                VillageRole.Shrine => DialogueAction.Rebirth,
                 VillageRole.Guide when !beforeFarm => DialogueAction.GuideAfter,
                 _ => DialogueAction.Greeting
             };
@@ -64,10 +65,17 @@ namespace Workerborn
                             return;
                         }
                         topic = selected;
-                        confirming = false;
+                        confirmingRebirth = confirmingEra = false;
                         Refresh();
                     });
                 }
+
+            if (npc.Role == VillageRole.Shrine)
+                Instantiate(Hud.Library.ActionButton, keywords).Bind("전설의 나무꾼", () =>
+                {
+                    topic = DialogueAction.Legend;
+                    Refresh();
+                });
 
             var actor = npc.Role != VillageRole.Guide ? npc.GetComponent<CharacterActor>() : null;
             Game.ShowNpcPortrait(actor);
@@ -104,17 +112,17 @@ namespace Workerborn
                     if (quest == null)
                         break;
                     bodyTitle.text = quest.Title;
-                    body.text = prose + $"\n\n{ItemCatalog.Get(quest.TimberItemId).Name} {quest.TimberCount}개";
-                    if (s.FoundationStage == FarmFoundationStage.WaitingForContract)
-                        Action("계약서를 받는다", () => Game.Perform(s.TryAcceptFoundation));
-                    else if (s.FoundationStage == FarmFoundationStage.CollectingTimber)
+                    body.text = prose + $"\n\n누적 납품  {s.TimberDelivered:N0} / {quest.TimberCount:N0}";
+                    if (s.FoundationStage <= FarmFoundationStage.CollectingTimber && s.Inventory.Count(quest.DocumentItemId) == 0)
+                        Action("계약서를 받는다", () => Game.PerformWorld(CampaignAction.AcceptFoundation));
+                    if (s.FoundationStage == FarmFoundationStage.CollectingTimber)
                     {
                         int owned = s.Inventory.Count(quest.TimberItemId);
-                        body.text += $"  ({owned}/{quest.TimberCount})";
-                        Action("목재를 납품한다", () => Game.Perform(s.TryDeliverTimber), owned >= quest.TimberCount);
+                        body.text += $"  ·  소지 목재 {owned:N0}";
+                        Action("목재를 납품한다", () => Game.PerformWorld(CampaignAction.DeliverTimber), owned > 0);
                     }
-                    else
-                        body.text = s.CanRebirth ? $"{Game.FarmSiteName}에 농장을 준비할게. 기억의 우물에서 다음 삶을 준비해." : "목재는 잘 받았어. 농장 후보지의 팻말을 살펴봐 줘.";
+                    if (s.CanSelectFarmSite)
+                        body.text = s.CanAdvanceEra ? $"{Game.FarmSiteName}에 농장을 준비할게. 기억의 우물에서 시대를 넘길 수 있어." : "목재는 잘 받았어. 농장 후보지의 팻말을 살펴봐 줘.";
                     break;
                 case DialogueAction.Job:
                     bodyTitle.text = r.JobTitle;
@@ -151,38 +159,57 @@ namespace Workerborn
                 case DialogueAction.Contribution:
                     bodyTitle.text = r.ExpansionTitle;
                     body.text = r.ExpansionDescription + $"\n\n자금 {s.DonatedGold}/{r.DonationGold} Gold\n{ItemCatalog.Get(r.DonationItemId).Name} {s.DonatedPotatoes}/{r.DonationItems}";
-                    bool accepts = s.IntroClaimed && !s.FarmUpgradePending && s.FarmLevel < r.ExpandedStage;
-                    Action($"{r.DonationGoldStep} Gold 기부", () => Game.Perform(s.TryDonateGold), accepts);
-                    Action("물품 기부", () => Game.Perform(s.TryDonatePotatoes), accepts);
+                    bool accepts = s.FarmAvailable && !s.FarmUpgradePending && s.FarmLevel < r.ExpandedStage;
+                    Action($"{r.DonationGoldStep} Gold 기부", () => Game.PerformWorld(CampaignAction.DonateGold), accepts);
+                    Action("물품 기부", () => Game.PerformWorld(CampaignAction.DonateItems), accepts);
                     break;
                 case DialogueAction.Rest:
-                    body.text = prose + $"\n\n기상  {r.WakeMinute / 60:00}:{r.WakeMinute % 60:00}\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복";
+                    body.text = Game.IsOnline ? prose + $"\n\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복" : prose + $"\n\n기상  {r.WakeMinute / 60:00}:{r.WakeMinute % 60:00}\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복";
                     Action("무료 잠자리", () => Game.Sleep(false));
                     Action("객실을 빌린다", () => Game.Sleep(true), s.Gold >= r.RoomPrice);
                     break;
                 case DialogueAction.Rebirth:
-                    if (confirming)
+                    if (confirmingRebirth || confirmingEra)
                     {
-                        body.text = $"이번 생의 레벨·소지품·장비·골드가 초기화됩니다.\n\n스킬 랭크·AP {s.AP}·아르바이트 경력 {s.Career}회와 마을에 남긴 변화는 유지됩니다.";
-                        if (!s.FarmAvailable)
-                            body.text += $"\n\n다음 생에는 {Game.FarmSiteName}에 농장이 완성됩니다.";
-                        Action("환생한다", Game.Rebirth);
+                        bodyTitle.text = confirmingEra ? "시대 전환" : "일반 환생";
+                        body.text = $"이번 생의 레벨·능력치·소지품·장비·골드가 초기화됩니다.\n\n스킬 랭크·AP {s.AP}·아르바이트 경력 {s.Career}회는 유지됩니다.";
+                        if (confirmingEra)
+                        {
+                            body.text += $"\n\n마을이 {s.Era + 1}시대로 넘어갑니다.";
+                            Action("다음 시대로 간다", Game.AdvanceEra);
+                        }
+                        else
+                            Action("환생한다", Game.Rebirth);
                         Action("돌아간다", () =>
                         {
-                            confirming = false;
+                            confirmingRebirth = confirmingEra = false;
                             Refresh();
                         });
                     }
                     else
                     {
-                        body.text = prose + (s.FarmAvailable ? $"\n\n조건  ·  {r.IntroTitle} 완료, 레벨 {r.RebirthLevel}" : "\n\n목재를 납품하고 농장 부지를 정하면 다음 삶으로 갈 수 있습니다.");
-                        Action("다음 삶을 준비한다", () =>
-                        {
-                            confirming = true;
-                            Refresh();
-                        }, s.CanRebirth);
+                        body.text = $"현재 {s.Era}시대\n" + (s.CanRebirth
+                            ? "일반 환생 가능"
+                            : $"일반 환생까지 인게임 {System.Math.Ceiling(s.RebirthMinutesLeft / 60d):N0}시간") +
+                            (s.CanAdvanceEra ? "\n시대 퀘스트를 완료했습니다." : "\n시대 퀘스트가 진행 중입니다.");
+                        Action("일반 환생", () => { confirmingRebirth = true; Refresh(); }, s.CanRebirth);
+                        if (Game.IsOnline)
+                            Action("공동 환생", Game.AdvanceEra);
+                        else
+                            Action("시대 전환", () => { confirmingEra = true; Refresh(); }, s.CanAdvanceEra);
                     }
-
+                    break;
+                case DialogueAction.Legend:
+                    bodyTitle.text = "전설의 나무꾼";
+                    var founders = s.Legend.founders;
+                    var recent = System.Array.ConvertAll(founders, founder => founder.name);
+                    int capacity = s.LegendPlacesAvailable;
+                    body.text = $"벌목 업적  {s.LifetimeTimber:N0}/{r.LegendFoundingTimber:N0}\n" +
+                        $"목재 {r.LegendTrialTimber:N0}개를 가져오면 시련을 마칠 수 있어요. 남은 인정 인원 {capacity}명.";
+                    if (recent.Length > 0)
+                        body.text += "\n기록된 나무꾼  " + string.Join(", ", System.Linq.Enumerable.Take(recent, 6));
+                    Action("전설을 기록한다", () => Game.PerformWorld(CampaignAction.RecordLegend), s.CanRecordLegend(Game.LegendPlayerId));
+                    Action("시련을 마친다", () => Game.PerformWorld(CampaignAction.ProveLegend), s.CanProveLegend(Game.LegendPlayerId));
                     break;
             }
         }

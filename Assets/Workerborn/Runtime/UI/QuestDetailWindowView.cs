@@ -23,6 +23,23 @@ namespace Workerborn
         {
             var s = Game.State;
             var r = s.Rules;
+            if (page == VillageQuestPage.LegendFounding)
+            {
+                description.text = "전설의 나무꾼 이야기\n\n여러 생애에 걸쳐 목재를 벌목하고 기억의 우물에 업적을 남기세요.";
+                objectives.text = $"누적 벌목  {s.LifetimeTimber:N0}/{r.LegendFoundingTimber:N0}\n" +
+                    (s.HasFoundedLegend(Game.LegendPlayerId) ? "전설 기록 완료" : "기억의 우물에서 전설을 기록하세요.");
+                rewards.text = $"인게임 {r.LegendMaturationDays}일이 지나거나 시대가 바뀌면 시련을 열어요.";
+                return;
+            }
+            if (page == VillageQuestPage.LegendTrial || page == VillageQuestPage.LegendGuidance)
+            {
+                description.text = page == VillageQuestPage.LegendGuidance
+                    ? "나무꾼에게 돌아온 기회\n\n이 생에서 남긴 이야기가 전설이 됐어요. 기억의 우물에서 지금 시련에 도전할 수 있어요."
+                    : "전설의 나무꾼 시련\n\n목재를 모아 기억의 우물에서 실력을 증명하세요.";
+                objectives.text = $"소지 목재  {s.Inventory.Count(ItemIds.Timber):N0}/{r.LegendTrialTimber:N0}\n남은 인정 인원  {s.LegendPlacesAvailable}명";
+                rewards.text = "보상\n" + ItemCatalog.Get(r.LegendRewardItem).Name;
+                return;
+            }
             if (page == VillageQuestPage.FarmJob)
             {
                 description.text = r.JobTitle + "\n\n" + r.JobDescription;
@@ -41,20 +58,20 @@ namespace Workerborn
                 if (page == VillageQuestPage.TimberContract)
                 {
                     description.text = (Game.Settings.FindItem(quest.DocumentItemId)?.DisplayName ?? quest.Title) + "\n\n농장 건설에 필요한 목재를 미라에게 납품하세요.";
-                    rewards.text = $"보상\nAP {quest.RewardAP}\n경험치 {quest.RewardExperience}";
-                    int progress = delivered ? quest.TimberCount : s.Inventory.Count(quest.TimberItemId);
-                    objectives.text = $"{ItemCatalog.Get(quest.TimberItemId).Name}  {progress}/{quest.TimberCount}\n\n" + (delivered ? "납품 완료" : "달걀을 팔아 도끼를 구하고 주무기에 장착하세요.");
+                    rewards.text = $"보상\n{quest.RewardGold} Gold\nAP {quest.RewardAP}\n경험치 {quest.RewardExperience}";
+                    int progress = s.TimberDelivered;
+                    objectives.text = $"누적 납품  {progress}/{quest.TimberCount}\n\n" + (delivered ? "납품 완료" : "달걀을 팔아 도끼를 구하고 주무기에 장착하세요.");
                 }
                 else
                 {
                     description.text = quest.Title + "\n\n" + quest.Description;
-                    rewards.text = "다음 생에 농장 완공";
+                    rewards.text = "시대 전환 후 농장 완공";
                     objectives.text = s.FoundationStage switch
                     {
                         FarmFoundationStage.WaitingForContract => "미라와 대화해 목재 계약서를 받으세요.",
                         FarmFoundationStage.CollectingTimber => "계약서에 적힌 목재를 모아 미라에게 납품하세요.",
                         FarmFoundationStage.SelectingSite => "농장 후보지의 팻말을 클릭해 부지를 정하세요.",
-                        FarmFoundationStage.ReadyToRebirth => Game.FarmSiteName + "\n\n기억의 우물에서 다음 삶을 준비하세요.",
+                        FarmFoundationStage.ReadyToRebirth => Game.FarmSiteName + "\n\n기억의 우물에서 시대를 전환하세요.",
                         _ => "농장이 완공되었습니다."
                     };
                 }
@@ -62,8 +79,8 @@ namespace Workerborn
             }
             bool expansion = page == VillageQuestPage.Expansion;
             description.text = expansion ? r.ExpansionTitle + "\n\n" + r.ExpansionDescription : r.IntroTitle + "\n\n" + r.IntroDescription;
-            rewards.text = expansion ? "다음 생에 농장 확장" : $"보상\n{r.IntroGold} Gold\nAP {r.IntroAP}\n경험치 {r.IntroExperience}";
-            objectives.text = expansion ? $"기부금  {s.DonatedGold}/{r.DonationGold}G\n\n{ItemCatalog.Get(r.DonationItemId).Name}  {s.DonatedPotatoes}/{r.DonationItems}\n\n" + (s.FarmUpgradePending ? "[완료] 다음 환생에 반영" : "[진행 중]") : $"농장 아르바이트 완료  {Mathf.Min(s.Career, r.IntroRequiredJobs)}/{r.IntroRequiredJobs}\n\n" + (s.IntroClaimed ? "[완료] 보상 수령" : s.Career >= r.IntroRequiredJobs ? "미라와 대화해 보고" : "[진행 중]");
+            rewards.text = expansion ? $"시대 전환 후 농장 확장\n{r.ExpansionRewardGold} Gold\nAP {r.ExpansionRewardAP}\n경험치 {r.ExpansionRewardExperience}" : $"보상\n{r.IntroGold} Gold\nAP {r.IntroAP}\n경험치 {r.IntroExperience}";
+            objectives.text = expansion ? $"기부금  {s.DonatedGold}/{r.DonationGold}G\n\n{ItemCatalog.Get(r.DonationItemId).Name}  {s.DonatedPotatoes}/{r.DonationItems}\n\n" + (s.FarmUpgradePending ? "[완료] 시대 전환 가능" : "[진행 중]") : $"농장 아르바이트 완료  {Mathf.Min(s.Career, r.IntroRequiredJobs)}/{r.IntroRequiredJobs}\n\n" + (s.IntroClaimed ? "[완료] 보상 수령" : s.Career >= r.IntroRequiredJobs ? "미라와 대화해 보고" : "[진행 중]");
         }
     }
 }
