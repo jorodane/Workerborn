@@ -90,8 +90,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dbc4372c87105106a76a595abc5f4398, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
+  attackClip: {fileID: 992911294148604404, guid: dddab171c4921bd4aa92cfec58cc6a53, type: 3}
+  attackDamage: 10
+  attackDelay: 0.85
 --- !u!195 &100573
 NavMeshAgent:
   m_ObjectHideFlags: 0

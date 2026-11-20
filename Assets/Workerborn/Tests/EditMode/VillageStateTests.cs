@@ -115,6 +115,19 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void AnimalDamageUsesStaminaAndFollowsTheExistingCollapseFlow()
+        {
+            var state = new VillageState();
+            Assert.That(state.TakeHit(7), Is.EqualTo(7));
+            Assert.That(state.Energy, Is.EqualTo(VillageState.MaxEnergy - 7));
+            Assert.That(state.TakeHit(1000), Is.EqualTo(VillageState.MaxEnergy - 7));
+            Assert.That(state.TakeHit(7), Is.Zero);
+            Assert.That(state.AdvanceTime(0), Is.True);
+            Assert.That(state.Day, Is.EqualTo(2));
+            Assert.That(state.Energy, Is.EqualTo(state.Rules.CollapseEnergy));
+        }
+
+        [Test]
         public void JobFailsAtDeadlineAndCannotPayAfterClosing()
         {
             var state = new VillageState();

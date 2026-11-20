@@ -72,6 +72,7 @@ namespace Workerborn
         private readonly HashSet<string> collectedPickups = new HashSet<string>();
         private readonly List<HarvestableCrop> allCrops = new List<HarvestableCrop>();
         private readonly List<HarvestableCrop> crops = new List<HarvestableCrop>();
+        private MonsterInteractable[] animals;
         private readonly List<VillageInteractable> npcs = new List<VillageInteractable>();
         private readonly List<GroundPickup> pickups = new List<GroundPickup>();
         private VillageFarmSite[] farmSites;
@@ -129,6 +130,7 @@ namespace Workerborn
             }
 
             allCrops.AddRange(mapRoot.GetComponentsInChildren<HarvestableCrop>(true));
+            animals = mapRoot.GetComponentsInChildren<MonsterInteractable>(true);
             npcs.AddRange(mapRoot.GetComponentsInChildren<VillageInteractable>(true));
             stages = mapRoot.GetComponentsInChildren<VillageWorldStage>(true);
             farmSites = mapRoot.GetComponentsInChildren<VillageFarmSite>(true);
@@ -357,6 +359,37 @@ namespace Workerborn
             pickups.Add(item);
         }
 
+        internal bool DropAnimalLoot(MonsterInteractable animal)
+        {
+            var reward = animal.Combat.Loot;
+            var prefab = reward != null ? reward.GroundPrefab : null;
+            if (prefab == null || prefab.ItemId != reward.Id)
+                return false;
+            Vector3 source = animal.transform.position;
+            Vector3 forward = worker.transform.position - source;
+            forward.y = 0;
+            forward = forward.sqrMagnitude > .001f ? forward.normalized : animal.transform.forward;
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+            int amount = animal.Combat.LootCount;
+            for (int i = 0; i < amount; i++)
+            {
+                Vector3 point = source + forward * .65f + right * ((i - (amount - 1) * .5f) * .26f);
+                Vector3 end = SurfacePosition(point.x, point.z) + Vector3.up * .08f;
+                SpawnPickup(prefab, null, 1, source + Vector3.up * .25f, end);
+            }
+            return true;
+        }
+
+        internal void ReceiveAnimalHit(int damage)
+        {
+            int applied = State.TakeHit(damage);
+            if (applied <= 0)
+                return;
+            hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "-" + applied, new Color(1f, .52f, .42f));
+            if (State.Energy <= 0)
+                worker.Cancel();
+        }
+
         public void ShowClick(Vector3 position) => effects?.PlayClick(SurfacePosition(position.x, position.z) + Vector3.up * .04f);
 
         internal GroundPickup DropPrefabFor(InventoryEntry entry)
@@ -449,9 +482,19 @@ namespace Workerborn
             var rest = SurfacePosition(restPoint.position.x, restPoint.position.z);
             if (NavMesh.SamplePosition(rest, out var point, 2f, NavMesh.AllAreas))
                 worker.WarpTo(point.position);
+            else
+                worker.Cancel();
+            ResetDailyResources();
+            lighting?.SetDate(State.Day, State.Minute);
+        }
+
+        private void ResetDailyResources()
+        {
             foreach (var crop in allCrops)
                 crop.ResetHarvests();
-            lighting?.SetDate(State.Day, State.Minute);
+            foreach (var animal in animals)
+                if (animal != null)
+                    animal.ResetEncounter();
         }
 
         public void Rebirth()
@@ -483,8 +526,7 @@ namespace Workerborn
                 navigation.Activate(useBakedData: false);
                 agent.enabled = true;
             }
-            foreach (var crop in allCrops)
-                crop.ResetHarvests();
+            ResetDailyResources();
             var spawn = SurfacePosition(spawnPoint.position.x, spawnPoint.position.z);
             worker.ResetWorker(NavMesh.SamplePosition(spawn, out var point, 2f, NavMesh.AllAreas) ? point.position : spawn);
             lighting?.SetDate(State.Day, State.Minute);
@@ -558,6 +600,16 @@ namespace Workerborn
             else if (restoredWorld.cropRemaining != null)
                 for (int i = 0; i < Mathf.Min(crops.Count, restoredWorld.cropRemaining.Length); i++)
                     crops[i].RestoreRemaining(restoredWorld.cropRemaining[i]);
+
+            if (restoredWorld.animalStates != null)
+                foreach (var record in restoredWorld.animalStates)
+                    if (record != null && !string.IsNullOrEmpty(record.id))
+                        foreach (var animal in animals)
+                            if (animal != null && animal.PersistentId == record.id)
+                            {
+                                animal.RestoreEncounter(record.health, record.lootTaken);
+                                break;
+                            }
             if (restoredWorld.drops != null)
                 foreach (var drop in restoredWorld.drops)
                 {
@@ -610,6 +662,11 @@ namespace Workerborn
                     id = allCrops[i].PersistentId,
                     remaining = allCrops[i].Remaining
                 };
+            var animalStates = new List<AnimalStateSave>();
+            foreach (var animal in animals)
+                if (animal != null && animal.Combat != null && !string.IsNullOrEmpty(animal.PersistentId))
+                    animalStates.Add(new AnimalStateSave { id = animal.PersistentId, health = animal.Health, lootTaken = animal.LootTaken });
+            save.animalStates = animalStates.ToArray();
             var ground = new List<GroundDropSave>();
             foreach (var item in pickups)
                 if (item != null && item.isActiveAndEnabled)

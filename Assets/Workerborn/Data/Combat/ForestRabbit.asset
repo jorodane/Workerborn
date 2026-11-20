@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0bf87ce2d6505ba7877d661c472cd7a6, type: 3}
+  m_Name: ForestRabbit
+  m_EditorClassIdentifier: ''
+  health: 30
+  counterDamage: 7
+  counterDelay: 1.15
+  loot: {fileID: 11400000, guid: 608359c05769534d8eff00afb932220e, type: 2}
+  lootCount: 2

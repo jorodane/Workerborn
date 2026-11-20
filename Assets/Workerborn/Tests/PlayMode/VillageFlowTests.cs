@@ -83,6 +83,39 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator RabbitRequiresAFreshClickForEachStrikeAndDropsLootOnce()
+        {
+            var rabbit = UnityEngine.Object.FindObjectsByType<MonsterInteractable>(FindObjectsSortMode.None)
+                .Single(animal => animal.Combat != null);
+            var approach = rabbit.transform.position + Vector3.right * .75f;
+            Assert.That(NavMesh.SamplePosition(approach, out var at, .4f, NavMesh.AllAreas), Is.True);
+            game.Worker.WarpTo(at.position);
+            int health = rabbit.Health;
+            int stamina = game.State.Energy;
+            int drops = game.GroundItemCount;
+            rabbit.RequestInteraction(game.Worker);
+            yield return Until(() => rabbit.Health < health, 3f);
+            int remaining = rabbit.Health;
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Attacking));
+            rabbit.RequestInteraction(game.Worker);
+            yield return Until(() => game.State.Energy < stamina && game.Worker.Action == WorkerAction.Idle, 3f);
+            Assert.That(rabbit.Health, Is.EqualTo(remaining), "A click during the delay must not queue a strike.");
+
+            while (!rabbit.IsDefeated)
+            {
+                int before = rabbit.Health;
+                rabbit.RequestInteraction(game.Worker);
+                yield return Until(() => rabbit.Health < before && game.Worker.Action == WorkerAction.Idle, 3f);
+            }
+            Assert.That(game.GroundItemCount, Is.EqualTo(drops));
+            rabbit.RequestInteraction(game.Worker);
+            Assert.That(rabbit.LootTaken, Is.True);
+            Assert.That(game.GroundItemCount, Is.EqualTo(drops + rabbit.Combat.LootCount));
+            rabbit.RequestInteraction(game.Worker);
+            Assert.That(game.GroundItemCount, Is.EqualTo(drops + rabbit.Combat.LootCount));
+        }
+
+        [UnityTest]
         public IEnumerator WalkToNpcAndPauseTimeDuringKeywordConversation()
         {
             var farmer = game.FindInteraction(VillageRole.Farmer);

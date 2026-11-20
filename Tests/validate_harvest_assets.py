@@ -169,6 +169,11 @@ assert all(resolve(effects[name]).is_relative_to(CONTENT/'Prefabs/Effects') for 
 assert not behaviours(scene,'HarvestPrototype.cs'),'Village must not generate its map from the harvest demo'
 animals=behaviours(scene,'Village/AnimalNpc.cs')
 assert len(animals)==2 and all(a['keepVisualWhenDepleted'] for a in animals)
+encounters=[a for a in behaviours(scene,'Interaction/MonsterInteractable.cs') if a.get('combat',{}).get('fileID')]
+assert len(encounters)==1 and encounters[0]['persistentId']
+rabbit_profile=docs(resolve(encounters[0]['combat']))[0]['MonoBehaviour']
+assert rabbit_profile['health']>0 and rabbit_profile['counterDelay']>0
+assert resolve(rabbit_profile['loot']).stem=='rabbit_meat' and rabbit_profile['lootCount']>0
 crops=behaviours(scene,'HarvestableCrop.cs')+animals
 assert Counter(docs(resolve(c['definition']))[0]['MonoBehaviour']['itemId'] for c in crops)=={'potato':24,'egg':2,'timber':3}
 assert len(set(c['persistentId'] for c in crops))==len(crops),'Duplicated crop save IDs'
@@ -202,7 +207,7 @@ assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values
 settings=docs(resolve(controller[0]['settings']))[0]['MonoBehaviour']
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
 wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
-assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','timber_contract','farm_contract'} | set(wardrobe)
+assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','timber_contract','farm_contract','rabbit_meat'} | set(wardrobe)
 assert all(i['icon']['fileID'] for i in itemdefs)
 assert next(i for i in itemdefs if i['id']=='gold')['maxStack']==1000
 assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5

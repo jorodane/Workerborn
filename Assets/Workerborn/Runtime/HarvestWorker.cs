@@ -10,7 +10,8 @@ namespace Workerborn
     {
         Idle,
         Moving,
-        Harvesting
+        Harvesting,
+        Attacking
     }
 
     [RequireComponent(typeof(NavMeshAgent))]
@@ -20,6 +21,10 @@ namespace Workerborn
         [SerializeField, Min(.1f)] private float walkSpeed = 1.65f;
         [SerializeField, Min(.1f)] private float pickupDistance = 1.5f;
         [SerializeField, Min(.04f)] private float collectRepeatSeconds = .1f;
+        [Header("Basic Attack")]
+        [SerializeField] private AnimationClip attackClip;
+        [SerializeField, Min(1)] private int attackDamage = 10;
+        [SerializeField, Min(.2f)] private float attackDelay = .85f;
         private readonly Dictionary<CropDefinition, int> inventory = new Dictionary<CropDefinition, int>();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
         private Camera worldCamera;
@@ -28,6 +33,9 @@ namespace Workerborn
         private HarvestableCrop cropTarget;
         private GroundPickup pickupTarget;
         private WorldInteractable interactionTarget;
+        private MonsterInteractable strikeTarget;
+        private float strikeStartedAt, nextStrikeAt;
+        private bool struck;
         private System.Action onInteractionArrival;
         private InventoryEntry pendingDrop;
         private Vector3 dropPoint;
@@ -77,7 +85,10 @@ namespace Workerborn
                 UpdateMovement();
             else if (Action == WorkerAction.Harvesting)
                 UpdateHarvest();
-            animationDriver?.SetAction(Action == WorkerAction.Moving ? (IsWalking ? 3 : 1) : Action == WorkerAction.Harvesting ? 2 : 0);
+            else if (Action == WorkerAction.Attacking)
+                UpdateAttack();
+            animationDriver?.SetAction(Action == WorkerAction.Moving ? (IsWalking ? 3 : 1) :
+                Action == WorkerAction.Harvesting || Action == WorkerAction.Attacking ? 2 : 0);
         }
 
         private bool UpdateManualMovement()
@@ -248,6 +259,51 @@ namespace Workerborn
         }
 
         public void CommandInteract(VillageInteractable target) => CommandApproach(target);
+
+        public void CommandAttack(MonsterInteractable target)
+        {
+            if (village == null || !AcceptsInteractionCommands || target == null || !target.CanAttack ||
+                village.State.Energy <= 0 || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
+                return;
+            if (InReach(target.transform.position, target.InteractionDistance))
+                StartAttack(target);
+            else if (target != interactionTarget || Action != WorkerAction.Moving)
+                CommandApproach(target, () => StartAttack(target));
+        }
+
+        private void StartAttack(MonsterInteractable target)
+        {
+            if (target == null || !target.CanAttack || village.State.Energy <= 0 || !AcceptsInteractionCommands)
+                return;
+            Cancel();
+            Face(target.transform.position);
+            strikeTarget = target;
+            Action = WorkerAction.Attacking;
+            strikeStartedAt = Time.time;
+            nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, attackDelay);
+            struck = false;
+            animationDriver?.BeginStrike(attackClip);
+        }
+
+        private void UpdateAttack()
+        {
+            if (strikeTarget == null || !AcceptsInteractionCommands || village.State.Energy <= 0)
+            {
+                Cancel();
+                return;
+            }
+            float progress = Mathf.InverseLerp(strikeStartedAt, nextStrikeAt, Time.time);
+            animationDriver?.SampleStrike(progress);
+            if (!struck && progress >= .36f)
+            {
+                struck = true;
+                if (strikeTarget.CanAttack && InReach(strikeTarget.transform.position, strikeTarget.InteractionDistance))
+                    strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage));
+            }
+            if (progress >= 1f)
+                Cancel();
+        }
+
         public void CommandApproach(WorldInteractable target, System.Action arrival = null)
         {
             if (village == null || target == null || village.ControlsBlocked)
@@ -436,7 +492,7 @@ namespace Workerborn
             Action = WorkerAction.Idle;
         }
 
-        private bool InReach(Vector3 position, float range)
+        internal bool InReach(Vector3 position, float range)
         {
             Vector3 delta = position - transform.position;
             delta.y = 0f;
@@ -459,6 +515,7 @@ namespace Workerborn
             cropTarget = null;
             pickupTarget = null;
             interactionTarget = null;
+            strikeTarget = null;
             onInteractionArrival = null;
             pendingDrop = null;
         }
@@ -481,6 +538,7 @@ namespace Workerborn
             Cancel();
             inventory.Clear();
             collectedCount = 0;
+            nextStrikeAt = 0;
             LastCrop = null;
             HoveredCrop = null;
             HoveredPickup = null;

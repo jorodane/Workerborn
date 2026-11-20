@@ -82,6 +82,23 @@ namespace Workerborn
             clips[input].SetSpeed(sampled ? 0d : 1d);
         }
 
+        public void BeginStrike(AnimationClip clip)
+        {
+            if (!graph.IsValid())
+                return;
+            timedWork = true;
+            workInput = Work;
+            BindClip(Work, clip != null ? clip : fallbackWork, true);
+            SampleStrike(0f);
+            SetAction(Work);
+        }
+
+        public void SampleStrike(float progress)
+        {
+            if (graph.IsValid())
+                clips[Work].SetTime(Mathf.Clamp(progress, 0, .999f) * lengths[Work]);
+        }
+
         public void BeginWork(WorkAnimationDefinition animation, float duration)
         {
             if (!graph.IsValid())

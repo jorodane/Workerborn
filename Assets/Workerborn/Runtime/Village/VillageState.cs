@@ -21,6 +21,14 @@ namespace Workerborn
     }
 
     [Serializable]
+    public sealed class AnimalStateSave
+    {
+        public string id;
+        public int health;
+        public bool lootTaken;
+    }
+
+    [Serializable]
     public sealed class GroundDropSave
     {
         public string id;
@@ -69,6 +77,7 @@ namespace Workerborn
         public InventoryEntrySave[] inventory = Array.Empty<InventoryEntrySave>();
         public int[] cropRemaining = Array.Empty<int>();
         public CropStateSave[] cropStates = Array.Empty<CropStateSave>();
+        public AnimalStateSave[] animalStates = Array.Empty<AnimalStateSave>();
         public string[] collectedPickupIds = Array.Empty<string>();
         public GroundDropSave[] drops = Array.Empty<GroundDropSave>();
         public float playerX;
@@ -214,6 +223,17 @@ namespace Workerborn
             NextDay(Rules.CollapseEnergy, true);
             Result(true, "의식을 잃고 숙소에서 깨어났습니다.");
             return true;
+        }
+
+        public int TakeHit(int damage)
+        {
+            int applied = Math.Min(Energy, Math.Max(0, damage));
+            if (applied > 0)
+            {
+                Energy -= applied;
+                Version++;
+            }
+            return applied;
         }
 
         public void MeetFarmer()
