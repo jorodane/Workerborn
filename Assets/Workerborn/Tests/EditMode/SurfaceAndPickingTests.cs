@@ -56,6 +56,43 @@ namespace Workerborn.Tests
             }
         }
 
+        [Test]
+        public void FlatKitSelectionChangesOnlyTheMainCameraOutlineProperties()
+        {
+            var cameraRoot = new GameObject("Outline camera test");
+            var prop = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            try
+            {
+                var camera = cameraRoot.AddComponent<Camera>();
+                var visibility = cameraRoot.AddComponent<CameraVisibility>();
+                Invoke(visibility, "Awake");
+                var target = prop.AddComponent<GroundPickup>();
+                var renderer = prop.GetComponent<Renderer>();
+                var material = AssetDatabase.LoadAssetAtPath<Material>("Assets/Workerborn/Materials/Toon/ForestRabbit.mat");
+                renderer.sharedMaterial = material;
+                var block = new MaterialPropertyBlock();
+                block.SetColor("_BaseColor", Color.red);
+                renderer.SetPropertyBlock(block);
+                Invoke(visibility, "Select", target, Color.yellow);
+                Invoke(visibility, "BeginCamera", default(ScriptableRenderContext), camera);
+                renderer.GetPropertyBlock(block, 0);
+                Assert.That(renderer.sharedMaterial, Is.SameAs(material));
+                Assert.That(block.GetColor("_OutlineColor"), Is.EqualTo(Color.yellow));
+                Assert.That(block.GetFloat("_OutlineWidth"), Is.GreaterThan(material.GetFloat("_OutlineWidth")));
+                Assert.That(block.GetColor("_BaseColor"), Is.EqualTo(Color.red));
+                Invoke(visibility, "EndCamera", default(ScriptableRenderContext), camera);
+                renderer.GetPropertyBlock(block, 0);
+                Assert.That(block.isEmpty, Is.True);
+                renderer.GetPropertyBlock(block);
+                Assert.That(block.GetColor("_BaseColor"), Is.EqualTo(Color.red));
+            }
+            finally
+            {
+                Object.DestroyImmediate(cameraRoot);
+                Object.DestroyImmediate(prop);
+            }
+        }
+
         private static void Invoke(CameraVisibility target, string method, params object[] args) => typeof(CameraVisibility).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(target, args);
         [TestCase("CameraFadeSurface.shader")]
         [TestCase("CameraFadeTrees.shadergraph")]

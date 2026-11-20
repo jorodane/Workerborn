@@ -296,7 +296,10 @@ namespace Workerborn
             {
                 struck = true;
                 if (strikeTarget.CanReceiveStrike && InReach(strikeTarget.transform.position, strikeTarget.InteractionDistance))
-                    strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage));
+                {
+                    int bonus = village.State.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : village.State.UnarmedDamageBonus;
+                    strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus));
+                }
             }
             if (progress >= 1f)
                 Cancel();

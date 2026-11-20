@@ -25,30 +25,44 @@ namespace Workerborn
         private float fadeOutSeconds = .16f;
         [SerializeField, Min(.01f)]
         private float fadeInSeconds = .28f;
+        [SerializeField, Min(.1f)]
+        private float selectionOutlineWidth = 1.05f;
         private Camera view;
+        private WorldTargetReference selectedTarget;
+        private Color selectionColor;
+        private int cameraOpacityProperty, outlineColorProperty, outlineWidthProperty;
         private readonly HashSet<Renderer> hidden = new HashSet<Renderer>();
         private readonly RaycastHit[] sightHits = new RaycastHit[64];
         private readonly HashSet<VillageMapProp> hiddenProps = new HashSet<VillageMapProp>();
         private readonly Dictionary<Renderer, FadeState> states = new Dictionary<Renderer, FadeState>();
         private readonly List<Renderer> removed = new List<Renderer>();
-        private readonly List<Renderer> applied = new List<Renderer>();
+        private readonly List<Renderer> selectedRenderers = new List<Renderer>();
+        private readonly List<Material> materials = new List<Material>();
+        private readonly Stack<MaterialPropertyBlock> availableBlocks = new Stack<MaterialPropertyBlock>();
+        private readonly List<(Renderer Renderer, int Index, MaterialPropertyBlock Block)> savedBlocks =
+            new List<(Renderer, int, MaterialPropertyBlock)>();
+        private readonly List<(Renderer Renderer, bool Value)> savedVisibility = new List<(Renderer, bool)>();
         // Native Unity objects cannot be constructed during MonoBehaviour deserialization.
         private MaterialPropertyBlock working;
         private sealed class FadeState
         {
             public float Opacity = 1;
-            public MaterialPropertyBlock[] Blocks;
-            public bool ForceOff;
         }
 
         public bool IsHidden(Renderer renderer) => hidden.Contains(renderer);
         public float Opacity(Renderer renderer) => states.TryGetValue(renderer, out var state) ? state.Opacity : 1;
         internal void ForgetFade(Renderer renderer)
         {
-            if (applied.Contains(renderer))
+            if (savedBlocks.Count != 0 || savedVisibility.Count != 0)
                 Restore();
             hidden.Remove(renderer);
             states.Remove(renderer);
+        }
+
+        internal void Select(WorldInteractable target, Color color)
+        {
+            selectedTarget = new WorldTargetReference(target);
+            selectionColor = color;
         }
 
         public bool IgnorePointerCollider(Collider collider)
@@ -68,6 +82,9 @@ namespace Workerborn
         {
             working = new MaterialPropertyBlock();
             view = GetComponent<Camera>();
+            cameraOpacityProperty = Shader.PropertyToID("_CameraOpacity");
+            outlineColorProperty = Shader.PropertyToID("_OutlineColor");
+            outlineWidthProperty = Shader.PropertyToID("_OutlineWidth");
         }
 
         public void Initialize(Transform followedPlayer) => player = followedPlayer;
@@ -260,36 +277,58 @@ namespace Workerborn
             if (camera != view)
                 return;
             Restore();
-            foreach (var pair in states)
-            {
-                var renderer = pair.Key;
-                var state = pair.Value;
-                if (renderer == null || state.Opacity >= 1)
-                    continue;
-                state.ForceOff = renderer.forceRenderingOff;
-                var materials = renderer.sharedMaterials;
-                state.Blocks = new MaterialPropertyBlock[materials.Length];
-                applied.Add(renderer);
-                if (state.Opacity <= .001f)
-                {
-                    renderer.forceRenderingOff = true;
-                    continue;
-                }
+            selectedRenderers.Clear();
+            var selection = selectedTarget.Target;
+            if (selection != null)
+                selection.GetComponentsInChildren(false, selectedRenderers);
 
-                for (int i = 0; i < materials.Length; i++)
-                {
-                    if (materials[i] == null || !materials[i].HasProperty("_CameraOpacity"))
-                        continue;
-                    var saved = new MaterialPropertyBlock();
-                    renderer.GetPropertyBlock(saved, i);
-                    state.Blocks[i] = saved;
-                    working.Clear();
+            foreach (var pair in states)
+                if (pair.Key != null && pair.Value.Opacity < 1)
+                    ApplyProperties(pair.Key, pair.Value.Opacity, selectedRenderers.Contains(pair.Key));
+            foreach (var renderer in selectedRenderers)
+                if (renderer != null && Opacity(renderer) >= 1)
+                    ApplyProperties(renderer, 1, true);
+        }
+
+        private void ApplyProperties(Renderer renderer, float opacity, bool selected)
+        {
+            if (!renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                return;
+            if (opacity <= .001f)
+            {
+                savedVisibility.Add((renderer, renderer.forceRenderingOff));
+                renderer.forceRenderingOff = true;
+                return;
+            }
+
+            renderer.GetSharedMaterials(materials);
+            for (int i = 0; i < materials.Count; i++)
+            {
+                var material = materials[i];
+                if (material == null)
+                    continue;
+                bool fade = opacity < 1 && material.HasProperty(cameraOpacityProperty);
+                // Flat Kit's existing mesh outline pass handles depth and draws the silhouette.
+                bool outline = selected && material.HasProperty(outlineColorProperty) && material.HasProperty(outlineWidthProperty) &&
+                    material.IsKeywordEnabled("DR_OUTLINE_ON") && material.GetShaderPassEnabled("Outline");
+                if (!fade && !outline)
+                    continue;
+
+                var saved = availableBlocks.Count == 0 ? new MaterialPropertyBlock() : availableBlocks.Pop();
+                renderer.GetPropertyBlock(saved, i);
+                savedBlocks.Add((renderer, i, saved));
+                if (saved.isEmpty)
+                    renderer.GetPropertyBlock(working);
+                else
                     renderer.GetPropertyBlock(working, i);
-                    if (working.isEmpty)
-                        renderer.GetPropertyBlock(working);
-                    working.SetFloat("_CameraOpacity", state.Opacity);
-                    renderer.SetPropertyBlock(working, i);
+                if (fade)
+                    working.SetFloat(cameraOpacityProperty, opacity);
+                if (outline)
+                {
+                    working.SetColor(outlineColorProperty, selectionColor);
+                    working.SetFloat(outlineWidthProperty, Mathf.Max(selectionOutlineWidth, material.GetFloat(outlineWidthProperty)));
                 }
+                renderer.SetPropertyBlock(working, i);
             }
         }
 
@@ -301,17 +340,17 @@ namespace Workerborn
 
         private void Restore()
         {
-            foreach (var renderer in applied)
+            foreach (var entry in savedVisibility)
+                if (entry.Renderer != null)
+                    entry.Renderer.forceRenderingOff = entry.Value;
+            savedVisibility.Clear();
+            foreach (var entry in savedBlocks)
             {
-                if (renderer == null || !states.TryGetValue(renderer, out var state))
-                    continue;
-                renderer.forceRenderingOff = state.ForceOff;
-                for (int i = 0; i < state.Blocks.Length; i++)
-                    if (state.Blocks[i] != null)
-                        renderer.SetPropertyBlock(state.Blocks[i].isEmpty ? null : state.Blocks[i], i);
+                if (entry.Renderer != null)
+                    entry.Renderer.SetPropertyBlock(entry.Block.isEmpty ? null : entry.Block, entry.Index);
+                availableBlocks.Push(entry.Block);
             }
-
-            applied.Clear();
+            savedBlocks.Clear();
         }
 
         private void OnDisable()
@@ -322,6 +361,7 @@ namespace Workerborn
             hidden.Clear();
             hiddenProps.Clear();
             states.Clear();
+            selectedTarget = default;
         }
     }
 }

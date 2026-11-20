@@ -16,6 +16,7 @@ namespace Workerborn
         [SerializeField, Range(1, 12)]
         private int itemsPerHarvest = 2;
         [Header("Work")]
+        [SerializeField] private SkillId skill;
         [SerializeField] private string interactionVerb = "수확하기";
         [SerializeField] private ItemDefinition requiredTool;
         [SerializeField] private Sprite skillIcon;
@@ -24,7 +25,7 @@ namespace Workerborn
         [SerializeField, Range(0, 1)] private float successChance = 1f;
         [SerializeField, Range(0, 1)] private float luckyChance = .1f;
         [SerializeField, Range(0, 1)] private float greatLuckyChance = .01f;
-        [SerializeField, Range(0, 8)] private int greatLuckyRank = 6;
+        [SerializeField, Range(0, SkillProgression.MaxRank)] private int greatLuckyRank = 6;
         [Header("Loot Scatter")]
         [SerializeField] private bool scatterTowardWorker;
         [SerializeField, Range(0, 360)] private float scatterAngle = 360f;
@@ -47,6 +48,7 @@ namespace Workerborn
         public GameObject PlantPrefab => plantPrefab;
         public GameObject DropPrefab => dropPrefab;
         public string InteractionVerb => interactionVerb;
+        public SkillId Skill => skill;
         public ItemDefinition RequiredTool => requiredTool;
         public Sprite SkillIcon => skillIcon;
         public WorkAnimationDefinition WorkAnimation => workAnimation;
@@ -62,14 +64,14 @@ namespace Workerborn
             return Quaternion.AngleAxis(angle, Vector3.up) * forward * radius;
         }
 
-        public WorkOutcome RollOutcome(int rank, float successRoll, float bonusRoll)
+        public WorkOutcome RollOutcome(int rank, float successRoll, float bonusRoll, float luckyBonus = 0, float greatLuckyBonus = 0)
         {
             if (successRoll >= successChance && successChance < 1f)
                 return WorkOutcome.Failure;
-            float great = rank >= greatLuckyRank ? greatLuckyChance : 0;
+            float great = rank >= greatLuckyRank ? Mathf.Clamp01(greatLuckyChance + greatLuckyBonus) : 0;
             if (bonusRoll < great)
                 return WorkOutcome.GreatLucky;
-            return bonusRoll < great + luckyChance ? WorkOutcome.Lucky : WorkOutcome.Success;
+            return bonusRoll < great + Mathf.Clamp01(luckyChance + luckyBonus) ? WorkOutcome.Lucky : WorkOutcome.Success;
         }
     }
 }

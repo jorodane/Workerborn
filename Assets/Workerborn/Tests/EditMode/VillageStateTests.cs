@@ -214,6 +214,66 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void IndependentSkillsReachRankOneHundredAndSurviveSaving()
+        {
+            var state = VillageState.Restore(new VillageSave { skillRank = 4, ap = 20000 });
+            Assert.That(state.RankOf(SkillId.Harvesting), Is.EqualTo(4));
+            Assert.That(state.RankOf(SkillId.Woodcutting), Is.EqualTo(4));
+            Assert.That(state.RankOf(SkillId.EggGathering), Is.EqualTo(4));
+            Assert.That(state.RankOf(SkillId.Carving), Is.Zero);
+            Assert.That(state.RankOf(SkillId.UnarmedCombat), Is.Zero);
+            for (int rank = 5; rank <= SkillProgression.MaxRank; rank++)
+                Assert.That(state.TryUpgradeSkill(SkillId.Woodcutting), Is.True);
+
+            Assert.That(state.TryUpgradeSkill(SkillId.Woodcutting), Is.False);
+            Assert.That(state.RankOf(SkillId.Woodcutting), Is.EqualTo(100));
+            Assert.That(state.RankOf(SkillId.Harvesting), Is.EqualTo(4));
+            Assert.That(state.YieldMultiplierFor(SkillId.Woodcutting), Is.GreaterThan(state.YieldMultiplier));
+            var restored = VillageState.Restore(state.Export());
+            Assert.That(restored.RankOf(SkillId.Woodcutting), Is.EqualTo(100));
+            Assert.That(restored.RankOf(SkillId.Harvesting), Is.EqualTo(4));
+            Assert.That(restored.UnarmedDamageBonus, Is.Zero);
+        }
+
+        [Test]
+        public void SkillEffectRowsAccumulateByRankAndChangeActualStats()
+        {
+            var rules = new VillageRules();
+            rules.SetSkill(new SkillProgression(SkillId.UnarmedCombat, "맨손전투", new[]
+            {
+                new SkillRankEffect(0, 0, SkillEffect.MaxStamina, 4),
+                new SkillRankEffect(1, 2, SkillEffect.UnarmedDamage, 3, 2),
+                new SkillRankEffect(2, 2, SkillEffect.MaxStamina, 6)
+            }));
+            var state = VillageState.Restore(new VillageSave { ap = 10, gold = 15 }, rules);
+            Assert.That(state.StaminaLimit, Is.EqualTo(104));
+            Assert.That(state.TryUpgradeSkill(SkillId.UnarmedCombat), Is.True);
+            Assert.That(state.UnarmedDamageBonus, Is.EqualTo(3));
+            Assert.That(state.TryUpgradeSkill(SkillId.UnarmedCombat), Is.True);
+            Assert.That(state.UnarmedDamageBonus, Is.EqualTo(8));
+            Assert.That(state.TrySleep(true), Is.True);
+            Assert.That(state.Energy, Is.EqualTo(110));
+            Assert.That(VillageState.Restore(state.Export(), rules).Energy, Is.EqualTo(110));
+        }
+
+        [Test]
+        public void SellingADraggedStackDebitsOnlyThatStack()
+        {
+            var state = new VillageState();
+            int capacity = ItemCatalog.Get(ItemIds.Potato).MaxStack;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, capacity + 5), Is.True);
+            int first = state.Inventory.Entries[0].Id;
+            int selected = state.Inventory.Entries[1].Id;
+            Assert.That(state.MaximumSellQuantity(selected), Is.EqualTo(5));
+            Assert.That(state.TrySellStack(selected, 6), Is.False);
+            Assert.That(state.Inventory.Find(selected).Quantity, Is.EqualTo(5));
+            Assert.That(state.TrySellStack(selected, 3), Is.True);
+            Assert.That(state.Inventory.Find(first).Quantity, Is.EqualTo(capacity));
+            Assert.That(state.Inventory.Find(selected).Quantity, Is.EqualTo(2));
+            Assert.That(state.Gold, Is.EqualTo(ItemCatalog.Get(ItemIds.Potato).Price * 3));
+        }
+
+        [Test]
         public void FailedPurchaseDoesNotChargeGoldOrGrantTheItem()
         {
             var state = new VillageState();

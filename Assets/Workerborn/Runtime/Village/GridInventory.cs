@@ -69,6 +69,16 @@ namespace Workerborn
             return true;
         }
 
+        public bool TryExchangeAt(int entryId, int removedCount, string addedItem, int addedCount)
+        {
+            var copy = Copy();
+            if (!copy.TryRemoveAt(entryId, removedCount) || addedCount < 0 ||
+                addedCount > 0 && !copy.TryAdd(addedItem, addedCount))
+                return false;
+            ReplaceWith(copy);
+            return true;
+        }
+
         public bool TryRemoveAt(int id, int quantity)
         {
             var entry = Find(id);
@@ -155,11 +165,20 @@ namespace Workerborn
             return true;
         }
 
-        public bool TrySplit(int id)
+        public int MaximumSplitQuantity(int id)
         {
             var source = Find(id);
-            if (source == null || source.Quantity < 2 || !FirstFit(entries, source.Spec, out int x, out int y)) return false;
-            int quantity = source.Quantity / 2;
+            return source != null && source.Quantity > 1 && FirstFit(entries, source.Spec, out _, out _)
+                ? source.Quantity - 1 : 0;
+        }
+
+        public bool TrySplit(int id) => TrySplit(id, (Find(id)?.Quantity ?? 0) / 2);
+
+        public bool TrySplit(int id, int quantity)
+        {
+            var source = Find(id);
+            if (source == null || quantity < 1 || quantity >= source.Quantity || !FirstFit(entries, source.Spec, out int x, out int y))
+                return false;
             source.Quantity -= quantity;
             entries.Add(new InventoryEntry { Id = nextId++, ItemId = source.ItemId, Quantity = quantity, X = x, Y = y });
             Version++;

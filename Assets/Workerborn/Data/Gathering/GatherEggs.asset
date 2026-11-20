@@ -17,6 +17,7 @@ MonoBehaviour:
   harvestsPerPlant: 5
   harvestSeconds: 2.0
   itemsPerHarvest: 1
+  skill: 4
   interactionVerb: 달걀 모으기
   requiredTool: {fileID: 0}
   skillIcon: {fileID: 21300000, guid: b326b971adc75cfb87dcff75006cb978, type: 3}

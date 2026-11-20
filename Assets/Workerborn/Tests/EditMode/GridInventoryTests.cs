@@ -70,7 +70,12 @@ namespace Workerborn.Tests
         {
             var inventory = new GridInventory(2, 1);
             inventory.TryAdd(ItemIds.Potato, 9);
-            Assert.That(inventory.TrySplit(inventory.Entries[0].Id), Is.True);
+            int id = inventory.Entries[0].Id;
+            Assert.That(inventory.MaximumSplitQuantity(id), Is.EqualTo(8));
+            Assert.That(inventory.TrySplit(id, 9), Is.False);
+            Assert.That(inventory.TrySplit(id, 3), Is.True);
+            Assert.That(inventory.Find(id).Quantity, Is.EqualTo(6));
+            Assert.That(inventory.Entries[1].Quantity, Is.EqualTo(3));
             Assert.That(inventory.Count(ItemIds.Potato), Is.EqualTo(9));
             Assert.That(inventory.Entries.Count, Is.EqualTo(2));
             Assert.That(inventory.Entries[0].X, Is.Not.EqualTo(inventory.Entries[1].X));

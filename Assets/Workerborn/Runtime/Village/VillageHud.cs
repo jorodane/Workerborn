@@ -56,6 +56,7 @@ namespace Workerborn
         [SerializeField]
         private RectTransform minimapImage;
         public bool HasModal => dialogueTarget != null;
+        public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.gameObject.activeSelf;
         public bool IsHoldingItem => draggedEntry != 0;
         public bool InventoryOpen => windows.TryGetValue("inventory", out var panel) && panel.gameObject.activeSelf;
 
@@ -148,6 +149,12 @@ namespace Workerborn
         {
             if (WorkerbornInput.Current == null)
                 return;
+            if (HasQuantityPrompt)
+            {
+                if (WorkerbornInput.Pressed("Gameplay/Cancel"))
+                    CloseQuantity();
+                return;
+            }
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
                 bool hadWindow = IsHoldingItem;
@@ -200,9 +207,10 @@ namespace Workerborn
             int minute = Mathf.FloorToInt(state.Minute);
             string weekday = Weekdays[(state.Day - 1) % Weekdays.Length];
             clockText.text = $"{weekday}\n{minute / 60:00}:{minute % 60:00}";
-            energyText.text = $"{state.Energy} / 100";
+            int stamina = state.StaminaLimit;
+            energyText.text = $"{state.Energy} / {stamina}";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
-            energyFill.fillAmount = state.Energy / 100f;
+            energyFill.fillAmount = (float)state.Energy / stamina;
             growthText.text = $"Lv.{state.Level}";
             experienceFill.fillAmount = (float)state.Experience / state.NextLevelExperience;
             toast.gameObject.SetActive(Time.unscaledTime < toastUntil);
@@ -236,7 +244,7 @@ namespace Workerborn
             skillBubble.gameObject.SetActive(active != null && !HasModal);
             if (active != null && !HasModal)
             {
-                skillBalloon.SetIcon(active.Definition.SkillIcon);
+                skillBalloon.SetIcon(game.Settings.FindSkill(active.Definition.Skill)?.Icon ?? active.Definition.SkillIcon);
                 skillBalloon.SetProgress(active.Progress);
                 PlaceWorld(skillBubble, worker.transform.position + Vector3.up * skillWorldHeight);
             }
@@ -320,6 +328,8 @@ namespace Workerborn
                 existing.gameObject.SetActive(false);
                 if (id == "inventory")
                     CancelItemDrag();
+                if (id == "shop" || id == "inventory")
+                    CloseQuantity();
                 return;
             }
 
@@ -360,14 +370,27 @@ namespace Workerborn
         public void OpenShop(VillageInteractable npc)
         {
             CloseDialogue();
+            CloseQuantity();
+            CancelItemDrag();
             (OpenWindow("shop") as ShopWindowView)?.Open(npc);
             if (!InventoryOpen)
                 ToggleWindow("inventory");
         }
 
-        public void OpenQuantity(string id, bool selling)
+        internal void OpenPurchaseQuantity(string id)
         {
-            (OpenWindow("quantity") as QuantityWindowView)?.Open(id, selling);
+            (OpenWindow("quantity") as QuantityWindowView)?.Open(id, QuantityAction.Buy);
+        }
+
+        private void OpenStackQuantity(InventoryEntry item, QuantityAction action)
+        {
+            (OpenWindow("quantity") as QuantityWindowView)?.Open(item.ItemId, action, item.Id);
+        }
+
+        private void CloseQuantity()
+        {
+            if (views.TryGetValue("quantity", out var view))
+                view.gameObject.SetActive(false);
         }
 
         public void SellHeldItem()
@@ -375,14 +398,13 @@ namespace Workerborn
             var item = game.State.Inventory.Find(draggedEntry);
             if (item == null)
                 return;
-            string id = item.ItemId;
             CancelItemDrag();
-            if (game.State.TryGetDocumentPage(id, out _))
+            if (game.State.MaximumSellQuantity(item.Id) == 0)
             {
-                ShowToast("계약서는 판매할 수 없습니다.");
+                ShowToast("이 물건은 판매할 수 없습니다.");
                 return;
             }
-            OpenQuantity(id, true);
+            OpenStackQuantity(item, QuantityAction.Sell);
         }
 
         private void ShowAt(VillageWindowView view, Vector2 screen)
@@ -391,18 +413,6 @@ namespace Workerborn
             view.Rect.anchoredPosition = local;
         }
 
-        private static string RankName(int rank) => new[]
-        {
-            "F",
-            "E",
-            "D",
-            "C",
-            "B",
-            "A",
-            "9",
-            "8",
-            "7"
-        }[Mathf.Clamp(rank, 0, 8)];
         private void OnDestroy()
         {
             if (game != null && game.Worker != null)

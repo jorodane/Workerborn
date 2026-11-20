@@ -8,7 +8,6 @@ namespace Workerborn
         private RectTransform dragGhost;
         private int selectedEntry;
         private int draggedEntry;
-        private Vector2 dragGrabOffset;
         private bool releaseHeldOnMouseUp;
         private float CellX => views.TryGetValue("inventory", out var view) ? ((InventoryWindowView)view).CellSize.x : 32f;
         private float CellY => views.TryGetValue("inventory", out var view) ? ((InventoryWindowView)view).CellSize.y : 32f;
@@ -59,6 +58,8 @@ namespace Workerborn
 
         public void ClickInventoryItem(int id, Vector2 screen)
         {
+            if (HasQuantityPrompt)
+                return;
             HideItemTooltip();
             CloseItemContext();
             if (IsHoldingItem)
@@ -125,6 +126,8 @@ namespace Workerborn
 
         public void OpenItemContext(int id, Vector2 screen)
         {
+            if (HasQuantityPrompt)
+                return;
             if (suppressRightContext)
             {
                 suppressRightContext = false;
@@ -182,30 +185,26 @@ namespace Workerborn
                 BeginItemDrag(item.Id, WorkerbornInput.Point);
                 return;
             }
-            bool success = game.State.Inventory.TrySplit(selectedEntry);
             CloseItemContext();
-            if (success)
+            if (item == null || item.Quantity < 2)
+                return;
+            if (game.State.Inventory.MaximumSplitQuantity(item.Id) == 0)
             {
-                RenderInventory();
-                game.SaveGame(false);
-            }
-            else
                 ShowToast("나눌 공간이 부족합니다.");
+                return;
+            }
+            OpenStackQuantity(item, QuantityAction.Split);
         }
 
         public void BeginItemDrag(int id, Vector2 screen, bool releaseOnMouseUp = false)
         {
             CancelItemDrag();
             var item = game.State.Inventory.Find(id);
-            if (item == null || inventoryGrid == null || HasModal)
+            if (item == null || inventoryGrid == null || HasModal || HasQuantityPrompt)
                 return;
             releaseHeldOnMouseUp = releaseOnMouseUp;
             draggedEntry = id;
             selectedEntry = id;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(inventoryGrid, screen, null, out Vector2 local);
-            dragGrabOffset = local - new Vector2(item.X * CellX, -item.Y * CellY);
-            if (dragGrabOffset.x < 0f || dragGrabOffset.x > item.Spec.Width * CellX || dragGrabOffset.y > 0f || dragGrabOffset.y < -item.Spec.Height * CellY)
-                dragGrabOffset = new Vector2(CellX * 0.5f, -CellY * 0.5f);
             RebuildHeldVisual();
             RenderInventory();
             MoveItemDrag(screen);
@@ -237,7 +236,7 @@ namespace Workerborn
             if (dragGhost == null)
                 return;
             RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screen, null, out Vector2 local);
-            dragGhost.anchoredPosition = local - dragGrabOffset;
+            dragGhost.anchoredPosition = local - CanvasRect.rect.center;
             if (views.TryGetValue("inventory", out var window) && window is InventoryWindowView view)
             {
                 var entry = game.State.Inventory.Find(draggedEntry);
@@ -278,8 +277,9 @@ namespace Workerborn
                 return false;
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(inventoryGrid, screen, null, out var local))
                 return false;
-            local -= dragGrabOffset;
-            cell = new Vector2Int(Mathf.FloorToInt(local.x / CellX), Mathf.FloorToInt(-local.y / CellY));
+            var gridBounds = inventoryGrid.rect;
+            cell = new Vector2Int(Mathf.FloorToInt((local.x - gridBounds.xMin) / CellX),
+                Mathf.FloorToInt((gridBounds.yMax - local.y) / CellY));
             return true;
         }
 

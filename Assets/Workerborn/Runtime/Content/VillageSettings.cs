@@ -10,6 +10,8 @@ namespace Workerborn
         [SerializeField]
         private ItemDefinition[] items;
         [SerializeField]
+        private SkillDefinition[] skills;
+        [SerializeField]
         private PartTimeJobDefinition defaultJob;
         [SerializeField]
         private QuestDefinition introQuest;
@@ -49,6 +51,15 @@ namespace Workerborn
         public QuestDefinition IntroQuest => introQuest;
         public QuestDefinition ExpansionQuest => expansionQuest;
         internal System.Collections.Generic.IReadOnlyList<ItemDefinition> Items => items ?? System.Array.Empty<ItemDefinition>();
+
+        public SkillDefinition FindSkill(SkillId id)
+        {
+            if (skills != null)
+                foreach (var skill in skills)
+                    if (skill != null && skill.Id == id)
+                        return skill;
+            return null;
+        }
 
         public ItemDefinition FindItem(string id)
         {
@@ -97,6 +108,12 @@ namespace Workerborn
                 HarvestExperience = harvestExperience,
                 HarvestEnergy = harvestEnergy
             };
+            foreach (var id in SkillProgression.All)
+            {
+                var skill = FindSkill(id);
+                if (skill != null)
+                    rules.SetSkill(skill.ToProgression());
+            }
             if (jobDefinition != null)
             {
                 rules.JobTitle = jobDefinition.Title;

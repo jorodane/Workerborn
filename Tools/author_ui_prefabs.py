@@ -21,6 +21,40 @@ class UIBuilder(Scene):
         return super().text(name,parent,content,size,pos,fontSize,tint,align,anchor,pivot)
     def image_component(self,node):
         return next(i for c,i,k,v,st in self.docs if k=='MonoBehaviour' and v.get('m_GameObject',{}).get('fileID')==node['go'] and v.get('m_Script',{}).get('guid')==UI['Image'])
+    def selectable(self, node, name, target, **fields):
+        navigation=dict(m_Mode=3,m_WrapAround=0,m_SelectOnUp=ref(),m_SelectOnDown=ref(),m_SelectOnLeft=ref(),m_SelectOnRight=ref())
+        colors=dict(m_NormalColor=color(1,1,1,1),m_HighlightedColor=color(.95,.95,.95,1),m_PressedColor=color(.72,.72,.7,1),m_SelectedColor=color(.96,.96,.96,1),m_DisabledColor=color(.55,.55,.55,.5),m_ColorMultiplier=1,m_FadeDuration=.1)
+        return self.script_ui(node,name,m_Navigation=navigation,m_Transition=1,m_Colors=colors,m_Interactable=1,m_TargetGraphic=ref(target),**fields)
+    def quantity_input(self,parent):
+        node=self.ui('Quantity input',parent,(96,28),(91,-143),bg=DARK)
+        _,text_id=self.text('Number',node,'1',(88,26),(4,-1),15,align=4)
+        events={name:dict(m_PersistentCalls=dict(m_Calls=[])) for name in
+                ('m_OnEndEdit','m_OnSubmit','m_OnSelect','m_OnDeselect','m_OnTextSelection','m_OnEndTextSelection','m_OnValueChanged','m_OnTouchScreenKeyboardStatusChanged')}
+        return self.selectable(node,'TMP_InputField',self.image_component(node),m_TextViewport=ref(node['t']),
+                               m_TextComponent=ref(text_id),m_Text='1',m_GlobalPointSize=15,m_CharacterLimit=10,
+                               m_GlobalFontAsset=assetref(BASE/'Fonts/WorkerbornKorean-SDF.asset'),
+                               m_ContentType=2,m_LineType=0,m_KeyboardType=4,m_CharacterValidation=2,
+                               m_CaretBlinkRate=.85,m_CaretWidth=2,
+                               m_SelectionColor=color(.29,.61,.85,.6),m_OnFocusSelectAll=1,m_ResetOnDeActivation=1,
+                               m_RestoreOriginalTextOnEscape=1,m_RichText=0,**events)
+    def quantity_slider(self,parent):
+        node=self.ui('Quantity slider',parent,(278,22),(0,-177),bg=(.15,.16,.17,.45))
+        track=self.ui('Track',node,(250,5),(14,0),(0,.5),(0,.5),(.13,.13,.13,.85))
+        fill=self.ui('Fill',track,(0,0),(0,0),(0,0),(0,0),(.77,.68,.38,1))
+        fill['tr'].update(m_AnchorMax=vec(0,1))
+        handles=self.ui('Handle area',node,(250,22),(14,0),(0,.5),(0,.5))
+        handle=self.ui('Handle',handles,(18,18),(0,0),(0,.5),(.5,.5),(.8,.76,.63,1))
+        return self.selectable(node,'Slider',self.image_component(handle),m_FillRect=ref(fill['t']),
+                               m_HandleRect=ref(handle['t']),m_Direction=0,m_MinValue=1,m_MaxValue=10,
+                               m_WholeNumbers=1,m_Value=1,m_OnValueChanged=dict(m_PersistentCalls=dict(m_Calls=[])))
+    def quantity_controls(self,parent):
+        controls=dict(quantityInput=ref(self.quantity_input(parent)),quantitySlider=ref(self.quantity_slider(parent)))
+        buttons=[('minimum','1'),('minusTen','-10'),('minusOne','-1'),('half','Half'),
+                 ('plusOne','+1'),('plusTen','+10'),('maximum','Max')]
+        for i,(field,label) in enumerate(buttons):
+            _,button,_=self.button(label,parent,(37,26),(i*40,-202),label)
+            controls[field]=ref(button)
+        return controls
     def button(self,name,parent,size,pos,label=None):
         n=self.ui(name,parent,size,pos,bg=LIGHT)
         button=self.script_ui(n,'Button',m_Navigation=dict(m_Mode=0,m_WrapAround=0,m_SelectOnUp=ref(),m_SelectOnDown=ref(),m_SelectOnLeft=ref(),m_SelectOnRight=ref()),m_Transition=1,m_Colors=dict(m_NormalColor=color(1,1,1,1),m_HighlightedColor=color(1.18,1.15,1.08,1),m_PressedColor=color(.7,.7,.65,1),m_SelectedColor=color(1,1,1,1),m_DisabledColor=color(.5,.5,.5,.5),m_ColorMultiplier=1,m_FadeDuration=.08),m_SpriteState=dict(m_HighlightedSprite=ref(),m_PressedSprite=ref(),m_SelectedSprite=ref(),m_DisabledSprite=ref()),m_AnimationTriggers=dict(m_NormalTrigger='Normal',m_HighlightedTrigger='Highlighted',m_PressedTrigger='Pressed',m_SelectedTrigger='Selected',m_DisabledTrigger='Disabled'),m_Interactable=1,m_TargetGraphic=ref(self.image_component(n)),m_OnClick=dict(m_PersistentCalls=dict(m_Calls=[])))
@@ -143,14 +177,13 @@ def author():
     _,bag=b.text('Bag',body,'일반',(220,24),(0,-343),12)
     view=b.script(root,'UI/InventoryWindowView.cs',**fields,scrollContent=ref(content['t']),itemLayer=ref(items['t']),cellLayer=ref(cells['t']),gridLayout=ref(grid),portrait=ref(portrait),gold=ref(gold),bagName=ref(bag),equipment=slots,equipmentIcons=icons);save(b,'InventoryWindow',view)
 
-    b,root,body,fields=window('skills','스킬',478,334,(-280,10))
-    static_text(b,body,'전체',(0,0),(72,24));static_text(b,body,'생활',(78,0),(72,24))
-    row_id=b.native_instance(body,results['ListRow'][0],[results['ListRow'][1]],size=(460,66),pos=(0,-34))[results['ListRow'][1]]
-    _,advance,advance_text=b.button('Advance',body,(142,28),(312,-110),'승급')
-    _,use,_=b.button('Use',body,(126,28),(0,-110),'사용하기')
-    _,ap=b.text('AP',body,'어빌리티 포인트 0',(174,28),(134,-112),12)
-    _,detail=b.text('Skill details',body,'작업 속도 ×1.00\n스태미나 소모 5\n럭키 보너스 10%',(450,100),(0,-163),13)
-    view=b.script(root,'UI/SkillsWindowView.cs',**fields,harvest=ref(row_id),advance=ref(advance),use=ref(use),advanceText=ref(advance_text),ap=ref(ap),details=ref(detail));save(b,'SkillsWindow',view)
+    b,root,body,fields=window('skills','스킬',478,505,(-280,10))
+    rows=b.ui('Skill rows',body,(460,342));b.layout(rows,spacing=3)
+    _,advance,advance_text=b.button('Advance',body,(142,28),(312,-350),'승급')
+    _,use,_=b.button('Use',body,(126,28),(0,-350),'사용하기')
+    _,ap=b.text('AP',body,'AP 0',(174,28),(134,-350),12)
+    _,detail=b.text('Skill details',body,'',(450,72),(0,-385),13)
+    view=b.script(root,'UI/SkillsWindowView.cs',**fields,skillRows=ref(rows['t']),advance=ref(advance),use=ref(use),advanceText=ref(advance_text),ap=ref(ap),details=ref(detail));save(b,'SkillsWindow',view)
 
     b,root,body,fields=window('quests','퀘스트',414,332,(-260,30),paper=(.64,.6,.5,.8))
     static_text(b,body,'일반',(0,0),(90,24))
@@ -197,22 +230,22 @@ def author():
     root['tr']['m_Pivot']=vec(0,1)
     view=b.script(root,'UI/ItemContextView.cs',**fields,use=ref(use),useLabel=ref(use_text),split=ref(split));save(b,'ItemContext',view)
 
-    b,root,body,fields=window('shop','상점',376,410,(-230,145))
+    b,root,body,fields=window('shop','상점',376,367,(-230,145))
     static_text(b,body,'물품',(0,0),(340,24))
     viewport,content=b.scroll('Stock viewport',body,(272,220),(40,-32));cells=b.ui('Grid',content,(272,272));grid=b.grid(cells)
     for i in range(64):b.ui('Cell '+str(i+1),cells,(32,32),bg=(.09,.11,.12,.68))
     stock=b.ui('Stock items',content,(272,272))
     _,description=b.text('Selected item',body,'',(340,24),(0,-265),12)
     _,funds=b.text('Funds',body,'소지금 0 Gold',(340,24),(0,-294),12)
-    sell=b.ui('Sell area',body,(340,32),(0,-324),bg=(.13,.12,.11,.6));b.text('Sell',sell,'판매',(340,30),(0,0),13,align=4);sell_component=b.script(sell,'UI/ShopSellTarget.cs')
+    sell_component=b.script(viewport,'UI/ShopSellTarget.cs')
     view=b.script(root,'UI/ShopWindowView.cs',**fields,stock=ref(stock['t']),cells=ref(grid),description=ref(description),funds=ref(funds),sellTarget=ref(sell_component));save(b,'ShopWindow',view)
     b,root,body,fields=window('quantity','아이템 거래',302,338,(0,0))
     _,title=b.text('Item name',body,'아이템',(278,28),(0,0),15,align=4)
-    item_ref=b.native_instance(body,results['ItemTile'][0],[results['ItemTile'][1]],size=(84,128),pos=(96,-37))[results['ItemTile'][1]]
-    _,minus,_=b.button('Minus',body,(32,26),(58,-178),'-');_,plus,_=b.button('Plus',body,(32,26),(188,-178),'+')
-    _,quantity=b.text('Quantity',body,'1',(96,26),(91,-178),14,align=4);_,total=b.text('Total',body,'가격 0 Gold',(278,27),(0,-216),13,align=4)
-    _,confirm,confirm_text=b.button('Confirm',body,(278,30),(0,-258),'구입')
-    view=b.script(root,'UI/QuantityWindowView.cs',**fields,item=ref(item_ref),title=ref(title),quantityText=ref(quantity),total=ref(total),confirmText=ref(confirm_text),plus=ref(plus),minus=ref(minus),confirm=ref(confirm));save(b,'QuantityWindow',view)
+    item_ref=b.native_instance(body,results['ItemTile'][0],[results['ItemTile'][1]],size=(84,104),pos=(97,-32))[results['ItemTile'][1]]
+    controls=b.quantity_controls(body)
+    _,total=b.text('Total',body,'가격 0 Gold',(278,27),(0,-232),13,align=4)
+    _,confirm,confirm_text=b.button('Confirm',body,(278,30),(0,-263),'구입')
+    view=b.script(root,'UI/QuantityWindowView.cs',**fields,**controls,item=ref(item_ref),title=ref(title),total=ref(total),confirmText=ref(confirm_text),confirm=ref(confirm));save(b,'QuantityWindow',view)
 
     b,root,body,fields=window('conversation','대화',1088,312,(0,-238),paper=(.28,.21,.18,.92))
     _,speaker=b.text('Speaker',body,'NPC',(174,30),(0,0),18);_,occupation=b.text('Occupation',body,'',(174,24),(0,-35),12)

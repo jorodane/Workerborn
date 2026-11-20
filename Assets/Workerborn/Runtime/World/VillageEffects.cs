@@ -6,72 +6,97 @@ namespace Workerborn
 {
     public sealed class VillageEffects : MonoBehaviour
     {
-        [SerializeField] private GameObject click;
-        [SerializeField] private GameObject itemLanding;
-        [SerializeField] private GameObject itemPickup;
-        [SerializeField] private GameObject levelUp;
-        [SerializeField] private LootFlightTrail lootTrail;
-        [SerializeField, Min(.1f)] private float lifetime = 3f;
-        [Header("Pool prewarm")]
-        [SerializeField, Min(0)] private int dropPrewarm = 24;
-        [SerializeField, Min(0)] private int feedbackPrewarm = 8;
+        [SerializeField] private VillageEffectLibrary library;
 
-        private ParticlePool clicks, landings, pickups, levels;
-        private PrefabPool<LootFlightTrail> trails;
+        private readonly Dictionary<VillageEffectKind, (ParticlePool Pool, float Lifetime)> bursts =
+            new Dictionary<VillageEffectKind, (ParticlePool, float)>();
+        private readonly Dictionary<VillageEffectKind, PrefabPool<LootFlightTrail>> trails =
+            new Dictionary<VillageEffectKind, PrefabPool<LootFlightTrail>>();
         private Action<Vector3> playPickup;
-        private readonly List<ParticlePlayback> playing = new List<ParticlePlayback>();
-        private readonly List<LootFlightTrail> flying = new List<LootFlightTrail>();
+        private readonly List<(ParticlePool Pool, Transform Instance, float EndsAt)> playing =
+            new List<(ParticlePool, Transform, float)>();
+        private readonly List<(PrefabPool<LootFlightTrail> Pool, LootFlightTrail Instance)> flying =
+            new List<(PrefabPool<LootFlightTrail>, LootFlightTrail)>();
 
         private void Awake()
         {
-            clicks = CreateParticlePool(click, feedbackPrewarm);
-            landings = CreateParticlePool(itemLanding, dropPrewarm);
-            pickups = CreateParticlePool(itemPickup, feedbackPrewarm);
-            levels = CreateParticlePool(levelUp, Mathf.Min(2, feedbackPrewarm));
             playPickup = PlayPickup;
-            if (lootTrail != null)
+            if (library == null)
+                return;
+
+            var particlePools = new Dictionary<GameObject, ParticlePool>();
+            var trailPools = new Dictionary<GameObject, PrefabPool<LootFlightTrail>>();
+            var capacities = new Dictionary<GameObject, int>();
+            var registered = new HashSet<VillageEffectKind>();
+            foreach (var entry in library.Effects)
             {
-                trails = new PrefabPool<LootFlightTrail>(lootTrail, transform);
-                trails.Prewarm(dropPrewarm + feedbackPrewarm);
+                if (entry.prefab == null || !registered.Add(entry.effect))
+                    continue;
+                capacities.TryGetValue(entry.prefab, out int capacity);
+                capacity += Mathf.Max(0, entry.prewarm);
+                capacities[entry.prefab] = capacity;
+
+                if (VillageEffectLibrary.UsesTrail(entry.effect))
+                {
+                    if (entry.prefab.GetComponent<LootFlightTrail>() is not LootFlightTrail template)
+                    {
+                        Debug.LogWarning($"{entry.effect} needs a LootFlightTrail on the effect prefab root.", library);
+                        continue;
+                    }
+                    if (!trailPools.TryGetValue(entry.prefab, out var pool))
+                    {
+                        pool = new PrefabPool<LootFlightTrail>(template, transform);
+                        trailPools.Add(entry.prefab, pool);
+                    }
+                    pool.Prewarm(capacity);
+                    trails.Add(entry.effect, pool);
+                }
+                else
+                {
+                    if (!particlePools.TryGetValue(entry.prefab, out var pool))
+                    {
+                        pool = new ParticlePool(entry.prefab.transform, transform);
+                        particlePools.Add(entry.prefab, pool);
+                    }
+                    pool.Prewarm(capacity);
+                    bursts.Add(entry.effect, (pool, Mathf.Max(.05f, entry.lifetime)));
+                }
             }
         }
 
-        public void PlayClick(Vector3 position) => Play(clicks, position);
-        public void PlayLanding(Vector3 position) => Play(landings, position);
-        public void PlayPickup(Vector3 position) => Play(pickups, position);
-        public void PlayLevelUp(Vector3 position) => Play(levels, position);
+        public void PlayClick(Vector3 position) => Play(VillageEffectKind.WorldClick, position);
+        public void PlayLanding(Vector3 position) => Play(VillageEffectKind.DropLanding, position);
+        public void PlayPickup(Vector3 position) => Play(VillageEffectKind.PickupArrival, position);
+        public void PlayLevelUp(Vector3 position) => Play(VillageEffectKind.LevelUp, position);
 
         public void PlayDropTrail(GroundPickup pickup)
         {
-            if (isActiveAndEnabled && trails != null)
-                StartTrail(pickup.VisualPosition).FollowDrop(pickup);
+            if (isActiveAndEnabled && trails.TryGetValue(VillageEffectKind.DropTrail, out var pool))
+                StartTrail(pool, pickup.VisualPosition).FollowDrop(pickup);
         }
 
         public void PlayPickupTrail(Vector3 position, Transform worker)
         {
             if (!isActiveAndEnabled || worker == null)
                 return;
-            if (trails != null)
-                StartTrail(position).FlyTo(worker, playPickup);
+            if (trails.TryGetValue(VillageEffectKind.PickupTrail, out var pool))
+                StartTrail(pool, position).FlyTo(worker, playPickup);
             else
                 PlayPickup(worker.position);
         }
 
-        private ParticlePool CreateParticlePool(GameObject prefab, int prewarm) =>
-            prefab != null ? new ParticlePool(prefab.transform, transform, prewarm) : null;
-
-        private void Play(ParticlePool pool, Vector3 position)
+        private void Play(VillageEffectKind effect, Vector3 position)
         {
-            if (isActiveAndEnabled && pool != null)
-                playing.Add(new ParticlePlayback(pool, pool.Play(position), Time.time + lifetime));
+            if (isActiveAndEnabled && bursts.TryGetValue(effect, out var burst))
+                playing.Add((burst.Pool, burst.Pool.Play(position), Time.time + burst.Lifetime));
         }
 
-        private LootFlightTrail StartTrail(Vector3 position)
+        private LootFlightTrail StartTrail(PrefabPool<LootFlightTrail> pool, Vector3 position)
         {
-            var instance = trails.Rent();
+            var instance = pool.Rent();
             instance.transform.SetPositionAndRotation(position, Quaternion.identity);
             instance.gameObject.SetActive(true);
-            flying.Add(instance);
+            flying.Add((pool, instance));
             return instance;
         }
 
@@ -79,10 +104,10 @@ namespace Workerborn
         {
             for (int i = flying.Count - 1; i >= 0; i--)
             {
-                var trail = flying[i];
-                if (trail != null && !trail.Advance(Time.deltaTime))
+                var flight = flying[i];
+                if (flight.Instance != null && !flight.Instance.Advance(Time.deltaTime))
                     continue;
-                ReturnTrail(trail);
+                ReturnTrail(flight.Pool, flight.Instance);
                 flying.RemoveAt(i);
             }
 
@@ -99,8 +124,8 @@ namespace Workerborn
 
         internal void Clear()
         {
-            foreach (var trail in flying)
-                ReturnTrail(trail);
+            foreach (var flight in flying)
+                ReturnTrail(flight.Pool, flight.Instance);
             flying.Clear();
             foreach (var effect in playing)
                 effect.Pool.Return(effect.Instance);
@@ -109,26 +134,12 @@ namespace Workerborn
 
         private void OnDisable() => Clear();
 
-        private void ReturnTrail(LootFlightTrail instance)
+        private static void ReturnTrail(PrefabPool<LootFlightTrail> pool, LootFlightTrail instance)
         {
             if (instance == null)
                 return;
             instance.ResetTrail();
-            trails.Return(instance);
-        }
-
-        private readonly struct ParticlePlayback
-        {
-            public readonly ParticlePool Pool;
-            public readonly Transform Instance;
-            public readonly float EndsAt;
-
-            public ParticlePlayback(ParticlePool pool, Transform instance, float endsAt)
-            {
-                Pool = pool;
-                Instance = instance;
-                EndsAt = endsAt;
-            }
+            pool.Return(instance);
         }
 
         private sealed class ParticlePool
@@ -136,11 +147,12 @@ namespace Workerborn
             private readonly PrefabPool<Transform> instances;
             private readonly Dictionary<Transform, ParticleSystem[]> systems = new Dictionary<Transform, ParticleSystem[]>();
 
-            public ParticlePool(Transform prefab, Transform parent, int prewarm)
+            public ParticlePool(Transform prefab, Transform parent)
             {
                 instances = new PrefabPool<Transform>(prefab, parent, Prepare);
-                instances.Prewarm(prewarm);
             }
+
+            public void Prewarm(int count) => instances.Prewarm(count);
 
             private void Prepare(Transform instance)
             {

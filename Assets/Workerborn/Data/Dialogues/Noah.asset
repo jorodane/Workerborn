@@ -23,6 +23,6 @@ MonoBehaviour:
   - keyword: 일상
     action: 0
     text: 어서 와. 오늘도 쓸 만한 물건을 가져왔어.
-  - keyword: 거래
+  - keyword: 구매하기
     action: 4
-    text: 달걀, 목재와 감자를 사들이고 있어. 팔 물건을 집어 매입 칸에 놓아 줘.
+    text: 팔 물건을 내 물품 칸으로 옮겨 줘.

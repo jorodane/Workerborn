@@ -53,6 +53,7 @@ namespace Workerborn
         public int totalLevel = 1;
         public int ap;
         public int skillRank;
+        public SkillRankSave[] skillRanks = Array.Empty<SkillRankSave>();
         public int career;
         public int lifetimeHarvests;
         public bool introAccepted;
@@ -104,7 +105,6 @@ namespace Workerborn
         public int Experience { get; private set; }
         public int TotalLevel { get; private set; } = 1;
         public int AP { get; private set; }
-        public int SkillRank { get; private set; }
         public int Career { get; private set; }
         public int LifetimeHarvests { get; private set; }
         public bool IntroAccepted { get; private set; }
@@ -131,14 +131,10 @@ namespace Workerborn
         public int NoticeSerial { get; private set; }
         public string LastMessage { get; private set; } = "";
         public int NextLevelExperience => 20 + Level * 10;
-        public int NextSkillCost => SkillRank + 1;
         public bool HasHoe => equipment.TryGetValue(EquipmentSlot.MainHand, out string item) && item == ItemIds.Hoe;
         public int HarvestEnergyCost => WorkEnergyCost(ItemIds.Potato, Rules.HarvestEnergy);
-        public int YieldMultiplier => 1 + SkillRank * (SkillRank + 1) / 2;
         public bool HasTool(string itemId) => string.IsNullOrEmpty(itemId) ||
             equipment.TryGetValue(EquipmentSlot.MainHand, out var equipped) && equipped == itemId;
-        public int WorkEnergyCost(string itemId, int baseCost) =>
-            Math.Max(1, baseCost - SkillRank / 3 - (itemId == ItemIds.Potato && HasHoe ? 1 : 0));
 
         public int CareerTier
         {
@@ -162,6 +158,8 @@ namespace Workerborn
         public VillageState(VillageRules rules = null)
         {
             Rules = rules ?? new VillageRules();
+            RefreshSkillStats();
+            Energy = StaminaLimit;
             Minute = Rules.JobStart;
             if (Rules.Foundation == null)
                 FoundationStage = FarmFoundationStage.Built;
@@ -306,12 +304,15 @@ namespace Workerborn
         public bool TryHarvest(int baseYield, bool lucky, out int drops)
             => TryGather(ItemIds.Potato, baseYield, Rules.HarvestEnergy, lucky ? WorkOutcome.Lucky : WorkOutcome.Success, out drops);
 
-        public bool TryGather(string itemId, int baseYield, int baseEnergy, WorkOutcome outcome, out int drops)
+        public bool TryGather(string itemId, int baseYield, int baseEnergy, WorkOutcome outcome, out int drops) =>
+            TryGather(SkillProgression.ForItem(itemId), itemId, baseYield, baseEnergy, outcome, out drops);
+
+        public bool TryGather(SkillId skill, string itemId, int baseYield, int baseEnergy, WorkOutcome outcome, out int drops)
         {
             drops = 0;
-            if (baseYield < 1 || baseYield > 100 || !ItemCatalog.Contains(itemId))
+            if (baseYield < 1 || baseYield > 100 || !ItemCatalog.Contains(itemId) || !SkillProgression.IsDefined(skill))
                 return Result(false, "채집 결과 설정을 확인해 주세요.");
-            int cost = WorkEnergyCost(itemId, baseEnergy);
+            int cost = WorkEnergyCost(skill, itemId, baseEnergy);
             if (Energy < cost)
                 return Result(false, "스태미나가 부족해요. 빵을 먹거나 숙소에서 쉬어 주세요.");
             Energy -= cost;
@@ -319,7 +320,7 @@ namespace Workerborn
                 return Result(false, "채집에 실패했어요.");
             LifetimeHarvests++;
             int bonus = outcome == WorkOutcome.GreatLucky ? 50 : outcome == WorkOutcome.Lucky ? 2 : 1;
-            drops = baseYield * YieldMultiplier * bonus;
+            drops = ScaledYield(skill, baseYield, bonus);
             AddExperience(Rules.HarvestExperience);
             string result = outcome == WorkOutcome.GreatLucky ? "대박 보너스!" : outcome == WorkOutcome.Lucky ? "럭키 보너스!" : "채집 완료!";
             return Result(true, $"{result} {ItemCatalog.Get(itemId).Name} {drops:N0}개");
@@ -342,18 +343,18 @@ namespace Workerborn
                 Experience = 0;
         }
 
-        public bool TryUpgradeSkill()
+        public bool TryBuy(string itemId) => TryBuy(itemId, 1);
+        public int MaximumBuyQuantity(string itemId)
         {
-            if (SkillRank >= 8)
-                return Result(false, "최고 채집 랭크에 도달했어요.");
-            if (AP < NextSkillCost)
-                return Result(false, $"승급하려면 AP {NextSkillCost}가 필요해요.");
-            AP -= NextSkillCost;
-            SkillRank++;
-            return Result(true, $"채집 스킬 승급! 한 번에 얻는 양이 기본의 {YieldMultiplier}배가 됐어요.");
+            if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || TryGetDocumentPage(itemId, out _) ||
+                itemId == ItemIds.Hoe && (HasHoe || Inventory.Count(ItemIds.Hoe) > 0) ||
+                itemId == ItemIds.Bag && (BagExpanded || Inventory.Count(ItemIds.Bag) > 0))
+                return 0;
+            var spec = ItemCatalog.Get(itemId);
+            int limit = spec.EquipmentSlot == EquipmentSlot.None ? 999 : 1;
+            return spec.Price > 0 ? Math.Min(limit, Gold / spec.Price) : limit;
         }
 
-        public bool TryBuy(string itemId) => TryBuy(itemId, 1);
         public bool TryBuy(string itemId, int quantity)
         {
             if (quantity < 1 || quantity > 999)
@@ -385,7 +386,7 @@ namespace Workerborn
 
         public bool TrySellItems(string itemId, int quantity)
         {
-            if (quantity < 1 || quantity > 999 || !ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || itemId == ItemIds.Bag || TryGetDocumentPage(itemId, out _))
+            if (quantity < 1 || quantity > 999 || !CanSell(itemId))
                 return Result(false, "판매할 수 없는 물건입니다.");
             long total = (long)ItemCatalog.Get(itemId).Price * quantity;
             if (total > int.MaxValue || !Inventory.TryExchange(itemId, quantity, ItemIds.Gold, (int)total))
@@ -393,13 +394,41 @@ namespace Workerborn
             return Result(true, $"{ItemCatalog.Get(itemId).Name} {quantity}개 판매 · {total} Gold");
         }
 
+        private bool CanSell(string itemId) => ItemCatalog.Contains(itemId) && itemId != ItemIds.Gold &&
+            itemId != ItemIds.Bag && !TryGetDocumentPage(itemId, out _);
+
+        public int MaximumSellQuantity(int entryId)
+        {
+            var entry = Inventory.Find(entryId);
+            if (entry == null || !CanSell(entry.ItemId))
+                return 0;
+            return entry.Spec.Price > 0 ? Math.Min(entry.Quantity, int.MaxValue / entry.Spec.Price) : entry.Quantity;
+        }
+
+        public bool TrySellStack(int entryId, int quantity)
+        {
+            if (quantity < 1 || quantity > MaximumSellQuantity(entryId))
+                return Result(false, "판매할 수 없는 수량입니다.");
+            var entry = Inventory.Find(entryId);
+            var spec = entry.Spec;
+            int total = spec.Price * quantity;
+            if (!Inventory.TryExchangeAt(entryId, quantity, ItemIds.Gold, total))
+                return Result(false, "골드를 받을 소지품 공간이 부족합니다.");
+            return Result(true, $"{spec.Name} {quantity}개 판매 · {total:N0} Gold");
+        }
+
+        public bool TrySplitStack(int entryId, int quantity) =>
+            Inventory.TrySplit(entryId, quantity)
+                ? Result(true, $"{quantity:N0}개를 나눴어요.")
+                : Result(false, "수량이나 나눌 공간을 확인해 주세요.");
+
         public bool TryEatBread()
         {
-            if (Energy == MaxEnergy)
+            if (Energy >= StaminaLimit)
                 return Result(false, "에너지가 이미 가득해요.");
             if (!Inventory.TryRemove(ItemIds.Bread, 1))
                 return Result(false, "가방에 빵이 없어요.");
-            Energy = Math.Min(MaxEnergy, Energy + 25);
+            Energy = Math.Min(StaminaLimit, Energy + 25);
             return Result(true, "빵을 먹고 에너지를 25 회복했어요.");
         }
 
@@ -451,7 +480,7 @@ namespace Workerborn
                 return Result(false, "숙박비가 부족합니다.");
             if (paidRoom && Rules.RoomPrice > 0)
                 Inventory.TryRemove(ItemIds.Gold, Rules.RoomPrice);
-            NextDay(paidRoom ? MaxEnergy : Rules.FreeRestEnergy, false);
+            NextDay(paidRoom ? StaminaLimit : Rules.FreeRestEnergy, false);
             return Result(true, $"다음 날 {Rules.WakeMinute / 60:00}:{Rules.WakeMinute % 60:00}. 에너지 {Energy} 회복.");
         }
 
@@ -460,7 +489,7 @@ namespace Workerborn
             Day++;
             LifeDay++;
             Minute = Rules.WakeMinute;
-            Energy = energy;
+            Energy = Math.Min(energy, StaminaLimit);
             if (Job == JobStatus.Active)
                 Job = JobStatus.Failed;
             LastRestWasCollapse = collapsed;
@@ -493,7 +522,7 @@ namespace Workerborn
             Minute = Rules.JobStart;
             Level = 1;
             Experience = 0;
-            Energy = MaxEnergy;
+            Energy = StaminaLimit;
             Inventory = new GridInventory();
             equipment.Clear();
             Job = JobStatus.None;
@@ -512,7 +541,7 @@ namespace Workerborn
                 worn.Add(new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value });
             return new VillageSave
             {
-                schema = 4,
+                schema = 5,
                 equipment = worn.ToArray(),
                 day = Day,
                 lifeDay = LifeDay,
@@ -524,7 +553,7 @@ namespace Workerborn
                 experience = Experience,
                 totalLevel = TotalLevel,
                 ap = AP,
-                skillRank = SkillRank,
+                skillRanks = ExportSkills(),
                 career = Career,
                 lifetimeHarvests = LifetimeHarvests,
                 introAccepted = IntroAccepted,
@@ -553,7 +582,19 @@ namespace Workerborn
         public static VillageState Restore(VillageSave save, VillageRules rules = null)
         {
             rules = rules ?? new VillageRules();
-            if (save == null || (save.schema < 1 || save.schema > 4) || save.day < 1 || save.lifeDay < 1 || save.life < 1 || save.day > 1000000 || save.life > 1000000 || save.lifeDay > save.day || float.IsNaN(save.minute) || float.IsInfinity(save.minute) || save.minute < 0 || save.minute >= 1440 || save.energy < 0 || save.energy > MaxEnergy || save.gold < 0 || save.gold > 100000000 || save.level < 1 || save.level > 200 || save.experience < 0 || save.experience >= 20 + save.level * 10 || save.totalLevel < save.level || save.totalLevel > 100000000 || save.ap < 0 || save.ap > 1000000 || save.skillRank < 0 || save.skillRank > 8 || save.career < 0 || save.career > 1000000 || save.lifetimeHarvests < 0 || save.donatedGold < 0 || save.donatedGold > Math.Max(RequiredDonationGold, rules.DonationGold) || save.donatedPotatoes < 0 || save.donatedPotatoes > Math.Max(RequiredDonationPotatoes, rules.DonationItems) || save.farmLevel < 1 || save.farmLevel > Math.Max(2, rules.ExpandedStage) || save.jobStatus < 0 || save.jobStatus > 3 || save.lastJobDay > save.day || save.lastJobDay < -1 || save.inventoryColumns != 8 || save.inventoryRows < 4 || save.inventoryRows > 16)
+            if (save == null || save.schema < 1 || save.schema > 5 ||
+                save.day < 1 || save.lifeDay < 1 || save.life < 1 || save.day > 1000000 || save.life > 1000000 || save.lifeDay > save.day ||
+                float.IsNaN(save.minute) || float.IsInfinity(save.minute) || save.minute < 0 || save.minute >= 1440 ||
+                save.energy < 0 || save.energy > (save.schema < 5 ? MaxEnergy : 1000000) || save.gold < 0 || save.gold > 100000000 ||
+                save.level < 1 || save.level > 200 || save.experience < 0 || save.experience >= 20 + save.level * 10 ||
+                save.totalLevel < save.level || save.totalLevel > 100000000 || save.ap < 0 || save.ap > 1000000 ||
+                (save.schema < 5 && (save.skillRank < 0 || save.skillRank > 8)) ||
+                save.career < 0 || save.career > 1000000 || save.lifetimeHarvests < 0 ||
+                save.donatedGold < 0 || save.donatedGold > Math.Max(RequiredDonationGold, rules.DonationGold) ||
+                save.donatedPotatoes < 0 || save.donatedPotatoes > Math.Max(RequiredDonationPotatoes, rules.DonationItems) ||
+                save.farmLevel < 1 || save.farmLevel > Math.Max(2, rules.ExpandedStage) ||
+                save.jobStatus < 0 || save.jobStatus > 3 || save.lastJobDay > save.day || save.lastJobDay < -1 ||
+                save.inventoryColumns != 8 || save.inventoryRows < 4 || save.inventoryRows > 16)
                 throw new ArgumentException("Invalid village save.");
             if ((JobStatus)save.jobStatus == JobStatus.Active && (save.lastJobDay != save.day || save.jobRequirement < 1 || save.jobRequirement > 10000 || save.jobReward < 0 || save.jobReward > 10000 || save.jobExperience < 0 || save.jobExperience > 100000))
                 throw new ArgumentException("Invalid active job.");
@@ -588,7 +629,6 @@ namespace Workerborn
                 Experience = save.experience,
                 TotalLevel = save.totalLevel,
                 AP = save.ap,
-                SkillRank = save.skillRank,
                 Career = save.career,
                 LifetimeHarvests = save.lifetimeHarvests,
                 IntroAccepted = save.introAccepted,
@@ -609,6 +649,9 @@ namespace Workerborn
                 LastGuideLife = save.schema < 3 ? save.life : save.lastGuideLife,
                 Inventory = inventory
             };
+            state.RestoreSkills(save);
+            state.RefreshSkillStats();
+            state.Energy = Math.Min(state.Energy, state.StaminaLimit);
             if (save.schema >= 2 && save.equipment != null)
                 foreach (var entry in save.equipment)
                 {

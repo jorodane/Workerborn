@@ -17,6 +17,11 @@ namespace Workerborn
         private Image progress;
         [SerializeField]
         private Button select;
+        private Color titleColor;
+
+        private void Awake() => titleColor = title.color;
+        public void HighlightTitle(bool selected) => title.color = selected ? new Color(1f, .88f, .55f) : titleColor;
+
         public void Bind(string name, string description, Sprite sprite, float ratio, Action click)
         {
             title.text = name;

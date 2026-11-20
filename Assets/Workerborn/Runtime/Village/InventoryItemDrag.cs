@@ -17,7 +17,7 @@ namespace Workerborn
         public void OnBeginDrag(PointerEventData data)
         {
             if (data.button == PointerEventData.InputButton.Left && !Hud.IsHoldingItem)
-                Hud.BeginItemDrag(EntryId, data.pressPosition, releaseOnMouseUp: true);
+                Hud.BeginItemDrag(EntryId, data.position, releaseOnMouseUp: true);
         }
         public void OnDrag(PointerEventData data)
         {

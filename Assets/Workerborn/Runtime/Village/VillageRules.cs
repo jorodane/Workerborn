@@ -28,6 +28,10 @@ namespace Workerborn
 
     public sealed class VillageRules
     {
+        private readonly SkillProgression[] skills = new SkillProgression[SkillProgression.All.Count];
+        public SkillProgression Skill(SkillId id) => skills[(int)id] ?? SkillProgression.Default(id);
+        public void SetSkill(SkillProgression skill) => skills[(int)skill.Id] = skill;
+
         public float MinutesPerSecond = 3f;
         public int WakeMinute = 360;
         public int CollapseMinute = 1440;

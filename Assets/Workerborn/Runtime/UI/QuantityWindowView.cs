@@ -1,76 +1,144 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace Workerborn
 {
+    internal enum QuantityAction { Buy, Sell, Split }
+
     public sealed class QuantityWindowView : VillageWindowView
     {
-        [SerializeField]
-        private UiItemView item;
-        [SerializeField]
-        private TMP_Text title;
-        [SerializeField]
-        private TMP_Text quantityText;
-        [SerializeField]
-        private TMP_Text total;
-        [SerializeField]
-        private TMP_Text confirmText;
-        [SerializeField]
-        private Button plus;
-        [SerializeField]
-        private Button minus;
-        [SerializeField]
-        private Button confirm;
+        [SerializeField] private UiItemView item;
+        [SerializeField] private TMP_Text title;
+        [SerializeField] private TMP_InputField quantityInput;
+        [SerializeField] private Slider quantitySlider;
+        [SerializeField] private TMP_Text total;
+        [SerializeField] private TMP_Text confirmText;
+        [SerializeField] private Button minimum;
+        [SerializeField] private Button minusTen;
+        [SerializeField] private Button minusOne;
+        [SerializeField] private Button half;
+        [SerializeField] private Button plusOne;
+        [SerializeField] private Button plusTen;
+        [SerializeField] private Button maximum;
+        [SerializeField] private Button confirm;
         private string id;
-        private bool selling;
-        private int quantity = 1;
+        private QuantityAction action;
+        private int entryId;
+        private int quantity;
+        private bool updating;
+
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
-            plus.onClick.AddListener(() =>
+            item.Passive();
+            quantitySlider.wholeNumbers = true;
+            quantitySlider.onValueChanged.AddListener(value =>
             {
-                quantity = Mathf.Min(Maximum, quantity + 1);
-                Refresh();
+                if (!updating)
+                    SetQuantity((int)value);
             });
-            minus.onClick.AddListener(() =>
-            {
-                quantity = Mathf.Max(1, quantity - 1);
-                Refresh();
-            });
-            confirm.onClick.AddListener(() =>
-            {
-                bool success = Game.Perform(() => selling ? Game.State.TrySellItems(id, quantity) : Game.State.TryBuy(id, quantity));
-                if (success)
-                    gameObject.SetActive(false);
-            });
+            quantityInput.contentType = TMP_InputField.ContentType.IntegerNumber;
+            quantityInput.characterLimit = 10;
+            quantityInput.onValueChanged.AddListener(text => ApplyInput(text, false));
+            quantityInput.onEndEdit.AddListener(text => ApplyInput(text, true));
+            minimum.onClick.AddListener(() => SetQuantity(1));
+            minusTen.onClick.AddListener(() => SetQuantity(quantity - 10));
+            minusOne.onClick.AddListener(() => SetQuantity(quantity - 1));
+            half.onClick.AddListener(() => SetQuantity((action == QuantityAction.Split ? Stack?.Quantity ?? 0 : Maximum) / 2));
+            plusOne.onClick.AddListener(() => SetQuantity((long)quantity + 1));
+            plusTen.onClick.AddListener(() => SetQuantity((long)quantity + 10));
+            maximum.onClick.AddListener(() => SetQuantity(Maximum));
+            confirm.onClick.AddListener(Confirm);
         }
 
-        private int Maximum => selling ? Game.State.Inventory.Count(id) : id == ItemIds.Bag || id == ItemIds.Hoe ? 1 : Mathf.Min(999, Game.State.Gold / Mathf.Max(1, ItemCatalog.Get(id).Price));
+        private InventoryEntry Stack
+        {
+            get
+            {
+                var entry = Game.State.Inventory.Find(entryId);
+                return entry != null && entry.ItemId == id ? entry : null;
+            }
+        }
 
-        public void Open(string itemId, bool sell)
+        private int Maximum => action switch
+        {
+            QuantityAction.Buy => Game.State.MaximumBuyQuantity(id),
+            QuantityAction.Sell when Stack != null => Game.State.MaximumSellQuantity(entryId),
+            QuantityAction.Split when Stack != null => Game.State.Inventory.MaximumSplitQuantity(entryId),
+            _ => 0
+        };
+
+        internal void Open(string itemId, QuantityAction operation, int stackId = 0)
         {
             id = itemId;
-            selling = sell;
-            quantity = 1;
-            Refresh();
+            action = operation;
+            entryId = stackId;
+            SetQuantity(1);
         }
 
         public override void Refresh()
         {
-            if (string.IsNullOrEmpty(id))
+            if (!string.IsNullOrEmpty(id))
+                SetQuantity(quantity, !quantityInput.isFocused);
+        }
+
+        private void ApplyInput(string text, bool finish)
+        {
+            if (updating || string.IsNullOrEmpty(id))
                 return;
+            if (long.TryParse(text, out long requested))
+                SetQuantity(requested, finish);
+            else if (finish)
+                SetQuantity(quantity);
+        }
+
+        private void SetQuantity(long requested, bool updateInput = true)
+        {
+            int limit = Maximum;
+            quantity = limit == 0 ? 0 : (int)Math.Max(1, Math.Min(limit, requested));
+            updating = true;
+            quantitySlider.minValue = 1;
+            quantitySlider.maxValue = Mathf.Max(1, limit);
+            quantitySlider.value = Mathf.Max(1, quantity);
+            if (updateInput)
+                quantityInput.SetTextWithoutNotify(quantity.ToString());
+            updating = false;
+
             var spec = ItemCatalog.Get(id);
-            quantity = Mathf.Clamp(quantity, 1, Mathf.Max(1, Maximum));
             item.Display(Game.Settings.FindItem(id), id, quantity);
-            item.Passive();
             title.text = spec.Name;
-            quantityText.text = quantity.ToString();
-            total.text = $"가격  {spec.Price * quantity:N0} Gold";
-            confirmText.text = selling ? "판매" : "구입";
-            confirm.interactable = Maximum > 0;
-            plus.interactable = quantity < Maximum;
-            minus.interactable = quantity > 1;
+            total.text = action == QuantityAction.Split
+                ? $"원래 묶음에 {((Stack?.Quantity ?? 0) - quantity):N0}개 남음"
+                : $"{(action == QuantityAction.Sell ? "받는 금액" : "가격")}  {(long)spec.Price * quantity:N0} Gold";
+            confirmText.text = action switch
+            {
+                QuantityAction.Sell => "판매",
+                QuantityAction.Split => "나누기",
+                _ => "구입"
+            };
+            quantitySlider.interactable = limit > 1;
+            quantityInput.interactable = limit > 1;
+            confirm.interactable = limit > 0;
+            minimum.interactable = minusOne.interactable = minusTen.interactable = quantity > 1;
+            plusOne.interactable = plusTen.interactable = maximum.interactable = quantity < limit;
+            half.interactable = limit > 1;
+        }
+
+        private void Confirm()
+        {
+            ApplyInput(quantityInput.text, true);
+            if (quantity < 1)
+                return;
+            bool success = Game.Perform(() => action switch
+            {
+                QuantityAction.Sell => Stack != null && Game.State.TrySellStack(entryId, quantity),
+                QuantityAction.Split => Stack != null && Game.State.TrySplitStack(entryId, quantity),
+                _ => Game.State.TryBuy(id, quantity)
+            });
+            if (success)
+                gameObject.SetActive(false);
         }
     }
 }

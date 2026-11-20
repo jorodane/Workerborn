@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a09a5b790f945a1daebccac355675f25, type: 3}
+  m_Name: Harvesting
+  m_EditorClassIdentifier: ''
+  skill: 0
+  displayName: 수확
+  icon: {fileID: 21300000, guid: 9fc670e4153759efa4ca9573ec9cd758, type: 3}
+  firstUpgradeCost: 1
+  costIncreasePerRank: 1
+  rankEffects:
+  - fromRank: 1
+    throughRank: 8
+    effect: 0
+    amount: 1
+    increasePerRank: 1
+  - fromRank: 9
+    throughRank: 100
+    effect: 0
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 3
+    throughRank: 3
+    effect: 1
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 6
+    throughRank: 6
+    effect: 1
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 20
+    throughRank: 20
+    effect: 2
+    amount: 5
+    increasePerRank: 0

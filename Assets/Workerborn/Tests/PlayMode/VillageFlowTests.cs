@@ -4,12 +4,14 @@ using System.IO;
 using System.Linq;
 using DistantLands.Cozy;
 using NUnit.Framework;
+using TMPro;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.UI;
 
 namespace Workerborn.Tests
 {
@@ -622,6 +624,70 @@ namespace Workerborn.Tests
                 InputSystem.RemoveDevice(keyboard);
             }
         }
+
+        [UnityTest]
+        public IEnumerator InventoryPlacesTheTopLeftCellUnderThePointer()
+        {
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.Hoe, 1), Is.True);
+            var entry = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Hoe);
+            var inventory = (InventoryWindowView)game.Hud.OpenWindow("inventory");
+            inventory.Refresh();
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+
+            var grid = inventory.ItemLayer;
+            Vector2 Point(float x, float y)
+            {
+                var rect = grid.rect;
+                var step = inventory.CellSize;
+                return RectTransformUtility.WorldToScreenPoint(null,
+                    grid.TransformPoint(new Vector3(rect.xMin + x * step.x, rect.yMax - y * step.y, 0)));
+            }
+
+            game.Hud.BeginItemDrag(entry.Id, Point(entry.X + .75f, entry.Y + entry.Spec.Height - .25f));
+            Assert.That(game.Hud.IsHoldingItem, Is.True);
+            Vector2 destination = Point(3.4f, 1.6f);
+            game.Hud.MoveItemDrag(destination);
+            game.Hud.EndItemDrag(destination);
+            var placed = game.State.Inventory.Find(entry.Id);
+            Assert.That((placed.X, placed.Y), Is.EqualTo((3, 1)));
+            Assert.That(game.Hud.IsHoldingItem, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator MerchantOpensInOneClickAndStackSplittingUsesTheSharedQuantityControls()
+        {
+            game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
+            var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+            FindButton(dialogue, "구매하기").onClick.Invoke();
+            Assert.That(game.Hud.HasModal, Is.False);
+            var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
+            Assert.That(shop.GetComponentInChildren<ShopSellTarget>().name, Is.EqualTo("Stock viewport"));
+
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 9), Is.True);
+            var entry = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Potato);
+            game.Hud.OpenItemContext(entry.Id, new Vector2(Screen.width * .5f, Screen.height * .5f));
+            var context = UnityEngine.Object.FindFirstObjectByType<ItemContextView>();
+            FindButton(context, "아이템 나누기").onClick.Invoke();
+            var quantity = UnityEngine.Object.FindFirstObjectByType<QuantityWindowView>();
+            var input = quantity.GetComponentInChildren<TMP_InputField>();
+            var slider = quantity.GetComponentInChildren<Slider>();
+            FindButton(quantity, "Half").onClick.Invoke();
+            Assert.That(input.text, Is.EqualTo("4"));
+            FindButton(quantity, "-1").onClick.Invoke();
+            Assert.That(slider.value, Is.EqualTo(3));
+            slider.value = 6;
+            Assert.That(input.text, Is.EqualTo("6"));
+            input.text = "2";
+            FindButton(quantity, "나누기").onClick.Invoke();
+            Assert.That(game.State.Inventory.Find(entry.Id).Quantity, Is.EqualTo(7));
+            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(9));
+            Assert.That(game.Hud.HasQuantityPrompt, Is.False);
+            yield return null;
+        }
+
+        private static Button FindButton(Component root, string label) =>
+            root.GetComponentsInChildren<Button>().Single(button => button.GetComponentInChildren<TMP_Text>()?.text == label);
 
         [UnityTest]
         public IEnumerator InventoryDropWaitsForArrivalAndShiftChangesTheGait()

@@ -165,7 +165,10 @@ assert int(settings_overrides['handleSceneLighting']['value'])==0
 sky_layers=[m for m in cozy['m_Modification']['m_Modifications'] if m['propertyPath']=='m_Layer']
 assert sky_layers and all(int(m['value'])==12 for m in sky_layers)
 effects=behaviours(scene,'World/VillageEffects.cs')[0]
-assert all(resolve(effects[name]).is_relative_to(CONTENT/'Prefabs/Effects') for name in ('click','itemLanding','itemPickup','levelUp','lootTrail'))
+effect_library=documents(resolve(effects['library']))[0]['MonoBehaviour']
+assert {row['effect'] for row in effect_library['effects']}==set(range(6))
+assert len(effect_library['effects'])==6
+assert all(resolve(row['prefab']).is_relative_to(CONTENT/'Prefabs/Effects') for row in effect_library['effects'])
 assert not behaviours(scene,'HarvestPrototype.cs'),'Village must not generate its map from the harvest demo'
 animals=behaviours(scene,'Village/AnimalNpc.cs')
 assert len(animals)==2 and all(a['keepVisualWhenDepleted'] for a in animals)
@@ -207,6 +210,9 @@ assert clock['m_overflowMode']==0 and clock['m_fontSize']>=14
 assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values())
 
 settings=docs(resolve(controller[0]['settings']))[0]['MonoBehaviour']
+skills=[docs(resolve(pointer))[0]['MonoBehaviour'] for pointer in settings['skills']]
+assert {skill['skill'] for skill in skills}==set(range(5))
+assert all(0<=row['fromRank']<=row['throughRank']<=100 for skill in skills for row in skill['rankEffects'])
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
 wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
 assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','timber_contract','farm_contract','rabbit_meat','branch'} | set(wardrobe)

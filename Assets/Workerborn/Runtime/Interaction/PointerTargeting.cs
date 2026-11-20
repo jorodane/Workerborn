@@ -177,7 +177,7 @@ namespace Workerborn
                 {
                     if (rightTarget.Target != null)
                         game.Hud.OpenWorldContext(rightTarget.Target, cursor);
-                    else if (!rightTarget.IsAssigned && !overUi)
+                    else if (!rightTarget.IsAssigned && !overUi && !game.Hud.HasQuantityPrompt)
                         game.Worker.Cancel();
                 }
                 rightTarget = default;
@@ -193,7 +193,7 @@ namespace Workerborn
 
             if (ui == null || ui.GetComponentInParent<WorldContextView>() == null)
                 game.Hud.CloseWorldContext();
-            if (game.Hud.HasModal)
+            if (game.Hud.HasModal || game.Hud.HasQuantityPrompt)
                 return;
             if (game.Hud.IsHoldingItem)
             {
@@ -263,16 +263,21 @@ namespace Workerborn
 
         private void LateUpdate()
         {
-            if (game == null || maskMaterial == null || link == null || Screen.width < 1 || Screen.height < 1)
+            if (game == null)
+                return;
+            var selected = game.ControlsBlocked ? null : CurrentTarget;
+            Color tint = IsPressed ? pressedColor : highlightColor;
+            visibility?.Select(selected, tint);
+            if (maskMaterial == null || Screen.width < 1 || Screen.height < 1)
                 return;
             if (game.ControlsBlocked)
             {
-                link.Hide();
+                link?.Hide();
                 return;
             }
 
             EnsureTexture();
-            ShowTargetLink();
+            ShowTargetLink(selected, tint);
             if (!waiting && Time.unscaledTime >= nextCapture)
             {
                 DrawMask();
@@ -280,15 +285,15 @@ namespace Workerborn
             }
         }
 
-        private void ShowTargetLink()
+        private void ShowTargetLink(WorldInteractable selected, Color tint)
         {
-            var selected = CurrentTarget;
+            if (link == null)
+                return;
             if (selected == null || !selected.CanInteract)
             {
                 link.Hide();
                 return;
             }
-            Color tint = IsPressed ? pressedColor : highlightColor;
             if (selected.CanTarget && WorkerbornInput.Held("Gameplay/Target"))
             {
                 Vector3 center = game.WorldCamera.WorldToScreenPoint(selected.TargetCenter);
@@ -485,6 +490,7 @@ namespace Workerborn
         {
             generation++;
             currentTarget = pressTarget = rightTarget = default;
+            visibility?.Select(null, default);
             pixels = null;
             if (link != null)
                 link.Hide();

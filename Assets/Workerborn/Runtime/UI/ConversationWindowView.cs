@@ -58,6 +58,11 @@ namespace Workerborn
                     var button = Instantiate(Hud.Library.ActionButton, keywords);
                     button.Bind(entry.keyword, () =>
                     {
+                        if (selected == DialogueAction.Shop)
+                        {
+                            Hud.OpenShop(npc);
+                            return;
+                        }
                         topic = selected;
                         confirming = false;
                         Refresh();
@@ -150,9 +155,6 @@ namespace Workerborn
                     Action($"{r.DonationGoldStep} Gold 기부", () => Game.Perform(s.TryDonateGold), accepts);
                     Action("물품 기부", () => Game.Perform(s.TryDonatePotatoes), accepts);
                     break;
-                case DialogueAction.Shop:
-                    Action("거래한다", () => Hud.OpenShop(npc));
-                    break;
                 case DialogueAction.Rest:
                     body.text = prose + $"\n\n기상  {r.WakeMinute / 60:00}:{r.WakeMinute % 60:00}\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복";
                     Action("무료 잠자리", () => Game.Sleep(false));
@@ -161,7 +163,7 @@ namespace Workerborn
                 case DialogueAction.Rebirth:
                     if (confirming)
                     {
-                        body.text = $"이번 생의 레벨·소지품·장비·골드가 초기화됩니다.\n\n채집 스킬·AP {s.AP}·아르바이트 경력 {s.Career}회와 마을에 남긴 변화는 유지됩니다.";
+                        body.text = $"이번 생의 레벨·소지품·장비·골드가 초기화됩니다.\n\n스킬 랭크·AP {s.AP}·아르바이트 경력 {s.Career}회와 마을에 남긴 변화는 유지됩니다.";
                         if (!s.FarmAvailable)
                             body.text += $"\n\n다음 생에는 {Game.FarmSiteName}에 농장이 완성됩니다.";
                         Action("환생한다", Game.Rebirth);

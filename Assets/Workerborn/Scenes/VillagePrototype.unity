@@ -7179,6 +7179,7 @@ MonoBehaviour:
   fadeLeadDistance: 0.45
   fadeOutSeconds: 0.16
   fadeInSeconds: 0.28
+  selectionOutlineWidth: 1.05
 --- !u!1 &2034113347
 GameObject:
   m_ObjectHideFlags: 0
@@ -8781,12 +8782,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4cc9ca6dfd5e53469713a3e6f5bb644c, type: 3}
   m_Name: ''
   m_EditorClassIdentifier: ''
-  click: {fileID: 100001, guid: edec8483d00956eab9dc97485bcdfd06, type: 3}
-  itemLanding: {fileID: 100001, guid: 5023401322155011bba638aa9ce19424, type: 3}
-  itemPickup: {fileID: 100001, guid: 5155f7b9bbb555ab8c21481db6711f9e, type: 3}
-  levelUp: {fileID: 100001, guid: f197371d75af516f8d042497172e2742, type: 3}
-  lifetime: 3.5
-  lootTrail: {fileID: 100008, guid: 9886896ee50b5a32b11862ccafb275cb, type: 3}
+  library: {fileID: 11400000, guid: 8faf7ad47c8659beb74272a318fea992, type: 2}
 --- !u!1001 &920100001
 PrefabInstance:
   m_ObjectHideFlags: 0

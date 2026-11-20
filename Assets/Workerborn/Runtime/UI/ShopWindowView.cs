@@ -26,6 +26,7 @@ namespace Workerborn
         public void Open(VillageInteractable npc)
         {
             merchant = npc;
+            description.text = string.Empty;
             Refresh();
         }
 
@@ -52,8 +53,15 @@ namespace Workerborn
                 string id = definition.Id;
                 item.Shop(() =>
                 {
+                    if (Hud.IsHoldingItem)
+                    {
+                        Hud.SellHeldItem();
+                        return;
+                    }
+                    if (Hud.HasQuantityPrompt)
+                        return;
                     description.text = definition.DisplayName + "  ·  " + definition.ToSpec().Price + " Gold";
-                    Hud.OpenQuantity(id, false);
+                    Hud.OpenPurchaseQuantity(id);
                 });
             }
         }

@@ -102,7 +102,7 @@ namespace Workerborn
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
         internal int PrewarmGroundPickups => prewarmGroundPickups;
-        public bool ControlsBlocked => hud != null && (hud.HasModal || hud.IsHoldingItem);
+        public bool ControlsBlocked => hud != null && (hud.HasModal || hud.HasQuantityPrompt || hud.IsHoldingItem);
 
         public int RemainingHarvests
         {
@@ -329,7 +329,7 @@ namespace Workerborn
                 hud.ShowToast(work.RequiredTool.DisplayName + "을 주무기에 장착해 주세요.");
                 return false;
             }
-            if (State.Energy >= State.WorkEnergyCost(work.ItemId, BaseWorkCost(work)))
+            if (State.Energy >= State.WorkEnergyCost(work.Skill, work.ItemId, BaseWorkCost(work)))
                 return true;
             hud.ShowToast("스태미나가 부족합니다.");
             return false;
@@ -338,11 +338,14 @@ namespace Workerborn
         private void DropHarvest(HarvestableCrop crop)
         {
             var work = crop.Definition;
-            var outcome = work.RollOutcome(State.SkillRank, UnityEngine.Random.value, UnityEngine.Random.value);
+            var skill = work.Skill;
+            var outcome = work.RollOutcome(State.RankOf(skill), UnityEngine.Random.value, UnityEngine.Random.value,
+                State.SkillBonus(skill, SkillEffect.LuckyChance) * .01f,
+                State.SkillBonus(skill, SkillEffect.GreatLuckyChance) * .01f);
             int level = State.Level;
             if (!CanHarvest(crop))
                 return;
-            if (!State.TryGather(work.ItemId, work.ItemsPerHarvest, BaseWorkCost(work), outcome, out int count))
+            if (!State.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(work), outcome, out int count))
             {
                 hud.ShowFloatingText(crop.transform.position + Vector3.up, "실패", new Color(1f, .65f, .55f));
                 return;
@@ -386,18 +389,20 @@ namespace Workerborn
         internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount)
         {
             var prefab = reward != null ? reward.GroundPrefab : null;
-            if (!pickupPool.CanSpawn(prefab) || prefab.ItemId != reward.Id)
+            if (amount < 1 || !pickupPool.CanSpawn(prefab) || prefab.ItemId != reward.Id)
                 return false;
             Vector3 source = origin.position;
             Vector3 forward = worker.transform.position - source;
             forward.y = 0;
             forward = forward.sqrMagnitude > .001f ? forward.normalized : origin.forward;
             Vector3 right = Vector3.Cross(Vector3.up, forward);
-            for (int i = 0; i < amount; i++)
+            int piles = Mathf.Min(amount, 24);
+            for (int i = 0; i < piles; i++)
             {
-                Vector3 point = source + forward * .65f + right * ((i - (amount - 1) * .5f) * .26f);
+                Vector3 point = source + forward * .65f + right * ((i - (piles - 1) * .5f) * .26f);
                 Vector3 end = SurfacePosition(point.x, point.z) + Vector3.up * .08f;
-                SpawnPickup(prefab, null, 1, source + Vector3.up * .25f, end);
+                int quantity = amount / piles + (i < amount % piles ? 1 : 0);
+                SpawnPickup(prefab, null, quantity, source + Vector3.up * .25f, end);
             }
             return true;
         }
@@ -569,13 +574,15 @@ namespace Workerborn
             worker.CommandInteract(FindInteraction(role));
         }
 
-        public void HarvestNearest()
+        public void HarvestNearest() => UseGatheringSkill(SkillId.Harvesting);
+
+        internal void UseGatheringSkill(SkillId skill)
         {
             HarvestableCrop nearest = null;
             float distance = float.MaxValue;
             foreach (var crop in allCrops)
             {
-                if (!crop.CanInteract || !State.HasTool(crop.Definition.RequiredTool?.Id))
+                if (!crop.CanInteract || crop.Definition.Skill != skill || !State.HasTool(crop.Definition.RequiredTool?.Id))
                     continue;
                 float candidate = (crop.transform.position - worker.transform.position).sqrMagnitude;
                 if (candidate < distance)

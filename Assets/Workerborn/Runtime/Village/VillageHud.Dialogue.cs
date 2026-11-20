@@ -7,7 +7,13 @@ namespace Workerborn
         {
             CloseDialogue();
             CloseWorldContext();
+            CloseQuantity();
             CancelItemDrag();
+            if (topic == DialogueAction.Shop && target.IsTopicAvailable(game, DialogueAction.Shop))
+            {
+                OpenShop(target);
+                return;
+            }
             dialogueTarget = target;
             (OpenWindow("conversation") as ConversationWindowView)?.Open(target, topic);
         }

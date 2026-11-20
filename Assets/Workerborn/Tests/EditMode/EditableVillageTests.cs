@@ -125,7 +125,7 @@ namespace Workerborn.Tests
             Assert.That(state.Inventory.Rows, Is.GreaterThan(4));
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(640));
             var saved = state.Export();
-            Assert.That(saved.schema, Is.EqualTo(4)); Assert.That(saved.gold, Is.Zero);
+            Assert.That(saved.schema, Is.EqualTo(5)); Assert.That(saved.gold, Is.Zero);
             Assert.That(VillageState.Restore(saved).Gold, Is.EqualTo(2500));
         }
 

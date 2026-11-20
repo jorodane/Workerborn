@@ -74,7 +74,8 @@ namespace Workerborn
             if (!IsDefeated || lootTaken || village == null)
                 return false;
             lootTaken = true;
-            if (village.DropStrikeLoot(transform, combat.Loot, combat.LootCount))
+            int count = village.State.ScaledYield(SkillId.Carving, combat.LootCount);
+            if (village.DropStrikeLoot(transform, combat.Loot, count))
                 return true;
             lootTaken = false;
             return false;
