@@ -75,6 +75,10 @@ NPC 설정 에셋에서는 외형을 펼쳐 머리·의상·눈·눈썹·입·�
 
 마을의 기본 외형은 Rukha93 **Modular Anime Character 2**를 사용하는 `Prefabs/Characters/Looks`에 있습니다. 같은 리그용 머리와 의상, 눈·눈썹·입 재질은 `Data/Characters/Parts/ModularAnime2`에서 고릅니다. 의상 텍스처의 RGB 채널별 색상은 `Materials/Characters`에서 수정합니다. 주인공의 이동 모션은 `CharacterDefinition`, 이동 속도와 줍기·놓기 거리는 Player 프리팹의 `HarvestWorker`에서 조정합니다. 옷이 덮는 피부는 각 의상 모델의 `CharacterGarment`에서 지정합니다.
 
+**P09 외형 시험**은 **Workerborn → Village Prototype → Play With P09**에서 시작합니다. `Data/Characters/Player_P09_Trial.asset`에서도 외형을 미리 보고 **이 외형으로 마을 테스트**를 누를 수 있습니다. 싱글플레이 저장을 읽어 현재 진행 지점에서 시험하며, 시험 중 진행은 저장하지 않습니다.
+
+`Prefabs/Characters/Looks/P09TrialLook.prefab`을 Prefab Mode에서 열어 P09의 머리와 갑옷을 바꿀 수 있습니다. 시험은 P09의 기본 스키닝과 lilToon 재질, 기존 Humanoid 모션을 사용합니다. 괭이와 도끼는 P09 손 소켓에 붙습니다. Modular Anime 2 전용 스킨 의상은 해당 리그에서 표시됩니다.
+
 감자와 달걀 채집에는 Kevin Iglesias의 `Gathering`, 벌목에는 `TreeChopping` 시작·반복·마무리 모션을 사용합니다. 각 채집 대상의 `CropDefinition`에서 `Data/Characters/Work`의 작업 모션을 골라 연결합니다. 동작 재생은 채집 진행률에 맞춰 작업 시간 안에서 끝납니다.
 
 상호작용은 공통 `WorldInteractable`을 상속합니다.

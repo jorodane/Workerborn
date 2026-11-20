@@ -89,6 +89,7 @@ namespace Workerborn
         private VillageSave restoredWorld;
         private float nextSave;
         private bool initialized;
+        private bool IsAppearanceTrial { get; set; }
         private int equipmentVersion = -1;
         public VillageState State { get; private set; }
         public VillageSettings Settings => settings;
@@ -143,6 +144,11 @@ namespace Workerborn
                 return;
             }
 
+#if UNITY_EDITOR
+            if (!IsOnline)
+                ApplyEditorAppearanceTrial();
+#endif
+
             allCrops.AddRange(mapRoot.GetComponentsInChildren<HarvestableCrop>(true));
             pickupPool = new GroundPickupPool(groundPickupTemplate, droppedItems, worldCamera.GetComponent<CameraVisibility>(), RemovePickup);
             foreach (var item in settings.Items)
@@ -167,7 +173,7 @@ namespace Workerborn
                 if (restoredWorld != null)
                     State = VillageState.Restore(restoredWorld, rules);
             }
-            else if (loadSavedGame && VillageSaveStore.TryLoad(out var savedState, out var savedWorld, out notice, rules))
+            else if (loadSavedGame && VillageSaveStore.TryLoad(out var savedState, out var savedWorld, out notice, rules, repairBackup: !IsAppearanceTrial))
             {
                 State = savedState;
                 restoredWorld = savedWorld;
@@ -232,7 +238,30 @@ namespace Workerborn
             }
             if (!string.IsNullOrEmpty(notice))
                 hud.ShowToast(notice);
+            if (IsAppearanceTrial)
+                hud.ShowToast("외형 시험 중 · 진행은 저장하지 않아요.");
         }
+
+#if UNITY_EDITOR
+        private const string AppearanceTrialKey = "Workerborn.EditorAppearanceTrial";
+
+        public static void QueueEditorAppearanceTrial(CharacterDefinition definition)
+        {
+            UnityEditor.SessionState.SetString(AppearanceTrialKey, UnityEditor.AssetDatabase.GetAssetPath(definition));
+        }
+
+        private void ApplyEditorAppearanceTrial()
+        {
+            string path = UnityEditor.SessionState.GetString(AppearanceTrialKey, "");
+            if (string.IsNullOrEmpty(path))
+                return;
+            UnityEditor.SessionState.EraseString(AppearanceTrialKey);
+            IsAppearanceTrial = true;
+            var definition = UnityEditor.AssetDatabase.LoadAssetAtPath<CharacterDefinition>(path);
+            if (!player.TryUseTrialAppearance(definition))
+                Debug.LogError($"Workerborn could not try {path}. The appearance needs a valid Humanoid Avatar.", this);
+        }
+#endif
 
         private void Start()
         {
@@ -728,10 +757,10 @@ namespace Workerborn
                 nextSave = Time.unscaledTime + 15f;
                 return submitted;
             }
-            if (!loadSavedGame)
+            if (!loadSavedGame || IsAppearanceTrial)
             {
                 if (notify)
-                    hud.ShowToast("이 세션은 저장을 사용하지 않습니다.");
+                    hud.ShowToast(IsAppearanceTrial ? "외형 시험 중의 진행은 저장하지 않아요." : "이 세션은 저장을 사용하지 않습니다.");
                 return false;
             }
             bool success = VillageSaveStore.TrySave(CaptureSave(), out _);
@@ -790,7 +819,7 @@ namespace Workerborn
                 SaveGame(false);
             }
 
-            if (Time.unscaledTime >= nextSave)
+            if (Time.unscaledTime >= nextSave && (IsOnline || loadSavedGame && !IsAppearanceTrial))
                 SaveGame(false);
             lighting?.SetDate(State.Day, State.Minute);
         }

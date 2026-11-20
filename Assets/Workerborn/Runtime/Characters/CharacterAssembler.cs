@@ -36,7 +36,7 @@ namespace Workerborn
                     ApplyMaterialPart(part, baseRenderers);
                     continue;
                 }
-                GameObject module = AttachPart(part, rig.transform, bones);
+                GameObject module = AttachPart(part, rig.transform, bones, definition);
                 if (module == null)
                     continue;
                 var slots = module.GetComponentsInChildren<CharacterGarment>();
@@ -100,7 +100,8 @@ namespace Workerborn
             }
         }
 
-        public static GameObject AttachPart(CharacterPartDefinition part, Transform rig, Dictionary<string, Transform> bones = null)
+        public static GameObject AttachPart(CharacterPartDefinition part, Transform rig, Dictionary<string, Transform> bones = null,
+            CharacterDefinition appearance = null, bool optional = false)
         {
             if (part == null || part.Prefab == null || rig == null)
                 return null;
@@ -113,13 +114,12 @@ namespace Workerborn
             }
 
             Transform attachment = rig;
-            if (!string.IsNullOrEmpty(part.AttachmentBone))
+            string socket = appearance != null ? appearance.ResolveSocket(part.AttachmentBone) : part.AttachmentBone;
+            if (!string.IsNullOrEmpty(socket) && !bones.TryGetValue(socket, out attachment))
             {
-                if (!bones.TryGetValue(part.AttachmentBone, out attachment))
-                {
-                    Debug.LogError($"{part.name}: bone '{part.AttachmentBone}' is missing in {rig.name}.");
-                    return null;
-                }
+                if (!optional)
+                    Debug.LogError($"{part.name}: bone '{socket}' is missing in {rig.name}.");
+                return null;
             }
 
             var module = InstantiateSource(part.PrefabForRig(bones.ContainsKey("F02_body_torso")), attachment);
@@ -150,9 +150,13 @@ namespace Workerborn
 
                 if (!valid)
                 {
-                    Debug.LogError($"{part.name}: the skinned module has bones missing from the selected rig.");
+                    if (!optional)
+                        Debug.LogError($"{part.name}: the skinned module has bones missing from the selected rig.");
                     if (Application.isPlaying)
+                    {
+                        module.SetActive(false);
                         UnityEngine.Object.Destroy(module);
+                    }
                     else
                         UnityEngine.Object.DestroyImmediate(module);
                     return null;

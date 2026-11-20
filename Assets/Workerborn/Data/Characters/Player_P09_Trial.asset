@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b771ac446165e05b830257e3a000550, type: 3}
+  m_Name: Player_P09_Trial
+  m_EditorClassIdentifier: ''
+  height: 1.7
+  idle: {fileID: 1827226128182048838, guid: faffb858330f0b848b847a5f392b88ac, type: 3}
+  walk: {fileID: 1827226128182048838, guid: 1b544380f23db0248a420f3cf2984c3b, type: 3}
+  run: {fileID: 1827226128182048838, guid: 6a7d7d61145c8194fbba9ce8b5f88210, type: 3}
+  work: {fileID: 1827226128182048838, guid: 1bc375bdea84e0648b45787c0497bd28, type: 3}
+  basePrefab: {fileID: 100001, guid: 5a8ba69150c95a2f95e21cf94b3975b4, type: 3}
+  hideBaseWeapons: 1
+  hideBaseHair: 0
+  skinTint: {r: 1, g: 1, b: 1, a: 1}
+  clothingTint: {r: 1, g: 1, b: 1, a: 1}
+  rightHandSocket: Weapon_Target_Hand_R
+  leftHandSocket: Weapon_Target_Hand_L
+  toonPalette: {fileID: 0}
+  hair: {fileID: 0}
+  outfit: {fileID: 0}
+  eyes: {fileID: 0}
+  eyebrows: {fileID: 0}
+  mouth: {fileID: 0}
+  headwear: {fileID: 0}
+  rightHand: {fileID: 0}
+  leftHand: {fileID: 0}

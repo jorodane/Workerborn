@@ -16,7 +16,9 @@ namespace Workerborn
         private Transform visualRoot;
         [SerializeField, Range(0, 31)]
         private int renderLayer = 2;
-        public CharacterDefinition Appearance => npc != null ? npc.Appearance : playerSettings != null ? playerSettings.Player : appearance;
+        private CharacterDefinition trialAppearance = null;
+        public CharacterDefinition Appearance => trialAppearance != null ? trialAppearance :
+            npc != null ? npc.Appearance : playerSettings != null ? playerSettings.Player : appearance;
         public Transform VisualRoot => visualRoot;
         public Animator Animator => visualRoot != null ? visualRoot.GetComponentInChildren<Animator>() : null;
 
@@ -71,9 +73,13 @@ namespace Workerborn
                 if (part == null)
                     continue;
                 var defaults = rig.GetComponentsInChildren<CharacterGarment>();
-                var partVisual = CharacterAssembler.AttachPart(part, rig);
+                var partVisual = CharacterAssembler.AttachPart(part, rig, appearance: Appearance, optional: trialAppearance != null);
                 if (partVisual == null)
+                {
+                    if (trialAppearance != null)
+                        worn.Add(entry.Key, new WornPart { Id = entry.Value });
                     continue;
+                }
                 var applied = new WornPart { Id = entry.Value, Visual = partVisual };
                 foreach (var garment in defaults)
                     if (garment.Slot == entry.Key)
@@ -113,6 +119,20 @@ namespace Workerborn
                     child.gameObject.layer = renderLayer;
             CharacterGarment.RefreshSkin(visualRoot);
         }
+
+#if UNITY_EDITOR
+        internal bool TryUseTrialAppearance(CharacterDefinition definition)
+        {
+            var avatar = definition != null && definition.BasePrefab != null
+                ? definition.BasePrefab.GetComponentInChildren<Animator>(true)?.avatar
+                : null;
+            if (avatar == null || !avatar.isValid || !avatar.isHuman)
+                return false;
+            trialAppearance = definition;
+            RebuildAppearance();
+            return true;
+        }
+#endif
 
         public void RebuildAppearance()
         {

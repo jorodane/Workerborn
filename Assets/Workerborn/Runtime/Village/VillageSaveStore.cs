@@ -10,7 +10,7 @@ namespace Workerborn
         public static string DirectoryOverride { get; set; }
         public static string SavePath => Path.Combine(DirectoryOverride ?? Application.persistentDataPath, "workerborn-village-v1.json");
 
-        public static bool TryLoad(out VillageState state, out VillageSave world, out string message, VillageRules rules = null)
+        public static bool TryLoad(out VillageState state, out VillageSave world, out string message, VillageRules rules = null, bool repairBackup = true)
         {
             state = new VillageState(rules); world = null; message = null;
             bool primaryExists = File.Exists(SavePath);
@@ -24,7 +24,7 @@ namespace Workerborn
                     var loaded = VillageState.Restore(saved, rules);
                     state = loaded; world = saved;
                     message = path == SavePath ? "이전 삶의 기록을 불러왔어요." : "백업에서 삶의 기록을 복구했어요.";
-                    if (path != SavePath && primaryExists)
+                    if (repairBackup && path != SavePath && primaryExists)
                     {
                         // Keep the corrupt primary instead of overwriting the working backup on the next save.
                         File.Copy(SavePath, SavePath + ".corrupt", true);

@@ -46,6 +46,8 @@ namespace Workerborn.Editor
                 "hideBaseHair",
                 "skinTint",
                 "clothingTint",
+                "rightHandSocket",
+                "leftHandSocket",
                 "idle",
                 "walk",
                 "run",
@@ -64,6 +66,9 @@ namespace Workerborn.Editor
             EditorGUILayout.HelpBox("NPC와 주인공이 같은 외형 에셋을 사용합니다. 파츠가 비어 있으면 기본 프리팹의 해당 파츠를 유지합니다. 아래 미리보기를 드래그해 회전하고 휠로 확대할 수 있습니다.", MessageType.Info);
             if (GUILayout.Button("Scene의 이 외형 갱신"))
                 CharacterEditorRefresh.RefreshActors();
+            using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode))
+                if (GUILayout.Button("이 외형으로 마을 테스트"))
+                    VillagePrototypeMenu.PlayWithAppearance((CharacterDefinition)target);
         }
 
         private void DrawPart(string propertyName, string label, CharacterPartSlot slot)
@@ -148,8 +153,9 @@ namespace Workerborn.Editor
                 model = CharacterAssembler.Build(definition, null);
                 model.hideFlags = HideFlags.HideAndDontSave;
                 preview.AddSingleGO(model);
+                var animator = model.GetComponentInChildren<Animator>();
                 if (definition.Idle != null)
-                    definition.Idle.SampleAnimation(model.transform.GetChild(0).gameObject, 0f);
+                    definition.Idle.SampleAnimation(animator != null ? animator.gameObject : model.transform.GetChild(0).gameObject, 0f);
                 dirty = false;
             }
 

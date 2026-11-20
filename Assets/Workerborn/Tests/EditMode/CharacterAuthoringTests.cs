@@ -48,6 +48,34 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void P09TrialUsesTheImportedHumanoidAndItsToolSocket()
+        {
+            var trial = AssetDatabase.LoadAssetAtPath<CharacterDefinition>("Assets/Workerborn/Data/Characters/Player_P09_Trial.asset");
+            var axe = AssetDatabase.LoadAssetAtPath<CharacterPartDefinition>("Assets/Workerborn/Data/Characters/Parts/WoodcuttingAxe.asset");
+            Assert.That(trial, Is.Not.Null);
+            Assert.That(axe, Is.Not.Null);
+            var model = CharacterAssembler.Build(trial, null);
+            try
+            {
+                var rig = model.transform.GetChild(0);
+                var animator = rig.GetComponentInChildren<Animator>();
+                Assert.That(animator != null && animator.avatar != null && animator.avatar.isValid && animator.avatar.isHuman, Is.True);
+                Assert.That(new[] { trial.Idle, trial.Walk, trial.Run, trial.Work }.All(clip => clip != null && clip.humanMotion), Is.True);
+                Assert.That(rig.GetComponentsInChildren<SkinnedMeshRenderer>()
+                    .Where(renderer => renderer.enabled)
+                    .SelectMany(renderer => renderer.sharedMaterials)
+                    .Any(material => material != null && material.shader != null && material.shader.name.Contains("lilToon")), Is.True);
+
+                var vendorWeapons = rig.GetComponentsInChildren<Transform>(true).Single(transform => transform.name == "Weapon");
+                Assert.That(vendorWeapons.gameObject.activeSelf, Is.False);
+                var handSocket = rig.GetComponentsInChildren<Transform>().Single(transform => transform.name == "Weapon_Target_Hand_R");
+                var tool = CharacterAssembler.AttachPart(axe, rig, appearance: trial);
+                Assert.That(tool != null && tool.transform.parent == handSocket, Is.True);
+            }
+            finally { Object.DestroyImmediate(model); }
+        }
+
+        [Test]
         public void VillageContainsEditableObjectsBeforePlay()
         {
             var scene = EditorSceneManager.OpenPreviewScene("Assets/Workerborn/Scenes/VillagePrototype.unity");

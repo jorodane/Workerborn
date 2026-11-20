@@ -35,6 +35,11 @@ namespace Workerborn
         private Color skinTint = Color.white;
         [SerializeField]
         private Color clothingTint = Color.white;
+        [Header("Tool sockets")]
+        [SerializeField, Tooltip("Transform to use in place of the default weapon_R socket.")]
+        private string rightHandSocket;
+        [SerializeField, Tooltip("Transform to use in place of the default weapon_L socket.")]
+        private string leftHandSocket;
         [Header("Existing animations")]
         [SerializeField]
         private AnimationClip idle;
@@ -57,6 +62,15 @@ namespace Workerborn
         public AnimationClip Walk => walk;
         public AnimationClip Run => run != null ? run : walk;
         public AnimationClip Work => work;
+
+        internal string ResolveSocket(string attachment)
+        {
+            if (attachment == "weapon_R" && !string.IsNullOrWhiteSpace(rightHandSocket))
+                return rightHandSocket;
+            if (attachment == "weapon_L" && !string.IsNullOrWhiteSpace(leftHandSocket))
+                return leftHandSocket;
+            return attachment;
+        }
 
         public IEnumerable<CharacterPartDefinition> Parts
         {
