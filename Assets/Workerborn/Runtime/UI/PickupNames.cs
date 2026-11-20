@@ -15,16 +15,45 @@ namespace Workerborn
         private readonly List<WorldInteractable> removed = new List<WorldInteractable>();
         private readonly List<NameplateSlot> slots = new List<NameplateSlot>();
         private readonly Dictionary<long, WorldNameplateView> visible = new Dictionary<long, WorldNameplateView>();
+        private PrefabPool<PickupNameView> pickupViews;
+        private PrefabPool<WorldNameplateView> worldViews;
         private VillagePrototype game;
         private float scroll;
         private long? scrollOrder;
-        public void Initialize(VillagePrototype owner) => game = owner;
+
+        public void Initialize(VillagePrototype owner, int prewarm)
+        {
+            game = owner;
+            if (namePrefab != null)
+            {
+                pickupViews = new PrefabPool<PickupNameView>(namePrefab, transform);
+                pickupViews.Prewarm(prewarm);
+            }
+            worldViews = new PrefabPool<WorldNameplateView>(game.Hud.Library.NpcName, transform);
+        }
+
         private void LateUpdate()
         {
-            if (game == null || namePrefab == null)
+            if (game == null || pickupViews == null)
                 return;
             bool alt = WorkerbornInput.Held("Gameplay/Names");
             var canvas = (RectTransform)transform;
+
+            removed.Clear();
+            foreach (var pair in names)
+                if (pair.Value.Target == null)
+                    removed.Add(pair.Key);
+            foreach (var item in removed)
+            {
+                var view = names[item];
+                view.Unbind();
+                if (view is PickupNameView pickupView)
+                    pickupViews.Return(pickupView);
+                else
+                    worldViews.Return(view);
+                names.Remove(item);
+            }
+
             foreach (var target in WorldInteractable.Active)
             {
                 if (target == null || !target.CanInteract || !target.ShowNameByDefault && !alt || names.ContainsKey(target))
@@ -32,13 +61,13 @@ namespace Workerborn
                 WorldNameplateView view;
                 if (target is GroundPickup pickup)
                 {
-                    var pickupView = Instantiate(namePrefab, transform);
+                    var pickupView = pickupViews.Rent();
                     pickupView.Bind(pickup, game.Worker);
                     view = pickupView;
                 }
                 else
                 {
-                    view = Instantiate(game.Hud.Library.NpcName, transform);
+                    view = worldViews.Rent();
                     view.Bind(target, game.Targeting);
                 }
                 names.Add(target, view);
@@ -46,22 +75,17 @@ namespace Workerborn
 
             slots.Clear();
             visible.Clear();
-            removed.Clear();
             long? hoveredOrder = null;
             foreach (var pair in names)
             {
-                if (pair.Key == null || !pair.Key.isActiveAndEnabled)
-                {
-                    removed.Add(pair.Key);
-                    continue;
-                }
-
                 var screen = game.WorldCamera.WorldToScreenPoint(pair.Key.NamePosition);
                 bool onScreen = pair.Key.CanInteract && (alt || pair.Key.ShowNameByDefault) &&
                     screen.z > game.WorldCamera.nearClipPlane && screen.x >= 0 && screen.x <= Screen.width && screen.y >= 0 && screen.y <= Screen.height;
-                pair.Value.gameObject.SetActive(onScreen);
                 if (!onScreen)
+                {
+                    pair.Value.gameObject.SetActive(false);
                     continue;
+                }
                 pair.Value.SetBox(alt);
                 if (pair.Value.Hovered)
                     hoveredOrder = pair.Key.NameplateOrder;
@@ -72,13 +96,6 @@ namespace Workerborn
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, objectScreen, null, out var objectPoint);
                 slots.Add(new NameplateSlot { Order = pair.Key.NameplateOrder, X = x, Y = point.y, ObjectY = objectPoint.y, Width = size.x, Height = size.y });
                 visible.Add(pair.Key.NameplateOrder, pair.Value);
-            }
-
-            foreach (var item in removed)
-            {
-                if (names[item] != null)
-                    Destroy(names[item].gameObject);
-                names.Remove(item);
             }
 
             if (alt && hoveredOrder.HasValue && WorkerbornInput.Current != null)

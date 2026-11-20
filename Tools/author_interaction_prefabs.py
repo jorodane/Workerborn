@@ -233,7 +233,7 @@ roots=next(d['SceneRoots']['m_Roots']for d in scene if 'SceneRoots'in d);roots.a
 controller=next(d['MonoBehaviour']for d in scene if d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')==guid(BASE/'Runtime/Village/VillagePrototype.cs'))
 controller_node=dict(go=controller['m_GameObject']['fileID'],g=by_id[controller['m_GameObject']['fileID']]['GameObject'])
 mask=BASE/'Materials/TargetMask.mat';template=copy.deepcopy(next(d['Material']for d in geo.documents(ROOT/BASE/'Materials/FarmSurface.mat')if'Material'in d));template.update(m_Name='Target silhouette mask',m_Shader=assetref(BASE/'Shaders/TargetMask.shader',4800000));write(mask,[(21,2100000,'Material',template,False)])
-targeting=b.script(controller_node,'Interaction/PointerTargeting.cs',maskMaterial=assetref(mask,2100000),maskWidth=768,capturesPerSecond=30,highlightColor=color(1,.88,.36,1),highlightWidth=1.8,link=ref())
+targeting=b.script(controller_node,'Interaction/PointerTargeting.cs',maskMaterial=assetref(mask,2100000),maskWidth=768,capturesPerSecond=30,highlightColor=color(1,.88,.36,1),link=ref())
 controller.update(targeting=ref(targeting),npcPortrait=ref(portrait),npcPortraitTexture=assetref(BASE/'UI/NpcPortrait.rendertexture',8400000))
 for d in scene:
     if d.get('Camera',{}).get('m_TargetTexture',{}).get('guid')==guid(BASE/'UI/Minimap.rendertexture'):d['Camera']['m_CullingMask']['m_Bits']|=1<<10

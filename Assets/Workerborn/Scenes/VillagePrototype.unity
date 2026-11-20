@@ -2040,6 +2040,8 @@ MonoBehaviour:
   spawnPoint: {fileID: 100581}
   restPoint: {fileID: 100583}
   droppedItems: {fileID: 100585}
+  groundPickupTemplate: {fileID: 100008, guid: 130a8393b8ec481188feaf2f98db8b82, type: 3}
+  prewarmGroundPickups: 32
   potato: {fileID: 11400000, guid: 0d1178ea5a6458b882a6e049865d0fc3, type: 2}
   loadSavedGame: 1
   targeting: {fileID: 832576597}
@@ -7098,7 +7100,6 @@ MonoBehaviour:
   maskWidth: 768
   capturesPerSecond: 30
   highlightColor: {r: 1, g: 0.88, b: 0.36, a: 1}
-  highlightWidth: 1.8
   link: {fileID: 0}
   pressedColor: {r: 1, g: 0.55, b: 0.12, a: 1}
 --- !u!114 &832576598

@@ -223,28 +223,6 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void SelectionOutlineLeavesEnclosedHolesUnmarked()
-        {
-            const int width = 9;
-            var mask = new byte[width * width * 4];
-            for (int y = 2; y <= 6; y++)
-                for (int x = 2; x <= 6; x++)
-                    if (x == 2 || x == 6 || y == 2 || y == 6)
-                        Paint(mask, width, x, y, 3);
-            var exterior = new byte[width * width];
-            var queue = new int[exterior.Length];
-            TargetMaskGeometry.MarkExterior(mask, width, width, 3, exterior, queue);
-            Assert.That(exterior[4 * width + 4], Is.Zero);
-            Assert.That(exterior[4 * width + 2], Is.EqualTo(255));
-            Assert.That(exterior[4 * width + 1], Is.EqualTo(128));
-            var rgba = new byte[mask.Length];
-            Assert.That(TargetMaskGeometry.DrawExteriorOutline(mask, width, width, 3, 1, exterior, queue, rgba), Is.True);
-            Assert.That(rgba[(4 * width + 4) * 4 + 3], Is.Zero, "Interior holes stay transparent.");
-            Assert.That(rgba[(4 * width + 2) * 4 + 3], Is.Zero, "The selected surface stays transparent.");
-            Assert.That(rgba[(4 * width + 1) * 4 + 3], Is.EqualTo(255), "The outside edge is drawn.");
-        }
-
-        [Test]
         public void ReadbackOrientationAndViewportScalingProduceTheSameEdge()
         {
             var bottom = new byte[4 * 4 * 4];

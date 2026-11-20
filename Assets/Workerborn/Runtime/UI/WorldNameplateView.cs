@@ -27,15 +27,24 @@ namespace Workerborn
         private Color boxedNameColor = new Color(.65f, .89f, 1f);
         private bool boxVisible, pointerInside, pointerDown;
         private PointerTargeting targeting;
-        public WorldInteractable Target { get; private set; }
+        private WorldTargetReference target;
+        public WorldInteractable Target => target.Target;
         public bool Hovered => boxVisible && pointerInside;
         public RectTransform Rect => (RectTransform)transform;
 
         public void Bind(WorldInteractable target, PointerTargeting controller, string text = null)
         {
-            Target = target;
+            this.target = new WorldTargetReference(target);
             targeting = controller;
             SetText(text ?? target.DisplayName);
+            SetBox(false);
+        }
+
+        internal void Unbind()
+        {
+            target = default;
+            targeting = null;
+            SetBox(false);
         }
 
         public void SetText(string text)
@@ -54,16 +63,17 @@ namespace Workerborn
             Refresh();
         }
 
-        private void Awake() => SetBox(false);
+        private void Awake() => SetBox(boxVisible);
         private void Update() => Refresh();
         private void Refresh()
         {
             bool alt = boxVisible && WorkerbornInput.Held("Gameplay/Names");
-            background.raycastTarget = alt && Target != null && Target.CanInteract;
+            var current = alt ? Target : null;
+            background.raycastTarget = current != null;
             label.color = alt ? boxedNameColor : nameColor;
             if (!alt)
                 pointerInside = pointerDown = false;
-            bool selected = targeting != null && targeting.CurrentTarget == Target && Target != null;
+            bool selected = current != null && targeting != null && targeting.CurrentTarget == current;
             bool pressed = selected && targeting.IsPressed;
             background.color = !alt ? Color.clear : pressed || pointerDown ? pressedColor : selected || pointerInside ? hoverColor : normalColor;
         }

@@ -27,7 +27,7 @@ namespace Workerborn
         private EquipmentSlot equipmentSlot;
         [SerializeField]
         private CharacterPartDefinition equipmentPart;
-        [SerializeField]
+        [SerializeField, Tooltip("Prefab for scene placement and the source of meshes, materials and pose for pooled drops.")]
         private GroundPickup groundPrefab;
         public GroundPickup GroundPrefab => groundPrefab;
         public string Id => id;

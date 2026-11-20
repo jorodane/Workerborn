@@ -48,6 +48,7 @@ namespace Workerborn
         public PartTimeJobDefinition DefaultJob => defaultJob;
         public QuestDefinition IntroQuest => introQuest;
         public QuestDefinition ExpansionQuest => expansionQuest;
+        internal System.Collections.Generic.IReadOnlyList<ItemDefinition> Items => items ?? System.Array.Empty<ItemDefinition>();
 
         public ItemDefinition FindItem(string id)
         {

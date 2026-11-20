@@ -18,7 +18,7 @@ Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다
 | 주인공과 NPC 전체 | `Prefabs/Characters/Player.prefab`, `Mira.prefab`, `Noah.prefab`, `Lena.prefab`, `FateGuide.prefab` |
 | 게시판·우물·몬스터 예제 | `Prefabs/Interaction/Board.prefab`, `Shrine.prefab`, `Monster.prefab` |
 | 감자 작물 전체 | `Prefabs/Crops/Potato.prefab` |
-| 바닥 아이템 전체 | `Prefabs/Items/potato.prefab`, `bread.prefab`, `hoe.prefab`, `bag.prefab`, `gold.prefab` |
+| 공용 드롭 프리팹과 아이템별 외형 | `Prefabs/Items/GroundPickup.prefab`, `Prefabs/Items/*.prefab` |
 | 건물·가로등·나무·소품과 충돌 영역 | `Prefabs/World/*.prefab` |
 | NPC 설정·대화·일자리·퀘스트·거래 품목 | `Data/NPCs`, `Data/Dialogues`, `Data/Jobs`, `Data/Quests`, `Data/Items` |
 | NPC와 주인공의 부위별 외형·기존 애니메이션 | `Data/Characters/*.asset`, `Data/Characters/Parts/*.asset` |
@@ -52,7 +52,7 @@ NPC 설정 에셋에서는 외형을 펼쳐 머리·의상·눈·눈썹·입·�
 - `HarvestableCrop`: 이동·수확. 작물 ScriptableObject로 횟수·시간·드롭을 설정합니다.
 - `AnimalNpc`는 암탉의 이름, Ctrl 선택, 살펴보기와 달걀 채집을 담당합니다.
 - 도끼 없이 벌목용 소나무를 클릭하면 한 번 때려 나뭇가지를 떨어뜨립니다. 도끼를 장착하면 좌클릭으로 벌목하고, 우클릭 메뉴에서 때리기를 고를 수 있습니다.
-- `GroundPickup`은 수평 거리 1.5m 안에서 즉시 획득합니다. 빛이 플레이어에게 날아가면 도착 이펙트가 터집니다. 멀리 있는 물품은 먼저 접근하며, 범위 안의 물품 획득은 진행 중인 수확·이동을 취소하지 않습니다. 아이템·수량·시각 오브젝트·비행 시간을 프리팹에 저장합니다.
+- `GroundPickup`은 수평 거리 1.5m 안에서 즉시 획득합니다. 빛이 플레이어에게 날아가면 도착 이펙트가 터집니다. 멀리 있는 물품은 먼저 접근하며, 범위 안의 물품 획득은 진행 중인 수확·이동을 취소하지 않습니다. 드롭은 공용 `GroundPickup.prefab`의 인스턴스를 재사용합니다. `Data/Items`에서 이름을 수정하고 해당 항목의 Ground Prefab에서 메시·재질·배치를 편집합니다. 그 프리팹은 Scene에 배치할 때도 사용할 수 있습니다.
 - `MonsterInteractable`은 서쪽 벌목터 바깥의 숲토끼 전투와 갈무리를 담당합니다. 클릭마다 한 번 공격하고, 다음 공격은 공격 간격이 지난 뒤 다시 클릭합니다. 토끼는 첫 공격을 맞은 뒤 사거리 안의 플레이어를 자동으로 반격합니다.
 
 공통 상호작용 거리·이름 위치·요청/완료 UnityEvent를 Inspector에서 설정할 수 있습니다. 새 유형은 `Interact`를 재정의하고 기존 `HarvestWorker` 명령을 연결합니다. 숲토끼의 체력·반격·전리품은 `Data/Combat/ForestRabbit.asset`, 플레이어 공격 간격과 모션은 Player 프리팹의 `HarvestWorker`에서 조정합니다. 토끼가 쓰러지는 순간 고기가 떨어지고, 토끼는 다음 날 돌아옵니다.
@@ -67,15 +67,15 @@ NPC 설정 에셋에서는 외형을 펼쳐 머리·의상·눈·눈썹·입·�
 
 준비된 **FlatKit/Stylized Surface** 셰이더로 프로젝트 전용 카툰 재질을 만들었습니다. 원본 텍스처·색·UV·알파 컷아웃은 유지하고, 기존 FlatKit **ObjectOutlineRendererFeature**를 PC·모바일 Renderer에 연결했습니다. 원본 에셋팩의 재질은 수정하지 않습니다. 외형 미리보기와 새로 배치한 프리팹도 `ToonPalette` 매핑을 사용합니다. 새로운 원본 재질을 쓸 때는 카툰 재질을 직접 지정하거나 매핑에 추가하세요.
 
-월드 대상에 마우스를 올리거나 Alt 이름 박스를 가리키면 같은 `PointerTargeting`이 대상의 외곽선을 강조합니다. 누르고 있는 동안에는 대상 강조색이 바뀌고, **Alt가 눌려 있을 때만** 이름 박스의 배경·호버·누름 색과 클릭 영역이 활성화됩니다. 평소에는 원래 투영 위치에 텍스트만 표시합니다. 커서 우하단에는 “대화하기”, “수확하기”, “줍기” 같은 행동만 표시합니다. 수확이 끝난 작물은 자신의 Collider를 비활성화하므로 마우스 레이캐스트에서도 제외되며, 다음 날 수확 횟수를 초기화하면 다시 감지됩니다.
+월드 메시와 Alt 이름 박스는 같은 `PointerTargeting`으로 대상을 찾습니다. **Alt가 눌려 있을 때만** 이름 박스의 배경·호버·누름 색과 클릭 영역이 활성화됩니다. 평소에는 원래 투영 위치에 텍스트만 표시합니다. 커서 우하단에는 “대화하기”, “수확하기”, “줍기” 같은 행동만 표시합니다. 수확이 끝난 작물은 자신의 Collider를 비활성화하므로 마우스 레이캐스트에서도 제외되며, 다음 날 수확 횟수를 초기화하면 다시 감지됩니다.
 
-Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까운 대상의 윤곽을 강조합니다. 호버와 클릭은 깊이·ID 마스크에서 화면에 보이는 메시 픽셀을 확인합니다. 강조색은 실루엣 바깥 경계에 그려지고, Ctrl 연결선은 대상의 **캡슐 중심점**을 향하다가 캐릭터 실루엣 앞에서 멈춥니다. Ctrl+클릭도 같은 상호작용 경로를 사용합니다. 색·굵기·ID 읽기 빈도는 `Village session/PointerTargeting`, 선 모양은 `TargetLink.prefab`에서 수정합니다. 비동기 GPU 읽기를 지원하지 않는 기기는 동기 읽기를 사용합니다.
+Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까운 대상이 선택됩니다. 호버와 클릭은 깊이·ID 마스크에서 화면에 보이는 메시 픽셀을 확인합니다. Ctrl 연결선은 대상의 **캡슐 중심점**을 향하다가 캐릭터 실루엣 앞에서 멈춥니다. Ctrl+클릭도 같은 상호작용 경로를 사용합니다. 선 색과 ID 읽기 빈도는 `Village session/PointerTargeting`, 선 굵기는 `TargetLink.prefab`에서 수정합니다. 비동기 GPU 읽기를 지원하지 않는 기기는 동기 읽기를 사용합니다.
 
 입력은 **Input System의 `Input/Workerborn.inputactions`**에서 Gameplay·Camera·UI 맵으로 수정합니다. Scene의 `WorkerbornInput`과 EventSystem의 `InputSystemUIInputModule`이 이 에셋을 공유합니다. UI 입력 참조도 `Input/UI/*.asset`으로 연결돼 있습니다. 장치 API를 직접 조회하는 게임 코드는 액션 조회로 교체했습니다.
 
 게임 내 텍스트는 TMP입니다. `Fonts/WorkerbornKorean-SDF.asset`은 포함된 한글 OTF를 사용하는 동적 SDF 폰트이며 여러 아틀라스를 지원합니다. 이름표·행동 안내의 검은 외곽선은 `Fonts/WorkerbornKorean-NameOutline.mat`, 일반 UI 외곽선은 폰트 에셋의 Material에서 조정합니다.
 
-`Village session/VillageLighting`에서 아침과 저녁 전환 시간, 주변광과 가로등을 조정합니다. 클릭·착지·줍기·레벨업 이펙트는 `Village effects`에 연결된 `Prefabs/Effects`를 편집합니다.
+`Village session/VillageLighting`에서 아침과 저녁 전환 시간, 주변광과 가로등을 조정합니다. 클릭·착지·줍기·레벨업 이펙트와 비행 트레일은 `Village effects`에 연결된 `Prefabs/Effects`를 편집합니다. `Village session`의 Prewarm Ground Pickups와 `Village effects`의 Pool Prewarm 섹션에서 미리 준비할 개수를 조정합니다. 드롭과 이름표, 이펙트는 사용이 끝나면 풀로 돌아가고 동시에 더 많이 필요하면 풀이 늘어납니다.
 
 `Village Weather` 프리팹의 COZY 3가 게임 날짜와 시각을 받아 하늘과 날씨를 연출합니다. 하루의 날씨는 누적 일자로 결정되며, 자거나 환생해 날짜가 바뀌면 다음 날 날씨가 적용됩니다. 기본 비율은 맑음 80%, 구름 15%, 약한 비 5%입니다. 프로필·비율·시드는 프리팹의 `VillageWeather`, 하늘색은 `Data/Weather/VillageAtmosphere.asset`에서 조정합니다.
 
@@ -93,7 +93,7 @@ Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까
 | WASD / Shift | 시점 기준으로 이동 / 누르는 동안 걷기 |
 | E / E 길게 | 주변의 가장 가까운 아이템 줍기 / 연속 줍기 |
 | 마우스 휠 | 줌. 기본 거리 범위 1.8~22m |
-| Ctrl / Ctrl+클릭 | 가까운 NPC·몬스터의 윤곽과 연결선 / 해당 대상에게 접근 |
+| Ctrl / Ctrl+클릭 | 가까운 NPC·몬스터 선택과 연결선 / 해당 대상에게 접근 |
 | Alt / Alt 이름 박스 클릭 | 상호작용 대상의 하늘색 이름 박스 표시 / 대상과 상호작용 |
 | 빈 곳에서 짧은 우클릭 | 이동·미완료 작업 취소 |
 | Esc | 열린 창을 닫거나 시스템 메뉴 열기 |

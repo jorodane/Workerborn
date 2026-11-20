@@ -11,11 +11,12 @@ namespace Workerborn
         [SerializeField] private RectTransform actions;
         [SerializeField, Min(0)] private float headerHeight = 28f;
         private readonly List<WorldContextAction> choices = new List<WorldContextAction>();
-        private WorldInteractable target;
+        private WorldTargetReference target;
 
         public void Show(WorldInteractable subject)
         {
-            target = subject;
+            target = new WorldTargetReference(subject);
+            var shownTarget = target;
             targetName.text = subject.DisplayName;
             InventoryWindowView.Clear(actions);
             choices.Clear();
@@ -26,9 +27,10 @@ namespace Workerborn
                 Instantiate(Hud.Library.ActionButton, actions).Bind(selected.Label, () =>
                 {
                     Hud.CloseWorldContext();
-                    if (subject != null && subject.CanInteract)
+                    var current = shownTarget.Target;
+                    if (current != null)
                     {
-                        Game.ShowClick(subject.transform.position);
+                        Game.ShowClick(current.transform.position);
                         selected.Select();
                     }
                 });
@@ -39,7 +41,7 @@ namespace Workerborn
 
         private void LateUpdate()
         {
-            if (target == null || !target.CanInteract || Game.ControlsBlocked)
+            if (target.Target == null || Game.ControlsBlocked)
                 Hud.CloseWorldContext();
         }
     }

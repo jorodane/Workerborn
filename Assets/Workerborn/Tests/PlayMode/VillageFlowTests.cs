@@ -304,7 +304,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator AHoveredMeshShowsAnOutlineAndTheSamePixelCollectsIt()
+        public IEnumerator AHoveredMeshUsesTheSamePixelForCollection()
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
                 Assert.Ignore("Picking the rendered mesh requires a graphics device.");
@@ -323,10 +323,6 @@ namespace Workerborn.Tests
                 Vector2 pixel = camera.WorldToScreenPoint(pickup.GetComponentInChildren<MeshRenderer>().bounds.center);
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel });
                 yield return Until(() => game.Targeting.CurrentTarget == pickup, 3f);
-                yield return null;
-                var outline = game.Hud.TargetLink.GetComponentInChildren<UnityEngine.UI.RawImage>();
-                Assert.That(outline.enabled, Is.True);
-                Assert.That(outline.texture, Is.Not.Null);
                 int before = game.State.Inventory.Count(ItemIds.Egg);
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel, buttons = 1 });
                 yield return Until(() => game.State.Inventory.Count(ItemIds.Egg) == before + 1, 2f);
@@ -663,6 +659,76 @@ namespace Workerborn.Tests
                 InputSystem.RemoveDevice(keyboard);
             }
         }
+
+        [UnityTest]
+        public IEnumerator GroundDropsReuseTheSameInstanceWithNewItemDataAndOneLandingEvent()
+        {
+            Vector3 destination = game.Worker.transform.position + Vector3.right * .35f;
+            var potato = DropStack(ItemIds.Potato, 3, destination);
+            var firstFilter = potato.GetComponentInChildren<MeshFilter>();
+            Mesh firstMesh = firstFilter.sharedMesh;
+            Assert.That(firstMesh, Is.Not.Null);
+            long firstOrder = potato.NameplateOrder;
+            yield return Until(() => FindPickupName(potato) != null, 2f);
+            var oldName = FindPickupName(potato);
+            int previousLandings = 0;
+            potato.Landed += _ => previousLandings++;
+            Assert.That(game.TryCollectPickup(potato), Is.True);
+            Assert.That(potato.gameObject.activeSelf, Is.False);
+
+            var egg = DropStack(ItemIds.Egg, 1, destination);
+            Assert.That(egg, Is.SameAs(potato));
+            Assert.That(egg.Quantity, Is.EqualTo(1));
+            Assert.That(egg.DisplayName, Is.EqualTo(game.Settings.FindItem(ItemIds.Egg).DisplayName));
+            Assert.That(egg.NameplateOrder, Is.GreaterThan(firstOrder));
+            Assert.That(egg.IsInFlight, Is.True);
+            Assert.That(egg.GetComponentInChildren<MeshFilter>(), Is.SameAs(firstFilter));
+            Assert.That(firstFilter.sharedMesh, Is.Not.Null.And.Not.SameAs(firstMesh));
+            Assert.That(oldName.Target, Is.Null, "The old nameplate cannot select a reused drop.");
+
+            int landings = 0;
+            egg.Landed += _ => landings++;
+            yield return Until(() => FindPickupName(egg) != null && landings > 0, 3f);
+            Assert.That(FindPickupName(egg), Is.SameAs(oldName));
+            Assert.That(landings, Is.EqualTo(1));
+            Assert.That(previousLandings, Is.Zero);
+        }
+
+        [UnityTest]
+        public IEnumerator PickupTrailAndArrivalParticlesReturnClearedAndPlayAgain()
+        {
+            var effects = UnityEngine.Object.FindFirstObjectByType<VillageEffects>();
+            Transform worker = game.Worker.transform;
+            Vector3 start = worker.position + Vector3.right;
+            effects.PlayPickupTrail(start, worker);
+            var flight = effects.GetComponentsInChildren<LootFlightTrail>().Single();
+            var trail = flight.GetComponent<TrailRenderer>();
+
+            yield return Until(() => !flight.gameObject.activeSelf, 3f);
+            Assert.That(trail.positionCount, Is.Zero);
+            Assert.That(trail.emitting, Is.False);
+            var particle = effects.GetComponentsInChildren<ParticleSystem>().First();
+            yield return Until(() => !particle.gameObject.activeInHierarchy, 6f);
+            Assert.That(particle.particleCount, Is.Zero);
+
+            start = worker.position + Vector3.left;
+            effects.PlayPickupTrail(start, worker);
+            Assert.That(effects.GetComponentsInChildren<LootFlightTrail>().Single(), Is.SameAs(flight));
+            Assert.That(flight.transform.position, Is.EqualTo(start));
+            Assert.That(trail.emitting, Is.True);
+            yield return Until(() => particle.gameObject.activeInHierarchy, 3f);
+        }
+
+        private GroundPickup DropStack(string itemId, int quantity, Vector3 destination)
+        {
+            Assert.That(game.State.Inventory.TryAdd(itemId, quantity), Is.True);
+            var stack = game.State.Inventory.Entries.Single(entry => entry.ItemId == itemId);
+            Assert.That(game.Worker.CommandDrop(stack.Id, destination), Is.True);
+            return WorldInteractable.Active.OfType<GroundPickup>().Single(item => item.ItemId == itemId);
+        }
+
+        private static PickupNameView FindPickupName(GroundPickup item) =>
+            UnityEngine.Object.FindObjectsByType<PickupNameView>(FindObjectsSortMode.None).SingleOrDefault(view => view.Target == item);
 
         private Vector3 NearbyDestination()
         {

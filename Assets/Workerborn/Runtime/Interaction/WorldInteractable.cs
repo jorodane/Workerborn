@@ -16,6 +16,22 @@ namespace Workerborn
         }
     }
 
+    // An input, UI or render result belongs to a single use of a pooled object.
+    internal readonly struct WorldTargetReference
+    {
+        private readonly WorldInteractable target;
+        private readonly long order;
+
+        public WorldTargetReference(WorldInteractable target)
+        {
+            this.target = target;
+            order = target != null ? target.NameplateOrder : 0;
+        }
+
+        public bool IsAssigned => !ReferenceEquals(target, null);
+        public WorldInteractable Target => target != null && target.NameplateOrder == order && target.CanInteract ? target : null;
+    }
+
     // Shared click/selection contract. Subclasses own their gameplay behavior.
     public abstract class WorldInteractable : MonoBehaviour
     {
@@ -64,10 +80,12 @@ namespace Workerborn
         protected virtual void OnEnable()
         {
             if (NameplateOrder == 0)
-                NameplateOrder = ++nextNameplateOrder;
+                RenewNameplateOrder();
             if (!active.Contains(this))
                 active.Add(this);
         }
+
+        protected void RenewNameplateOrder() => NameplateOrder = ++nextNameplateOrder;
 
         protected virtual void OnDisable() => active.Remove(this);
         public void RequestInteraction(HarvestWorker worker)

@@ -17,45 +17,38 @@ namespace Workerborn
         private float capturesPerSecond = 30;
         [SerializeField]
         private Color highlightColor = new Color(1f, .88f, .36f, 1);
-        [SerializeField, Range(.1f, 5f)]
-        private float highlightWidth = 1.8f;
         [SerializeField]
         private TargetLinkView link;
         [SerializeField]
         private Color pressedColor = new Color(1f, .55f, .12f, 1f);
-        private WorldInteractable pressTarget;
+        private WorldTargetReference pressTarget;
         private CameraVisibility visibility;
         private Terrain terrain;
         private Mesh terrainMask;
-        public bool IsPressed => CurrentTarget != null && CurrentTarget == pressTarget && WorkerbornInput.Held("Gameplay/Interact");
+        public bool IsPressed => CurrentTarget != null && CurrentTarget == pressTarget.Target && WorkerbornInput.Held("Gameplay/Interact");
 
         private VillagePrototype game;
         private RenderTexture mask;
         private Texture2D synchronous;
-        private Texture2D outline;
-        private byte[] exteriorPixels;
-        private int[] exteriorQueue;
-        private byte[] outlinePixels;
-        private bool hasOutline;
-        private int maskRevision, outlinedRevision = -1;
-        private WorldInteractable outlinedTarget;
         private bool flipReadback;
         private byte[] pixels;
-        private WorldInteractable[] snapshot;
-        private readonly List<WorldInteractable> frameTargets = new List<WorldInteractable>();
+        private WorldTargetReference[] snapshot;
+        private readonly List<WorldTargetReference> frameTargets = new List<WorldTargetReference>();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
         private readonly RaycastHit[] worldHits = new RaycastHit[128];
         private readonly Plane[] maskFrustum = new Plane[6];
         private Renderer[] staticGeometry;
         private readonly List<Renderer> actorGeometry = new List<Renderer>();
         private readonly Dictionary<Renderer, int> targetIds = new Dictionary<Renderer, int>();
+        private readonly List<Material> materials = new List<Material>();
         private AsyncGPUReadbackRequest request;
         private bool waiting;
         private bool useAsyncReadback;
         private float nextCapture;
         private int capturedWidth, capturedHeight;
         private int generation;
-        public WorldInteractable CurrentTarget { get; private set; }
+        private WorldTargetReference currentTarget;
+        public WorldInteractable CurrentTarget => currentTarget.Target;
 
         public void Initialize(VillagePrototype owner, TargetLinkView targetLink)
         {
@@ -68,7 +61,8 @@ namespace Workerborn
             foreach (var renderer in FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (renderer.gameObject.scene == game.gameObject.scene && renderer.gameObject.layer != VillageWeather.SkyLayer &&
                     renderer is MeshRenderer && renderer.GetComponentInParent<WorldInteractable>(true) == null &&
-                    renderer.GetComponentInParent<HarvestWorker>(true) == null)
+                    renderer.GetComponentInParent<HarvestWorker>(true) == null &&
+                    renderer.GetComponentInParent<VillageEffects>(true) == null)
                     geometry.Add(renderer);
             staticGeometry = geometry.ToArray();
             RebuildTerrainMask();
@@ -126,7 +120,7 @@ namespace Workerborn
             terrainMask.RecalculateBounds();
         }
 
-        private WorldInteractable rightTarget;
+        private WorldTargetReference rightTarget;
 
         public bool OverUi(Vector2 position) => UiAt(position) != null;
 
@@ -174,26 +168,26 @@ namespace Workerborn
                 target = null;
             if (rightPressed)
             {
-                rightTarget = target;
+                rightTarget = new WorldTargetReference(target);
                 game.Hud.CloseWorldContext();
             }
             if (WorkerbornInput.Released("Camera/OrbitRight"))
             {
                 if (game.CameraRig.RightClickThisFrame)
                 {
-                    if (rightTarget != null)
-                        game.Hud.OpenWorldContext(rightTarget, cursor);
-                    else if (!overUi)
+                    if (rightTarget.Target != null)
+                        game.Hud.OpenWorldContext(rightTarget.Target, cursor);
+                    else if (!rightTarget.IsAssigned && !overUi)
                         game.Worker.Cancel();
                 }
-                rightTarget = null;
+                rightTarget = default;
             }
 
             if (pressed)
-                pressTarget = target;
+                pressTarget = new WorldTargetReference(target);
             if (!WorkerbornInput.Held("Gameplay/Interact"))
-                pressTarget = null;
-            CurrentTarget = target;
+                pressTarget = default;
+            currentTarget = new WorldTargetReference(target);
             if (!pressed)
                 return;
 
@@ -217,7 +211,7 @@ namespace Workerborn
                 game.Worker.CommandMove(hit.point);
         }
 
-        private WorldInteractable SnapshotTarget(int id) => snapshot != null && id > 0 && id < snapshot.Length ? snapshot[id] : null;
+        private WorldInteractable SnapshotTarget(int id) => snapshot != null && id > 0 && id < snapshot.Length ? snapshot[id].Target : null;
 
         private WorldInteractable PickTarget(Vector2 cursor, bool control)
         {
@@ -274,12 +268,11 @@ namespace Workerborn
             if (game.ControlsBlocked)
             {
                 link.Hide();
-                link.HideOutline();
                 return;
             }
 
             EnsureTexture();
-            ShowSelection();
+            ShowTargetLink();
             if (!waiting && Time.unscaledTime >= nextCapture)
             {
                 DrawMask();
@@ -287,17 +280,15 @@ namespace Workerborn
             }
         }
 
-        private void ShowSelection()
+        private void ShowTargetLink()
         {
             var selected = CurrentTarget;
             if (selected == null || !selected.CanInteract)
             {
                 link.Hide();
-                link.HideOutline();
                 return;
             }
             Color tint = IsPressed ? pressedColor : highlightColor;
-            UpdateOutline(selected, tint);
             if (selected.CanTarget && WorkerbornInput.Held("Gameplay/Target"))
             {
                 Vector3 center = game.WorldCamera.WorldToScreenPoint(selected.TargetCenter);
@@ -309,46 +300,6 @@ namespace Workerborn
                 }
             }
             link.Hide();
-        }
-
-        private void UpdateOutline(WorldInteractable selected, Color tint)
-        {
-            if (HasMask && (outlinedRevision != maskRevision || outlinedTarget != selected))
-            {
-                outlinedTarget = selected;
-                outlinedRevision = maskRevision;
-                int id = System.Array.IndexOf(snapshot, selected);
-                hasOutline = false;
-                if (id > 0)
-                {
-                    if (outline == null || outline.width != mask.width || outline.height != mask.height)
-                    {
-                        if (outline != null)
-                            Destroy(outline);
-                        outline = new Texture2D(mask.width, mask.height, TextureFormat.RGBA32, false, true)
-                        {
-                            name = "Selection outline",
-                            filterMode = FilterMode.Point,
-                            wrapMode = TextureWrapMode.Clamp
-                        };
-                        exteriorPixels = new byte[mask.width * mask.height];
-                        exteriorQueue = new int[exteriorPixels.Length];
-                        outlinePixels = new byte[exteriorPixels.Length * 4];
-                    }
-                    int radius = Mathf.Max(1, Mathf.RoundToInt(highlightWidth * mask.width / Screen.width));
-                    hasOutline = TargetMaskGeometry.DrawExteriorOutline(pixels, mask.width, mask.height, id,
-                        radius, exteriorPixels, exteriorQueue, outlinePixels);
-                    if (hasOutline)
-                    {
-                        outline.LoadRawTextureData(outlinePixels);
-                        outline.Apply(false);
-                    }
-                }
-            }
-            if (HasMask && hasOutline)
-                link.ShowOutline(outline, flipReadback, tint);
-            else
-                link.HideOutline();
         }
 
         private void EnsureTexture()
@@ -378,7 +329,7 @@ namespace Workerborn
         private void DrawMask()
         {
             frameTargets.Clear();
-            frameTargets.Add(null);
+            frameTargets.Add(default);
             targetIds.Clear();
             foreach (var item in WorldInteractable.Active)
             {
@@ -388,7 +339,7 @@ namespace Workerborn
                 if (item.CanInteract)
                 {
                     id = frameTargets.Count;
-                    frameTargets.Add(item);
+                    frameTargets.Add(new WorldTargetReference(item));
                 }
                 item.GetComponentsInChildren(false, actorGeometry);
                 foreach (var renderer in actorGeometry)
@@ -471,13 +422,12 @@ namespace Workerborn
             PublishMask(frameTargets.ToArray(), Screen.width, Screen.height, false);
         }
 
-        private void PublishMask(WorldInteractable[] targets, int width, int height, bool flip)
+        private void PublishMask(WorldTargetReference[] targets, int width, int height, bool flip)
         {
             snapshot = targets;
             capturedWidth = width;
             capturedHeight = height;
             flipReadback = flip;
-            maskRevision++;
         }
 
         private void Draw(CommandBuffer command, Renderer renderer, int id)
@@ -487,8 +437,8 @@ namespace Workerborn
                 (game.WorldCamera.cullingMask & (1 << renderer.gameObject.layer)) == 0 ||
                 visibility != null && visibility.Opacity(renderer) <= .2f || !GeometryUtility.TestPlanesAABB(maskFrustum, renderer.bounds))
                 return;
-            var materials = renderer.sharedMaterials;
-            for (int index = 0; index < materials.Length; index++)
+            renderer.GetSharedMaterials(materials);
+            for (int index = 0; index < materials.Count; index++)
             {
                 var material = materials[index];
                 if (material == null || material.renderQueue >= 3000)
@@ -507,7 +457,7 @@ namespace Workerborn
                 command.SetGlobalTexture("_SelectionBaseMap", texture != null ? texture : Texture2D.whiteTexture);
                 command.SetGlobalVector("_SelectionMapST", new Vector4(scale.x, scale.y, offset.x, offset.y));
                 command.SetGlobalFloat("_SelectionCutoff", SelectionCutoff(material));
-                command.SetGlobalVector("_SelectionId", new Vector4((id & 255) / 255f, ((id >> 8) & 255) / 255f, ((id >> 16) & 255) / 255f, id > 0 && frameTargets[id].CanTarget ? 1 : 0));
+                command.SetGlobalVector("_SelectionId", new Vector4((id & 255) / 255f, ((id >> 8) & 255) / 255f, ((id >> 16) & 255) / 255f, id > 0 && frameTargets[id].Target?.CanTarget == true ? 1 : 0));
                 command.DrawRenderer(renderer, maskMaterial, index, 0);
             }
         }
@@ -534,13 +484,10 @@ namespace Workerborn
         private void OnDisable()
         {
             generation++;
-            CurrentTarget = null;
+            currentTarget = pressTarget = rightTarget = default;
             pixels = null;
             if (link != null)
-            {
                 link.Hide();
-                link.HideOutline();
-            }
         }
 
         private void OnDestroy()
@@ -558,8 +505,6 @@ namespace Workerborn
 
             if (synchronous != null)
                 Destroy(synchronous);
-            if (outline != null)
-                Destroy(outline);
         }
     }
 }

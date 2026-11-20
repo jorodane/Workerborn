@@ -45,6 +45,7 @@ namespace Workerborn
         private string lastLoggedMessage;
         private readonly Dictionary<string, RectTransform> windows = new Dictionary<string, RectTransform>();
         private readonly List<FloatingText> floating = new List<FloatingText>();
+        private PrefabPool<TMP_Text> floatingTexts;
         private int seenVersion = -1;
         private int seenInventoryVersion = -1;
         private int seenNotice = -1;
@@ -58,7 +59,7 @@ namespace Workerborn
         public bool IsHoldingItem => draggedEntry != 0;
         public bool InventoryOpen => windows.TryGetValue("inventory", out var panel) && panel.gameObject.activeSelf;
 
-        private sealed class FloatingText
+        private struct FloatingText
         {
             public TMP_Text Text;
             public Vector3 Position;
@@ -91,7 +92,9 @@ namespace Workerborn
             if (minimapImage != null)
                 DrawMap(minimapImage, false);
             BuildWorldFeedback();
-            pickupNames?.Initialize(game);
+            floatingTexts = new PrefabPool<TMP_Text>(library.FloatingText, transform);
+            floatingTexts.Prewarm(12);
+            pickupNames?.Initialize(game, game.PrewarmGroundPickups);
             game.Worker.Message += ShowToast;
         }
 
@@ -127,10 +130,18 @@ namespace Workerborn
 
         public void ShowFloatingText(Vector3 position, string content, Color color)
         {
-            var text = Instantiate(library.FloatingText, transform);
+            var text = floatingTexts.Rent();
             text.text = content;
             text.color = color;
+            PlaceWorld(text.rectTransform, position);
             floating.Add(new FloatingText { Text = text, Position = position, Started = Time.unscaledTime });
+        }
+
+        internal void ClearFloatingText()
+        {
+            foreach (var entry in floating)
+                floatingTexts.Return(entry.Text);
+            floating.Clear();
         }
 
         private void Update()
@@ -250,7 +261,7 @@ namespace Workerborn
                 float age = Time.unscaledTime - entry.Started;
                 if (age >= 1.5f)
                 {
-                    Destroy(entry.Text.gameObject);
+                    floatingTexts.Return(entry.Text);
                     floating.RemoveAt(i);
                     continue;
                 }

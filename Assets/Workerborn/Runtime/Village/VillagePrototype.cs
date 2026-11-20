@@ -39,6 +39,10 @@ namespace Workerborn
         private Transform restPoint;
         [SerializeField]
         private Transform droppedItems;
+        [SerializeField, Tooltip("Shared runtime prefab with a Capsule Collider and an empty Visual pivot.")]
+        private GroundPickup groundPickupTemplate;
+        [SerializeField, Min(0)]
+        private int prewarmGroundPickups = 32;
         [SerializeField]
         private CropDefinition potato;
         [SerializeField]
@@ -75,6 +79,8 @@ namespace Workerborn
         private MonsterInteractable[] animals;
         private readonly List<VillageInteractable> npcs = new List<VillageInteractable>();
         private readonly List<GroundPickup> pickups = new List<GroundPickup>();
+        private GroundPickupPool pickupPool;
+        private Action<Vector3> playLanding;
         private VillageFarmSite[] farmSites;
         private Vector3 originalFarmPosition;
         private bool restoreCameraVisibility;
@@ -95,6 +101,7 @@ namespace Workerborn
         public RenderTexture PortraitTexture => portraitTexture;
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
+        internal int PrewarmGroundPickups => prewarmGroundPickups;
         public bool ControlsBlocked => hud != null && (hud.HasModal || hud.IsHoldingItem);
 
         public int RemainingHarvests
@@ -122,7 +129,8 @@ namespace Workerborn
 
         private void Awake()
         {
-            if (settings == null || mapRoot == null || navigation == null || player == null || worker == null || worldCamera == null || cameraRig == null || hud == null || spawnPoint == null || restPoint == null || droppedItems == null)
+            if (settings == null || mapRoot == null || navigation == null || player == null || worker == null || worldCamera == null || cameraRig == null || hud == null || spawnPoint == null || restPoint == null || droppedItems == null ||
+                groundPickupTemplate == null || groundPickupTemplate.Visual == null || groundPickupTemplate.GetComponent<CapsuleCollider>() == null)
             {
                 Debug.LogError("Village scene references are incomplete. Assign them in the VillagePrototype Inspector.", this);
                 enabled = false;
@@ -130,6 +138,12 @@ namespace Workerborn
             }
 
             allCrops.AddRange(mapRoot.GetComponentsInChildren<HarvestableCrop>(true));
+            pickupPool = new GroundPickupPool(groundPickupTemplate, droppedItems, worldCamera.GetComponent<CameraVisibility>(), RemovePickup);
+            foreach (var item in settings.Items)
+                if (item != null)
+                    pickupPool.CanSpawn(item.GroundPrefab);
+            if (effects != null)
+                playLanding = effects.PlayLanding;
             animals = mapRoot.GetComponentsInChildren<MonsterInteractable>(true);
             npcs.AddRange(mapRoot.GetComponentsInChildren<VillageInteractable>(true));
             stages = mapRoot.GetComponentsInChildren<VillageWorldStage>(true);
@@ -148,8 +162,10 @@ namespace Workerborn
             foreach (var crop in allCrops)
             {
                 crop.EnsureInitialized();
+                pickupPool.CanSpawn(crop.Definition?.PickupPrefab);
                 crop.Harvested += DropHarvest;
             }
+            pickupPool.Prewarm(prewarmGroundPickups);
 
             ApplyWorldStage();
             navigation.Activate(useBakedData: State.FarmAvailable && string.IsNullOrEmpty(State.FarmSiteId));
@@ -332,7 +348,7 @@ namespace Workerborn
                 return;
             }
             var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
-            if (prefab != null)
+            if (pickupPool.CanSpawn(prefab))
             {
                 Vector3 source = crop.transform.position;
                 Vector3 direction = worker.transform.position - source;
@@ -346,7 +362,7 @@ namespace Workerborn
                 }
             }
             else
-                Debug.LogError("Assign a ground-item prefab to " + work.name, this);
+                Debug.LogError("Assign a ground-item prefab with a mesh to " + work.name, this);
 
             if (outcome == WorkOutcome.Lucky || outcome == WorkOutcome.GreatLucky)
                 hud.ShowFloatingText(crop.transform.position + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
@@ -354,24 +370,23 @@ namespace Workerborn
             ShowLevelUp(level);
         }
 
-        private void SpawnPickup(GroundPickup prefab, CropDefinition definition, int quantity, Vector3 start, Vector3 end)
+        private void SpawnPickup(GroundPickup source, CropDefinition definition, int quantity, Vector3 start, Vector3 end, bool settled = false)
         {
-            pickups.RemoveAll(item => item == null);
-            var item = Instantiate(prefab, droppedItems);
-            item.SetQuantity(quantity);
-            item.Initialize(definition, start, end);
-            if (effects != null)
+            var item = pickupPool.Spawn(source, definition, quantity, start, end, settled);
+            pickups.Add(item);
+            if (effects != null && !settled)
             {
-                item.Landed += effects.PlayLanding;
+                item.Landed += playLanding;
                 effects.PlayDropTrail(item);
             }
-            pickups.Add(item);
         }
+
+        private void RemovePickup(GroundPickup pickup) => pickups.Remove(pickup);
 
         internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount)
         {
             var prefab = reward != null ? reward.GroundPrefab : null;
-            if (prefab == null || prefab.ItemId != reward.Id)
+            if (!pickupPool.CanSpawn(prefab) || prefab.ItemId != reward.Id)
                 return false;
             Vector3 source = origin.position;
             Vector3 forward = worker.transform.position - source;
@@ -403,7 +418,7 @@ namespace Workerborn
         {
             if (entry != null &&
                 settings.FindItem(entry.ItemId)?.GroundPrefab is GroundPickup prefab &&
-                prefab.ItemId == entry.ItemId)
+                prefab.ItemId == entry.ItemId && pickupPool.CanSpawn(prefab))
                 return prefab;
             hud.ShowToast("이 아이템은 바닥에 놓을 수 없어요.");
             return null;
@@ -434,19 +449,24 @@ namespace Workerborn
             if (item == null || !item.CanCollect || !worker.IsInPickupRange(item))
                 return false;
             string id = item.ItemId;
-            if (!State.Inventory.CanAdd(id, item.Quantity))
+            int quantity = item.Quantity;
+            if (!State.Inventory.CanAdd(id, quantity))
             {
                 hud.ShowToast("소지품 공간이 부족합니다.");
                 return false;
             }
 
             Vector3 itemPosition = item.VisualPosition + Vector3.up * .08f;
-            if (!item.TryCollect(() => State.Inventory.TryAdd(id, item.Quantity)))
+            string displayName = item.DisplayName;
+            string persistentId = item.PersistentId;
+            if (!item.TryCollect(() => State.Inventory.TryAdd(id, quantity)))
                 return false;
-            if (!string.IsNullOrEmpty(item.PersistentId))
-                collectedPickups.Add(item.PersistentId);
+            if (!item.IsPooled)
+                RemovePickup(item);
+            if (!string.IsNullOrEmpty(persistentId))
+                collectedPickups.Add(persistentId);
             effects?.PlayPickupTrail(itemPosition, worker.transform);
-            hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.5f, item.DisplayName + " +" + item.Quantity, Color.white);
+            hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.5f, displayName + " +" + quantity, Color.white);
             return true;
         }
 
@@ -516,12 +536,11 @@ namespace Workerborn
 
             hud.CancelItemDrag();
             worker.Cancel();
-            foreach (var item in pickups)
-                if (item != null)
-                {
-                    item.gameObject.SetActive(false);
-                    Destroy(item.gameObject);
-                }
+            effects?.Clear();
+            hud.ClearFloatingText();
+            for (int i = pickups.Count - 1; i >= 0; i--)
+                if (pickups[i] != null)
+                    pickups[i].Despawn();
 
             pickups.Clear();
             collectedPickups.Clear();
@@ -587,10 +606,8 @@ namespace Workerborn
                     collectedPickups.Add(id);
             foreach (var item in pickups)
                 if (item != null && !string.IsNullOrEmpty(item.PersistentId) && collectedPickups.Contains(item.PersistentId))
-                {
-                    item.gameObject.SetActive(false);
-                    Destroy(item.gameObject);
-                }
+                    item.Despawn();
+            pickups.RemoveAll(item => item == null || !item.CanCollect);
 
             if (!float.IsNaN(restoredWorld.playerX) && !float.IsNaN(restoredWorld.playerZ) && !float.IsInfinity(restoredWorld.playerX) && !float.IsInfinity(restoredWorld.playerZ) && NavMesh.SamplePosition(SurfacePosition(restoredWorld.playerX, restoredWorld.playerZ), out var position, 2f, NavMesh.AllAreas))
                 worker.WarpTo(position.position);
@@ -639,13 +656,9 @@ namespace Workerborn
                         continue;
                     }
 
-                    var definition = settings.FindItem(drop.itemId);
-                    if (definition == null || definition.GroundPrefab == null)
-                        continue;
-                    var item = Instantiate(definition.GroundPrefab, droppedItems);
-                    item.SetQuantity(drop.quantity);
-                    item.Initialize(drop.itemId == potato.ItemId ? potato : null, end, end, true);
-                    pickups.Add(item);
+                    var source = settings.FindItem(drop.itemId)?.GroundPrefab;
+                    if (pickupPool.CanSpawn(source))
+                        SpawnPickup(source, drop.itemId == potato.ItemId ? potato : null, drop.quantity, end, end, settled: true);
                 }
         }
 

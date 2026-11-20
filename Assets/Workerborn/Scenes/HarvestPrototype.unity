@@ -729,6 +729,7 @@ MonoBehaviour:
   columns: 4
   rows: 3
   skillBalloonPrefab: {fileID: 100017, guid: 63f07672c68e54a19172c2268a12a49b, type: 3}
+  groundPickupTemplate: {fileID: 100008, guid: 130a8393b8ec481188feaf2f98db8b82, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

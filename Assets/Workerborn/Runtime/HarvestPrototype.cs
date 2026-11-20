@@ -31,12 +31,15 @@ namespace Workerborn
         protected TMP_FontAsset interfaceFont;
         [SerializeField]
         private SkillBalloonView skillBalloonPrefab;
+        [SerializeField]
+        private GroundPickup groundPickupTemplate;
         [SerializeField, Range(1, 6)]
         private int columns = 4;
         [SerializeField, Range(1, 4)]
         private int rows = 3;
         protected readonly List<HarvestableCrop> crops = new List<HarvestableCrop>();
         protected readonly List<GroundPickup> pickups = new List<GroundPickup>();
+        private GroundPickupPool pickupPool;
         private readonly Dictionary<Color, Material> palette = new Dictionary<Color, Material>();
         protected readonly Vector3 spawn = new Vector3(0f, 0f, -4.4f);
         protected NavMeshData navigationData;
@@ -77,7 +80,9 @@ namespace Workerborn
 
         protected virtual void Awake()
         {
-            if (potato == null || potato.PlantPrefab == null || potato.DropPrefab == null || heroPrefab == null || surfaceMaterial == null || interfaceFont == null || skillBalloonPrefab == null || idleClip == null || walkClip == null || workClip == null)
+            if (potato == null || potato.PlantPrefab == null || potato.PickupPrefab == null || groundPickupTemplate == null ||
+                groundPickupTemplate.Visual == null || groundPickupTemplate.GetComponent<CapsuleCollider>() == null ||
+                heroPrefab == null || surfaceMaterial == null || interfaceFont == null || skillBalloonPrefab == null || idleClip == null || walkClip == null || workClip == null)
             {
                 Debug.LogError("Workerborn: the harvest scene is missing a configured asset reference.", this);
                 enabled = false;
@@ -94,6 +99,9 @@ namespace Workerborn
 
             world = new GameObject("Farm").transform;
             world.SetParent(transform, false);
+            pickupPool = new GroundPickupPool(groundPickupTemplate, world, null, RemovePickup, AddPickupMarker);
+            if (pickupPool.CanSpawn(potato.PickupPrefab))
+                pickupPool.Prewarm(potato.ItemsPerHarvest * potato.HarvestsPerPlant);
             ConfigureCamera();
             BuildFarm();
             BuildNavigation();
@@ -250,7 +258,7 @@ namespace Workerborn
 
         protected void SpawnDrops(HarvestableCrop crop, int count)
         {
-            pickups.RemoveAll(item => item == null);
+            pickups.RemoveAll(item => item == null || !item.CanCollect);
             for (int i = 0; i < count; i++)
             {
                 // Scatter into the space between rows, so drops can be selected independently of the plant.
@@ -263,20 +271,20 @@ namespace Workerborn
 
         protected GroundPickup CreatePickup(CropDefinition definition, Vector3 origin, Vector3 landing, bool settled = false)
         {
-            var root = new GameObject("Dropped potato");
-            root.transform.SetParent(world, false);
-            var model = Instantiate(definition.DropPrefab, root.transform);
-            PrepareVisual(model, 0.32f);
-            var hit = root.AddComponent<SphereCollider>();
-            hit.radius = 0.38f;
-            hit.center = Vector3.up * 0.15f;
-            hit.isTrigger = true;
-            var item = root.AddComponent<GroundPickup>();
-            item.Initialize(definition, model.transform, origin, landing, settled);
-            var ring = CreateRing("Pickup marker", root.transform, 0.25f, ColorFromHex(0xF4D390));
-            ring.transform.localPosition = Vector3.up * 0.01f;
+            var prefab = definition.PickupPrefab;
+            if (!pickupPool.CanSpawn(prefab))
+                return null;
+            var item = pickupPool.Spawn(prefab, definition, 1, origin, landing, settled);
             pickups.Add(item);
             return item;
+        }
+
+        private void RemovePickup(GroundPickup pickup) => pickups.Remove(pickup);
+
+        private void AddPickupMarker(GroundPickup pickup)
+        {
+            var ring = CreateRing("Pickup marker", pickup.transform, 0.25f, ColorFromHex(0xF4D390));
+            ring.transform.localPosition = Vector3.up * 0.01f;
         }
 
         public void ResetFarm()
@@ -290,13 +298,9 @@ namespace Workerborn
 
         protected void ResetCropsAndDrops()
         {
-            foreach (var item in pickups)
-            {
-                if (item == null)
-                    continue;
-                item.gameObject.SetActive(false);
-                Destroy(item.gameObject);
-            }
+            for (int i = pickups.Count - 1; i >= 0; i--)
+                if (pickups[i] != null)
+                    pickups[i].Despawn();
 
             pickups.Clear();
             foreach (var crop in crops)

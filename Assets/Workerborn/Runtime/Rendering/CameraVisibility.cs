@@ -43,6 +43,14 @@ namespace Workerborn
 
         public bool IsHidden(Renderer renderer) => hidden.Contains(renderer);
         public float Opacity(Renderer renderer) => states.TryGetValue(renderer, out var state) ? state.Opacity : 1;
+        internal void ForgetFade(Renderer renderer)
+        {
+            if (applied.Contains(renderer))
+                Restore();
+            hidden.Remove(renderer);
+            states.Remove(renderer);
+        }
+
         public bool IgnorePointerCollider(Collider collider)
         {
             if (collider.GetComponentInParent<WorldInteractable>() != null)

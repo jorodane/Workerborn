@@ -7,8 +7,6 @@ namespace Workerborn
     {
         [SerializeField]
         private Image line;
-        [SerializeField]
-        private RawImage outline;
         [SerializeField, Min(.5f)]
         private float thickness = 1.5f;
         private Material runtimeMaterial;
@@ -47,21 +45,6 @@ namespace Workerborn
             line.material.SetFloat("_MaskFlipY", flipY ? 1f : 0f);
         }
 
-        public void ShowOutline(Texture2D silhouette, bool flipY, Color tint)
-        {
-            if (outline == null)
-                return;
-            outline.texture = silhouette;
-            outline.uvRect = flipY ? new Rect(0, 1, 1, -1) : new Rect(0, 0, 1, 1);
-            outline.color = tint;
-            outline.enabled = true;
-        }
-
         public void Hide() => line.enabled = false;
-        public void HideOutline()
-        {
-            if (outline != null)
-                outline.enabled = false;
-        }
     }
 }

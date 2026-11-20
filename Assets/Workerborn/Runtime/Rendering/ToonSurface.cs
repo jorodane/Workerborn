@@ -7,6 +7,7 @@ namespace Workerborn
     {
         [SerializeField]
         private ToonMaterialPalette palette;
+        internal ToonMaterialPalette Palette => palette;
         private void OnEnable() => Apply();
         public void Apply()
         {

@@ -31,7 +31,7 @@ namespace Workerborn
         private NavMeshAgent agent;
         private WorkerAnimation animationDriver;
         private HarvestableCrop cropTarget;
-        private GroundPickup pickupTarget;
+        private WorldTargetReference pickupTarget;
         private WorldInteractable interactionTarget;
         private WorldInteractable strikeTarget;
         private float strikeStartedAt, nextStrikeAt;
@@ -144,7 +144,7 @@ namespace Workerborn
 
             if (nearest != null)
             {
-                if (nearest == pickupTarget)
+                if (nearest == pickupTarget.Target)
                     Cancel();
                 CollectPickup(nearest);
             }
@@ -220,10 +220,10 @@ namespace Workerborn
                 return;
             }
 
-            if (pickupTarget == item && Action == WorkerAction.Moving)
+            if (pickupTarget.Target == item && Action == WorkerAction.Moving)
                 return;
             if (NavigateNear(item.LandingPosition, pickupDistance * .8f))
-                pickupTarget = item;
+                pickupTarget = new WorldTargetReference(item);
         }
 
         private bool CollectPickup(GroundPickup item)
@@ -234,6 +234,7 @@ namespace Workerborn
                 return village.TryCollectPickup(item);
             CropDefinition definition = item.Definition;
             int quantity = item.Quantity;
+            string displayName = item.DisplayName;
             if (!item.TryCollect())
                 return false;
             if (definition != null)
@@ -243,7 +244,7 @@ namespace Workerborn
             }
 
             collectedCount += quantity;
-            Message?.Invoke($"{item.DisplayName} +{quantity}");
+            Message?.Invoke($"{displayName} +{quantity}");
             return true;
         }
 
@@ -359,18 +360,18 @@ namespace Workerborn
                 FinishDrop();
                 return;
             }
-            if (pickupTarget != null)
+            if (pickupTarget.IsAssigned)
             {
-                if (!pickupTarget.CanCollect)
+                var item = pickupTarget.Target as GroundPickup;
+                if (item == null)
                 {
                     Cancel();
                     return;
                 }
 
-                if (IsInPickupRange(pickupTarget))
+                if (IsInPickupRange(item))
                 {
-                    var item = pickupTarget;
-                    pickupTarget = null;
+                    pickupTarget = default;
                     CollectPickup(item);
                     agent.isStopped = true;
                     agent.ResetPath();
@@ -416,10 +417,10 @@ namespace Workerborn
                 if (village == null)
                     Message?.Invoke("수확 중이에요. 완료하면 감자가 바닥에 떨어져요.");
             }
-            else if (pickupTarget != null)
+            else if (pickupTarget.IsAssigned)
             {
                 // A sampled approach point may land outside reach near obstacles.
-                pickupTarget = null;
+                pickupTarget = default;
                 Action = WorkerAction.Idle;
                 Message?.Invoke("아이템에 충분히 가까이 갈 수 없어요.");
             }
@@ -498,7 +499,7 @@ namespace Workerborn
             if (cropTarget != null)
                 cropTarget.Cancel(this);
             cropTarget = null;
-            pickupTarget = null;
+            pickupTarget = default;
             interactionTarget = null;
             strikeTarget = null;
             onInteractionArrival = null;

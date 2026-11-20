@@ -21,19 +21,25 @@ namespace Workerborn
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
                 var assigned = renderer.sharedMaterials;
-                bool changed = false;
-                for (int i = 0; i < assigned.Length; i++)
-                    foreach (var pair in materials)
-                        if (assigned[i] == pair.source && pair.styled != null)
-                        {
-                            assigned[i] = pair.styled;
-                            changed = true;
-                            break;
-                        }
-
-                if (changed)
+                if (RemapMaterials(assigned))
                     renderer.sharedMaterials = assigned;
             }
+        }
+
+        internal bool RemapMaterials(Material[] assigned)
+        {
+            if (materials == null)
+                return false;
+            bool changed = false;
+            for (int i = 0; i < assigned.Length; i++)
+                foreach (var pair in materials)
+                    if (assigned[i] == pair.source && pair.styled != null)
+                    {
+                        assigned[i] = pair.styled;
+                        changed = true;
+                        break;
+                    }
+            return changed;
         }
     }
 }
