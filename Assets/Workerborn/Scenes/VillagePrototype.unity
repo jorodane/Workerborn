@@ -139,44 +139,27 @@ GameObject:
 --- !u!4 &100002
 Transform:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject:
-    fileID: 0
-  m_PrefabInstance:
-    fileID: 0
-  m_PrefabAsset:
-    fileID: 0
-  m_GameObject:
-    fileID: 100001
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100001}
   serializedVersion: 2
-  m_LocalRotation:
-    x: 0
-    y: 0
-    z: 0
-    w: 1
-  m_LocalPosition:
-    x: 0
-    y: 0
-    z: 0
-  m_LocalScale:
-    x: 1
-    y: 1
-    z: 1
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - fileID: 100004
-  - fileID: 100008
-  - fileID: 100010
-  - fileID: 100012
-  - fileID: 100014
-  - fileID: 910000002
+  - {fileID: 100004}
+  - {fileID: 100008}
+  - {fileID: 100010}
+  - {fileID: 100012}
+  - {fileID: 100014}
+  - {fileID: 910000002}
   - {fileID: 920000002}
   - {fileID: 920000020}
-  m_Father:
-    fileID: 0
-  m_LocalEulerAnglesHint:
-    x: 0
-    y: 0
-    z: 0
+  - {fileID: 920100002}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &100003
 GameObject:
   m_ObjectHideFlags: 0
@@ -8773,16 +8756,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a60af3ec90d65adab8cb4bfcef3fbd96, type: 3}
   m_Name: ''
   m_EditorClassIdentifier: ''
-  sun:
-    fileID: 410087040
+  sun: {fileID: 410087040}
   lanterns:
   - {fileID: 920000005}
   - {fileID: 920000008}
   - {fileID: 920000011}
   - {fileID: 920000014}
   - {fileID: 920000017}
-  worldCamera:
-    fileID: 330585545
+  worldCamera: {fileID: 330585545}
   dawnHour: 5.5
   duskHour: 17.5
   transitionHours: 2
@@ -8792,6 +8773,7 @@ MonoBehaviour:
   nightSkyTint: {r: 0.31, g: 0.43, b: 0.58, a: 1}
   dayAmbient: {r: 0.79, g: 0.84, b: 0.77, a: 1}
   nightAmbient: {r: 0.56, g: 0.68, b: 0.83, a: 1}
+  weather: {fileID: 920100003}
 --- !u!1 &920000019
 GameObject:
   m_ObjectHideFlags: 0
@@ -8841,6 +8823,59 @@ MonoBehaviour:
   itemPickup: {fileID: 100001, guid: 5155f7b9bbb555ab8c21481db6711f9e, type: 3}
   levelUp: {fileID: 100001, guid: f197371d75af516f8d042497172e2742, type: 3}
   lifetime: 3.5
+--- !u!1001 &920100001
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 100002}
+    m_Modifications:
+    - target: {fileID: 100002, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: '0'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: '0'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: '0'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+      propertyPath: m_LocalScale.x
+      value: '1'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+      propertyPath: m_LocalScale.y
+      value: '1'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+      propertyPath: m_LocalScale.z
+      value: '1'
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+--- !u!4 &920100002 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 100002, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+  m_PrefabInstance: {fileID: 920100001}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &920100003 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 100006, guid: 5c220e0b0a025f47b321d53a0b4401ae, type: 3}
+  m_PrefabInstance: {fileID: 920100001}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 020e9e4a0e9c55738996938cddbc396a, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

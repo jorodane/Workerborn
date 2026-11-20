@@ -303,6 +303,7 @@ namespace Workerborn
 
                 Action = WorkerAction.Harvesting;
                 Face(cropTarget.transform.position);
+                animationDriver?.BeginWork(cropTarget.Definition.WorkAnimation, cropTarget.Definition.HarvestSeconds);
                 if (village == null)
                     Message?.Invoke("수확 중이에요. 완료하면 감자가 바닥에 떨어져요.");
             }
@@ -346,7 +347,12 @@ namespace Workerborn
             }
 
             if (!cropTarget.Advance(this, Time.deltaTime))
+            {
+                animationDriver?.SampleWork(cropTarget.Progress);
                 return;
+            }
+
+            animationDriver?.SampleWork(1f);
             if (village == null)
                 Message?.Invoke($"수확 완료! 바닥의 {cropTarget.Definition.DisplayName}를 클릭해서 주워 주세요.");
             cropTarget = null;

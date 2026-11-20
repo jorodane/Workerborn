@@ -8,6 +8,7 @@ namespace Workerborn
         [SerializeField] private Light sun;
         [SerializeField] private Light[] lanterns;
         [SerializeField] private Camera worldCamera;
+        [SerializeField] private VillageWeather weather;
         [SerializeField, Range(0f, 24f)] private float dawnHour = 5.5f;
         [SerializeField, Range(0f, 24f)] private float duskHour = 17.5f;
         [SerializeField, Min(.1f)] private float transitionHours = 2f;
@@ -45,6 +46,12 @@ namespace Workerborn
                 sceneSky = new Material(sourceSky) { name = sourceSky.name + " (Village Lighting)" };
                 RenderSettings.skybox = sceneSky;
             }
+        }
+
+        public void SetDate(int day, float minute)
+        {
+            weather?.SetDate(day, minute);
+            SetTime(minute);
         }
 
         public void SetTime(float minute)

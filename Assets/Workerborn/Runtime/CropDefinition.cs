@@ -19,6 +19,7 @@ namespace Workerborn
         [SerializeField] private string interactionVerb = "수확하기";
         [SerializeField] private ItemDefinition requiredTool;
         [SerializeField] private Sprite skillIcon;
+        [SerializeField] private WorkAnimationDefinition workAnimation;
         [SerializeField, Min(0), Tooltip("0 uses the village's default stamina cost.")] private int staminaCost;
         [SerializeField, Range(0, 1)] private float successChance = 1f;
         [SerializeField, Range(0, 1)] private float luckyChance = .1f;
@@ -43,6 +44,7 @@ namespace Workerborn
         public string InteractionVerb => interactionVerb;
         public ItemDefinition RequiredTool => requiredTool;
         public Sprite SkillIcon => skillIcon;
+        public WorkAnimationDefinition WorkAnimation => workAnimation;
         public int StaminaCost => staminaCost;
 
         public WorkOutcome RollOutcome(int rank, float successRoll, float bonusRoll)

@@ -173,7 +173,7 @@ namespace Workerborn
             worldCamera.GetComponent<CameraVisibility>()?.Initialize(player.transform);
             cameraRig.Initialize(worker.transform, this);
             RestoreWorldObjects();
-            lighting?.SetTime(State.Minute);
+            lighting?.SetDate(State.Day, State.Minute);
             initialized = true;
             nextSave = Time.unscaledTime + 15f;
             if (!string.IsNullOrEmpty(notice))
@@ -434,6 +434,7 @@ namespace Workerborn
                 worker.WarpTo(point.position);
             foreach (var crop in allCrops)
                 crop.ResetHarvests();
+            lighting?.SetDate(State.Day, State.Minute);
         }
 
         public void Rebirth()
@@ -469,6 +470,7 @@ namespace Workerborn
                 crop.ResetHarvests();
             var spawn = SurfacePosition(spawnPoint.position.x, spawnPoint.position.z);
             worker.ResetWorker(NavMesh.SamplePosition(spawn, out var point, 2f, NavMesh.AllAreas) ? point.position : spawn);
+            lighting?.SetDate(State.Day, State.Minute);
             hud.CloseDialogue();
             hud.RefreshWindows();
             hud.ShowToast(State.LastMessage);
@@ -627,7 +629,7 @@ namespace Workerborn
 
             if (Time.unscaledTime >= nextSave)
                 SaveGame(false);
-            lighting?.SetTime(State.Minute);
+            lighting?.SetDate(State.Day, State.Minute);
         }
 
         private void OnDestroy()

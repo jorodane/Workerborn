@@ -62,15 +62,15 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   m_Material: {fileID: 0}
-  m_Color: {r: 0.68, g: 0.66, b: 0.59, a: 0.8}
+  m_Color: {r: 0.17, g: 0.23, b: 0.28, a: 0.86}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 988abeb65ef8b4f8faaa60d5391a9025, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -78,7 +78,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  m_PixelsPerUnitMultiplier: 3.0
 --- !u!1 &100005
 GameObject:
   m_ObjectHideFlags: 0
@@ -137,15 +137,15 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   m_Material: {fileID: 0}
-  m_Color: {r: 0.29, g: 0.28, b: 0.26, a: 0.82}
+  m_Color: {r: 0.24, g: 0.3, b: 0.37, a: 0.98}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 1f20989540b1d4777be144c7f0e3e33b, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -153,7 +153,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  m_PixelsPerUnitMultiplier: 2.45
 --- !u!1 &100009
 GameObject:
   m_ObjectHideFlags: 0
@@ -216,15 +216,15 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   m_Material: {fileID: 0}
-  m_Color: {r: 0.3, g: 0.32, b: 0.32, a: 0.82}
+  m_Color: {r: 0.3, g: 0.4, b: 0.48, a: 0.99}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 988abeb65ef8b4f8faaa60d5391a9025, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -232,7 +232,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  m_PixelsPerUnitMultiplier: 4.35
 --- !u!1 &100013
 GameObject:
   m_ObjectHideFlags: 0
@@ -429,15 +429,15 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   m_Material: {fileID: 0}
-  m_Color: {r: 0.42, g: 0.42, b: 0.39, a: 0.74}
+  m_Color: {r: 0.36, g: 0.47, b: 0.55, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 7454531b0682540c6ae3e02683f88f07, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -445,7 +445,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  m_PixelsPerUnitMultiplier: 4.0
 --- !u!114 &100021
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -686,15 +686,15 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   m_Material: {fileID: 0}
-  m_Color: {r: 0.42, g: 0.42, b: 0.39, a: 0.74}
+  m_Color: {r: 0.36, g: 0.47, b: 0.55, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 7454531b0682540c6ae3e02683f88f07, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -702,7 +702,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  m_PixelsPerUnitMultiplier: 4.0
 --- !u!114 &100030
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -992,15 +992,15 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   m_Material: {fileID: 0}
-  m_Color: {r: 0.42, g: 0.42, b: 0.39, a: 0.74}
+  m_Color: {r: 0.36, g: 0.47, b: 0.55, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 7454531b0682540c6ae3e02683f88f07, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -1008,7 +1008,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  m_PixelsPerUnitMultiplier: 4.0
 --- !u!114 &100042
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1249,15 +1249,15 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   m_Material: {fileID: 0}
-  m_Color: {r: 0.42, g: 0.42, b: 0.39, a: 0.74}
+  m_Color: {r: 0.36, g: 0.47, b: 0.55, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 7454531b0682540c6ae3e02683f88f07, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -1265,7 +1265,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  m_PixelsPerUnitMultiplier: 4.0
 --- !u!114 &100051
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -29,6 +29,8 @@ Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다
 
 표의 짧은 경로는 모두 `Assets/Workerborn/` 아래에 있습니다. UI 창에는 제목 표시줄뿐 아니라 실제 내부 TextMeshProUGUI·Image·Button·RawImage·ScrollRect와 참조가 들어 있습니다. 실행 중에는 값과 이벤트를 연결하고, 목록 행·격자 아이콘처럼 수량이 바뀌는 요소만 지정된 위젯 프리팹으로 복제합니다. 프리팹에서 정한 위치·색·폰트·투명도·버튼 구성을 창을 열 때 지우고 다시 만들지 않습니다. 소지품 셀 크기는 `InventoryWindow` 안의 GridLayoutGroup에서 조정합니다.
 
+창 테두리, 버튼, 소지품 슬롯과 HUD는 Layer Lab **GUI Pro – CasualGame** 스프라이트를 사용합니다. `Prefabs/UI`의 각 Image에서 스프라이트와 틴트를 편집합니다.
+
 
 마을은 `Terrains/TerrainMeadows.asset`을 연결한 Unity Terrain과 Scene의 스카이박스 위에 있습니다. Terrain 도구로 높이와 지형 페인팅을 편집할 수 있습니다. `VillageNavigation/Build Bounds`에서 마을의 길찾기 범위를 조절합니다. 현재 Scene에서 작동하는 범위가 바뀌면 농장 활성화와 선택 부지에 맞춰 길찾기 데이터를 계산합니다.
 
@@ -40,7 +42,9 @@ Unity **6000.3.5f2**, URP **17.3.0**, Input System **1.17.0**을 사용합니다
 
 NPC 설정 에셋에서는 외형을 펼쳐 머리·의상·눈·눈썹·입·양손 파츠를 고르고 3D 미리보기를 드래그·휠로 회전·확대할 수 있습니다. 주인공은 `Data/Characters/Player_Default.asset`을 같은 형식으로 사용합니다. 파츠가 비어 있으면 기본 프리팹의 부분을 유지하고, 스킨 메시의 본은 이름으로 연결합니다. 공통 파츠 에셋은 사용하는 외형에 공유되므로 개인 변형은 복제해서 사용하세요. 외형 변경과 새 프리팹 배치 시 캐릭터 외형은 **Edit 모드에서** 갱신합니다.
 
-마을의 기본 외형은 Rukha93 **Modular Anime Character 2**를 사용하는 `Prefabs/Characters/Looks`에 있습니다. 같은 리그용 머리와 의상, 눈·눈썹·입 재질은 `Data/Characters/Parts/ModularAnime2`에서 고릅니다. 의상 텍스처의 RGB 채널별 색상은 `Materials/Characters`에서 수정합니다. 주인공은 ATART의 대기·걷기·달리기 애니메이션을 사용하며, 채집에는 기존 휘두르기 동작을 연결했습니다. 달리기와 걷기 속도는 Player 프리팹의 `HarvestWorker`에서 조정합니다.
+마을의 기본 외형은 Rukha93 **Modular Anime Character 2**를 사용하는 `Prefabs/Characters/Looks`에 있습니다. 같은 리그용 머리와 의상, 눈·눈썹·입 재질은 `Data/Characters/Parts/ModularAnime2`에서 고릅니다. 의상 텍스처의 RGB 채널별 색상은 `Materials/Characters`에서 수정합니다. 주인공의 이동 모션은 `CharacterDefinition`, 달리기와 걷기 속도는 Player 프리팹의 `HarvestWorker`에서 조정합니다.
+
+감자와 달걀 채집에는 Kevin Iglesias의 `Gathering`, 벌목에는 `TreeChopping` 시작·반복·마무리 모션을 사용합니다. 각 채집 대상의 `CropDefinition`에서 `Data/Characters/Work`의 작업 모션을 골라 연결합니다. 동작 재생은 채집 진행률에 맞춰 작업 시간 안에서 끝납니다.
 
 상호작용은 공통 `WorldInteractable`을 상속합니다.
 
@@ -69,7 +73,9 @@ Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까
 
 게임 내 텍스트는 TMP입니다. `Fonts/WorkerbornKorean-SDF.asset`은 포함된 한글 OTF를 사용하는 동적 SDF 폰트이며 여러 아틀라스를 지원합니다. 이름표·행동 안내의 검은 외곽선은 `Fonts/WorkerbornKorean-NameOutline.mat`, 일반 UI 외곽선은 폰트 에셋의 Material에서 조정합니다.
 
-`Village session/VillageLighting`에서 아침과 저녁 전환 시간, 밤 하늘 틴트, 주변광과 가로등을 조정합니다. 클릭·착지·줍기·레벨업 이펙트는 `Village effects`에 연결된 `Prefabs/Effects`를 편집합니다.
+`Village session/VillageLighting`에서 아침과 저녁 전환 시간, 주변광과 가로등을 조정합니다. 클릭·착지·줍기·레벨업 이펙트는 `Village effects`에 연결된 `Prefabs/Effects`를 편집합니다.
+
+`Village Weather` 프리팹의 COZY 3가 게임 날짜와 시각을 받아 하늘과 날씨를 연출합니다. 하루의 날씨는 누적 일자로 결정되며, 자거나 환생해 날짜가 바뀌면 다음 날 날씨가 적용됩니다. 기본 비율은 맑음 80%, 구름 15%, 약한 비 5%입니다. 프로필·비율·시드는 프리팹의 `VillageWeather`, 하늘색은 `Data/Weather/VillageAtmosphere.asset`에서 조정합니다.
 
 카메라는 지정한 줌 거리를 유지합니다. `Main camera/CameraVisibility`가 플레이어를 가리는 일반 배경의 렌더러를 메인 카메라에서만 숨깁니다. 배경 판정에는 Renderer bounds와 두 시선 지점을 사용합니다. 갑자기 사라지는 대신 지정한 시간에 걸쳐 몸체와 외곽선이 함께 페이드됩니다. 재질은 처음부터 페이드를 지원하는 셰이더에 연결하며, 사라질 때 머티리얼·셰이더·텍스처를 교체하지 않습니다. `_CameraOpacity`만 메인 카메라의 MaterialPropertyBlock으로 적용하고 렌더 직후 복구합니다. 불투명 디더 방식으로 몸체·외곽선·깊이·그림자가 같은 기준으로 사라집니다. 숲은 제공된 Synty 그래프의 원래 텍스처·이끼·바람 노드를 유지합니다. NPC·작물·아이템이 플레이어를 가려도 숨기지 않으며, 캐릭터·아이템은 여유 공간을 확장한 캡슐과 모델의 전체 bounds, 카메라 near plane까지 함께 판정해 관통 전에 페이드를 시작합니다. 감자의 회전·부유, 머리카락·모자·장비도 판정에 포함됩니다. 숨긴 배경은 마우스 대상 감지에서 건너뛰고, 미니맵·초상화·충돌·내비게이션은 그대로 작동합니다. 캡슐 크기는 각 캐릭터·아이템 프리팹에서 수정합니다.
 

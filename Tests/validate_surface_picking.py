@@ -14,7 +14,7 @@ for path in sorted((ROOT / 'Assets/Workerborn/Prefabs/World').glob('*.prefab')):
     gos = {d['_id']: d['GameObject'] for d in ds if 'GameObject' in d}
     proxy = next((k for k, t in transforms.items() if gos[t['m_GameObject']['fileID']]['m_Name'] == 'Pointer geometry'), None)
     if proxy is None:
-        assert path.stem == 'ForestTerrain', path
+        assert path.stem == 'ForestTerrain' or (path.stem == 'VillageWeather' and all(go['m_Layer'] == 12 for go in gos.values())), path
         continue
     matrices = {}
     def matrix(identifier):

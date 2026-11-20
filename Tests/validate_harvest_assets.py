@@ -12,9 +12,10 @@ sys.path.insert(0, str(ROOT / 'Tools'))
 from unity_asset_geometry import documents
 CONTENT = ROOT / 'Assets/Workerborn'
 GUIDS = defaultdict(list)
-for meta in (ROOT / 'Assets').rglob('*.meta'):
-    match = re.search(r'^guid: ([a-f0-9]{32})$', meta.read_text(), re.M)
-    if match: GUIDS[match[1]].append(Path(str(meta)[:-5]))
+for folder in ('Assets', 'Packages'):
+    for meta in (ROOT / folder).rglob('*.meta'):
+        match = re.search(r'^guid: ([a-f0-9]{32})$', meta.read_text(), re.M)
+        if match: GUIDS[match[1]].append(Path(str(meta)[:-5]))
 
 # Package-owned scripts/shader retain the GUIDs shipped by URP, UGUI and Input System.
 PACKAGE_GUIDS = {
@@ -103,7 +104,7 @@ def check_pointers(path):
                 witnessed=any(pattern in p.read_text() for p in pack.rglob('*.prefab'))
                 importer=Path(str(target)+'.meta').read_text()
                 canonical=identifier in (919132149155446097,-8679921383154817045,100100000) and 'fileIdsGeneration: 2' in importer
-                clip=bool(re.search(rf'^\s+74: {identifier}\s*$',importer,re.M))
+                clip=bool(re.search(rf'^\s+(?:74|internalID): {identifier}\s*$',importer,re.M))
                 assert witnessed or canonical or clip, f'Unverified model ID {pattern}'
         count+=1
     return count
@@ -150,6 +151,19 @@ for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot
 lighting=behaviours(scene,'World/VillageLighting.cs')[0]
 assert lighting['sun']['fileID'] and lighting['nightIntensity']>.6
 assert len(lighting['lanterns'])>=4 and all(lamp['fileID'] for lamp in lighting['lanterns'])
+weather=behaviours(scene,'World/VillageWeather.cs')[0]
+assert lighting['weather']['fileID'] and weather['sphere']['fileID']
+forecast={resolve(v['profile']).stem:v['weight'] for v in weather['forecast']}
+assert forecast['Clear']>sum(forecast.values())/2 and forecast['Partly Cloudy']>0 and forecast['Light Rain']>0
+cozy=next(d['PrefabInstance'] for d in docs(CONTENT/'Prefabs/World/VillageWeather.prefab') if 'PrefabInstance' in d)
+assert resolve(cozy['m_SourcePrefab']).is_relative_to(ROOT/'Packages/com.distantlands.cozy.core')
+settings_overrides={m['propertyPath']:m for m in cozy['m_Modification']['m_Modifications']}
+clock_profile=docs(resolve(settings_overrides['perennialProfile']['objectReference']))[0]['MonoBehaviour']
+assert clock_profile['pauseTime'] and not clock_profile['resetTimeOnStart']
+assert int(settings_overrides['ecosystem.weatherSelectionMode']['value'])==0
+assert int(settings_overrides['handleSceneLighting']['value'])==0
+sky_layers=[m for m in cozy['m_Modification']['m_Modifications'] if m['propertyPath']=='m_Layer']
+assert sky_layers and all(int(m['value'])==12 for m in sky_layers)
 effects=behaviours(scene,'World/VillageEffects.cs')[0]
 assert all(resolve(effects[name]).is_relative_to(CONTENT/'Prefabs/Effects') for name in ('click','itemLanding','itemPickup','levelUp'))
 assert not behaviours(scene,'HarvestPrototype.cs'),'Village must not generate its map from the harvest demo'
@@ -157,6 +171,14 @@ crops=behaviours(scene,'HarvestableCrop.cs')
 assert Counter(docs(resolve(c['definition']))[0]['MonoBehaviour']['itemId'] for c in crops)=={'potato':24,'egg':2,'timber':3}
 assert len(set(c['persistentId'] for c in crops))==len(crops),'Duplicated crop save IDs'
 assert all(c['definition']['fileID'] and c['visual']['fileID'] for c in crops)
+work_clips={}
+for p in ['Potato.asset','Gathering/GatherEggs.asset','Gathering/CutTimber.asset']:
+    crop=docs(CONTENT/'Data'/p)[0]['MonoBehaviour']
+    work=docs(resolve(crop['workAnimation']))[0]['MonoBehaviour']
+    work_clips[crop['itemId']]=[resolve(work[k]) for k in ('begin','loop','finish') if work[k]['fileID']]
+assert all(p.is_relative_to(ROOT/'Assets/Kevin Iglesias') for clips in work_clips.values() for p in clips)
+assert len(work_clips['timber'])==3 and all('TreeChopping' in p.stem for p in work_clips['timber'])
+assert all('Gathering' in work_clips[item][0].stem for item in ('potato','egg'))
 assert len(behaviours(scene,'Village/VillageInteractable.cs'))==6
 assert {s['siteId'] for s in behaviours(scene,'World/VillageFarmSite.cs')}=={'meadow','south'}
 actors=behaviours(scene,'Characters/CharacterActor.cs');assert len(actors)==5
@@ -237,6 +259,12 @@ assert not any(d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='fe87c0
 for p in (CONTENT/'Runtime').rglob('*.cs'):
     assert not re.search(r'UnityEngine\.Input(?!System)\b|Keyboard\.current|Mouse\.current|Pointer\.current',p.read_text()),p
 print(f'Validated {texts} TMP labels, Korean outlined SDF assets, authored input actions/UI references, camera visibility and interaction capsules.')
+for p in ('VillageHUD','InventoryWindow','InventoryCell','ActionButton','ConversationWindow','ShopWindow','QuestScrollWindow'):
+    images=[
+        d['MonoBehaviour'] for d in docs(CONTENT/'Prefabs/UI'/(p+'.prefab'))
+        if d.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='fe87c0e1cc204ed48ad3b37840f39efc']
+    assert any(img['m_Sprite']['fileID'] and resolve(img['m_Sprite']).is_relative_to(ROOT/'Assets/Layer Lab') for img in images),p
+print('Validated the authored COZY package, daily forecast, Kevin Iglesias work clips and Layer Lab UI art.')
 
 # The starter world is an editable Unity Terrain with supplied materials/layers and authored forest instances.
 terrains=[d['Terrain']for d in scene if 'Terrain'in d]

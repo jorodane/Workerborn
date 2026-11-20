@@ -6,17 +6,19 @@ namespace Workerborn
 {
     public sealed class WorkerAnimation : MonoBehaviour
     {
+        private const int Work = 2;
+        private const int WorkBegin = 4;
+        private const int WorkFinish = 5;
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
-        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[4];
-        private readonly float[] lengths = new float[4];
-        private readonly float[] weights =
-        {
-            1f,
-            0f,
-            0f,
-            0f
-        };
+        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[6];
+        private readonly float[] lengths = new float[6];
+        private readonly float[] weights = new float[6];
+        private AnimationClip fallbackWork;
+        private int workInput = Work;
+        private float workDuration, beginDuration, finishDuration;
+        private float loopCycles;
+        private bool timedWork;
         private int target;
         public void Initialize(Animator animator, AnimationClip idle, AnimationClip move, AnimationClip work, AnimationClip walk = null)
         {
@@ -26,10 +28,10 @@ namespace Workerborn
                 return;
             move = move != null ? move : idle;
             walk = walk != null ? walk : move;
-            work = work != null ? work : idle;
+            fallbackWork = work != null ? work : idle;
+            timedWork = false;
+            workInput = Work;
             target = 0;
-            weights[0] = 1f;
-            weights[1] = weights[2] = weights[3] = 0f;
             animator.runtimeAnimatorController = null;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -42,32 +44,103 @@ namespace Workerborn
             {
                 idle,
                 move,
-                work,
-                walk
+                fallbackWork,
+                walk,
+                idle,
+                idle
             };
             for (int i = 0; i < source.Length; i++)
             {
-                clips[i] = AnimationClipPlayable.Create(graph, source[i]);
-                clips[i].SetApplyFootIK(false);
-                lengths[i] = Mathf.Max(0.01f, source[i].length);
-                graph.Connect(clips[i], 0, mixer, i);
-                mixer.SetInputWeight(i, weights[i]);
+                clips[i] = default;
+                weights[i] = i == 0 ? 1f : 0f;
+                BindClip(i, source[i]);
             }
 
             graph.Play();
         }
 
         public int CurrentAction => target;
-        public double ActionTime => graph.IsValid() ? clips[target].GetTime() : 0d;
+        public double ActionTime => graph.IsValid() ? clips[Input].GetTime() : 0d;
+        private int Input => target == Work ? workInput : target;
+
+        private void BindClip(int input, AnimationClip clip, bool sampled = false)
+        {
+            if (!clips[input].IsValid() || clips[input].GetAnimationClip() != clip)
+            {
+                if (clips[input].IsValid())
+                {
+                    graph.Disconnect(mixer, input);
+                    graph.DestroyPlayable(clips[input]);
+                }
+                clips[input] = AnimationClipPlayable.Create(graph, clip);
+                clips[input].SetApplyFootIK(false);
+                graph.Connect(clips[input], 0, mixer, input);
+                mixer.SetInputWeight(input, weights[input]);
+            }
+
+            lengths[input] = Mathf.Max(.01f, clip.length);
+            clips[input].SetSpeed(sampled ? 0d : 1d);
+        }
+
+        public void BeginWork(WorkAnimationDefinition animation, float duration)
+        {
+            if (!graph.IsValid())
+                return;
+
+            timedWork = animation != null && animation.Loop != null;
+            workInput = Work;
+            BindClip(Work, timedWork ? animation.Loop : fallbackWork, timedWork);
+            clips[Work].SetTime(0d);
+            SetAction(Work);
+            if (!timedWork)
+                return;
+
+            workDuration = Mathf.Max(.1f, duration);
+            beginDuration = animation.Begin != null ? Mathf.Min(animation.Begin.length, workDuration * .25f) : 0f;
+            finishDuration = animation.Finish != null ? Mathf.Min(animation.Finish.length, workDuration * .25f) : 0f;
+            if (beginDuration > 0)
+                BindClip(WorkBegin, animation.Begin, true);
+            if (finishDuration > 0)
+                BindClip(WorkFinish, animation.Finish, true);
+            loopCycles = Mathf.Max(1, Mathf.Round((workDuration - beginDuration - finishDuration) / lengths[Work]));
+            SampleWork(0f);
+        }
+
+        public void SampleWork(float progress)
+        {
+            if (!timedWork || !graph.IsValid())
+                return;
+
+            float elapsed = Mathf.Clamp01(progress) * workDuration;
+            float finishAt = workDuration - finishDuration;
+            float phase;
+            if (elapsed < beginDuration)
+            {
+                workInput = WorkBegin;
+                phase = elapsed / beginDuration;
+            }
+            else if (finishDuration > 0 && elapsed >= finishAt)
+            {
+                workInput = WorkFinish;
+                phase = (elapsed - finishAt) / finishDuration;
+            }
+            else
+            {
+                workInput = Work;
+                phase = Mathf.Repeat(loopCycles * (elapsed - beginDuration) / (finishAt - beginDuration), 1f);
+            }
+
+            clips[workInput].SetTime(phase * lengths[workInput]);
+        }
 
         public void SetAction(int action)
         {
-            int next = Mathf.Clamp(action, 0, clips.Length - 1);
+            int next = Mathf.Clamp(action, 0, 3);
             if (next == target)
                 return;
             if (graph.IsValid())
             {
-                if (next == 2)
+                if (next == Work && !timedWork)
                     clips[next].SetTime(0d);
                 else if ((next == 1 || next == 3) && (target == 1 || target == 3))
                     clips[next].SetTime(clips[target].GetTime() % lengths[target] / lengths[target] * lengths[next]);
@@ -80,12 +153,12 @@ namespace Workerborn
             if (!graph.IsValid())
                 return;
             float total = 0f;
+            int activeInput = Input;
             for (int i = 0; i < clips.Length; i++)
             {
-                // The supplied sword attack is non-looping; repeat it as a temporary work gesture.
-                if (clips[i].GetTime() >= lengths[i])
+                if ((i != Work || !timedWork) && i < WorkBegin && clips[i].GetTime() >= lengths[i])
                     clips[i].SetTime(clips[i].GetTime() % lengths[i]);
-                weights[i] = Mathf.MoveTowards(weights[i], i == target ? 1f : 0f, Time.deltaTime * 8f);
+                weights[i] = Mathf.MoveTowards(weights[i], i == activeInput ? 1f : 0f, Time.deltaTime * 8f);
                 total += weights[i];
             }
 

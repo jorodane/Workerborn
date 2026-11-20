@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Linq;
+using DistantLands.Cozy;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AI;
@@ -47,6 +48,38 @@ namespace Workerborn.Tests
             VillageSaveStore.DirectoryOverride = null;
             if (Directory.Exists(saveDirectory))
                 Directory.Delete(saveDirectory, true);
+        }
+
+        [UnityTest]
+        public IEnumerator SleepUsesTheNewDaysWeatherAndReloadKeepsIt()
+        {
+            var forecast = UnityEngine.Object.FindFirstObjectByType<VillageWeather>();
+            var sky = UnityEngine.Object.FindFirstObjectByType<CozyWeather>();
+            Assert.That(forecast, Is.Not.Null);
+            Assert.That(sky, Is.Not.Null);
+            var startingProfile = forecast.ProfileForDay(game.State.Day);
+            Assert.That(sky.weatherModule.ecosystem.currentWeather, Is.SameAs(startingProfile));
+
+            int nextChange = Enumerable.Range(game.State.Day + 1, 60)
+                .First(day => forecast.ProfileForDay(day) != startingProfile);
+            for (int day = game.State.Day + 1; day <= nextChange; day++)
+            {
+                game.Sleep(false);
+                Assert.That(game.State.Day, Is.EqualTo(day));
+                yield return null;
+            }
+
+            var expected = forecast.ProfileForDay(nextChange);
+            Assert.That(sky.weatherModule.ecosystem.currentWeather, Is.SameAs(expected));
+            Assert.That((float)sky.timeModule.currentTime * 1440f, Is.EqualTo(game.State.Minute).Within(.1f));
+            Assert.That(game.SaveGame(false), Is.True);
+
+            yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
+            yield return null;
+            game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
+            sky = UnityEngine.Object.FindFirstObjectByType<CozyWeather>();
+            Assert.That(game.State.Day, Is.EqualTo(nextChange));
+            Assert.That(sky.weatherModule.ecosystem.currentWeather, Is.SameAs(expected));
         }
 
         [UnityTest]

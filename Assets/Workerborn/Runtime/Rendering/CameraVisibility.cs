@@ -83,7 +83,7 @@ namespace Workerborn
             Vector3 low = player.TransformPoint(lowerSightPoint), high = player.TransformPoint(upperSightPoint);
             foreach (var renderer in renderers)
             {
-                if (!renderer.enabled || renderer.forceRenderingOff || renderer is ParticleSystemRenderer || renderer.GetComponentInParent<WorldInteractable>() != null || renderer.GetComponentInParent<CharacterActor>() != null)
+                if (!renderer.enabled || renderer.forceRenderingOff || renderer is ParticleSystemRenderer || renderer.gameObject.layer == VillageWeather.SkyLayer || renderer.GetComponentInParent<WorldInteractable>() != null || renderer.GetComponentInParent<CharacterActor>() != null)
                     continue;
                 if (!Blocks(renderer.bounds, position, low) && !Blocks(renderer.bounds, position, high))
                     continue;

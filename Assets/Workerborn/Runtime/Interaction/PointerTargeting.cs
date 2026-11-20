@@ -375,7 +375,7 @@ namespace Workerborn
 
         private void Draw(CommandBuffer command, Renderer renderer, int id)
         {
-            if (renderer == null || !renderer.enabled || renderer.forceRenderingOff || visibility != null && visibility.IsHidden(renderer) || !renderer.gameObject.activeInHierarchy || !(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) || (game.WorldCamera.cullingMask & (1 << renderer.gameObject.layer)) == 0)
+            if (renderer == null || !renderer.enabled || renderer.forceRenderingOff || renderer.gameObject.layer == VillageWeather.SkyLayer || visibility != null && visibility.IsHidden(renderer) || !renderer.gameObject.activeInHierarchy || !(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) || (game.WorldCamera.cullingMask & (1 << renderer.gameObject.layer)) == 0)
                 return;
             var materials = renderer.sharedMaterials;
             for (int index = 0; index < materials.Length; index++)

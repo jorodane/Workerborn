@@ -20,6 +20,7 @@ MonoBehaviour:
   interactionVerb: 달걀 모으기
   requiredTool: {fileID: 0}
   skillIcon: {fileID: 21300000, guid: b326b971adc75cfb87dcff75006cb978, type: 3}
+  workAnimation: {fileID: 11400000, guid: 22690ab4eb1b5ea8b97ed2b9171c837b, type: 2}
   staminaCost: 2
   successChance: 0.95
   luckyChance: 0.1
