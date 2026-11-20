@@ -3135,6 +3135,7 @@ MonoBehaviour:
   namePrefab: {fileID: 100009, guid: 2822bb6d0a0b5ecd8364935424ead97c, type: 3}
   spacing: 3
   edgeMargin: 8
+  minimumBoxScale: 0.7
 --- !u!1001 &832576575
 PrefabInstance:
   m_ObjectHideFlags: 0

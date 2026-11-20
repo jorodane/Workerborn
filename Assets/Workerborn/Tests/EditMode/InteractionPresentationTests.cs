@@ -112,7 +112,7 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void ExpansionOnlyMovesAnotherStackWhenTheirBoxesMeet()
+        public void AStackFitsAroundAnUnobstructedNameWithoutMovingIt()
         {
             var a = new NameplateSlot { Order = 1, X = 50, Y = 90, Width = 60, Height = 20 };
             var b = new NameplateSlot { Order = 2, X = 50, Y = 90, Width = 60, Height = 20 };
@@ -121,6 +121,33 @@ namespace Workerborn.Tests
             NameplateLayout.Arrange(slots, 0, 180, 5);
             Assert.That(a.PlacedY - b.PlacedY, Is.GreaterThanOrEqualTo(25));
             Assert.That(b.PlacedY - c.PlacedY, Is.GreaterThanOrEqualTo(25));
+            Assert.That(c.PlacedY, Is.EqualTo(c.Y));
+        }
+
+        [Test]
+        public void AProjectedCropGridKeepsEachAnchorWhenCompactBoxesFit()
+        {
+            var slots = new List<NameplateSlot>();
+            for (int row = 0; row < 6; row++)
+                for (int column = 0; column < 4; column++)
+                    slots.Add(new NameplateSlot
+                    {
+                        Order = slots.Count,
+                        X = 100 + column * 66 + row * 6,
+                        Y = 330 - row * 37 - column * 4,
+                        Width = 78,
+                        Height = 46
+                    });
+            NameplateLayout.Arrange(slots, 0, 400, 3, minimumScale: .7f, left: 0, right: 460);
+
+            Assert.That(slots.All(s => s.Visible && s.Scale >= .7f && s.Scale < 1f), Is.True);
+            foreach (var slot in slots)
+            {
+                Assert.That(slot.PlacedX, Is.EqualTo(slot.X));
+                Assert.That(slot.PlacedY, Is.EqualTo(slot.Y));
+            }
+            NameplateLayout.Present(slots, false, 0, 400, 3);
+            Assert.That(slots.All(s => s.Scale == 1f && s.PlacedY == s.Y), Is.True);
         }
 
         [Test]
@@ -156,12 +183,32 @@ namespace Workerborn.Tests
         public void OversizedStacksExposeAStableVerticalScrollRange()
         {
             var slots = Enumerable.Range(0, 10).Select(i => new NameplateSlot { Order = i, X = 50, Y = 50, Width = 80, Height = 24 }).ToList();
-            float overflow = NameplateLayout.Arrange(slots, 0, 100, 4);
+            float overflow = NameplateLayout.Arrange(slots, 0, 100, 4, minimumScale: .7f);
             Assert.That(overflow, Is.GreaterThan(0));
+            Assert.That(slots.All(s => s.Scale == 1f), Is.True);
             float first = slots[0].PlacedY;
-            NameplateLayout.Arrange(slots, 0, 100, 4, overflow);
+            NameplateLayout.Arrange(slots, 0, 100, 4, overflow, minimumScale: .7f);
             Assert.That(slots[0].PlacedY - first, Is.EqualTo(overflow).Within(.01f));
             Assert.That(slots[slots.Count - 1].PlacedY, Is.EqualTo(12).Within(.01f));
+        }
+
+        [Test]
+        public void AnOverflowingStackScrollsWithoutCoveringAnUnobstructedName()
+        {
+            var slots = Enumerable.Range(1, 8).Select(i =>
+                new NameplateSlot { Order = i, X = 50, Y = 42, Width = 60, Height = 20 }).ToList();
+            var fixedName = new NameplateSlot { Order = 9, X = 50, Y = 85, Width = 80, Height = 20 };
+            slots.Add(fixedName);
+            float overflow = NameplateLayout.Arrange(slots, 0, 100, 4, scrollOrder: 1);
+            Assert.That(overflow, Is.GreaterThan(0));
+            Assert.That(slots.Any(slot => slot.Order == 1 && slot.Visible), Is.True);
+
+            NameplateLayout.Arrange(slots, 0, 100, 4, overflow, scrollOrder: 1);
+            Assert.That(slots.Any(slot => slot.Order == 8 && slot.Visible), Is.True);
+            Assert.That(fixedName.Visible, Is.True);
+            Assert.That(fixedName.PlacedY, Is.EqualTo(fixedName.Y));
+            Assert.That(slots.Where(slot => slot.Visible && slot != fixedName)
+                .All(slot => slot.PlacedY + slot.Height * .5f <= 71f), Is.True);
         }
 
         [Test]

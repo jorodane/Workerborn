@@ -26,18 +26,45 @@ namespace Workerborn
         [SerializeField]
         private Color boxedNameColor = new Color(.65f, .89f, 1f);
         private bool boxVisible, pointerInside, pointerDown;
+        private bool capturedScale;
+        private Vector3 authoredScale;
         private PointerTargeting targeting;
         private WorldTargetReference target;
         public WorldInteractable Target => target.Target;
         public bool Hovered => boxVisible && pointerInside;
         public RectTransform Rect => (RectTransform)transform;
+        internal NameplateSlot LayoutSlot { get; } = new NameplateSlot();
+        internal Vector2 LayoutSize => Vector2.Scale(Rect.rect.size,
+            new Vector2(Mathf.Abs(authoredScale.x), Mathf.Abs(authoredScale.y)));
 
         public void Bind(WorldInteractable target, PointerTargeting controller, string text = null)
         {
+            if (!capturedScale)
+            {
+                authoredScale = Rect.localScale;
+                capturedScale = true;
+            }
+            Rect.localScale = authoredScale;
             this.target = new WorldTargetReference(target);
             targeting = controller;
             SetText(text ?? target.DisplayName);
             SetBox(false);
+        }
+
+        internal void ApplyLayout()
+        {
+            var rect = Rect;
+            var slot = LayoutSlot;
+            var scale = new Vector3(authoredScale.x * slot.Scale, authoredScale.y * slot.Scale, authoredScale.z);
+            if (rect.localScale != scale)
+                rect.localScale = scale;
+            Vector2 centerOffset = Vector2.Scale(rect.rect.center, scale);
+            var position = rect.localPosition;
+            position.x = slot.PlacedX - centerOffset.x;
+            position.y = slot.PlacedY - centerOffset.y;
+            if (rect.localPosition != position)
+                rect.localPosition = position;
+            gameObject.SetActive(slot.Visible);
         }
 
         internal void Unbind()

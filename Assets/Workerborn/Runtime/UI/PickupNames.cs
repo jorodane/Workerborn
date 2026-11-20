@@ -7,14 +7,16 @@ namespace Workerborn
     {
         [SerializeField]
         private PickupNameView namePrefab;
-        [SerializeField]
+        [SerializeField, Min(0f)]
         private float spacing = 3f;
-        [SerializeField]
+        [SerializeField, Min(0f)]
         private float edgeMargin = 8f;
+        [SerializeField, Range(.5f, 1f), Tooltip("Smallest scale used when nearby Alt nameplates overlap.")]
+        private float minimumBoxScale = .7f;
         private readonly Dictionary<WorldInteractable, WorldNameplateView> names = new Dictionary<WorldInteractable, WorldNameplateView>();
         private readonly List<WorldInteractable> removed = new List<WorldInteractable>();
         private readonly List<NameplateSlot> slots = new List<NameplateSlot>();
-        private readonly Dictionary<long, WorldNameplateView> visible = new Dictionary<long, WorldNameplateView>();
+        private readonly List<WorldNameplateView> visible = new List<WorldNameplateView>();
         private PrefabPool<PickupNameView> pickupViews;
         private PrefabPool<WorldNameplateView> worldViews;
         private VillagePrototype game;
@@ -90,12 +92,18 @@ namespace Workerborn
                 if (pair.Value.Hovered)
                     hoveredOrder = pair.Key.NameplateOrder;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out var point);
-                Vector2 size = pair.Value.Rect.sizeDelta;
-                float x = alt ? Mathf.Clamp(point.x, canvas.rect.xMin + edgeMargin + size.x * .5f, canvas.rect.xMax - edgeMargin - size.x * .5f) : point.x;
+                Vector2 size = pair.Value.LayoutSize;
                 var objectScreen = game.WorldCamera.WorldToScreenPoint(pair.Key.transform.position);
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, objectScreen, null, out var objectPoint);
-                slots.Add(new NameplateSlot { Order = pair.Key.NameplateOrder, X = x, Y = point.y, ObjectY = objectPoint.y, Width = size.x, Height = size.y });
-                visible.Add(pair.Key.NameplateOrder, pair.Value);
+                var slot = pair.Value.LayoutSlot;
+                slot.Order = pair.Key.NameplateOrder;
+                slot.X = point.x;
+                slot.Y = point.y;
+                slot.ObjectY = objectPoint.y;
+                slot.Width = size.x;
+                slot.Height = size.y;
+                slots.Add(slot);
+                visible.Add(pair.Value);
             }
 
             if (alt && hoveredOrder.HasValue && WorkerbornInput.Current != null)
@@ -116,14 +124,10 @@ namespace Workerborn
                 scrollOrder = null;
             }
             float overflow = NameplateLayout.Present(slots, alt, canvas.rect.yMin + edgeMargin + 32, canvas.rect.yMax - edgeMargin,
-                spacing, scroll, scrollOrder);
+                spacing, scroll, scrollOrder, minimumBoxScale, canvas.rect.xMin + edgeMargin, canvas.rect.xMax - edgeMargin);
             scroll = Mathf.Clamp(scroll, 0, overflow);
-            foreach (var slot in slots)
-            {
-                var view = visible[slot.Order];
-                view.Rect.anchoredPosition = new Vector2(slot.X, slot.PlacedY);
-                view.gameObject.SetActive(!alt || slot.PlacedY - slot.Height * .5f >= canvas.rect.yMin + 32 && slot.PlacedY + slot.Height * .5f <= canvas.rect.yMax);
-            }
+            foreach (var view in visible)
+                view.ApplyLayout();
         }
     }
 }
