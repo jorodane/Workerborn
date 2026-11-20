@@ -51,15 +51,13 @@ namespace Workerborn
                 item.Rect.sizeDelta = new Vector2(placed.Spec.Width * size.x - 2, placed.Spec.Height * size.y - 2);
                 item.Rect.anchoredPosition = new Vector2(placed.X * size.x, -placed.Y * size.y);
                 string id = definition.Id;
-                item.Shop(() =>
+                item.Shop(Hud, () =>
                 {
                     if (Hud.IsHoldingItem)
                     {
                         Hud.SellHeldItem();
                         return;
                     }
-                    if (Hud.HasQuantityPrompt)
-                        return;
                     description.text = definition.DisplayName + "  ·  " + definition.ToSpec().Price + " Gold";
                     Hud.OpenPurchaseQuantity(id);
                 });

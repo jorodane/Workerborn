@@ -97,7 +97,8 @@ namespace Workerborn
 
         protected bool BeginInteraction(HarvestWorker worker)
         {
-            if (worker == null || !worker.AcceptsInteractionCommands || !CanInteract)
+            if (worker == null || !CanInteract ||
+                !(this is GroundPickup ? worker.AcceptsGroundItemCommands : worker.AcceptsInteractionCommands))
                 return false;
             onInteractionRequested.Invoke();
             return true;

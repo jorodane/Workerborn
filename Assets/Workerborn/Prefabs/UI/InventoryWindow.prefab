@@ -36,11 +36,11 @@ RectTransform:
   - {fileID: 100037}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 280, y: -25}
+  m_AnchorMin: {x: 1, y: 0}
+  m_AnchorMax: {x: 1, y: 0}
+  m_AnchoredPosition: {x: -18, y: 44}
   m_SizeDelta: {x: 588, y: 424}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_Pivot: {x: 1, y: 0}
 --- !u!222 &100003
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -6117,6 +6117,7 @@ MonoBehaviour:
   closeButton: {fileID: 100021}
   dragHandle: {fileID: 100035}
   minimizeButton: {fileID: 100030}
+  docked: 1
   windowBody: {fileID: 100036}
   scrollContent: {fileID: 100137}
   itemLayer: {fileID: 100271}

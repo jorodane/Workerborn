@@ -371,7 +371,7 @@ namespace Workerborn
                 itemId == ItemIds.Bag && (BagExpanded || Inventory.Count(ItemIds.Bag) > 0))
                 return 0;
             var spec = ItemCatalog.Get(itemId);
-            int limit = spec.EquipmentSlot == EquipmentSlot.None ? 999 : 1;
+            int limit = spec.EquipmentSlot == EquipmentSlot.None && spec.MaxStack > 1 ? 999 : 1;
             return spec.Price > 0 ? Math.Min(limit, Gold / spec.Price) : limit;
         }
 
@@ -382,8 +382,8 @@ namespace Workerborn
             if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || itemId == ItemIds.LegendAxe || TryGetDocumentPage(itemId, out _))
                 return Result(false, "판매하지 않는 물건입니다.");
             var spec = ItemCatalog.Get(itemId);
-            if (quantity > 1 && spec.EquipmentSlot != EquipmentSlot.None)
-                return Result(false, "장비는 한 개씩 구입할 수 있어요.");
+            if (quantity > 1 && (spec.EquipmentSlot != EquipmentSlot.None || spec.MaxStack == 1))
+                return Result(false, "이 물건은 한 개씩 구입할 수 있어요.");
             if (itemId == ItemIds.Hoe && (HasHoe || Inventory.Count(ItemIds.Hoe) > 0))
                 return Result(false, "이미 같은 도구를 가지고 있습니다.");
             if (itemId == ItemIds.Bag && (BagExpanded || Inventory.Count(ItemIds.Bag) > 0))

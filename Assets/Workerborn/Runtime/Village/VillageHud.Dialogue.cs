@@ -14,6 +14,7 @@ namespace Workerborn
                 OpenShop(target);
                 return;
             }
+            game.Worker.Cancel();
             dialogueTarget = target;
             (OpenWindow("conversation") as ConversationWindowView)?.Open(target, topic);
         }
@@ -23,7 +24,10 @@ namespace Workerborn
             bool leavingGuide = dialogueTarget != null && dialogueTarget.Role == VillageRole.Guide;
             dialogueTarget = null;
             if (views.TryGetValue("conversation", out var view))
+            {
                 view.gameObject.SetActive(false);
+                windowFocus.Remove(view);
+            }
             if (game != null)
             {
                 game.ShowNpcPortrait(null);

@@ -46,6 +46,8 @@ namespace Workerborn.Editor
                 "hideBaseHair",
                 "skinTint",
                 "clothingTint",
+                "useP09",
+                "p09Look",
                 "rightHandSocket",
                 "leftHandSocket",
                 "idle",
@@ -55,7 +57,7 @@ namespace Workerborn.Editor
             }
 
             )
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(field));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(field), true);
             serializedObject.ApplyModifiedProperties();
             if (EditorGUI.EndChangeCheck())
             {

@@ -17,9 +17,19 @@ namespace Workerborn
         [SerializeField, Range(0, 31)]
         private int renderLayer = 2;
         private CharacterDefinition trialAppearance = null;
+        private CharacterLook? customLook;
         public CharacterDefinition Appearance => trialAppearance != null ? trialAppearance :
             npc != null ? npc.Appearance : playerSettings != null ? playerSettings.Player : appearance;
         public Transform VisualRoot => visualRoot;
+        public Vector3 NamePosition => transform.position + Vector3.up * ((Appearance?.Height ?? 1.7f) + .21f);
+        private CharacterLook CurrentLook => customLook ?? Appearance.DefaultLook;
+
+        internal void ApplyProfileLook(CharacterLook look)
+        {
+            customLook = look.Validated();
+            if (Appearance?.UsesP09 == true && visualRoot != null)
+                P09Wardrobe.Apply(visualRoot, CurrentLook);
+        }
         public Animator Animator => visualRoot != null ? visualRoot.GetComponentInChildren<Animator>() : null;
 
         [SerializeField, HideInInspector]
@@ -42,6 +52,7 @@ namespace Workerborn
                 return;
             var rig = visualRoot.GetChild(0);
             bool changedAppearance = false;
+            bool p09 = Appearance?.UsesP09 == true;
             changed.Clear();
             foreach (var entry in worn)
             {
@@ -72,11 +83,17 @@ namespace Workerborn
                 var part = settings.FindItem(entry.Value)?.EquipmentPart;
                 if (part == null)
                     continue;
+                if (p09 && part.P09ArmorSet > 0)
+                {
+                    worn.Add(entry.Key, new WornPart { Id = entry.Value });
+                    changedAppearance = true;
+                    continue;
+                }
                 var defaults = rig.GetComponentsInChildren<CharacterGarment>();
-                var partVisual = CharacterAssembler.AttachPart(part, rig, appearance: Appearance, optional: trialAppearance != null);
+                var partVisual = CharacterAssembler.AttachPart(part, rig, appearance: Appearance, optional: p09 || trialAppearance != null);
                 if (partVisual == null)
                 {
-                    if (trialAppearance != null)
+                    if (p09 || trialAppearance != null)
                         worn.Add(entry.Key, new WornPart { Id = entry.Value });
                     continue;
                 }
@@ -100,7 +117,11 @@ namespace Workerborn
                 changedAppearance = true;
             }
             if (changedAppearance)
+            {
+                if (p09)
+                    P09Wardrobe.Apply(rig, CurrentLook, equipment, settings);
                 CharacterGarment.RefreshSkin(rig);
+            }
         }
 
         public void SetPortraitLayer(bool portrait)
@@ -112,6 +133,8 @@ namespace Workerborn
 
         private void OnEnable()
         {
+            if (Appearance?.UsesP09 == true && visualRoot != null)
+                P09Wardrobe.Apply(visualRoot, CurrentLook);
             Appearance?.ToonPalette?.Apply(visualRoot);
             CharacterAssembler.ApplyTints(visualRoot, Appearance);
             if (visualRoot != null)
@@ -139,7 +162,7 @@ namespace Workerborn
             if (Appearance == null || Appearance.BasePrefab == null)
                 return;
             var previous = visualRoot;
-            var next = CharacterAssembler.Build(Appearance, transform);
+            var next = CharacterAssembler.Build(Appearance, transform, customLook);
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {

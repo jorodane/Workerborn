@@ -26,6 +26,7 @@ namespace Workerborn
         public VillageSave character;
         public VillageWorldRecord world;
         public CampaignStatus status;
+        public PortableCharacter appearance;
         public SessionAvatar avatar;
         public SessionAvatar[] avatars;
     }
@@ -33,13 +34,12 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 1;
+        public const int ProtocolVersion = 2;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
         private const float WorldInterval = .15f;
         private const float SaveInterval = 15f;
-        private const string DefaultName = "일꾼";
         private static readonly Encoding WireEncoding = new UTF8Encoding(false, true);
 
         private sealed class Connection
@@ -66,6 +66,8 @@ namespace Workerborn
         }
         public bool IsDedicated { get; private set; }
         public bool Online => kind.HasValue;
+        public bool HasLocalWorld => selectedWorld != null && !Online;
+        public PortableCharacter SelectedCharacter { get; private set; }
         public bool SteamHost => kind == SessionKind.SteamFriends && authority != null;
         public bool Busy { get; private set; }
         public string MenuMessage { get; private set; }
@@ -92,7 +94,8 @@ namespace Workerborn
         private TcpClient dialingClient;
         private Task dialing;
         private FileStream saveLock;
-        private string savePath, addressKey, joinName, localIdentity;
+        private string savePath, addressKey, legacyAddressKey, joinName, localIdentity;
+        private LocalWorld selectedWorld;
         private float lastHostMessage, nextNetwork, nextSave, connectBy, requestBy, nextHello, leaveBy;
         private int requestSequence, waitingForRequest, operationGeneration;
         private bool inviteWhenReady, exitRequested;
@@ -129,10 +132,28 @@ namespace Workerborn
                 steam.Initialize(RequestInvitation);
         }
 
-        public void SinglePlayer()
+        public void SinglePlayer(LocalWorld world, PortableCharacter character)
         {
             if (!Busy && !Online)
+            {
+                Select(world, character);
                 OpenVillage();
+            }
+        }
+
+        private void Select(LocalWorld world, PortableCharacter character)
+        {
+            selectedWorld = world;
+            SelectedCharacter = character;
+            joinName = character.name;
+        }
+
+        public LocalWorld LegacyFriendWorld()
+        {
+            if (!RequireSteam())
+                return null;
+            var world = new LocalWorld { id = LocalWorld.LegacyFriendId(steam.User), name = "기존 Steam 친구 마을" };
+            return File.Exists(world.FilePath) || File.Exists(world.FilePath + ".bak") ? world : null;
         }
 
         public void ClearMenuMessage() => MenuMessage = "";
@@ -143,10 +164,11 @@ namespace Workerborn
                 FailConnect("접속을 취소했어요.");
         }
 
-        public void HostFriends()
+        public void HostFriends(LocalWorld world, PortableCharacter character)
         {
             if (Busy || Online || !RequireSteam())
                 return;
+            Select(world, character);
             BeginConnect(SessionKind.SteamFriends, "Steam 친구 방을 여는 중…");
             int generation = operationGeneration;
             steam.Host(ProtocolVersion, success =>
@@ -158,8 +180,6 @@ namespace Workerborn
                     FailConnect("Steam 친구 방을 만들지 못했어요.");
                     return;
                 }
-                localIdentity = "steam:" + steam.User;
-                joinName = CleanName(steam.PlayerName);
                 inviteWhenReady = true;
                 OpenVillage();
             });
@@ -173,10 +193,11 @@ namespace Workerborn
             return steam.Friends();
         }
 
-        public void JoinFriend(ulong lobby)
+        public void JoinFriend(ulong lobby, PortableCharacter character)
         {
             if (Busy || Online || lobby == 0 || !RequireSteam())
                 return;
+            Select(null, character);
             BeginConnect(SessionKind.SteamFriends, "Steam 친구 방에 접속하는 중…");
             int generation = operationGeneration;
             steam.Join(lobby, ProtocolVersion, success =>
@@ -193,7 +214,7 @@ namespace Workerborn
             });
         }
 
-        public void JoinDedicated(string address, string name)
+        public void JoinDedicated(string address, PortableCharacter character)
         {
             if (Busy || Online)
                 return;
@@ -202,9 +223,10 @@ namespace Workerborn
                 MenuMessage = "서버 주소를 확인해 주세요. 예: 127.0.0.1:7777";
                 return;
             }
+            Select(null, character);
             BeginConnect(SessionKind.Dedicated, "데디케이티드 서버에 접속하는 중…");
-            addressKey = "workerborn.server." + server + ":" + port;
-            joinName = CleanName(name);
+            legacyAddressKey = "workerborn.server." + server + ":" + port;
+            addressKey = legacyAddressKey + "." + character.id;
             dialingClient = new TcpClient(AddressFamily.InterNetwork);
             try { dialing = dialingClient.ConnectAsync(server, port); }
             catch (SocketException) { FailConnect("서버에 연결하지 못했어요."); }
@@ -230,13 +252,19 @@ namespace Workerborn
 
         private void RequestInvitation(ulong lobby)
         {
-            if (Online || village != null)
-            {
-                village?.Hud.ShowToast("친구 방에 입장하려면 시작 화면으로 돌아와 주세요.");
-                pendingInvite = lobby;
-            }
-            else
-                JoinFriend(lobby);
+            pendingInvite = lobby;
+            if (village != null)
+                village.Hud.ShowToast("친구 방에 입장하려면 시작 화면으로 돌아와 주세요.");
+        }
+
+        public bool TryTakeInvite(out ulong lobby)
+        {
+            lobby = 0;
+            if (pendingInvite == 0 || Busy || Online || village != null)
+                return false;
+            lobby = pendingInvite;
+            pendingInvite = 0;
+            return true;
         }
 
         private void OpenVillage()
@@ -264,13 +292,19 @@ namespace Workerborn
                     _ = Task.Run(ReadConsole);
                     Debug.Log($"Workerborn dedicated server listening on {ip}:{port}. World: {savePath}");
                 }
-                else if (kind == SessionKind.SteamFriends && localIdentity != null)
+                else if (selectedWorld != null && SelectedCharacter != null)
                 {
-                    string path = Path.Combine(Application.persistentDataPath, "worlds", "friends-" + steam.User + ".json");
-                    OpenCampaign(path, rules, sites, spawn);
-                    if (!authority.Connect(localIdentity, joinName, out var profile))
-                        throw new InvalidOperationException("Host profile unavailable.");
-                    CommitInitial(profile, authority.Status(localIdentity, true));
+                    localIdentity = "local:" + SelectedCharacter.id;
+                    string path = selectedWorld.FilePath;
+                    CampaignRecord seed = null;
+                    if (selectedWorld.FromLegacySolo && !File.Exists(path) && !File.Exists(path + ".bak"))
+                        seed = ReadLegacySolo(rules);
+                    OpenCampaign(path, rules, sites, spawn, seed);
+                    if (selectedWorld.FromSteam && Online)
+                        authority.AdoptLegacyIdentity("steam:" + steam.User, localIdentity);
+                    if (!authority.Connect(localIdentity, joinName, out var profile, SelectedCharacter.look))
+                        throw new InvalidOperationException("Local character profile unavailable.");
+                    CommitInitial(profile, Online ? authority.Status(localIdentity, true) : null);
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is ArgumentException || ex is UnauthorizedAccessException ||
@@ -283,11 +317,12 @@ namespace Workerborn
                     Application.Quit(1);
                 }
                 else
-                    QueueExit("친구 방의 저장 기록을 열지 못했어요.");
+                    QueueExit("선택한 월드의 저장 기록을 열지 못했어요.");
             }
         }
 
-        private void OpenCampaign(string path, VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn)
+        private void OpenCampaign(string path, VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn,
+            CampaignRecord seed = null)
         {
             savePath = Path.GetFullPath(path);
             Directory.CreateDirectory(Path.GetDirectoryName(savePath));
@@ -316,8 +351,39 @@ namespace Workerborn
             }
             if (File.Exists(savePath) || File.Exists(savePath + ".bak"))
                 throw new InvalidDataException("Both world records are unreadable.");
-            authority = new VillageCampaign(rules, sites, spawn.x, spawn.z);
+            authority = new VillageCampaign(rules, sites, spawn.x, spawn.z, seed);
             nextSave = Time.unscaledTime + SaveInterval;
+        }
+
+        private CampaignRecord ReadLegacySolo(VillageRules rules)
+        {
+            if (!VillageSaveStore.TryLoad(out var state, out var existing, out _, rules, repairBackup: false))
+                throw new InvalidDataException("The previous single-player world could not be read.");
+            var save = state.Export();
+            save.playerX = existing.playerX;
+            save.playerZ = existing.playerZ;
+            save.cropRemaining = existing.cropRemaining;
+            save.cropStates = existing.cropStates;
+            save.animalStates = existing.animalStates;
+            save.collectedPickupIds = existing.collectedPickupIds;
+            save.drops = existing.drops;
+            return new CampaignRecord
+            {
+                world = state.ExportWorld(),
+                profiles = new[] { new CampaignProfile
+                {
+                    identity = localIdentity, id = "single-player", name = joinName,
+                    enteredEra = state.Era, character = save
+                } }
+            };
+        }
+
+        public bool SaveSolo(VillageWorldRecord world, VillageSave character)
+        {
+            if (Online || authority == null)
+                return false;
+            authority.StoreSolo(localIdentity, world, character);
+            return SaveWorld();
         }
 
         private void CommitInitial(CampaignProfile profile, CampaignStatus status)
@@ -416,12 +482,6 @@ namespace Workerborn
                 SceneManager.LoadScene(MenuScene);
                 return;
             }
-            if (pendingInvite != 0 && !Online && !Busy && village == null)
-            {
-                ulong lobby = pendingInvite;
-                pendingInvite = 0;
-                JoinFriend(lobby);
-            }
             steam.Poll(ReceiveSteam);
             float now = Time.unscaledTime;
             if (leaveBy > 0 && now >= leaveBy)
@@ -442,7 +502,8 @@ namespace Workerborn
                 dialingClient = null;
                 if (!Send(host, new SessionPacket
                 {
-                    type = SessionMessage.Hello, player = joinName, token = PlayerPrefs.GetString(addressKey, "")
+                    type = SessionMessage.Hello, appearance = SelectedCharacter,
+                    token = PlayerPrefs.GetString(addressKey, PlayerPrefs.GetString(legacyAddressKey, ""))
                 }))
                 {
                     FailConnect("서버에 연결하지 못했어요.");
@@ -461,7 +522,7 @@ namespace Workerborn
                 else if (LocalPlayerId == null && now >= nextHello)
                 {
                     nextHello = now + 1f;
-                    Send(host, new SessionPacket { type = SessionMessage.Hello });
+                    Send(host, new SessionPacket { type = SessionMessage.Hello, appearance = SelectedCharacter });
                 }
 
                 if (host != null && (host.Tcp?.Closed == true || now - lastHostMessage >= ConnectionTimeout ||
@@ -481,7 +542,7 @@ namespace Workerborn
                 QueueExit("서버 요청 시간이 지났어요. 방에 다시 입장해 주세요.");
                 return;
             }
-            if (authority != null)
+            if (authority != null && Online)
             {
                 PollAuthority(now);
                 if (authority == null)
@@ -511,7 +572,7 @@ namespace Workerborn
                 else if (host != null)
                     Send(host, new SessionPacket { type = SessionMessage.Move, avatar = pose });
             }
-            if (authority != null)
+            if (authority != null && Online)
                 PublishWorld();
         }
 
@@ -646,10 +707,20 @@ namespace Workerborn
             string token = null;
             if (connection.Identity == null)
             {
-                string name = connection.Steam != 0 ? steam.NameOf(connection.Steam) : packet.player;
+                var appearance = packet.appearance;
+                if (appearance == null || !PortableCharacter.ValidId(appearance.id))
+                {
+                    Send(connection, new SessionPacket { type = SessionMessage.Error, message = "입장할 캐릭터를 선택해 주세요." });
+                    return;
+                }
+                string name = PortableCharacter.CleanName(appearance.name, "일꾼");
                 string identity;
                 if (connection.Steam != 0)
-                    identity = "steam:" + connection.Steam;
+                {
+                    string legacy = "steam:" + connection.Steam;
+                    identity = legacy + ":" + appearance.id;
+                    authority.AdoptLegacyIdentity(legacy, identity);
+                }
                 else if (string.IsNullOrEmpty(packet.token))
                     identity = "tcp:" + Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
                 else if (packet.token.Length == 68 && packet.token.StartsWith("tcp:", StringComparison.Ordinal) && authority.HasIdentity(packet.token))
@@ -659,7 +730,7 @@ namespace Workerborn
                     Send(connection, new SessionPacket { type = SessionMessage.Error, value = 1, message = "이 서버에 이전 접속 기록이 없어요. 다시 입장해 주세요." });
                     return;
                 }
-                if (!authority.Connect(identity, CleanName(name), out _))
+                if (!authority.Connect(identity, name, out _, appearance.look))
                 {
                     Send(connection, new SessionPacket { type = SessionMessage.Error, message = "방이 가득 찼거나 이 캐릭터가 이미 접속 중이에요." });
                     return;
@@ -740,6 +811,7 @@ namespace Workerborn
                 if (connection.Tcp != null && !string.IsNullOrEmpty(packet.token))
                 {
                     PlayerPrefs.SetString(addressKey, packet.token);
+                    PlayerPrefs.DeleteKey(legacyAddressKey);
                     PlayerPrefs.Save();
                 }
                 OpenVillage();
@@ -749,6 +821,7 @@ namespace Workerborn
                 if (packet.value == 1 && addressKey != null)
                 {
                     PlayerPrefs.DeleteKey(addressKey);
+                    PlayerPrefs.DeleteKey(legacyAddressKey);
                     PlayerPrefs.Save();
                 }
                 FailConnect(packet.message);
@@ -818,10 +891,10 @@ namespace Workerborn
             }
         }
 
-        private void SaveWorld()
+        private bool SaveWorld()
         {
             if (authority == null || savePath == null)
-                return;
+                return false;
             nextSave = Time.unscaledTime + SaveInterval;
             try
             {
@@ -831,10 +904,12 @@ namespace Workerborn
                     File.Replace(temporary, savePath, savePath + ".bak");
                 else
                     File.Move(temporary, savePath);
+                return true;
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
                 Debug.LogError("Workerborn could not save the world: " + e.Message);
+                return false;
             }
         }
 
@@ -872,7 +947,10 @@ namespace Workerborn
             saveLock = null;
             authority = null;
             localIdentity = null;
+            selectedWorld = null;
+            SelectedCharacter = null;
             joinName = null;
+            addressKey = legacyAddressKey = null;
             LocalPlayerId = null;
             InitialCharacter = null;
             Status = null;
@@ -886,7 +964,7 @@ namespace Workerborn
 
         private void OnApplicationQuit()
         {
-            if (village != null && Online)
+            if (village != null && (Online || HasLocalWorld))
                 village.SaveGame(false);
             Shutdown();
             steam.Dispose();
@@ -898,14 +976,5 @@ namespace Workerborn
             return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
         }
 
-        private static string CleanName(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                return DefaultName;
-            string cleaned = new string(value.Trim().Where(c => !char.IsControl(c) && c != '<' && c != '>').Take(32).ToArray());
-            if (cleaned.Length > 0 && char.IsHighSurrogate(cleaned[cleaned.Length - 1]))
-                cleaned = cleaned.Substring(0, cleaned.Length - 1);
-            return string.IsNullOrWhiteSpace(cleaned) ? DefaultName : cleaned;
-        }
     }
 }

@@ -33,3 +33,5 @@ MonoBehaviour:
   headwear: {fileID: 0}
   rightHand: {fileID: 0}
   leftHand: {fileID: 0}
+  useP09: 1
+  p09Look: {body: 0, hair: 4, outfit: 3, face: 1}

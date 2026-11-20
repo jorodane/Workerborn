@@ -44,6 +44,7 @@ namespace Workerborn
         private bool manualMoving;
         private float nextCollect;
         public bool AcceptsInteractionCommands => village == null || !village.ControlsBlocked;
+        public bool AcceptsGroundItemCommands => village == null || village.Hud.AllowsGroundItems;
         public PointerTargeting Targeting => village != null ? village.Targeting : null;
         internal VillagePrototype Village => village;
         public bool IsWalking => Action == WorkerAction.Moving && WorkerbornInput.Held("Gameplay/Walk");
@@ -78,6 +79,8 @@ namespace Workerborn
             if (worldCamera == null || agent == null || !agent.isOnNavMesh)
                 return;
             ReadInput();
+            if (village != null && village.Hud.WorldActionsLocked && Action != WorkerAction.Idle)
+                Cancel();
             agent.speed = IsWalking ? walkSpeed : runSpeed;
             bool movingByKeys = UpdateManualMovement();
             UpdateNearbyCollection();
@@ -122,7 +125,7 @@ namespace Workerborn
         private void UpdateNearbyCollection()
         {
             const string action = "Gameplay/CollectNearby";
-            if (!AcceptsInteractionCommands || !WorkerbornInput.Held(action) ||
+            if (!AcceptsGroundItemCommands || !WorkerbornInput.Held(action) ||
                 !WorkerbornInput.Pressed(action) && Time.unscaledTime < nextCollect)
                 return;
             nextCollect = Time.unscaledTime + collectRepeatSeconds;
@@ -212,7 +215,7 @@ namespace Workerborn
         public bool IsInPickupRange(GroundPickup item) => item != null && InReach(item.LandingPosition, pickupDistance);
         public void CommandPickup(GroundPickup item)
         {
-            if (!AcceptsInteractionCommands || item == null || !item.CanCollect)
+            if (!AcceptsGroundItemCommands || item == null || !item.CanCollect)
                 return;
             if (IsInPickupRange(item))
             {
@@ -220,6 +223,8 @@ namespace Workerborn
                 return;
             }
 
+            if (!AcceptsInteractionCommands)
+                return;
             if (pickupTarget.Target == item && Action == WorkerAction.Moving)
                 return;
             if (NavigateNear(item.LandingPosition, pickupDistance * .8f))
@@ -316,12 +321,17 @@ namespace Workerborn
 
         public bool CommandDrop(int entryId, Vector3 destination)
         {
-            if (village == null || village.Hud.HasModal || agent == null || !agent.isOnNavMesh)
+            if (village == null || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
                 return false;
             var entry = village.State.Inventory.Find(entryId);
             if (village.DropPrefabFor(entry) == null)
                 return false;
             bool inReach = InReach(destination, pickupDistance);
+            if (!inReach && village.Hud.WorldActionsLocked)
+            {
+                Message?.Invoke("아이템을 손이 닿는 바닥에 놓아 주세요.");
+                return false;
+            }
             if (!inReach && !NavigateNear(destination, pickupDistance * .8f))
                 return false;
             pendingDrop = entry.Copy();

@@ -74,6 +74,6 @@ assert (CONTENT/'Prefabs/Crops/Potato.prefab').is_file()
 wardrobe={'field_cap','field_coat','field_trousers','field_boots','field_gloves'}
 assert {p.stem for p in (CONTENT/'Prefabs/Items').glob('*.prefab')}=={'GroundPickup','potato','bread','hoe','bag','gold','egg','timber','woodcutting_axe','legend_axe','rabbit_meat','branch'} | wardrobe
 manifest=json.loads((ROOT/'Tools/ui-prefab-manifest.json').read_text())
-for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','ShopWindow','QuantityWindow','ConversationWindow','MainMenu','EraWindow','SystemWindow']:
+for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','ShopWindow','QuantityWindow','ConversationWindow','ItemDetailWindow','MainMenu','EraWindow','SystemWindow']:
     assert name in manifest and (ROOT/manifest[name]['path']).is_file()
 print(f'Validated {count} component/content contracts, typed UI bindings, complete window prefabs and shared interaction subclasses.')

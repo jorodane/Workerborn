@@ -11,8 +11,6 @@ namespace Workerborn
         private float spacing = 3f;
         [SerializeField, Min(0f)]
         private float edgeMargin = 8f;
-        [SerializeField, Range(.5f, 1f), Tooltip("Smallest scale used when nearby Alt nameplates overlap.")]
-        private float minimumBoxScale = .7f;
         private readonly Dictionary<WorldInteractable, WorldNameplateView> names = new Dictionary<WorldInteractable, WorldNameplateView>();
         private readonly List<WorldInteractable> removed = new List<WorldInteractable>();
         private readonly List<NameplateSlot> slots = new List<NameplateSlot>();
@@ -124,7 +122,7 @@ namespace Workerborn
                 scrollOrder = null;
             }
             float overflow = NameplateLayout.Present(slots, alt, canvas.rect.yMin + edgeMargin + 32, canvas.rect.yMax - edgeMargin,
-                spacing, scroll, scrollOrder, minimumBoxScale, canvas.rect.xMin + edgeMargin, canvas.rect.xMax - edgeMargin);
+                spacing, scroll, scrollOrder, canvas.rect.xMin + edgeMargin, canvas.rect.xMax - edgeMargin);
             scroll = Mathf.Clamp(scroll, 0, overflow);
             foreach (var view in visible)
                 view.ApplyLayout();

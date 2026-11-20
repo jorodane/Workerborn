@@ -35,6 +35,12 @@ namespace Workerborn
         private Color skinTint = Color.white;
         [SerializeField]
         private Color clothingTint = Color.white;
+        [Header("P09 appearance")]
+        [SerializeField] private bool useP09;
+        [SerializeField] private CharacterLook p09Look;
+        public bool UsesP09 => useP09;
+        public CharacterLook DefaultLook => p09Look.Validated();
+
         [Header("Tool sockets")]
         [SerializeField, Tooltip("Transform to use in place of the default weapon_R socket.")]
         private string rightHandSocket;

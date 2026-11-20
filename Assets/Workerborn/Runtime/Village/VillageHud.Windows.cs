@@ -59,7 +59,12 @@ namespace Workerborn
         public void ClickInventoryItem(int id, Vector2 screen)
         {
             if (HasQuantityPrompt)
+            {
+                if (IsShopOpen && views["quantity"] is QuantityWindowView prompt && prompt.IsSelling &&
+                    game.State.MaximumSellQuantity(id) > 0)
+                    OpenStackQuantity(game.State.Inventory.Find(id), QuantityAction.Sell);
                 return;
+            }
             HideItemTooltip();
             CloseItemContext();
             if (IsHoldingItem)
@@ -92,6 +97,8 @@ namespace Workerborn
                 return;
             if (game.State.TryGetDocumentPage(item.ItemId, out var page))
                 OpenQuestDetail(page);
+            else if (WorldActionsLocked)
+                return;
             else if (item.ItemId == ItemIds.Bread)
                 game.Perform(game.State.TryEatBread);
             else if (item.Spec.EquipmentSlot != EquipmentSlot.None)
@@ -101,6 +108,8 @@ namespace Workerborn
 
         public void ClickEquipment(EquipmentSlot slot, Vector2 screen)
         {
+            if (WorldActionsLocked)
+                return;
             if (IsHoldingItem)
             {
                 var item = game.State.Inventory.Find(draggedEntry);
@@ -157,17 +166,26 @@ namespace Workerborn
                 view.gameObject.SetActive(false);
         }
 
-        public void ShowItemTooltip(int id, Vector2 screen)
+        public void ShowItemTooltip(string id, Vector2 screen)
         {
-            if (IsHoldingItem)
-                return;
-            var item = game.State.Inventory.Find(id);
-            if (item == null)
+            if (IsHoldingItem || string.IsNullOrEmpty(id))
                 return;
             var view = OpenWindow("tooltip") as ItemTooltipView;
-            view?.Show(item.Spec);
+            view?.Show(ItemCatalog.Get(id));
             if (view != null)
                 ShowAt(view, screen + new Vector2(16, -12));
+        }
+
+        internal void ShowEquipmentTooltip(EquipmentSlot slot, Vector2 screen)
+        {
+            if (game.State.Equipment.TryGetValue(slot, out string item))
+                ShowItemTooltip(item, screen);
+        }
+
+        internal void InspectGroundItem(string id, int quantity)
+        {
+            HideItemTooltip();
+            (OpenWindow("itemdetail") as ItemTooltipView)?.Show(ItemCatalog.Get(id), quantity);
         }
 
         public void HideItemTooltip()
@@ -200,8 +218,9 @@ namespace Workerborn
         {
             CancelItemDrag();
             var item = game.State.Inventory.Find(id);
-            if (item == null || inventoryGrid == null || HasModal || HasQuantityPrompt)
+            if (item == null || inventoryGrid == null)
                 return;
+            CloseQuantity();
             releaseHeldOnMouseUp = releaseOnMouseUp;
             draggedEntry = id;
             selectedEntry = id;
@@ -285,7 +304,7 @@ namespace Workerborn
 
         public void DropHeldOnGround(Vector2 screen)
         {
-            if (!IsHoldingItem || HasModal || releaseHeldOnMouseUp || game.Targeting == null)
+            if (!IsHoldingItem || releaseHeldOnMouseUp || game.Targeting == null)
                 return;
             if (!game.Targeting.TryDropPoint(screen, out var ground))
             {

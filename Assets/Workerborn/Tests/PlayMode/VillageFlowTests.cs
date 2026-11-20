@@ -661,7 +661,7 @@ namespace Workerborn.Tests
         {
             game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
             var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
-            FindButton(dialogue, "구매하기").onClick.Invoke();
+            FindButton(dialogue, "거래하기").onClick.Invoke();
             Assert.That(game.Hud.HasModal, Is.False);
             var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
             Assert.That(shop.GetComponentInChildren<ShopSellTarget>().name, Is.EqualTo("Stock viewport"));

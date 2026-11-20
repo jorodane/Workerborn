@@ -48,6 +48,8 @@ namespace Workerborn
             }
         }
 
+        public string WeatherName(int day) => weather != null ? weather.NameForDay(day) : "";
+
         public void SetDate(int day, float minute)
         {
             weather?.SetDate(day, minute);

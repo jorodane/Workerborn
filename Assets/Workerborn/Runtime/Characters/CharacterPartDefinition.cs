@@ -22,6 +22,16 @@ namespace Workerborn
         private string materialRenderer;
         [SerializeField, Min(0)] private int materialIndex;
 
+        [Header("P09 attachment")]
+        [SerializeField, Range(0, CharacterLook.OutfitCount)]
+        private int p09ArmorSet;
+        [SerializeField] private bool useP09Grip;
+        [SerializeField] private Vector3 p09Position;
+        [SerializeField] private Vector3 p09EulerAngles;
+
+        public int P09ArmorSet => p09ArmorSet;
+        public Vector3 GripPosition(bool p09) => p09 && useP09Grip ? p09Position : localPosition;
+        public Vector3 GripRotation(bool p09) => p09 && useP09Grip ? p09EulerAngles : localEulerAngles;
         public CharacterPartSlot Slot => slot;
         public GameObject Prefab => prefab;
         public GameObject PrefabForRig(bool female) => female && femalePrefab != null ? femalePrefab : prefab;

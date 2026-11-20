@@ -25,18 +25,13 @@ namespace Workerborn
         private float fadeOutSeconds = .16f;
         [SerializeField, Min(.01f)]
         private float fadeInSeconds = .28f;
-        [SerializeField, Min(.1f)]
-        private float selectionOutlineWidth = 1.05f;
         private Camera view;
-        private WorldTargetReference selectedTarget;
-        private Color selectionColor;
-        private int cameraOpacityProperty, outlineColorProperty, outlineWidthProperty;
+        private int cameraOpacityProperty;
         private readonly HashSet<Renderer> hidden = new HashSet<Renderer>();
         private readonly RaycastHit[] sightHits = new RaycastHit[64];
         private readonly HashSet<VillageMapProp> hiddenProps = new HashSet<VillageMapProp>();
         private readonly Dictionary<Renderer, FadeState> states = new Dictionary<Renderer, FadeState>();
         private readonly List<Renderer> removed = new List<Renderer>();
-        private readonly List<Renderer> selectedRenderers = new List<Renderer>();
         private readonly List<Material> materials = new List<Material>();
         private readonly Stack<MaterialPropertyBlock> availableBlocks = new Stack<MaterialPropertyBlock>();
         private readonly List<(Renderer Renderer, int Index, MaterialPropertyBlock Block)> savedBlocks =
@@ -59,12 +54,6 @@ namespace Workerborn
             states.Remove(renderer);
         }
 
-        internal void Select(WorldInteractable target, Color color)
-        {
-            selectedTarget = new WorldTargetReference(target);
-            selectionColor = color;
-        }
-
         public bool IgnorePointerCollider(Collider collider)
         {
             if (collider.GetComponentInParent<WorldInteractable>() != null)
@@ -83,8 +72,6 @@ namespace Workerborn
             working = new MaterialPropertyBlock();
             view = GetComponent<Camera>();
             cameraOpacityProperty = Shader.PropertyToID("_CameraOpacity");
-            outlineColorProperty = Shader.PropertyToID("_OutlineColor");
-            outlineWidthProperty = Shader.PropertyToID("_OutlineWidth");
         }
 
         public void Initialize(Transform followedPlayer) => player = followedPlayer;
@@ -123,7 +110,7 @@ namespace Workerborn
                 var interaction = capsule.GetComponentInParent<WorldInteractable>();
                 var character = capsule.GetComponentInParent<CharacterActor>();
                 Transform actor = interaction != null ? interaction.transform : character != null ? character.transform : null;
-                if (actor == null)
+                if (actor == null || actor == player || actor.IsChildOf(player))
                     continue;
                 var visuals = actor.GetComponentsInChildren<Renderer>();
                 Bounds bounds = default;
@@ -141,7 +128,11 @@ namespace Workerborn
                         bounds.Encapsulate(renderer.bounds);
                 }
 
-                float margin = containmentPadding + fadeLeadDistance + (view != null ? view.nearClipPlane : .08f);
+                // A humanoid rig's bounds include animation margins, hair and inactive equipment.
+                // Its gameplay capsule is the volume the camera can enter.
+                float nearPlane = view != null ? view.nearClipPlane : .08f;
+                float margin = (character == null ? containmentPadding + fadeLeadDistance : .12f) + nearPlane;
+                hasBounds &= character == null;
                 bool inside = Contains(capsule, position, margin);
                 if (hasBounds)
                 {
@@ -153,7 +144,7 @@ namespace Workerborn
                     for (int corner = 0; corner < 4; corner++)
                     {
                         Vector3 near = view.ViewportToWorldPoint(new Vector3(corner & 1, corner >> 1, view.nearClipPlane));
-                        if (Contains(capsule, near, containmentPadding) || hasBounds && bounds.Contains(near))
+                        if (Contains(capsule, near, character == null ? containmentPadding : 0f) || hasBounds && bounds.Contains(near))
                         {
                             inside = true;
                             break;
@@ -277,20 +268,12 @@ namespace Workerborn
             if (camera != view)
                 return;
             Restore();
-            selectedRenderers.Clear();
-            var selection = selectedTarget.Target;
-            if (selection != null)
-                selection.GetComponentsInChildren(false, selectedRenderers);
-
             foreach (var pair in states)
                 if (pair.Key != null && pair.Value.Opacity < 1)
-                    ApplyProperties(pair.Key, pair.Value.Opacity, selectedRenderers.Contains(pair.Key));
-            foreach (var renderer in selectedRenderers)
-                if (renderer != null && Opacity(renderer) >= 1)
-                    ApplyProperties(renderer, 1, true);
+                    ApplyProperties(pair.Key, pair.Value.Opacity);
         }
 
-        private void ApplyProperties(Renderer renderer, float opacity, bool selected)
+        private void ApplyProperties(Renderer renderer, float opacity)
         {
             if (!renderer.enabled || !renderer.gameObject.activeInHierarchy)
                 return;
@@ -307,11 +290,7 @@ namespace Workerborn
                 var material = materials[i];
                 if (material == null)
                     continue;
-                bool fade = opacity < 1 && material.HasProperty(cameraOpacityProperty);
-                // Flat Kit's existing mesh outline pass handles depth and draws the silhouette.
-                bool outline = selected && material.HasProperty(outlineColorProperty) && material.HasProperty(outlineWidthProperty) &&
-                    material.IsKeywordEnabled("DR_OUTLINE_ON") && material.GetShaderPassEnabled("Outline");
-                if (!fade && !outline)
+                if (!material.HasProperty(cameraOpacityProperty))
                     continue;
 
                 var saved = availableBlocks.Count == 0 ? new MaterialPropertyBlock() : availableBlocks.Pop();
@@ -321,13 +300,7 @@ namespace Workerborn
                     renderer.GetPropertyBlock(working);
                 else
                     renderer.GetPropertyBlock(working, i);
-                if (fade)
-                    working.SetFloat(cameraOpacityProperty, opacity);
-                if (outline)
-                {
-                    working.SetColor(outlineColorProperty, selectionColor);
-                    working.SetFloat(outlineWidthProperty, Mathf.Max(selectionOutlineWidth, material.GetFloat(outlineWidthProperty)));
-                }
+                working.SetFloat(cameraOpacityProperty, opacity);
                 renderer.SetPropertyBlock(working, i);
             }
         }
@@ -361,7 +334,6 @@ namespace Workerborn
             hidden.Clear();
             hiddenProps.Clear();
             states.Clear();
-            selectedTarget = default;
         }
     }
 }

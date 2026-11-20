@@ -47,6 +47,21 @@ namespace Workerborn
             return null;
         }
 
+        public string NameForDay(int day)
+        {
+            string profile = ProfileForDay(day)?.name;
+            return profile switch
+            {
+                "Clear" => "맑음",
+                "Partly Cloudy" => "구름 조금",
+                "Light Rain" => "약한 비",
+                "Cloudy" => "흐림",
+                "Overcast" => "흐림",
+                "Rain" => "비",
+                _ => profile ?? ""
+            };
+        }
+
         private double DayRoll(int day)
         {
             // Mix the saved date and the authored seed without touching the game's random state.

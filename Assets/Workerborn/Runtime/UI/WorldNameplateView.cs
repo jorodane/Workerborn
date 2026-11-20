@@ -23,28 +23,21 @@ namespace Workerborn
         private Color pressedColor = new Color(.42f, .31f, .12f, .95f);
         [SerializeField]
         private Color nameColor = new Color(1f, .98f, .91f);
-        [SerializeField]
-        private Color boxedNameColor = new Color(.65f, .89f, 1f);
+        [SerializeField] private Color interactionName = new Color(.65f, .89f, 1f);
+        [SerializeField] private Color npcName = new Color(1f, .9f, .48f);
+        [SerializeField] private Color itemName = Color.white;
+        [SerializeField] private Color enemyName = new Color(1f, .63f, .35f);
         private bool boxVisible, pointerInside, pointerDown;
-        private bool capturedScale;
-        private Vector3 authoredScale;
         private PointerTargeting targeting;
         private WorldTargetReference target;
         public WorldInteractable Target => target.Target;
         public bool Hovered => boxVisible && pointerInside;
         public RectTransform Rect => (RectTransform)transform;
         internal NameplateSlot LayoutSlot { get; } = new NameplateSlot();
-        internal Vector2 LayoutSize => Vector2.Scale(Rect.rect.size,
-            new Vector2(Mathf.Abs(authoredScale.x), Mathf.Abs(authoredScale.y)));
+        internal Vector2 LayoutSize => Vector2.Scale(Rect.rect.size, Rect.localScale);
 
         public void Bind(WorldInteractable target, PointerTargeting controller, string text = null)
         {
-            if (!capturedScale)
-            {
-                authoredScale = Rect.localScale;
-                capturedScale = true;
-            }
-            Rect.localScale = authoredScale;
             this.target = new WorldTargetReference(target);
             targeting = controller;
             SetText(text ?? target.DisplayName);
@@ -55,10 +48,7 @@ namespace Workerborn
         {
             var rect = Rect;
             var slot = LayoutSlot;
-            var scale = new Vector3(authoredScale.x * slot.Scale, authoredScale.y * slot.Scale, authoredScale.z);
-            if (rect.localScale != scale)
-                rect.localScale = scale;
-            Vector2 centerOffset = Vector2.Scale(rect.rect.center, scale);
+            Vector2 centerOffset = Vector2.Scale(rect.rect.center, rect.localScale);
             var position = rect.localPosition;
             position.x = slot.PlacedX - centerOffset.x;
             position.y = slot.PlacedY - centerOffset.y;
@@ -97,7 +87,14 @@ namespace Workerborn
             bool alt = boxVisible && WorkerbornInput.Held("Gameplay/Names");
             var current = alt ? Target : null;
             background.raycastTarget = current != null;
-            label.color = alt ? boxedNameColor : nameColor;
+            label.color = !alt ? nameColor : current switch
+            {
+                MonsterInteractable => enemyName,
+                GroundPickup => itemName,
+                AnimalNpc => npcName,
+                VillageInteractable npc when npc.Role != VillageRole.NoticeBoard && npc.Role != VillageRole.Shrine => npcName,
+                _ => interactionName
+            };
             if (!alt)
                 pointerInside = pointerDown = false;
             bool selected = current != null && targeting != null && targeting.CurrentTarget == current;

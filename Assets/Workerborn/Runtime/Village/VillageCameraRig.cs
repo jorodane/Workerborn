@@ -57,7 +57,7 @@ namespace Workerborn
             cameraComponent = GetComponent<Camera>();
             cameraComponent.orthographic = false;
             cameraComponent.fieldOfView = fieldOfView;
-            cameraComponent.nearClipPlane = 0.08f;
+            cameraComponent.nearClipPlane = 0.04f;
             cameraComponent.farClipPlane = 180f;
             yaw = initialYaw;
             pitch = initialPitch;
@@ -75,7 +75,7 @@ namespace Workerborn
             bool blocked = game != null && game.ControlsBlocked;
             var ui = game?.Targeting?.UiAt(position);
             bool overUi = ui != null && ui.GetComponentInParent<WorldNameplateView>() == null;
-            if (WorkerbornInput.Pressed("Camera/OrbitRight") && !blocked && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitRight") && (!blocked || game?.Hud.AllowsGroundItems == true) && !overUi)
             {
                 rightPressed = true;
                 rightDragged = false;
@@ -107,7 +107,7 @@ namespace Workerborn
 
             if (WorkerbornInput.Released("Camera/OrbitRight"))
             {
-                RightClickThisFrame = rightPressed && !rightViewMoved && !blocked && !overUi;
+                RightClickThisFrame = rightPressed && !rightViewMoved && (!blocked || !rightDragged && game?.Hud.AllowsGroundItems == true) && !overUi;
                 rightPressed = false;
             }
         }
@@ -142,6 +142,15 @@ namespace Workerborn
             if (game != null && game.GroundTerrain != null)
                 floor = game.GroundTerrain.SampleHeight(position) + game.GroundTerrain.transform.position.y + cameraComponent.nearClipPlane + .2f;
             position.y = Mathf.Max(position.y, floor);
+            if (target.TryGetComponent<CapsuleCollider>(out var capsule) &&
+                CameraVisibility.Contains(capsule, position, cameraComponent.nearClipPlane + .18f))
+            {
+                // Edits to the player capsule must keep even the nearest orbit outside the player.
+                Vector3 away = (position - focus).normalized;
+                for (int step = 0; step < 24 && CameraVisibility.Contains(capsule, position, cameraComponent.nearClipPlane + .18f); step++)
+                    position += away * .15f;
+                position.y = Mathf.Max(position.y, floor);
+            }
             transform.SetPositionAndRotation(position, Quaternion.LookRotation(focus - position, Vector3.up));
         }
     }

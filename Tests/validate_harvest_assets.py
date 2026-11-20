@@ -230,8 +230,10 @@ for actor in actors:
     appearance=docs(resolve(definition))[0]['MonoBehaviour']
     look=docs(resolve(appearance['basePrefab']))
     sources=[resolve(d['PrefabInstance']['m_SourcePrefab']).stem for d in look if 'PrefabInstance' in d]
-    assert {'M02_body','F02_body'} & set(sources) and any(name.startswith('C_hair_') for name in sources)
-    assert sum('SkinnedMeshRenderer' in d for d in look)>=2
+    assert sources == ['P09_Human'] and appearance['useP09'] == 1
+    assert appearance['rightHandSocket'] == 'Weapon_Target_Hand_R'
+    assert appearance['leftHandSocket'] == 'Weapon_Target_Hand_L'
+    assert 1 <= appearance['p09Look']['outfit'] <= 12
     assert all(appearance[k]['fileID'] for k in ['idle','walk','run','work'])
 parts=list((CONTENT/'Data/Characters/Parts').glob('*.asset'));assert len(parts)>=30
 assert {docs(p)[0]['MonoBehaviour']['slot'] for p in parts}>={0,1,2,3,4,6}

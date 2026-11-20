@@ -71,6 +71,10 @@
     "path": "Assets/Workerborn/Prefabs/UI/ItemTooltip.prefab",
     "component": 100046
   },
+  "ItemDetailWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/ItemDetailWindow.prefab",
+    "component": 100046
+  },
   "ItemContext": {
     "path": "Assets/Workerborn/Prefabs/UI/ItemContext.prefab",
     "component": 100056
@@ -89,7 +93,7 @@
   },
   "MainMenu": {
     "path": "Assets/Workerborn/Prefabs/UI/MainMenu.prefab",
-    "component": 100141
+    "component": 100293
   },
   "EraWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/EraWindow.prefab",

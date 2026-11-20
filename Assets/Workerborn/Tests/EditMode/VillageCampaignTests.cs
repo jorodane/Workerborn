@@ -24,6 +24,33 @@ namespace Workerborn.Tests
         };
 
         [Test]
+        public void APortableCharacterKeepsSeparateProgressInEachWorld()
+        {
+            const string identity = "local:character";
+            var look = new CharacterLook { body = 1, hair = 7, outfit = 4, face = 2 };
+            var rules = Rules();
+            var first = new VillageCampaign(rules, Sites, 10, 22);
+            Assert.That(first.Connect(identity, "첫 이름", out var profile, look), Is.True);
+            Assert.That(first.Avatars()[0].look.hair, Is.EqualTo(7));
+            var player = VillageState.Restore(profile.character, rules);
+            player.Inventory.TryAdd(ItemIds.Bread, 3);
+            var world = player.ExportWorld();
+            world.AddMinutes(1440);
+            first.StoreSolo(identity, world, player.Export());
+
+            var loaded = new VillageCampaign(rules, Sites, 10, 22, first.Export());
+            Assert.That(loaded.Connect(identity, "새 이름", out var saved, look), Is.True);
+            Assert.That(saved.name, Is.EqualTo("새 이름"));
+            Assert.That(loaded.World.Clock, Is.EqualTo(world.Clock));
+            Assert.That(VillageState.Restore(saved.character, rules).Inventory.Count(ItemIds.Bread), Is.EqualTo(3));
+
+            var fresh = new VillageCampaign(rules, Sites, 10, 22);
+            Assert.That(fresh.Connect(identity, "새 이름", out var newcomer, look), Is.True);
+            Assert.That(fresh.World.Clock, Is.LessThan(loaded.World.Clock));
+            Assert.That(VillageState.Restore(newcomer.character, rules).Inventory.Count(ItemIds.Bread), Is.Zero);
+        }
+
+        [Test]
         public void PersonalRebirthUsesExactLifeAgeAndPreservesPartialDeliveries()
         {
             var rules = Rules();

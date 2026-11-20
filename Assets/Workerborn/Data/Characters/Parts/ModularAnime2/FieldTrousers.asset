@@ -22,3 +22,4 @@ MonoBehaviour:
   localScale: {x: 1, y: 1, z: 1}
   materials: []
   tint: {r: 1, g: 1, b: 1, a: 1}
+  p09ArmorSet: 4

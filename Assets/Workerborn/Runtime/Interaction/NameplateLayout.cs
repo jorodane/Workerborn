@@ -8,11 +8,10 @@ namespace Workerborn
         public long Order;
         public float X, Y, Width, Height, PlacedX, PlacedY;
         public float? ObjectY;
-        public float Scale = 1f;
         public bool Visible = true;
         internal float AnchorY;
-        internal float HalfWidth => Width * Scale * .5f;
-        internal float HalfHeight => Height * Scale * .5f;
+        internal float HalfWidth => Width * .5f;
+        internal float HalfHeight => Height * .5f;
     }
 
     // Canvas coordinates, positive Y upwards. Only the safe area can change the projected X.
@@ -21,37 +20,28 @@ namespace Workerborn
         private const float Epsilon = .001f;
 
         public static float Present(List<NameplateSlot> labels, bool alt, float bottom, float top, float gap,
-            float overflowScroll = 0f, long? scrollOrder = null, float minimumScale = 1f,
+            float overflowScroll = 0f, long? scrollOrder = null,
             float left = float.NegativeInfinity, float right = float.PositiveInfinity)
         {
             if (alt)
-                return Arrange(labels, bottom, top, gap, overflowScroll, scrollOrder, minimumScale, left, right);
+                return Arrange(labels, bottom, top, gap, overflowScroll, scrollOrder, left, right);
             foreach (var label in labels)
             {
                 label.PlacedX = label.X;
                 label.PlacedY = label.Y;
-                label.Scale = 1f;
                 label.Visible = true;
             }
             return 0f;
         }
 
         public static float Arrange(List<NameplateSlot> labels, float bottom, float top, float gap,
-            float overflowScroll = 0f, long? scrollOrder = null, float minimumScale = 1f,
+            float overflowScroll = 0f, long? scrollOrder = null,
             float left = float.NegativeInfinity, float right = float.PositiveInfinity)
         {
             foreach (var label in labels)
             {
-                label.Scale = 1f;
                 label.Visible = true;
                 SetAnchor(label, bottom, top, left, right);
-            }
-
-            if (minimumScale < 1f)
-            {
-                CompactOverlaps(labels, gap, minimumScale);
-                foreach (var label in labels)
-                    SetAnchor(label, bottom, top, left, right);
             }
 
             labels.Sort(Compare);
@@ -95,28 +85,6 @@ namespace Workerborn
                     maxOverflow = Math.Max(maxOverflow, overflow);
             }
             return maxOverflow;
-        }
-
-        private static void CompactOverlaps(List<NameplateSlot> labels, float gap, float minimumScale)
-        {
-            for (int i = 0; i < labels.Count; i++)
-            {
-                var a = labels[i];
-                for (int j = 0; j < i; j++)
-                {
-                    var b = labels[j];
-                    float dx = Math.Abs(a.PlacedX - b.PlacedX), dy = Math.Abs(a.AnchorY - b.AnchorY);
-                    float width = (a.Width + b.Width) * .5f, height = (a.Height + b.Height) * .5f;
-                    if (width <= 0f || height <= 0f || dx >= width + gap || dy >= height + gap)
-                        continue;
-                    // Shrinking coincident boxes gives them no separation.
-                    if (Math.Abs(a.X - b.X) < .5f && Math.Abs((a.ObjectY ?? a.Y) - (b.ObjectY ?? b.Y)) < .5f)
-                        continue;
-                    float scale = Math.Max(minimumScale, Math.Max((dx - gap) / width, (dy - gap) / height));
-                    a.Scale = Math.Min(a.Scale, scale);
-                    b.Scale = Math.Min(b.Scale, scale);
-                }
-            }
         }
 
         private static void SetAnchor(NameplateSlot label, float bottom, float top, float left, float right)

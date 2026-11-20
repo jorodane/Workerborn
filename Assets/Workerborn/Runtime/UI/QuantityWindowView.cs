@@ -23,16 +23,19 @@ namespace Workerborn
         [SerializeField] private Button plusTen;
         [SerializeField] private Button maximum;
         [SerializeField] private Button confirm;
+        private Button[] amountButtons;
         private string id;
         private QuantityAction action;
         private int entryId;
         private int quantity;
         private bool updating;
+        internal bool IsSelling => action == QuantityAction.Sell;
 
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
-            item.Passive();
+            item.Passive(hud);
+            amountButtons = new[] { minimum, minusTen, minusOne, half, plusOne, plusTen, maximum };
             quantitySlider.wholeNumbers = true;
             quantitySlider.onValueChanged.AddListener(value =>
             {
@@ -107,6 +110,11 @@ namespace Workerborn
             updating = false;
 
             var spec = ItemCatalog.Get(id);
+            bool showAmount = action != QuantityAction.Buy || spec.MaxStack > 1 && spec.EquipmentSlot == EquipmentSlot.None;
+            quantitySlider.gameObject.SetActive(showAmount);
+            quantityInput.gameObject.SetActive(showAmount);
+            foreach (var button in amountButtons)
+                button.gameObject.SetActive(showAmount);
             item.Display(Game.Settings.FindItem(id), id, quantity);
             title.text = spec.Name;
             total.text = action == QuantityAction.Split
@@ -138,7 +146,7 @@ namespace Workerborn
                 _ => Game.State.TryBuy(id, quantity)
             });
             if (success)
-                gameObject.SetActive(false);
+                Hud.CloseWindow(Id);
         }
     }
 }

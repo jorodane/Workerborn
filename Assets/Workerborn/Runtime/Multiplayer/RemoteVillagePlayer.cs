@@ -13,14 +13,13 @@ namespace Workerborn
         private Quaternion yaw;
         private bool hasPose;
 
-        internal void Bind(CharacterActor source, VillageHud display, string name)
+        internal void Bind(CharacterDefinition appearance, VillageHud display, string name, CharacterLook look)
         {
             hud = display;
             gameObject.name = name;
-            var appearance = source.Appearance;
             if (visual != null && appearance != null && appearance.BasePrefab != null)
             {
-                var model = CharacterAssembler.Build(appearance, visual);
+                var model = CharacterAssembler.Build(appearance, visual, look);
                 animationDriver?.Initialize(model.GetComponentInChildren<Animator>(), appearance.Idle, appearance.Run, appearance.Work, appearance.Walk);
             }
             label = Instantiate(hud.Library.NpcName, hud.CanvasRect);

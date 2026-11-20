@@ -92,8 +92,8 @@ MonoBehaviour:
   m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor: {r: 1, g: 1, b: 1, a: 1}
-  m_fontSize: 23
-  m_fontSizeBase: 23
+  m_fontSize: 18.4
+  m_fontSizeBase: 18.4
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 10
@@ -232,4 +232,7 @@ MonoBehaviour:
   hoverColor: {r: 0.18, g: 0.35, b: 0.47, a: 0.97}
   pressedColor: {r: 0.13, g: 0.45, b: 0.59, a: 1}
   nameColor: {r: 1, g: 0.98, b: 0.91, a: 1}
-  boxedNameColor: {r: 0.62, g: 0.88, b: 1, a: 1}
+  interactionName: {r: 0.65, g: 0.89, b: 1, a: 1}
+  npcName: {r: 1, g: 0.9, b: 0.48, a: 1}
+  itemName: {r: 1, g: 1, b: 1, a: 1}
+  enemyName: {r: 1, g: 0.63, b: 0.35, a: 1}

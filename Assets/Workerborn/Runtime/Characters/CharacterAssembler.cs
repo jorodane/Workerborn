@@ -7,7 +7,7 @@ namespace Workerborn
     // Used by Inspector previews and explicit editor rebuilds, never to generate a level on Play.
     public static class CharacterAssembler
     {
-        public static GameObject Build(CharacterDefinition definition, Transform parent)
+        public static GameObject Build(CharacterDefinition definition, Transform parent, CharacterLook? look = null)
         {
             if (definition == null || definition.BasePrefab == null)
                 throw new ArgumentException("Choose a character base prefab.");
@@ -15,6 +15,8 @@ namespace Workerborn
             root.transform.SetParent(parent, false);
             var rig = InstantiateSource(definition.BasePrefab, root.transform);
             rig.name = "Rig";
+            if (definition.UsesP09)
+                P09Wardrobe.Apply(rig.transform, look ?? definition.DefaultLook);
             var bones = new Dictionary<string, Transform>(StringComparer.Ordinal);
             foreach (var bone in rig.GetComponentsInChildren<Transform>(true))
                 if (!bones.ContainsKey(bone.name))
@@ -128,8 +130,9 @@ namespace Workerborn
                 instance = module.AddComponent<CharacterPartInstance>();
             instance.Initialize(part);
             module.name = part.Slot + " - " + part.name;
-            module.transform.localPosition = part.LocalPosition;
-            module.transform.localRotation = Quaternion.Euler(part.LocalEulerAngles);
+            bool p09 = appearance != null && appearance.UsesP09;
+            module.transform.localPosition = part.GripPosition(p09);
+            module.transform.localRotation = Quaternion.Euler(part.GripRotation(p09));
             module.transform.localScale = part.LocalScale;
             foreach (var animator in module.GetComponentsInChildren<Animator>(true))
                 animator.enabled = false;

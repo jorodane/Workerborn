@@ -90,6 +90,7 @@ namespace Workerborn
         private float nextSave;
         private bool initialized;
         private bool IsAppearanceTrial { get; set; }
+        private bool usesSelectedWorld;
         private int equipmentVersion = -1;
         public VillageState State { get; private set; }
         public VillageSettings Settings => settings;
@@ -98,13 +99,14 @@ namespace Workerborn
         public HarvestWorker Worker => worker;
         public Camera WorldCamera => worldCamera;
         public VillageCameraRig CameraRig => cameraRig;
+        public string WeatherName => lighting != null ? lighting.WeatherName(State.Day) : "";
         public Camera MinimapCamera => minimapCamera;
         public RenderTexture MinimapTexture => minimapTexture;
         public RenderTexture PortraitTexture => portraitTexture;
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
         internal int PrewarmGroundPickups => prewarmGroundPickups;
-        public bool ControlsBlocked => AwaitingWorldCommand || hud != null && (hud.HasModal || hud.HasQuantityPrompt || hud.IsHoldingItem);
+        public bool ControlsBlocked => AwaitingWorldCommand || hud != null && (hud.WorldActionsLocked || hud.IsHoldingItem);
 
         public int RemainingHarvests
         {
@@ -148,6 +150,8 @@ namespace Workerborn
             if (!IsOnline)
                 ApplyEditorAppearanceTrial();
 #endif
+            if (Session?.SelectedCharacter != null && !IsAppearanceTrial)
+                player.ApplyProfileLook(Session.SelectedCharacter.look);
 
             allCrops.AddRange(mapRoot.GetComponentsInChildren<HarvestableCrop>(true));
             pickupPool = new GroundPickupPool(groundPickupTemplate, droppedItems, worldCamera.GetComponent<CameraVisibility>(), RemovePickup);
@@ -165,9 +169,11 @@ namespace Workerborn
             var rules = settings.CreateRules(FindInteraction(VillageRole.Farmer)?.Definition);
             State = new VillageState(rules);
             string notice = null;
-            if (IsOnline)
+            usesSelectedWorld = !IsAppearanceTrial && Session?.HasLocalWorld == true;
+            if (IsOnline || usesSelectedWorld)
             {
-                MarkOnline();
+                if (IsOnline)
+                    MarkOnline();
                 Session.InitializeAuthority(rules, AuthoredSites(), spawnPoint.position);
                 restoredWorld = Session.InitialCharacter;
                 if (restoredWorld != null)
@@ -646,6 +652,8 @@ namespace Workerborn
 
         public void WalkTo(VillageRole role)
         {
+            if (hud.WorldActionsLocked)
+                return;
             hud.CloseDialogue();
             worker.CommandInteract(FindInteraction(role));
         }
@@ -757,6 +765,14 @@ namespace Workerborn
                 nextSave = Time.unscaledTime + 15f;
                 return submitted;
             }
+            if (usesSelectedWorld)
+            {
+                bool saved = Session?.SaveSolo(State.ExportWorld(), CaptureSave()) == true;
+                if (notify || !saved)
+                    hud.ShowToast(saved ? "저장했습니다." : "월드 저장에 실패했습니다.");
+                nextSave = Time.unscaledTime + 15f;
+                return saved;
+            }
             if (!loadSavedGame || IsAppearanceTrial)
             {
                 if (notify)
@@ -819,7 +835,7 @@ namespace Workerborn
                 SaveGame(false);
             }
 
-            if (Time.unscaledTime >= nextSave && (IsOnline || loadSavedGame && !IsAppearanceTrial))
+            if (Time.unscaledTime >= nextSave && (IsOnline || usesSelectedWorld || loadSavedGame && !IsAppearanceTrial))
                 SaveGame(false);
             lighting?.SetDate(State.Day, State.Minute);
         }
@@ -846,7 +862,7 @@ namespace Workerborn
 
         private void OnApplicationQuit()
         {
-            if (initialized && !IsOnline)
+            if (initialized && !IsOnline && !usesSelectedWorld)
                 SaveGame(false);
         }
     }

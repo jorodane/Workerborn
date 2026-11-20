@@ -2,10 +2,11 @@ using TMPro;
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 namespace Workerborn
 {
-    public sealed class UiItemView : MonoBehaviour
+    public sealed class UiItemView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
         [SerializeField]
         private Image icon;
@@ -19,10 +20,13 @@ namespace Workerborn
         private Button button;
         [SerializeField]
         private InventoryItemDrag pointer;
+        private VillageHud tooltipHud;
+        private string tooltipItem;
         public RectTransform Rect => (RectTransform)transform;
 
         public void Display(ItemDefinition definition, string itemId, int quantity)
         {
+            tooltipItem = itemId;
             icon.sprite = definition != null ? definition.Icon : null;
             icon.enabled = icon.sprite != null;
             fallback.text = icon.enabled ? "" : ItemCatalog.Get(itemId).Name;
@@ -31,6 +35,7 @@ namespace Workerborn
 
         public void Inventory(VillageHud hud, int id)
         {
+            tooltipHud = hud;
             pointer.enabled = true;
             pointer.Hud = hud;
             pointer.EntryId = id;
@@ -38,8 +43,9 @@ namespace Workerborn
             background.raycastTarget = true;
         }
 
-        public void Shop(Action action)
+        public void Shop(VillageHud hud, Action action)
         {
+            tooltipHud = hud;
             pointer.enabled = false;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(() => action());
@@ -47,13 +53,19 @@ namespace Workerborn
             button.interactable = true;
         }
 
-        public void Passive()
+        public void Passive(VillageHud inspect = null)
         {
+            tooltipHud = inspect;
             pointer.enabled = false;
             button.onClick.RemoveAllListeners();
             foreach (var graphic in GetComponentsInChildren<Graphic>(true))
                 graphic.raycastTarget = false;
             button.interactable = false;
+            background.raycastTarget = inspect != null;
         }
+
+        public void OnPointerEnter(PointerEventData data) => tooltipHud?.ShowItemTooltip(tooltipItem, data.position);
+        public void OnPointerExit(PointerEventData data) => tooltipHud?.HideItemTooltip();
+        private void OnDisable() => tooltipHud?.HideItemTooltip();
     }
 }

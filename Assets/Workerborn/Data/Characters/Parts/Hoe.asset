@@ -20,3 +20,6 @@ MonoBehaviour:
   localScale: {x: 0.8, y: 0.8, z: 0.8}
   materials: []
   tint: {r: 1, g: 1, b: 1, a: 1}
+  useP09Grip: 1
+  p09Position: {x: 0, y: -0.3, z: 0}
+  p09EulerAngles: {x: 0, y: 0, z: 90}

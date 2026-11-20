@@ -52,8 +52,9 @@ MonoBehaviour:
   idle: {fileID: 1827226128182048838, guid: faffb858330f0b848b847a5f392b88ac, type: 3}
   walk: {fileID: 1827226128182048838, guid: 1b544380f23db0248a420f3cf2984c3b, type: 3}
   work: {fileID: 1827226128182048838, guid: 1bc375bdea84e0648b45787c0497bd28, type: 3}
-  toonPalette:
-    fileID: 11400000
-    guid: d83d85ba5a8454c281d58a2e2ff40a7f
-    type: 2
+  toonPalette: {fileID: 0}
   run: {fileID: 1827226128182048838, guid: 6a7d7d61145c8194fbba9ce8b5f88210, type: 3}
+  useP09: 1
+  p09Look: {body: 1, hair: 5, outfit: 3, face: 1}
+  rightHandSocket: Weapon_Target_Hand_R
+  leftHandSocket: Weapon_Target_Hand_L

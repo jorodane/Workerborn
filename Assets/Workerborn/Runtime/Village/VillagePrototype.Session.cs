@@ -148,7 +148,7 @@ namespace Workerborn
                 if (!peers.TryGetValue(avatar.id, out var peer))
                 {
                     peer = Instantiate(prefab, SurfacePosition(avatar.x, avatar.z), Quaternion.identity);
-                    peer.Bind(player, hud, avatar.name);
+                    peer.Bind(settings.Player, hud, avatar.name, avatar.look);
                     peers.Add(avatar.id, peer);
                 }
                 peer.SetPose(avatar, SurfacePosition(avatar.x, avatar.z).y);

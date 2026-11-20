@@ -8,43 +8,29 @@ namespace Workerborn.Tests
 {
     public sealed class CharacterAuthoringTests
     {
-        [Test]
-        public void CombinedPartsUseTheBaseRigAndKeepTheSourceAssetsUntouched()
+        [TestCase(0, "Fem", "Female")]
+        [TestCase(1, "Male", "Male")]
+        public void P09OutfitPiecesKeepTheirNativeBones(int body, string armor, string face)
         {
             var original = AssetDatabase.LoadAssetAtPath<CharacterDefinition>("Assets/Workerborn/Data/Characters/Player_Default.asset");
-            Assert.That(original, Is.Not.Null);
-            var definition = Object.Instantiate(original);
-            GameObject model = null;
+            Assert.That(original != null && original.UsesP09, Is.True);
+            var model = CharacterAssembler.Build(original, null, new CharacterLook { body = body, hair = 7, outfit = 4, face = 2 });
             try
             {
-                var serialized = new SerializedObject(definition);
-                foreach (var pair in new[] { ("hair", "DarkCrop"), ("outfit", "VillageTravelwearM"), ("eyes", "SageEyes") })
-                    serialized.FindProperty(pair.Item1).objectReferenceValue = AssetDatabase.LoadAssetAtPath<CharacterPartDefinition>("Assets/Workerborn/Data/Characters/Parts/ModularAnime2/" + pair.Item2 + ".asset");
-                serialized.ApplyModifiedPropertiesWithoutUndo();
-                model = CharacterAssembler.Build(definition, null);
                 var rig = model.transform.GetChild(0);
-                var parts = model.GetComponentsInChildren<CharacterPartInstance>(true);
-                Assert.That(parts.Length, Is.EqualTo(2));
-                var head = rig.GetComponentsInChildren<Transform>(true).First(t => t.name == "CC_Base_Head");
-                Assert.That(parts.Single(p => p.Definition.Slot == CharacterPartSlot.Hair).transform.parent, Is.EqualTo(head));
-                var face = rig.GetComponentsInChildren<SkinnedMeshRenderer>().Single(renderer => renderer.name == "Head");
-                Assert.That(face.sharedMaterials[0].name, Is.EqualTo("SageEyes"));
-                var outfit = parts.First(p => p.Definition.Slot == CharacterPartSlot.Outfit);
-                var skins = outfit.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-                Assert.That(skins.Length, Is.GreaterThan(0));
-                foreach (var skin in skins)
+                var meshes = rig.GetComponentsInChildren<SkinnedMeshRenderer>();
+                Assert.That(meshes.Any(mesh => mesh.name == $"{face}_Face_02" && mesh.enabled), Is.True);
+                Assert.That(meshes.Any(mesh => mesh.name == "Hair_07" && mesh.enabled), Is.True);
+                foreach (var piece in new[] { "Chest", "Arm", "Leg" })
                 {
+                    var skin = meshes.Single(mesh => mesh.name == $"{armor}_Armor_004_{piece}");
                     Assert.That(skin.enabled, Is.True);
                     Assert.That(skin.bones.Length, Is.GreaterThan(0));
-                    Assert.That(skin.bones.All(b => b != null && b.IsChildOf(rig) && !b.IsChildOf(outfit.transform)), Is.True);
+                    Assert.That(skin.bones.All(b => b != null && b.IsChildOf(rig)), Is.True);
                 }
-                Assert.That(original.Parts.Count(), Is.Zero, "Preview assembly must not modify the saved source definition.");
+                Assert.That(original.DefaultLook.outfit, Is.EqualTo(3));
             }
-            finally
-            {
-                if (model != null) Object.DestroyImmediate(model);
-                Object.DestroyImmediate(definition);
-            }
+            finally { Object.DestroyImmediate(model); }
         }
 
         [Test]
@@ -71,6 +57,8 @@ namespace Workerborn.Tests
                 var handSocket = rig.GetComponentsInChildren<Transform>().Single(transform => transform.name == "Weapon_Target_Hand_R");
                 var tool = CharacterAssembler.AttachPart(axe, rig, appearance: trial);
                 Assert.That(tool != null && tool.transform.parent == handSocket, Is.True);
+                Assert.That(tool.transform.localPosition, Is.EqualTo(axe.GripPosition(trial.UsesP09)));
+                Assert.That(Quaternion.Angle(tool.transform.localRotation, Quaternion.Euler(axe.GripRotation(trial.UsesP09))), Is.LessThan(.01f));
             }
             finally { Object.DestroyImmediate(model); }
         }

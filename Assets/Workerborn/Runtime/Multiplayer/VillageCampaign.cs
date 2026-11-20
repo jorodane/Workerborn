@@ -21,6 +21,7 @@ namespace Workerborn
     {
         public string id;
         public string name;
+        public CharacterLook look;
         public float x, y, z, yaw;
         public int motion;
     }
@@ -97,7 +98,7 @@ namespace Workerborn
             }
         }
 
-        public bool Connect(string identity, string name, out CampaignProfile profile)
+        public bool Connect(string identity, string name, out CampaignProfile profile, CharacterLook look = default)
         {
             profile = null;
             if (connected.Count >= 12 || connected.Contains(identity))
@@ -124,8 +125,27 @@ namespace Workerborn
             profile.name = name;
             ApplyWorld(profile.character);
             connected.Add(identity);
-            avatars.Add(identity, new SessionAvatar { id = profile.id, name = name, x = profile.character.playerX, z = profile.character.playerZ });
+            avatars.Add(identity, new SessionAvatar { id = profile.id, name = name, look = look.Validated(), x = profile.character.playerX, z = profile.character.playerZ });
             return true;
+        }
+
+        public bool AdoptLegacyIdentity(string previous, string identity)
+        {
+            if (connected.Contains(previous) || profiles.ContainsKey(identity) ||
+                !profiles.TryGetValue(previous, out var profile))
+                return false;
+            profiles.Remove(previous);
+            profile.identity = identity;
+            profiles.Add(identity, profile);
+            return true;
+        }
+
+        public void StoreSolo(string identity, VillageWorldRecord world, VillageSave save)
+        {
+            World = world;
+            var profile = profiles[identity];
+            profile.enteredEra = world.era;
+            profile.character = save;
         }
 
         public void Disconnect(string identity)

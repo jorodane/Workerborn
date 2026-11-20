@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Workerborn
@@ -39,6 +40,14 @@ namespace Workerborn
         public Vector3 VisualPosition => visual != null ? visual.position : transform.position;
         public override Vector3 NamePosition => pooledNameOffset.HasValue ? transform.position + pooledNameOffset.Value : base.NamePosition;
         public event Action<Vector3> Landed;
+
+        public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
+        {
+            base.AddContextActions(village, actions);
+            string id = ItemId;
+            int count = Quantity;
+            actions.Add(new WorldContextAction("자세히 보기", () => village.Hud.InspectGroundItem(id, count)));
+        }
 
         protected override void Interact(HarvestWorker worker) => worker.CommandPickup(this);
         protected override void OnEnable()
