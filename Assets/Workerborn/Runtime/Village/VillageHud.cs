@@ -235,7 +235,7 @@ namespace Workerborn
             hoverTip.gameObject.SetActive(show);
             if (show)
             {
-                hoverText.text = target.InteractionVerb;
+                hoverText.text = target.InteractionVerbFor(worker);
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(CanvasRect, WorkerbornInput.Point, null, out var cursor);
                 var offset = hoverTip.GetComponent<WorldTooltipView>().CursorOffset;
                 Vector2 at = cursor + offset;

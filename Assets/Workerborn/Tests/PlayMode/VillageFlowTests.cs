@@ -83,7 +83,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator RabbitRequiresAFreshClickForEachStrikeAndDropsLootOnce()
+        public IEnumerator RabbitRequiresAFreshClickForEachStrikeAndDropsLootOnDefeat()
         {
             var rabbit = UnityEngine.Object.FindObjectsByType<MonsterInteractable>(FindObjectsSortMode.None)
                 .Single(animal => animal.Combat != null);
@@ -107,12 +107,27 @@ namespace Workerborn.Tests
                 rabbit.RequestInteraction(game.Worker);
                 yield return Until(() => rabbit.Health < before && game.Worker.Action == WorkerAction.Idle, 3f);
             }
-            Assert.That(game.GroundItemCount, Is.EqualTo(drops));
-            rabbit.RequestInteraction(game.Worker);
             Assert.That(rabbit.LootTaken, Is.True);
+            Assert.That(rabbit.CanInteract, Is.False);
             Assert.That(game.GroundItemCount, Is.EqualTo(drops + rabbit.Combat.LootCount));
             rabbit.RequestInteraction(game.Worker);
             Assert.That(game.GroundItemCount, Is.EqualTo(drops + rabbit.Combat.LootCount));
+        }
+
+        [UnityTest]
+        public IEnumerator BareHandedTreeStrikeDropsABranchWithoutSpendingALoggingCharge()
+        {
+            var tree = game.Crops.OfType<LoggingTree>().First();
+            Vector3 approach = tree.transform.position + Vector3.right * 1.75f;
+            Assert.That(NavMesh.SamplePosition(approach, out var at, .4f, NavMesh.AllAreas), Is.True);
+            game.Worker.WarpTo(at.position);
+            int remaining = tree.Remaining;
+            Assert.That(tree.InteractionVerbFor(game.Worker), Is.EqualTo("때리기"));
+            tree.RequestInteraction(game.Worker);
+            yield return Until(() => WorldInteractable.Active.OfType<GroundPickup>().Any(item => item.ItemId == tree.Branch.Id), 3f);
+            var branch = WorldInteractable.Active.OfType<GroundPickup>().Single(item => item.ItemId == tree.Branch.Id);
+            Assert.That(tree.Remaining, Is.EqualTo(remaining));
+            Assert.That(branch.Quantity, Is.EqualTo(1));
         }
 
         [UnityTest]
@@ -285,6 +300,68 @@ namespace Workerborn.Tests
                     UnityEngine.Object.Destroy(item.gameObject);
                 UnityEngine.InputSystem.InputSystem.RemoveDevice(mouse);
                 UnityEngine.InputSystem.InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AHoveredMeshShowsAnOutlineAndTheSamePixelCollectsIt()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+                Assert.Ignore("Picking the rendered mesh requires a graphics device.");
+            var mouse = InputSystem.AddDevice<Mouse>();
+            var pickup = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Egg).GroundPrefab);
+            var camera = game.WorldCamera;
+            game.CameraRig.enabled = false;
+            try
+            {
+                Vector3 at = game.Worker.transform.position + Vector3.forward;
+                pickup.Initialize(null, at, at, true);
+                Vector3 cameraPosition = at + new Vector3(0, 2.5f, 2f);
+                camera.transform.SetPositionAndRotation(cameraPosition, Quaternion.LookRotation(at + Vector3.up * .8f - cameraPosition));
+                yield return null;
+
+                Vector2 pixel = camera.WorldToScreenPoint(pickup.GetComponentInChildren<MeshRenderer>().bounds.center);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel });
+                yield return Until(() => game.Targeting.CurrentTarget == pickup, 3f);
+                yield return null;
+                var outline = game.Hud.TargetLink.GetComponentInChildren<UnityEngine.UI.RawImage>();
+                Assert.That(outline.enabled, Is.True);
+                Assert.That(outline.texture, Is.Not.Null);
+                int before = game.State.Inventory.Count(ItemIds.Egg);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel, buttons = 1 });
+                yield return Until(() => game.State.Inventory.Count(ItemIds.Egg) == before + 1, 2f);
+                Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
+            }
+            finally
+            {
+                game.CameraRig.enabled = true;
+                if (pickup != null)
+                    UnityEngine.Object.Destroy(pickup.gameObject);
+                InputSystem.RemoveDevice(mouse);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AnUnreachableGroundClickKeepsTheCurrentRouteAndStaysQuiet()
+        {
+            game.Worker.CommandMove(NearbyDestination());
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+            var agent = game.Worker.GetComponent<NavMeshAgent>();
+            var destination = agent.destination;
+            int messages = 0;
+            void OnMessage(string message) => messages++;
+            game.Worker.Message += OnMessage;
+            try
+            {
+                game.Worker.CommandMove(new Vector3(10000, 0, 10000));
+                Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+                Assert.That(agent.destination, Is.EqualTo(destination));
+                Assert.That(messages, Is.Zero);
+                yield return null;
+            }
+            finally
+            {
+                game.Worker.Message -= OnMessage;
             }
         }
 

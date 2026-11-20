@@ -12,27 +12,18 @@ namespace Workerborn
         [SerializeField, Min(.5f)]
         private float thickness = 1.5f;
         private Material runtimeMaterial;
-        private Material outlineMaterial;
         private void Awake()
         {
             if (line.material == null)
                 return;
             runtimeMaterial = new Material(line.material);
             line.material = runtimeMaterial;
-            if (outline != null)
-            {
-                outlineMaterial = new Material(runtimeMaterial);
-                outlineMaterial.SetFloat("_ExteriorOutline", 1);
-                outline.material = outlineMaterial;
-            }
         }
 
         private void OnDestroy()
         {
             if (runtimeMaterial != null)
                 Destroy(runtimeMaterial);
-            if (outlineMaterial != null)
-                Destroy(outlineMaterial);
         }
 
         public void Show(RectTransform canvas, Vector2 from, Vector2 to, Color tint)
@@ -56,14 +47,13 @@ namespace Workerborn
             line.material.SetFloat("_MaskFlipY", flipY ? 1f : 0f);
         }
 
-        public void ShowOutline(Texture2D silhouette, bool flipY, Color tint, float width)
+        public void ShowOutline(Texture2D silhouette, bool flipY, Color tint)
         {
-            if (outlineMaterial == null)
+            if (outline == null)
                 return;
             outline.texture = silhouette;
+            outline.uvRect = flipY ? new Rect(0, 1, 1, -1) : new Rect(0, 0, 1, 1);
             outline.color = tint;
-            outlineMaterial.SetFloat("_MaskFlipY", flipY ? 1f : 0f);
-            outlineMaterial.SetFloat("_OutlinePixels", Mathf.Max(1f, width * silhouette.width / Screen.width));
             outline.enabled = true;
         }
 

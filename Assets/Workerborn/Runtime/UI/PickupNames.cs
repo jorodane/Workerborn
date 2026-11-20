@@ -17,6 +17,7 @@ namespace Workerborn
         private readonly Dictionary<long, WorldNameplateView> visible = new Dictionary<long, WorldNameplateView>();
         private VillagePrototype game;
         private float scroll;
+        private long? scrollOrder;
         public void Initialize(VillagePrototype owner) => game = owner;
         private void LateUpdate()
         {
@@ -46,7 +47,7 @@ namespace Workerborn
             slots.Clear();
             visible.Clear();
             removed.Clear();
-            bool hovering = false;
+            long? hoveredOrder = null;
             foreach (var pair in names)
             {
                 if (pair.Key == null || !pair.Key.isActiveAndEnabled)
@@ -62,11 +63,14 @@ namespace Workerborn
                 if (!onScreen)
                     continue;
                 pair.Value.SetBox(alt);
-                hovering |= pair.Value.Hovered;
+                if (pair.Value.Hovered)
+                    hoveredOrder = pair.Key.NameplateOrder;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out var point);
                 Vector2 size = pair.Value.Rect.sizeDelta;
                 float x = alt ? Mathf.Clamp(point.x, canvas.rect.xMin + edgeMargin + size.x * .5f, canvas.rect.xMax - edgeMargin - size.x * .5f) : point.x;
-                slots.Add(new NameplateSlot { Order = pair.Key.NameplateOrder, X = x, Y = point.y, Width = size.x, Height = size.y });
+                var objectScreen = game.WorldCamera.WorldToScreenPoint(pair.Key.transform.position);
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, objectScreen, null, out var objectPoint);
+                slots.Add(new NameplateSlot { Order = pair.Key.NameplateOrder, X = x, Y = point.y, ObjectY = objectPoint.y, Width = size.x, Height = size.y });
                 visible.Add(pair.Key.NameplateOrder, pair.Value);
             }
 
@@ -77,17 +81,25 @@ namespace Workerborn
                 names.Remove(item);
             }
 
-            if (alt && hovering && WorkerbornInput.Current != null)
+            if (alt && hoveredOrder.HasValue && WorkerbornInput.Current != null)
             {
                 float delta = WorkerbornInput.Scroll;
                 if (Mathf.Abs(delta) >= 10f)
                     delta /= 120f;
-                scroll -= delta * 30f;
+                if (delta != 0f)
+                {
+                    scrollOrder = hoveredOrder;
+                    scroll -= delta * 30f;
+                }
             }
 
             if (!alt)
+            {
                 scroll = 0f;
-            float overflow = NameplateLayout.Present(slots, alt, canvas.rect.yMin + edgeMargin + 32, canvas.rect.yMax - edgeMargin, spacing, scroll);
+                scrollOrder = null;
+            }
+            float overflow = NameplateLayout.Present(slots, alt, canvas.rect.yMin + edgeMargin + 32, canvas.rect.yMax - edgeMargin,
+                spacing, scroll, scrollOrder);
             scroll = Mathf.Clamp(scroll, 0, overflow);
             foreach (var slot in slots)
             {

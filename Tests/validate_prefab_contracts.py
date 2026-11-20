@@ -67,12 +67,12 @@ def validate(path):
 
 count=0
 for path in [*(CONTENT/'Prefabs').rglob('*.prefab'),*(CONTENT/'Data').rglob('*.asset')]:count+=validate(path)
-for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc']:assert subclass(child,'WorldInteractable')
+for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc','LoggingTree']:assert subclass(child,'WorldInteractable')
 for name in ['Mira','Noah','Lena','Player']:assert (CONTENT/'Prefabs/Characters'/(name+'.prefab')).is_file()
 for name in ['Board','Shrine','Monster','ForestRabbit']:assert (CONTENT/'Prefabs/Interaction'/(name+'.prefab')).is_file()
 assert (CONTENT/'Prefabs/Crops/Potato.prefab').is_file()
 wardrobe={'field_cap','field_coat','field_trousers','field_boots','field_gloves'}
-assert {p.stem for p in (CONTENT/'Prefabs/Items').glob('*.prefab')}=={'potato','bread','hoe','bag','gold','egg','timber','woodcutting_axe','rabbit_meat'} | wardrobe
+assert {p.stem for p in (CONTENT/'Prefabs/Items').glob('*.prefab')}=={'potato','bread','hoe','bag','gold','egg','timber','woodcutting_axe','rabbit_meat','branch'} | wardrobe
 manifest=json.loads((ROOT/'Tools/ui-prefab-manifest.json').read_text())
 for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','ShopWindow','QuantityWindow','ConversationWindow']:
     assert name in manifest and (ROOT/manifest[name]['path']).is_file()

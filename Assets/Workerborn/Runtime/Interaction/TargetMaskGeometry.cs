@@ -20,8 +20,7 @@ namespace Workerborn
             if (rgba == null || rgba.Length != width * height * 4 || width < 1 || height < 1)
                 return false;
             float sx = screenWidth / width, sy = screenHeight / height;
-            int px = (int)(cursorX / sx), py = (int)(cursorY / sy);
-            int inside = IdAt(rgba, width, height, px, py, flipY);
+            int inside = IdAtScreen(rgba, width, height, flipY, cursorX, cursorY, screenWidth, screenHeight);
             if (inside != 0 && eligible != null && !eligible(inside))
                 inside = 0;
             for (int y = 0; y < height; y++)
@@ -44,6 +43,13 @@ namespace Workerborn
             return hit.Id != 0;
         }
 
+        public static int IdAtScreen(byte[] pixels, int width, int height, bool flipY, float x, float y, float screenWidth, float screenHeight)
+        {
+            if (x < 0 || x >= screenWidth || y < 0 || y >= screenHeight)
+                return 0;
+            return IdAt(pixels, width, height, (int)(x * width / screenWidth), (int)(y * height / screenHeight), flipY);
+        }
+
         private static float Clamp(float n, float low, float high) => Math.Max(low, Math.Min(high, n));
         public static int IdAt(byte[] p, int w, int h, int x, int y, bool flip)
         {
@@ -55,7 +61,7 @@ namespace Workerborn
 
         // Outside pixels are reached from the edge of the selected silhouette's bounds.
         // Enclosed holes receive no outline, even when the mesh has open geometry.
-        public static void MarkExterior(byte[] pixels, int width, int height, int id, byte[] output, int[] queue)
+        public static int MarkExterior(byte[] pixels, int width, int height, int id, byte[] output, int[] queue, int padding = 6)
         {
             Array.Clear(output, 0, output.Length);
             int minX = width, minY = height, maxX = -1, maxY = -1;
@@ -72,9 +78,8 @@ namespace Workerborn
                 maxY = Math.Max(y, maxY);
             }
             if (maxX < 0)
-                return;
+                return 0;
 
-            const int padding = 6;
             minX = Math.Max(0, minX - padding);
             minY = Math.Max(0, minY - padding);
             maxX = Math.Min(width - 1, maxX + padding);
@@ -98,6 +103,38 @@ namespace Workerborn
                 if (y > minY) Mark(i - width, output, queue, ref tail);
                 if (y < maxY) Mark(i + width, output, queue, ref tail);
             }
+            return tail;
+        }
+
+        public static bool DrawExteriorOutline(byte[] pixels, int width, int height, int id, int radius,
+            byte[] exterior, int[] queue, byte[] rgba)
+        {
+            Array.Clear(rgba, 0, rgba.Length);
+            int count = MarkExterior(pixels, width, height, id, exterior, queue, radius);
+            bool drawn = false;
+            for (int i = 0; i < count; i++)
+            {
+                int pixel = queue[i];
+                if (!TouchesSilhouette(exterior, width, height, pixel % width, pixel / width, radius))
+                    continue;
+                int p = pixel * 4;
+                rgba[p] = rgba[p + 1] = rgba[p + 2] = rgba[p + 3] = 255;
+                drawn = true;
+            }
+            return drawn;
+        }
+
+        private static bool TouchesSilhouette(byte[] exterior, int width, int height, int x, int y, int radius)
+        {
+            int limit = radius * radius;
+            for (int row = Math.Max(0, y - radius); row < height && row <= y + radius; row++)
+                for (int column = Math.Max(0, x - radius); column < width && column <= x + radius; column++)
+                {
+                    int dx = x - column, dy = y - row;
+                    if (dx * dx + dy * dy <= limit && exterior[row * width + column] == 255)
+                        return true;
+                }
+            return false;
         }
 
         private static void Mark(int index, byte[] output, int[] queue, ref int tail)

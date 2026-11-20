@@ -22,13 +22,13 @@ namespace Workerborn
         public override bool CanTarget => !IsDefeated;
         public override bool ShowNameByDefault => combat != null;
         public override float InteractionDistance => reach;
-        public override bool CanInteract => base.CanInteract && (!IsDefeated || (!lootTaken && combat.Loot != null));
-        public override string InteractionVerb => combat == null ? "다가가기" : IsDefeated ? "갈무리하기" : "공격하기";
+        public override bool CanInteract => base.CanInteract && !IsDefeated;
+        public override string InteractionVerb => combat == null ? "다가가기" : "공격하기";
         public AnimalCombatProfile Combat => combat;
         public int Health { get; private set; }
         public bool IsDefeated => combat != null && Health == 0;
         public bool LootTaken => lootTaken;
-        internal bool CanAttack => combat != null && isActiveAndEnabled && !IsDefeated;
+        internal override bool CanReceiveStrike => combat != null && CanInteract;
 
         private void Awake()
         {
@@ -63,32 +63,26 @@ namespace Workerborn
 
         protected override void Interact(HarvestWorker worker)
         {
-            if (combat == null || (IsDefeated && !worker.InReach(transform.position, InteractionDistance)))
+            if (combat == null)
                 worker.CommandApproach(this);
-            else if (IsDefeated)
-                Arrive(worker.Village, worker);
             else
                 worker.CommandAttack(this);
         }
 
-        protected override void OnArrived(VillagePrototype village, HarvestWorker worker) => GatherLoot(village);
-
-        private void GatherLoot(VillagePrototype village)
+        internal bool TryDropLoot(VillagePrototype village)
         {
             if (!IsDefeated || lootTaken || village == null)
-                return;
+                return false;
             lootTaken = true;
-            if (!village.DropAnimalLoot(this))
-            {
-                lootTaken = false;
-                return;
-            }
-            village.SaveGame(false);
+            if (village.DropStrikeLoot(transform, combat.Loot, combat.LootCount))
+                return true;
+            lootTaken = false;
+            return false;
         }
 
-        internal void ReceiveStrike(HarvestWorker worker, int damage)
+        internal override void ReceiveStrike(HarvestWorker worker, int damage)
         {
-            if (!CanAttack || worker.Village == null)
+            if (!CanReceiveStrike || worker.Village == null)
                 return;
             int applied = Mathf.Min(Health, damage);
             Health -= applied;
@@ -96,6 +90,7 @@ namespace Workerborn
             if (IsDefeated)
             {
                 RestoreEncounter(0, false, false);
+                TryDropLoot(worker.Village);
                 worker.Village.SaveGame(false);
             }
             else if (opponent != worker)

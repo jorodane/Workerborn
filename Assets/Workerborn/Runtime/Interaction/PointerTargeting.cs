@@ -32,9 +32,11 @@ namespace Workerborn
         private VillagePrototype game;
         private RenderTexture mask;
         private Texture2D synchronous;
-        private Texture2D clickPixel, exterior;
+        private Texture2D outline;
         private byte[] exteriorPixels;
         private int[] exteriorQueue;
+        private byte[] outlinePixels;
+        private bool hasOutline;
         private int maskRevision, outlinedRevision = -1;
         private WorldInteractable outlinedTarget;
         private bool flipReadback;
@@ -49,6 +51,7 @@ namespace Workerborn
         private readonly Dictionary<Renderer, int> targetIds = new Dictionary<Renderer, int>();
         private AsyncGPUReadbackRequest request;
         private bool waiting;
+        private bool useAsyncReadback;
         private float nextCapture;
         private int capturedWidth, capturedHeight;
         private int generation;
@@ -60,6 +63,7 @@ namespace Workerborn
             link = targetLink;
             visibility = game.WorldCamera.GetComponent<CameraVisibility>();
             terrain = game.GroundTerrain;
+            useAsyncReadback = SystemInfo.supportsAsyncGPUReadback;
             var geometry = new List<Renderer>();
             foreach (var renderer in FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (renderer.gameObject.scene == game.gameObject.scene && renderer.gameObject.layer != VillageWeather.SkyLayer &&
@@ -163,16 +167,7 @@ namespace Workerborn
                 if (plate != null)
                     target = plate.Target;
                 else if (!overUi)
-                {
-                    if (control)
-                        target = FindNearestLivingTarget(cursor, pressed || rightPressed);
-                    else if (pressed || rightPressed)
-                        target = ReadClickTarget(cursor);
-                    else if (HasMask)
-                        target = SnapshotTarget(TargetMaskGeometry.IdAt(pixels, mask.width, mask.height,
-                            Mathf.FloorToInt(cursor.x * mask.width / Screen.width),
-                            Mathf.FloorToInt(cursor.y * mask.height / Screen.height), flipReadback));
-                }
+                    target = PickTarget(cursor, control);
             }
 
             if (target != null && !target.CanInteract)
@@ -217,21 +212,21 @@ namespace Workerborn
                 game.ShowClick(target.transform.position);
                 target.RequestInteraction(game.Worker);
             }
-            else if (!overUi && !control && TryWorldHit(cursor, out var hit))
+            else if (!overUi && !control && (HasMask || maskMaterial == null) &&
+                TryWorldHit(cursor, out var hit) && game.IsGround(hit.collider))
                 game.Worker.CommandMove(hit.point);
         }
 
         private WorldInteractable SnapshotTarget(int id) => snapshot != null && id > 0 && id < snapshot.Length ? snapshot[id] : null;
 
-        private WorldInteractable FindNearestLivingTarget(Vector2 cursor, bool exact)
+        private WorldInteractable PickTarget(Vector2 cursor, bool control)
         {
-            if (exact && maskMaterial != null && Screen.width > 0 && Screen.height > 0)
-            {
-                EnsureTexture();
-                DrawMask();
-                ReadWholeMask();
-            }
-            if (HasMask && TargetMaskGeometry.Closest(pixels, mask.width, mask.height, flipReadback, cursor.x, cursor.y,
+            if (!HasMask)
+                return null;
+            if (!control)
+                return SnapshotTarget(TargetMaskGeometry.IdAtScreen(pixels, mask.width, mask.height, flipReadback,
+                    cursor.x, cursor.y, Screen.width, Screen.height));
+            if (TargetMaskGeometry.Closest(pixels, mask.width, mask.height, flipReadback, cursor.x, cursor.y,
                 Screen.width, Screen.height, out var closest, IsLivingTarget))
                 return SnapshotTarget(closest.Id);
             return null;
@@ -241,24 +236,6 @@ namespace Workerborn
         {
             var target = SnapshotTarget(id);
             return target != null && target.CanTarget && target.CanInteract;
-        }
-
-        private WorldInteractable ReadClickTarget(Vector2 cursor)
-        {
-            if (maskMaterial == null || cursor.x < 0 || cursor.y < 0 || cursor.x >= Screen.width || cursor.y >= Screen.height)
-                return null;
-            EnsureTexture();
-            DrawMask();
-            if (clickPixel == null)
-                clickPixel = new Texture2D(1, 1, TextureFormat.RGBA32, false, true);
-            int x = Mathf.FloorToInt(cursor.x * mask.width / Screen.width), y = Mathf.FloorToInt(cursor.y * mask.height / Screen.height);
-            var before = RenderTexture.active;
-            RenderTexture.active = mask;
-            clickPixel.ReadPixels(new Rect(x, y, 1, 1), 0, 0, false);
-            RenderTexture.active = before;
-            Color32 pixel = clickPixel.GetRawTextureData<Color32>()[0];
-            int id = pixel.r | pixel.g << 8 | pixel.b << 16;
-            return id > 0 && id < frameTargets.Count ? frameTargets[id] : null;
         }
 
         private bool TryWorldHit(Vector2 cursor, out RaycastHit nearest)
@@ -302,12 +279,16 @@ namespace Workerborn
             }
 
             EnsureTexture();
+            ShowSelection();
             if (!waiting && Time.unscaledTime >= nextCapture)
             {
                 DrawMask();
                 Capture();
             }
+        }
 
+        private void ShowSelection()
+        {
             var selected = CurrentTarget;
             if (selected == null || !selected.CanInteract)
             {
@@ -337,29 +318,35 @@ namespace Workerborn
                 outlinedTarget = selected;
                 outlinedRevision = maskRevision;
                 int id = System.Array.IndexOf(snapshot, selected);
-                if (id < 1)
+                hasOutline = false;
+                if (id > 0)
                 {
-                    link.HideOutline();
-                    return;
-                }
-                if (exterior == null || exterior.width != mask.width || exterior.height != mask.height)
-                {
-                    if (exterior != null)
-                        Destroy(exterior);
-                    exterior = new Texture2D(mask.width, mask.height, TextureFormat.R8, false, true)
+                    if (outline == null || outline.width != mask.width || outline.height != mask.height)
                     {
-                        filterMode = FilterMode.Point,
-                        wrapMode = TextureWrapMode.Clamp
-                    };
-                    exteriorPixels = new byte[mask.width * mask.height];
-                    exteriorQueue = new int[exteriorPixels.Length];
+                        if (outline != null)
+                            Destroy(outline);
+                        outline = new Texture2D(mask.width, mask.height, TextureFormat.RGBA32, false, true)
+                        {
+                            name = "Selection outline",
+                            filterMode = FilterMode.Point,
+                            wrapMode = TextureWrapMode.Clamp
+                        };
+                        exteriorPixels = new byte[mask.width * mask.height];
+                        exteriorQueue = new int[exteriorPixels.Length];
+                        outlinePixels = new byte[exteriorPixels.Length * 4];
+                    }
+                    int radius = Mathf.Max(1, Mathf.RoundToInt(highlightWidth * mask.width / Screen.width));
+                    hasOutline = TargetMaskGeometry.DrawExteriorOutline(pixels, mask.width, mask.height, id,
+                        radius, exteriorPixels, exteriorQueue, outlinePixels);
+                    if (hasOutline)
+                    {
+                        outline.LoadRawTextureData(outlinePixels);
+                        outline.Apply(false);
+                    }
                 }
-                TargetMaskGeometry.MarkExterior(pixels, mask.width, mask.height, id, exteriorPixels, exteriorQueue);
-                exterior.LoadRawTextureData(exteriorPixels);
-                exterior.Apply(false);
             }
-            if (HasMask && exterior != null && System.Array.IndexOf(snapshot, selected) > 0)
-                link.ShowOutline(exterior, flipReadback, tint, highlightWidth);
+            if (HasMask && hasOutline)
+                link.ShowOutline(outline, flipReadback, tint);
             else
                 link.HideOutline();
         }
@@ -437,7 +424,7 @@ namespace Workerborn
         private void Capture()
         {
             nextCapture = Time.unscaledTime + 1f / capturesPerSecond;
-            if (!SystemInfo.supportsAsyncGPUReadback)
+            if (!useAsyncReadback)
             {
                 ReadWholeMask();
                 return;
@@ -448,8 +435,13 @@ namespace Workerborn
             request = AsyncGPUReadback.Request(mask, 0, TextureFormat.RGBA32, result =>
             {
                 waiting = false;
-                if (this == null || version != generation || result.hasError)
+                if (this == null || version != generation)
                     return;
+                if (result.hasError)
+                {
+                    useAsyncReadback = false;
+                    return;
+                }
                 var data = result.GetData<byte>();
                 if (pixels == null || pixels.Length != data.Length)
                     pixels = new byte[data.Length];
@@ -566,10 +558,8 @@ namespace Workerborn
 
             if (synchronous != null)
                 Destroy(synchronous);
-            if (clickPixel != null)
-                Destroy(clickPixel);
-            if (exterior != null)
-                Destroy(exterior);
+            if (outline != null)
+                Destroy(outline);
         }
     }
 }

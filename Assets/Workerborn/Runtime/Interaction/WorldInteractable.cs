@@ -43,6 +43,11 @@ namespace Workerborn
         public long NameplateOrder { get; private set; }
         public virtual bool CanInteract => isActiveAndEnabled;
         public virtual string InteractionVerb => "살펴보기";
+        public virtual string InteractionVerbFor(HarvestWorker worker) => InteractionVerb;
+        internal virtual bool CanReceiveStrike => false;
+        internal virtual void ReceiveStrike(HarvestWorker worker, int damage)
+        {
+        }
 
         // A capsule center stays steady while individual skinned vertices animate.
         public virtual Vector3 TargetCenter

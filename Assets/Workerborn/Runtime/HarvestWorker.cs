@@ -33,7 +33,7 @@ namespace Workerborn
         private HarvestableCrop cropTarget;
         private GroundPickup pickupTarget;
         private WorldInteractable interactionTarget;
-        private MonsterInteractable strikeTarget;
+        private WorldInteractable strikeTarget;
         private float strikeStartedAt, nextStrikeAt;
         private bool struck;
         private System.Action onInteractionArrival;
@@ -201,11 +201,10 @@ namespace Workerborn
             if (village != null && (village.ControlsBlocked || !village.CanHarvest(crop)))
                 return;
 
-            ClearInteractionTargets();
-            cropTarget = crop;
-            LastCrop = crop;
             if (!NavigateNear(crop.transform.position, crop.InteractionDistance * 0.85f))
                 return;
+            cropTarget = crop;
+            LastCrop = crop;
             if (village == null)
                 Message?.Invoke($"{crop.Definition.DisplayName} 밭으로 이동해요.");
         }
@@ -223,9 +222,8 @@ namespace Workerborn
 
             if (pickupTarget == item && Action == WorkerAction.Moving)
                 return;
-            ClearInteractionTargets();
-            pickupTarget = item;
-            NavigateNear(item.LandingPosition, pickupDistance * .8f);
+            if (NavigateNear(item.LandingPosition, pickupDistance * .8f))
+                pickupTarget = item;
         }
 
         private bool CollectPickup(GroundPickup item)
@@ -253,16 +251,15 @@ namespace Workerborn
         {
             if (village != null && village.ControlsBlocked)
                 return;
-            ClearInteractionTargets();
             if (NavigateNear(destination, 0f))
                 village?.ShowClick(destination);
         }
 
         public void CommandInteract(VillageInteractable target) => CommandApproach(target);
 
-        public void CommandAttack(MonsterInteractable target)
+        public void CommandAttack(WorldInteractable target)
         {
-            if (village == null || !AcceptsInteractionCommands || target == null || !target.CanAttack ||
+            if (village == null || !AcceptsInteractionCommands || target == null || !target.CanReceiveStrike ||
                 village.State.Energy <= 0 || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
                 return;
             if (InReach(target.transform.position, target.InteractionDistance))
@@ -271,9 +268,9 @@ namespace Workerborn
                 CommandApproach(target, () => StartAttack(target));
         }
 
-        private void StartAttack(MonsterInteractable target)
+        private void StartAttack(WorldInteractable target)
         {
-            if (target == null || !target.CanAttack || village.State.Energy <= 0 || !AcceptsInteractionCommands)
+            if (target == null || !target.CanReceiveStrike || village.State.Energy <= 0 || !AcceptsInteractionCommands)
                 return;
             Cancel();
             Face(target.transform.position);
@@ -297,7 +294,7 @@ namespace Workerborn
             if (!struck && progress >= .36f)
             {
                 struck = true;
-                if (strikeTarget.CanAttack && InReach(strikeTarget.transform.position, strikeTarget.InteractionDistance))
+                if (strikeTarget.CanReceiveStrike && InReach(strikeTarget.transform.position, strikeTarget.InteractionDistance))
                     strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage));
             }
             if (progress >= 1f)
@@ -306,12 +303,11 @@ namespace Workerborn
 
         public void CommandApproach(WorldInteractable target, System.Action arrival = null)
         {
-            if (village == null || target == null || village.ControlsBlocked)
+            if (village == null || target == null || village.ControlsBlocked ||
+                !NavigateNear(target.transform.position, target.InteractionDistance * 0.7f))
                 return;
-            ClearInteractionTargets();
             interactionTarget = target;
             onInteractionArrival = arrival;
-            NavigateNear(target.transform.position, target.InteractionDistance * 0.7f);
         }
 
         public bool CommandDrop(int entryId, Vector3 destination)
@@ -321,19 +317,21 @@ namespace Workerborn
             var entry = village.State.Inventory.Find(entryId);
             if (village.DropPrefabFor(entry) == null)
                 return false;
-            ClearInteractionTargets();
+            bool inReach = InReach(destination, pickupDistance);
+            if (!inReach && !NavigateNear(destination, pickupDistance * .8f))
+                return false;
             pendingDrop = entry.Copy();
             dropPoint = destination;
-            if (InReach(dropPoint, pickupDistance))
+            if (inReach)
                 return FinishDrop();
-            if (!NavigateNear(destination, pickupDistance * .8f))
-                return false;
             village.ShowClick(destination);
             return true;
         }
 
         private bool NavigateNear(Vector3 target, float offset)
         {
+            if (agent == null || !agent.isOnNavMesh)
+                return false;
             Vector3 direction = transform.position - target;
             direction.y = 0f;
             if (direction.sqrMagnitude < 0.01f)
@@ -342,26 +340,13 @@ namespace Workerborn
             if (offset > 0 && village != null && village.GroundTerrain != null)
                 approach = village.SurfacePosition(approach.x, approach.z);
             if (!NavMesh.SamplePosition(approach, out NavMeshHit hit, 0.8f, NavMesh.AllAreas))
-            {
-                Cancel();
-                Message?.Invoke("이동할 수 있는 곳을 선택해 주세요.");
                 return false;
-            }
 
             var path = new NavMeshPath();
-            if (!agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete)
-            {
-                Cancel();
-                Message?.Invoke("그곳으로 가는 길을 찾을 수 없어요.");
+            if (!agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete || !agent.SetPath(path))
                 return false;
-            }
 
-            if (!agent.SetPath(path))
-            {
-                Cancel();
-                Message?.Invoke("그곳으로 가는 길을 찾을 수 없어요.");
-                return false;
-            }
+            ClearInteractionTargets();
             agent.isStopped = false;
             Action = WorkerAction.Moving;
             return true;

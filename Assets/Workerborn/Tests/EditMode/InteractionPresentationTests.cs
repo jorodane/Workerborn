@@ -100,6 +100,30 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void OverlapUsesObjectHeightAndLeavesDistantLabelsInTheSameColumnAlone()
+        {
+            var crop = new NameplateSlot { Order = 2, X = 50, Y = 100, ObjectY = 90, Width = 60, Height = 24 };
+            var npc = new NameplateSlot { Order = 1, X = 50, Y = 114, ObjectY = 70, Width = 60, Height = 24 };
+            var distant = new NameplateSlot { Order = 3, X = 50, Y = 206, ObjectY = 200, Width = 60, Height = 24 };
+            var slots = new List<NameplateSlot> { npc, distant, crop };
+            NameplateLayout.Arrange(slots, 0, 300, 3);
+            Assert.That(crop.PlacedY - npc.PlacedY, Is.GreaterThanOrEqualTo(27));
+            Assert.That(distant.PlacedY, Is.EqualTo(distant.Y));
+        }
+
+        [Test]
+        public void ExpansionOnlyMovesAnotherStackWhenTheirBoxesMeet()
+        {
+            var a = new NameplateSlot { Order = 1, X = 50, Y = 90, Width = 60, Height = 20 };
+            var b = new NameplateSlot { Order = 2, X = 50, Y = 90, Width = 60, Height = 20 };
+            var c = new NameplateSlot { Order = 3, X = 50, Y = 55, Width = 60, Height = 20 };
+            var slots = new List<NameplateSlot> { a, b, c };
+            NameplateLayout.Arrange(slots, 0, 180, 5);
+            Assert.That(a.PlacedY - b.PlacedY, Is.GreaterThanOrEqualTo(25));
+            Assert.That(b.PlacedY - c.PlacedY, Is.GreaterThanOrEqualTo(25));
+        }
+
+        [Test]
         public void RemovingACollectedItemClosesTheGapAndEdgeStacksStayInsideTheScreen()
         {
             var slots = new List<NameplateSlot>
@@ -188,6 +212,17 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void PointerCoordinatesUseThePublishedMaskOrientation()
+        {
+            var mask = new byte[4 * 3 * 4];
+            Paint(mask, 4, 1, 0, 3);
+            Paint(mask, 4, 1, 2, 7);
+            Assert.That(TargetMaskGeometry.IdAtScreen(mask, 4, 3, true, 150, 20, 400, 300), Is.EqualTo(7));
+            Assert.That(TargetMaskGeometry.IdAtScreen(mask, 4, 3, false, 150, 20, 400, 300), Is.EqualTo(3));
+            Assert.That(TargetMaskGeometry.IdAtScreen(mask, 4, 3, true, -1, 20, 400, 300), Is.Zero);
+        }
+
+        [Test]
         public void SelectionOutlineLeavesEnclosedHolesUnmarked()
         {
             const int width = 9;
@@ -202,6 +237,11 @@ namespace Workerborn.Tests
             Assert.That(exterior[4 * width + 4], Is.Zero);
             Assert.That(exterior[4 * width + 2], Is.EqualTo(255));
             Assert.That(exterior[4 * width + 1], Is.EqualTo(128));
+            var rgba = new byte[mask.Length];
+            Assert.That(TargetMaskGeometry.DrawExteriorOutline(mask, width, width, 3, 1, exterior, queue, rgba), Is.True);
+            Assert.That(rgba[(4 * width + 4) * 4 + 3], Is.Zero, "Interior holes stay transparent.");
+            Assert.That(rgba[(4 * width + 2) * 4 + 3], Is.Zero, "The selected surface stays transparent.");
+            Assert.That(rgba[(4 * width + 1) * 4 + 3], Is.EqualTo(255), "The outside edge is drawn.");
         }
 
         [Test]

@@ -183,6 +183,15 @@ namespace Workerborn
             lighting?.SetDate(State.Day, State.Minute);
             initialized = true;
             nextSave = Time.unscaledTime + 15f;
+            if (restoredWorld != null)
+            {
+                bool releasedLoot = false;
+                foreach (var animal in animals)
+                    if (animal != null)
+                        releasedLoot |= animal.TryDropLoot(this);
+                if (releasedLoot)
+                    SaveGame(false);
+            }
             if (!string.IsNullOrEmpty(notice))
                 hud.ShowToast(notice);
         }
@@ -359,18 +368,16 @@ namespace Workerborn
             pickups.Add(item);
         }
 
-        internal bool DropAnimalLoot(MonsterInteractable animal)
+        internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount)
         {
-            var reward = animal.Combat.Loot;
             var prefab = reward != null ? reward.GroundPrefab : null;
             if (prefab == null || prefab.ItemId != reward.Id)
                 return false;
-            Vector3 source = animal.transform.position;
+            Vector3 source = origin.position;
             Vector3 forward = worker.transform.position - source;
             forward.y = 0;
-            forward = forward.sqrMagnitude > .001f ? forward.normalized : animal.transform.forward;
+            forward = forward.sqrMagnitude > .001f ? forward.normalized : origin.forward;
             Vector3 right = Vector3.Cross(Vector3.up, forward);
-            int amount = animal.Combat.LootCount;
             for (int i = 0; i < amount; i++)
             {
                 Vector3 point = source + forward * .65f + right * ((i - (amount - 1) * .5f) * .26f);
