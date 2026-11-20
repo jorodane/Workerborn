@@ -218,6 +218,31 @@ namespace Workerborn
             Version++;
         }
 
+        public bool TryShrinkRows(int rows)
+        {
+            if (rows < 1 || rows > Rows)
+                throw new ArgumentOutOfRangeException(nameof(rows));
+            var smaller = new GridInventory(Columns, rows) { nextId = nextId };
+            var overflow = new List<InventoryEntry>();
+            foreach (var entry in entries)
+            {
+                if (entry.Y + entry.Spec.Height <= rows)
+                    smaller.entries.Add(entry.Copy());
+                else
+                    overflow.Add(entry.Copy());
+            }
+            foreach (var entry in overflow)
+            {
+                if (!smaller.FirstFit(smaller.entries, entry.Spec, out int x, out int y))
+                    return false;
+                entry.X = x;
+                entry.Y = y;
+                smaller.entries.Add(entry);
+            }
+            ReplaceWith(smaller);
+            return true;
+        }
+
         private bool FirstFit(List<InventoryEntry> items, ItemSpec spec, out int x, out int y)
         {
             for (y = 0; y <= Rows - spec.Height; y++)

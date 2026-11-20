@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Workerborn
@@ -23,26 +24,77 @@ namespace Workerborn
         private string appliedAppearanceHash;
         public string AppliedAppearanceHash => appliedAppearanceHash;
 
-        private GameObject equippedVisual;
-        private string equippedItem;
-        public void ShowEquipment(string itemId, CharacterPartDefinition part)
+        private sealed class WornPart
         {
-            if (equippedItem == itemId)
-                return;
-            equippedItem = itemId;
-            if (equippedVisual != null)
-            {
-                equippedVisual.SetActive(false);
-                Destroy(equippedVisual);
-            }
+            public string Id;
+            public GameObject Visual;
+            public readonly List<CharacterGarment> HiddenGarments = new List<CharacterGarment>();
+            public readonly List<Renderer> HiddenHair = new List<Renderer>();
+        }
+        private readonly Dictionary<EquipmentSlot, WornPart> worn = new Dictionary<EquipmentSlot, WornPart>();
+        private readonly List<EquipmentSlot> changed = new List<EquipmentSlot>();
 
-            equippedVisual = null;
-            if (part == null || visualRoot == null || visualRoot.childCount == 0)
+        public void ShowEquipment(IReadOnlyDictionary<EquipmentSlot, string> equipment, VillageSettings settings)
+        {
+            if (visualRoot == null || visualRoot.childCount == 0)
                 return;
-            equippedVisual = CharacterAssembler.AttachPart(part, visualRoot.GetChild(0));
-            if (equippedVisual != null)
-                foreach (var child in equippedVisual.GetComponentsInChildren<Transform>(true))
+            var rig = visualRoot.GetChild(0);
+            bool changedAppearance = false;
+            changed.Clear();
+            foreach (var entry in worn)
+            {
+                if (equipment.TryGetValue(entry.Key, out var id) && entry.Value.Id == id)
+                    continue;
+                var from = entry.Value;
+                if (from.Visual != null)
+                {
+                    from.Visual.SetActive(false);
+                    Destroy(from.Visual);
+                }
+                foreach (var garment in from.HiddenGarments)
+                    if (garment != null)
+                        garment.gameObject.SetActive(true);
+                foreach (var hair in from.HiddenHair)
+                    if (hair != null)
+                        hair.enabled = true;
+                changed.Add(entry.Key);
+                changedAppearance = true;
+            }
+            foreach (var slot in changed)
+                worn.Remove(slot);
+
+            foreach (var entry in equipment)
+            {
+                if (worn.ContainsKey(entry.Key))
+                    continue;
+                var part = settings.FindItem(entry.Value)?.EquipmentPart;
+                if (part == null)
+                    continue;
+                var defaults = rig.GetComponentsInChildren<CharacterGarment>();
+                var partVisual = CharacterAssembler.AttachPart(part, rig);
+                if (partVisual == null)
+                    continue;
+                var applied = new WornPart { Id = entry.Value, Visual = partVisual };
+                foreach (var garment in defaults)
+                    if (garment.Slot == entry.Key)
+                    {
+                        applied.HiddenGarments.Add(garment);
+                        garment.gameObject.SetActive(false);
+                    }
+                if (part.HideHair)
+                    foreach (var renderer in rig.GetComponentsInChildren<Renderer>())
+                        if (renderer.enabled && CharacterAssembler.IsHair(renderer.name))
+                        {
+                            applied.HiddenHair.Add(renderer);
+                            renderer.enabled = false;
+                        }
+                foreach (var child in partVisual.GetComponentsInChildren<Transform>(true))
                     child.gameObject.layer = renderLayer;
+                worn.Add(entry.Key, applied);
+                changedAppearance = true;
+            }
+            if (changedAppearance)
+                CharacterGarment.RefreshSkin(rig);
         }
 
         public void SetPortraitLayer(bool portrait)
@@ -59,6 +111,7 @@ namespace Workerborn
             if (visualRoot != null)
                 foreach (var child in visualRoot.GetComponentsInChildren<Transform>(true))
                     child.gameObject.layer = renderLayer;
+            CharacterGarment.RefreshSkin(visualRoot);
         }
 
         public void RebuildAppearance()

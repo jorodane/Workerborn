@@ -18,6 +18,8 @@ namespace Workerborn
     {
         [SerializeField, Min(.1f)] private float runSpeed = 3.7f;
         [SerializeField, Min(.1f)] private float walkSpeed = 1.65f;
+        [SerializeField, Min(.1f)] private float pickupDistance = 1.5f;
+        [SerializeField, Min(.04f)] private float collectRepeatSeconds = .1f;
         private readonly Dictionary<CropDefinition, int> inventory = new Dictionary<CropDefinition, int>();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
         private Camera worldCamera;
@@ -31,8 +33,11 @@ namespace Workerborn
         private Vector3 dropPoint;
         private VillagePrototype village;
         private int collectedCount;
+        private bool manualMoving;
+        private float nextCollect;
         public bool AcceptsInteractionCommands => village == null || !village.ControlsBlocked;
         public PointerTargeting Targeting => village != null ? village.Targeting : null;
+        internal VillagePrototype Village => village;
         public bool IsWalking => Action == WorkerAction.Moving && WorkerbornInput.Held("Gameplay/Walk");
         public bool HasPendingDrop => pendingDrop != null;
         public WorkerAction Action { get; private set; }
@@ -66,11 +71,72 @@ namespace Workerborn
                 return;
             ReadInput();
             agent.speed = IsWalking ? walkSpeed : runSpeed;
-            if (Action == WorkerAction.Moving)
+            bool movingByKeys = UpdateManualMovement();
+            UpdateNearbyCollection();
+            if (!movingByKeys && Action == WorkerAction.Moving)
                 UpdateMovement();
             else if (Action == WorkerAction.Harvesting)
                 UpdateHarvest();
             animationDriver?.SetAction(Action == WorkerAction.Moving ? (IsWalking ? 3 : 1) : Action == WorkerAction.Harvesting ? 2 : 0);
+        }
+
+        private bool UpdateManualMovement()
+        {
+            Vector2 input = AcceptsInteractionCommands ? WorkerbornInput.Move : Vector2.zero;
+            if (input.sqrMagnitude < .001f)
+            {
+                if (manualMoving)
+                    Cancel();
+                return false;
+            }
+
+            if (!manualMoving)
+            {
+                Cancel();
+                agent.isStopped = false;
+            }
+            manualMoving = true;
+            Action = WorkerAction.Moving;
+            Vector3 right = worldCamera.transform.right;
+            right.y = 0f;
+            right.Normalize();
+            Vector3 forward = Vector3.Cross(right, Vector3.up);
+            Vector3 direction = Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
+            float speed = IsWalking ? walkSpeed : runSpeed;
+            agent.Move(direction * (speed * Time.deltaTime));
+            Face(transform.position + direction);
+            return true;
+        }
+
+        private void UpdateNearbyCollection()
+        {
+            const string action = "Gameplay/CollectNearby";
+            if (!AcceptsInteractionCommands || !WorkerbornInput.Held(action) ||
+                !WorkerbornInput.Pressed(action) && Time.unscaledTime < nextCollect)
+                return;
+            nextCollect = Time.unscaledTime + collectRepeatSeconds;
+
+            GroundPickup nearest = null;
+            float bestDistance = float.MaxValue;
+            foreach (var candidate in WorldInteractable.Active)
+            {
+                if (!(candidate is GroundPickup item) || !item.CanCollect || item.IsInFlight || !IsInPickupRange(item))
+                    continue;
+                Vector3 offset = item.LandingPosition - transform.position;
+                offset.y = 0f;
+                if (offset.sqrMagnitude < bestDistance)
+                {
+                    nearest = item;
+                    bestDistance = offset.sqrMagnitude;
+                }
+            }
+
+            if (nearest != null)
+            {
+                if (nearest == pickupTarget)
+                    Cancel();
+                CollectPickup(nearest);
+            }
         }
 
         private void ReadInput()
@@ -133,7 +199,7 @@ namespace Workerborn
                 Message?.Invoke($"{crop.Definition.DisplayName} 밭으로 이동해요.");
         }
 
-        public bool IsInPickupRange(GroundPickup item) => item != null && InReach(item.LandingPosition, item.InteractionDistance);
+        public bool IsInPickupRange(GroundPickup item) => item != null && InReach(item.LandingPosition, pickupDistance);
         public void CommandPickup(GroundPickup item)
         {
             if (!AcceptsInteractionCommands || item == null || !item.CanCollect)
@@ -148,7 +214,7 @@ namespace Workerborn
                 return;
             ClearInteractionTargets();
             pickupTarget = item;
-            NavigateNear(item.LandingPosition, item.InteractionDistance * .8f);
+            NavigateNear(item.LandingPosition, pickupDistance * .8f);
         }
 
         private bool CollectPickup(GroundPickup item)
@@ -202,7 +268,9 @@ namespace Workerborn
             ClearInteractionTargets();
             pendingDrop = entry.Copy();
             dropPoint = destination;
-            if (!NavigateNear(destination, 0f))
+            if (InReach(dropPoint, pickupDistance))
+                return FinishDrop();
+            if (!NavigateNear(destination, pickupDistance * .8f))
                 return false;
             village.ShowClick(destination);
             return true;
@@ -245,6 +313,11 @@ namespace Workerborn
 
         private void UpdateMovement()
         {
+            if (pendingDrop != null && InReach(dropPoint, pickupDistance))
+            {
+                FinishDrop();
+                return;
+            }
             if (pickupTarget != null)
             {
                 if (!pickupTarget.CanCollect)
@@ -279,13 +352,8 @@ namespace Workerborn
             agent.ResetPath();
             if (pendingDrop != null)
             {
-                var requested = pendingDrop;
-                pendingDrop = null;
-                Action = WorkerAction.Idle;
-                if (InReach(dropPoint, .8f))
-                    village.PlaceInventoryDrop(requested, dropPoint);
-                else
-                    Message?.Invoke("그곳에 아이템을 놓을 수 없어요.");
+                Cancel();
+                Message?.Invoke("그곳에 아이템을 놓을 수 없어요.");
             }
             else if (cropTarget != null)
             {
@@ -312,7 +380,7 @@ namespace Workerborn
                 // A sampled approach point may land outside reach near obstacles.
                 pickupTarget = null;
                 Action = WorkerAction.Idle;
-                Message?.Invoke("아이템에서 1m 안으로 다가갈 수 없어요.");
+                Message?.Invoke("아이템에 충분히 가까이 갈 수 없어요.");
             }
             else if (interactionTarget != null)
             {
@@ -331,6 +399,15 @@ namespace Workerborn
             }
             else
                 Action = WorkerAction.Idle;
+        }
+
+        private bool FinishDrop()
+        {
+            var requested = pendingDrop;
+            var position = dropPoint;
+            Cancel();
+            Face(position);
+            return village.PlaceInventoryDrop(requested, position);
         }
 
         private void UpdateHarvest()
@@ -376,6 +453,7 @@ namespace Workerborn
 
         private void ClearInteractionTargets()
         {
+            manualMoving = false;
             if (cropTarget != null)
                 cropTarget.Cancel(this);
             cropTarget = null;

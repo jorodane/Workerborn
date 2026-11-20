@@ -23,8 +23,6 @@ namespace Workerborn
         [SerializeField]
         private TMP_Text gold;
         [SerializeField]
-        private TMP_Text bagName;
-        [SerializeField]
         private EquipmentSlotPointer[] equipment;
         [SerializeField]
         private RectTransform[] equipmentIcons;
@@ -72,7 +70,6 @@ namespace Workerborn
             cellLayer.sizeDelta = size;
             // Keep the authored panel height; its inventory viewport scrolls when the bag expands.
             gold.text = Game.State.Gold.ToString("N0");
-            bagName.text = Game.State.BagExpanded ? "여행 가방" : "일반";
             for (int i = 0; i < equipment.Length; i++)
             {
                 Clear(equipmentIcons[i]);

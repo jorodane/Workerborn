@@ -11,10 +11,10 @@ namespace Workerborn
         private float spacing = 3f;
         [SerializeField]
         private float edgeMargin = 8f;
-        private readonly Dictionary<GroundPickup, PickupNameView> names = new Dictionary<GroundPickup, PickupNameView>();
-        private readonly List<GroundPickup> removed = new List<GroundPickup>();
+        private readonly Dictionary<WorldInteractable, WorldNameplateView> names = new Dictionary<WorldInteractable, WorldNameplateView>();
+        private readonly List<WorldInteractable> removed = new List<WorldInteractable>();
         private readonly List<NameplateSlot> slots = new List<NameplateSlot>();
-        private readonly Dictionary<long, PickupNameView> visible = new Dictionary<long, PickupNameView>();
+        private readonly Dictionary<long, WorldNameplateView> visible = new Dictionary<long, WorldNameplateView>();
         private VillagePrototype game;
         private float scroll;
         public void Initialize(VillagePrototype owner) => game = owner;
@@ -26,12 +26,21 @@ namespace Workerborn
             var canvas = (RectTransform)transform;
             foreach (var target in WorldInteractable.Active)
             {
-                var pickup = target as GroundPickup;
-                if (pickup == null || names.ContainsKey(pickup))
+                if (target == null || !target.CanInteract || !target.ShowNameByDefault && !alt || names.ContainsKey(target))
                     continue;
-                var view = Instantiate(namePrefab, transform);
-                view.Bind(pickup, game.Worker);
-                names.Add(pickup, view);
+                WorldNameplateView view;
+                if (target is GroundPickup pickup)
+                {
+                    var pickupView = Instantiate(namePrefab, transform);
+                    pickupView.Bind(pickup, game.Worker);
+                    view = pickupView;
+                }
+                else
+                {
+                    view = Instantiate(game.Hud.Library.NpcName, transform);
+                    view.Bind(target, game.Targeting);
+                }
+                names.Add(target, view);
             }
 
             slots.Clear();
@@ -47,7 +56,8 @@ namespace Workerborn
                 }
 
                 var screen = game.WorldCamera.WorldToScreenPoint(pair.Key.NamePosition);
-                bool onScreen = screen.z > game.WorldCamera.nearClipPlane && screen.x >= 0 && screen.x <= Screen.width && screen.y >= 0 && screen.y <= Screen.height;
+                bool onScreen = pair.Key.CanInteract && (alt || pair.Key.ShowNameByDefault) &&
+                    screen.z > game.WorldCamera.nearClipPlane && screen.x >= 0 && screen.x <= Screen.width && screen.y >= 0 && screen.y <= Screen.height;
                 pair.Value.gameObject.SetActive(onScreen);
                 if (!onScreen)
                     continue;
@@ -56,8 +66,8 @@ namespace Workerborn
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out var point);
                 Vector2 size = pair.Value.Rect.sizeDelta;
                 float x = alt ? Mathf.Clamp(point.x, canvas.rect.xMin + edgeMargin + size.x * .5f, canvas.rect.xMax - edgeMargin - size.x * .5f) : point.x;
-                slots.Add(new NameplateSlot { Order = pair.Key.CreationOrder, X = x, Y = point.y, Width = size.x, Height = size.y });
-                visible.Add(pair.Key.CreationOrder, pair.Value);
+                slots.Add(new NameplateSlot { Order = pair.Key.NameplateOrder, X = x, Y = point.y, Width = size.x, Height = size.y });
+                visible.Add(pair.Key.NameplateOrder, pair.Value);
             }
 
             foreach (var item in removed)

@@ -21,6 +21,10 @@ namespace Workerborn
         private Color hoverColor = new Color(.23f, .29f, .32f, .85f);
         [SerializeField]
         private Color pressedColor = new Color(.42f, .31f, .12f, .95f);
+        [SerializeField]
+        private Color nameColor = new Color(1f, .98f, .91f);
+        [SerializeField]
+        private Color boxedNameColor = new Color(.65f, .89f, 1f);
         private bool boxVisible, pointerInside, pointerDown;
         private PointerTargeting targeting;
         public WorldInteractable Target { get; private set; }
@@ -36,8 +40,6 @@ namespace Workerborn
 
         public void SetText(string text)
         {
-            if (label.text == text)
-                return;
             label.text = text;
             Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(48, label.preferredWidth + padding.x));
             Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(22, label.preferredHeight + padding.y));
@@ -46,7 +48,6 @@ namespace Workerborn
         public void SetBox(bool visible)
         {
             boxVisible = visible;
-            background.raycastTarget = visible && WorkerbornInput.Held("Gameplay/Names") && Target != null && Target.CanInteract;
             label.raycastTarget = false;
             if (!visible)
                 pointerInside = pointerDown = false;
@@ -59,6 +60,7 @@ namespace Workerborn
         {
             bool alt = boxVisible && WorkerbornInput.Held("Gameplay/Names");
             background.raycastTarget = alt && Target != null && Target.CanInteract;
+            label.color = alt ? boxedNameColor : nameColor;
             if (!alt)
                 pointerInside = pointerDown = false;
             bool selected = targeting != null && targeting.CurrentTarget == Target && Target != null;

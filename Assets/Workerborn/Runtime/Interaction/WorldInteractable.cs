@@ -20,6 +20,7 @@ namespace Workerborn
     public abstract class WorldInteractable : MonoBehaviour
     {
         private static readonly List<WorldInteractable> active = new List<WorldInteractable>();
+        private static long nextNameplateOrder;
         public static IReadOnlyList<WorldInteractable> Active => active;
 
         [SerializeField]
@@ -38,6 +39,8 @@ namespace Workerborn
         protected virtual float DefaultDistance => 1.8f;
         public virtual float InteractionDistance => Mathf.Max(.1f, interactionDistance > 0 ? interactionDistance : DefaultDistance);
         public virtual bool CanTarget => false;
+        public virtual bool ShowNameByDefault => false;
+        public long NameplateOrder { get; private set; }
         public virtual bool CanInteract => isActiveAndEnabled;
         public virtual string InteractionVerb => "살펴보기";
 
@@ -55,6 +58,8 @@ namespace Workerborn
 
         protected virtual void OnEnable()
         {
+            if (NameplateOrder == 0)
+                NameplateOrder = ++nextNameplateOrder;
             if (!active.Contains(this))
                 active.Add(this);
         }

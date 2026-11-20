@@ -44,6 +44,10 @@ namespace Workerborn
         private void Place(RectTransform marker, Vector3 position)
         {
             var point = game.MinimapCamera.WorldToViewportPoint(position);
+            bool inside = point.z > 0 && point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1;
+            marker.gameObject.SetActive(inside);
+            if (!inside)
+                return;
             var rect = ((RectTransform)transform).rect;
             marker.anchoredPosition = new Vector2(point.x * rect.width, point.y * rect.height);
         }

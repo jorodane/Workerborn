@@ -5,6 +5,8 @@ Shader "Workerborn/UI/Target Link"
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _TargetMask ("Visible character silhouettes", 2D) = "black" {}
         _MaskFlipY ("Mask Y direction", Float) = 0
+        _ExteriorOutline ("Exterior outline", Float) = 0
+        _OutlinePixels ("Outline width", Float) = 1
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
         _StencilOp ("Stencil Operation", Float) = 0
@@ -30,8 +32,9 @@ Shader "Workerborn/UI/Target Link"
             struct appdata { float4 vertex : POSITION; fixed4 color : COLOR; float2 uv : TEXCOORD0; };
             struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 uv : TEXCOORD0; float4 screen : TEXCOORD1; float4 local : TEXCOORD2; };
             sampler2D _MainTex, _TargetMask;
-            float _MaskFlipY;
+            float _MaskFlipY, _ExteriorOutline, _OutlinePixels;
             float4 _TargetMask_TexelSize;
+            float4 _MainTex_TexelSize;
             float4 _ClipRect;
             v2f vert(appdata v)
             {
@@ -45,15 +48,31 @@ Shader "Workerborn/UI/Target Link"
             }
             fixed4 frag(v2f i) : SV_Target
             {
+                if (_ExteriorOutline > .5)
+                {
+                    float2 p = float2(i.uv.x, lerp(i.uv.y, 1 - i.uv.y, _MaskFlipY));
+                    float exterior = tex2D(_MainTex, p).r;
+                    clip(min(exterior - .25, .75 - exterior));
+                    float edge = 0;
+                    [unroll] for (int y = -1; y <= 1; y++)
+                        [unroll] for (int x = -1; x <= 1; x++)
+                        {
+                            float2 direction = float2(x, y);
+                            float2 offset = direction * rsqrt(max(1, dot(direction, direction))) * _MainTex_TexelSize.xy * _OutlinePixels;
+                            edge = max(edge, tex2D(_MainTex, p + offset).r);
+                        }
+                    clip(edge - .75);
+                    return i.color;
+                }
+
                 float2 uv = i.screen.xy / i.screen.w;
                 uv.y = lerp(uv.y, 1 - uv.y, _MaskFlipY);
-                float3 silhouette = 0;
+                float silhouette = 0;
                 // One mask texel of clearance protects thin edges at reduced capture resolutions.
                 [unroll] for (int y = -1; y <= 1; y++)
                     [unroll] for (int x = -1; x <= 1; x++)
-                        silhouette = max(silhouette, tex2D(_TargetMask, uv + float2(x, y) * _TargetMask_TexelSize.xy).rgb);
-                // IDs start at 1/255. The mask uses point sampling and linear color space.
-                clip(.001 - max(silhouette.r, max(silhouette.g, silhouette.b)));
+                        silhouette = max(silhouette, tex2D(_TargetMask, uv + float2(x, y) * _TargetMask_TexelSize.xy).a);
+                clip(.5 - silhouette);
                 fixed4 color = tex2D(_MainTex, i.uv) * i.color;
                 #ifdef UNITY_UI_CLIP_RECT
                 color.a *= UnityGet2DClipping(i.local.xy, _ClipRect);

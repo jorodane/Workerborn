@@ -40,5 +40,9 @@ MonoBehaviour:
   luckyChance: 0.1
   greatLuckyChance: 0.01
   greatLuckyRank: 6
+  scatterTowardWorker: 0
+  scatterAngle: 360
+  scatterRadius: {x: 0.38, y: 1.18}
+  maxVisibleDrops: 24
   skillIcon: {fileID: 21300000, guid: 9fc670e4153759efa4ca9573ec9cd758, type: 3}
   workAnimation: {fileID: 11400000, guid: 22690ab4eb1b5ea8b97ed2b9171c837b, type: 2}

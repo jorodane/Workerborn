@@ -26,6 +26,10 @@ MonoBehaviour:
   luckyChance: 0.1
   greatLuckyChance: 0.01
   greatLuckyRank: 6
+  scatterTowardWorker: 1
+  scatterAngle: 64
+  scatterRadius: {x: 0.57, y: 1.38}
+  maxVisibleDrops: 24
   plantPrefab: {fileID: 0}
   dropPrefab: {fileID: 0}
   pickupPrefab: {fileID: 100008, guid: 16ab27efd530520684317a6285f0d22f, type: 3}

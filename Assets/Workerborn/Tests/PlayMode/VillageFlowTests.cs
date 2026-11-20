@@ -405,14 +405,21 @@ namespace Workerborn.Tests
             Vector3 farmerPosition = farmer.transform.position;
             try
             {
+                Physics.SyncTransforms();
+                visibility.RefreshVisibility();
+                Assert.That(visibility.IsHidden(prop.GetComponent<Renderer>()), Is.False);
+                prop.layer = VillageMapProp.PointerGeometryLayer;
+                var geometry = prop.AddComponent<MeshCollider>();
+                geometry.sharedMesh = prop.GetComponent<MeshFilter>().sharedMesh;
+                Physics.SyncTransforms();
                 visibility.RefreshVisibility();
                 Assert.That(visibility.IsHidden(prop.GetComponent<Renderer>()), Is.True);
                 visibility.AdvanceFade(.04f);
                 Assert.That(visibility.Opacity(prop.GetComponent<Renderer>()), Is.InRange(.001f, .999f));
                 visibility.AdvanceFade(.2f);
                 Assert.That(visibility.Opacity(prop.GetComponent<Renderer>()), Is.Zero);
-                Assert.That(prop.GetComponent<Collider>().enabled, Is.True);
-                Assert.That(visibility.IgnorePointerCollider(prop.GetComponent<Collider>()), Is.True);
+                Assert.That(geometry.enabled, Is.True);
+                Assert.That(visibility.IgnorePointerCollider(geometry), Is.True);
                 yield return null;
                 Assert.That(game.CameraRig.Distance, Is.EqualTo(distance));
                 Assert.That(Vector3.Distance(camera.transform.position, game.Worker.transform.position + Vector3.up * 1.1f), Is.EqualTo(distance).Within(.01f));

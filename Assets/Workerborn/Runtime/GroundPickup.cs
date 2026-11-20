@@ -15,30 +15,24 @@ namespace Workerborn
         private int quantity = 1;
         [SerializeField, Min(.01f)]
         private float flightSeconds = .48f;
-        private static long nextOrder;
         private Vector3 origin, landing, visualOrigin;
         private float age;
         private bool collected, initialized;
-        public long CreationOrder { get; private set; }
+        public override bool ShowNameByDefault => true;
         public CropDefinition Definition => definition;
         public string ItemId => item != null ? item.Id : definition != null ? definition.ItemId : string.Empty;
         public int Quantity => quantity;
         public override string DisplayName => item != null ? item.DisplayName : definition != null ? definition.DisplayName : name;
-        protected override float DefaultDistance => 1f;
+        protected override float DefaultDistance => 1.5f;
         public bool CanCollect => !collected && isActiveAndEnabled;
+        public bool IsInFlight => initialized && age < flightSeconds;
         public override bool CanInteract => CanCollect;
         public override string InteractionVerb => "줍기";
         public Vector3 LandingPosition => initialized ? landing : transform.position;
+        public Vector3 VisualPosition => visual != null ? visual.position : transform.position;
         public event Action<Vector3> Landed;
 
         protected override void Interact(HarvestWorker worker) => worker.CommandPickup(this);
-        protected override void OnEnable()
-        {
-            base.OnEnable();
-            if (CreationOrder == 0)
-                CreationOrder = ++nextOrder;
-        }
-
         private void Start()
         {
             if (!initialized)

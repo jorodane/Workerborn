@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: field_coat
+  m_EditorClassIdentifier: ''
+  id: field_coat
+  displayName: 숲길 작업복
+  description: 상의에 장착하는 긴소매 작업복.
+  icon: {fileID: 21300000, guid: 92261839317a5df7a4501cafd2967dbe, type: 3}
+  worldPrefab: {fileID: 919132149155446097, guid: 1df7a436c7c8a9b41bfa1f2a256bf8a8, type: 3}
+  width: 2
+  height: 2
+  maxStack: 1
+  price: 24
+  equipmentSlot: 2
+  equipmentPart: {fileID: 11400000, guid: b472aa7259b056fc91941c8adc5f4527, type: 2}
+  groundPrefab: {fileID: 100008, guid: e823135146b55a8681ead9fc7786d530, type: 3}

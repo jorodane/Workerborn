@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Workerborn
 {
-    public enum EquipmentSlot { None, Head, Body, Hands, Feet, MainHand, OffHand, Accessory }
+    public enum EquipmentSlot { None, Head, Body, Hands, Feet, MainHand, OffHand, Accessory, Legs, Bag }
 
     [Serializable]
     public sealed class EquipmentEntrySave
@@ -51,7 +51,7 @@ namespace Workerborn
             new ItemSpec(ItemIds.Potato, "감자", "직접 수확한 감자. 농부에게 납품하거나 잡화점에서 개당 3G에 팔 수 있습니다.", 1, 1, 20, 3),
             new ItemSpec(ItemIds.Bread, "갓 구운 빵", "먹으면 에너지를 25 회복합니다. 인벤토리에서 우클릭하거나 사용 버튼을 누르세요.", 1, 1, 10, 10),
             new ItemSpec(ItemIds.Hoe, "튼튼한 괭이", "손에 장착하면 밭에서 작업할 때 스태미나 소모가 1 줄어듭니다.", 1, 3, 1, 60, EquipmentSlot.MainHand),
-            new ItemSpec(ItemIds.Bag, "작은 여행 가방", "소지품 공간이 2줄 늘어납니다. 가방도 환생하면 사라집니다.", 2, 2, 1, 100),
+            new ItemSpec(ItemIds.Bag, "작은 여행 가방", "장착하면 소지품 공간이 2줄 늘어납니다.", 2, 2, 1, 100, EquipmentSlot.Bag),
             new ItemSpec(ItemIds.Gold, "골드", "물건을 사고 일의 대가로 받는 금화.", 1, 1, 1000, 1),
             new ItemSpec(ItemIds.Egg, "달걀", "암탉 주변에서 맨손으로 모을 수 있습니다.", 1, 1, 999, 4),
             new ItemSpec(ItemIds.Timber, "목재", "도끼로 나무를 베어 얻는 자재입니다.", 1, 1, 999, 3),

@@ -96,16 +96,18 @@ namespace Workerborn.Tests
         {
             var targets = UnityEngine.Object.FindObjectsByType<HarvestableCrop>(FindObjectsSortMode.None).Where(c => c.Definition.ItemId == id);
             foreach (var crop in targets)
-                while (crop.CanInteract && game.State.Inventory.Count(id) < required)
+                while (crop.CanInteract && !crop.IsDepleted && game.State.Inventory.Count(id) < required)
                 {
                     int remaining = crop.Remaining;
                     game.Worker.CommandHarvest(crop);
                     yield return Until(() => crop.Remaining < remaining);
-                    var drop = UnityEngine.Object.FindObjectsByType<GroundPickup>(FindObjectsSortMode.None).FirstOrDefault(p => p.ItemId == id);
-                    if (drop == null)
-                        continue;
-                    game.Worker.CommandPickup(drop);
-                    yield return Until(() => drop == null || !drop.CanCollect);
+                    foreach (var drop in UnityEngine.Object.FindObjectsByType<GroundPickup>(FindObjectsSortMode.None).Where(p => p.ItemId == id))
+                    {
+                        if (game.State.Inventory.Count(id) >= required)
+                            break;
+                        game.Worker.CommandPickup(drop);
+                        yield return Until(() => drop == null || !drop.CanCollect);
+                    }
                 }
             Assert.That(game.State.Inventory.Count(id), Is.GreaterThanOrEqualTo(required));
         }

@@ -11,8 +11,10 @@ namespace Workerborn
         private Transform visual;
         [SerializeField, Tooltip("Use the model importer's exact mesh colliders for a directly imported FBX visual.")]
         private bool useImportedMeshColliders;
+        public Renderer[] OcclusionRenderers { get; private set; }
         private void Awake()
         {
+            OcclusionRenderers = GetComponentsInChildren<Renderer>(true);
             if (visual == null)
                 return;
             foreach (var child in visual.GetComponentsInChildren<Transform>(true))

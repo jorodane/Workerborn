@@ -2,13 +2,15 @@ using UnityEngine;
 
 namespace Workerborn
 {
-    public enum CharacterPartSlot { Hair, Outfit, Eyes, Eyebrows, Mouth, Headwear, RightHand, LeftHand }
+    public enum CharacterPartSlot { Hair, Outfit, Eyes, Eyebrows, Mouth, Headwear, RightHand, LeftHand, Top, Trousers, Boots, Gloves }
 
     [CreateAssetMenu(menuName = "Workerborn/Characters/Part", fileName = "CharacterPart")]
     public sealed class CharacterPartDefinition : ScriptableObject
     {
         [SerializeField] private CharacterPartSlot slot;
         [SerializeField] private GameObject prefab;
+        [SerializeField] private GameObject femalePrefab;
+        [SerializeField] private bool hideHair;
         [SerializeField, Tooltip("Leave empty for skinned modules or modules authored in rig coordinates.")]
         private string attachmentBone;
         [SerializeField] private Vector3 localPosition;
@@ -22,6 +24,8 @@ namespace Workerborn
 
         public CharacterPartSlot Slot => slot;
         public GameObject Prefab => prefab;
+        public GameObject PrefabForRig(bool female) => female && femalePrefab != null ? femalePrefab : prefab;
+        public bool HideHair => hideHair;
         public string AttachmentBone => attachmentBone;
         public Vector3 LocalPosition => localPosition;
         public Vector3 LocalEulerAngles => localEulerAngles;

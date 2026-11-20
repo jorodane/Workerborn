@@ -247,4 +247,5 @@ MonoBehaviour:
   visual:
     fileID: 100352
   charges: []
+  nameOffset: {x: 0, y: 0.48, z: 0}
   persistentId: ''

@@ -44,12 +44,12 @@ namespace Workerborn
         private readonly Queue<string> log = new Queue<string>();
         private string lastLoggedMessage;
         private readonly Dictionary<string, RectTransform> windows = new Dictionary<string, RectTransform>();
-        private readonly Dictionary<VillageInteractable, WorldNameplateView> npcLabels = new Dictionary<VillageInteractable, WorldNameplateView>();
         private readonly List<FloatingText> floating = new List<FloatingText>();
         private int seenVersion = -1;
         private int seenInventoryVersion = -1;
         private int seenNotice = -1;
         private bool suppressRightContext;
+        private static readonly string[] Weekdays = { "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일" };
         [SerializeField]
         private RectTransform minimapPanel;
         [SerializeField]
@@ -93,13 +93,6 @@ namespace Workerborn
             BuildWorldFeedback();
             pickupNames?.Initialize(game);
             game.Worker.Message += ShowToast;
-            foreach (var target in game.Interactables)
-            {
-                var text = Instantiate(library.NpcName, transform);
-                text.Bind(target, game.Targeting);
-                text.SetBox(WorkerbornInput.Held("Gameplay/Names"));
-                npcLabels.Add(target, text);
-            }
         }
 
         private float skillWorldHeight;
@@ -146,12 +139,22 @@ namespace Workerborn
                 return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
+                bool hadWindow = IsHoldingItem;
                 if (HasModal)
+                {
                     CloseDialogue();
+                    hadWindow = true;
+                }
                 else
                     foreach (var window in windows.Values)
-                        window.gameObject.SetActive(false);
+                        if (window.gameObject.activeSelf)
+                        {
+                            hadWindow = true;
+                            window.gameObject.SetActive(false);
+                        }
                 CancelItemDrag();
+                if (!hadWindow)
+                    OpenWindow("system")?.Refresh();
             }
 
             if (WorkerbornInput.Pressed("Gameplay/Inventory"))
@@ -184,7 +187,8 @@ namespace Workerborn
             ReleaseDraggedItem();
             var state = game.State;
             int minute = Mathf.FloorToInt(state.Minute);
-            clockText.text = $"{minute / 60:00} : {minute % 60:00}";
+            string weekday = Weekdays[(state.Day - 1) % Weekdays.Length];
+            clockText.text = $"{weekday}\n{minute / 60:00}:{minute % 60:00}";
             energyText.text = $"{state.Energy} / 100";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
             energyFill.fillAmount = state.Energy / 100f;
@@ -238,13 +242,6 @@ namespace Workerborn
                 at.x = Mathf.Clamp(at.x, CanvasRect.rect.xMin, CanvasRect.rect.xMax - hoverTip.rect.width);
                 at.y = Mathf.Clamp(at.y, CanvasRect.rect.yMin + hoverTip.rect.height, CanvasRect.rect.yMax);
                 hoverTip.anchoredPosition = at - CanvasRect.rect.min;
-            }
-
-            foreach (var pair in npcLabels)
-            {
-                pair.Value.SetText(pair.Key.DisplayName);
-                pair.Value.SetBox(WorkerbornInput.Held("Gameplay/Names"));
-                PlaceWorld(pair.Value.Rect, pair.Key.LabelPosition);
             }
 
             for (int i = floating.Count - 1; i >= 0; i--)

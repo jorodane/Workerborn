@@ -176,6 +176,35 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void DirectPickingUsesOnlyPaintedPixelsAndCtrlCanSkipProps()
+        {
+            var mask = new byte[8 * 8 * 4];
+            Paint(mask, 8, 2, 2, 1);
+            Paint(mask, 8, 6, 2, 8);
+            Assert.That(TargetMaskGeometry.IdAt(mask, 8, 8, 2, 2, false), Is.EqualTo(1));
+            Assert.That(TargetMaskGeometry.IdAt(mask, 8, 8, 3, 2, false), Is.Zero);
+            Assert.That(TargetMaskGeometry.Closest(mask, 8, 8, false, 25, 25, 80, 80, out var hit, id => id == 8), Is.True);
+            Assert.That(hit.Id, Is.EqualTo(8));
+        }
+
+        [Test]
+        public void SelectionOutlineLeavesEnclosedHolesUnmarked()
+        {
+            const int width = 9;
+            var mask = new byte[width * width * 4];
+            for (int y = 2; y <= 6; y++)
+                for (int x = 2; x <= 6; x++)
+                    if (x == 2 || x == 6 || y == 2 || y == 6)
+                        Paint(mask, width, x, y, 3);
+            var exterior = new byte[width * width];
+            var queue = new int[exterior.Length];
+            TargetMaskGeometry.MarkExterior(mask, width, width, 3, exterior, queue);
+            Assert.That(exterior[4 * width + 4], Is.Zero);
+            Assert.That(exterior[4 * width + 2], Is.EqualTo(255));
+            Assert.That(exterior[4 * width + 1], Is.EqualTo(128));
+        }
+
+        [Test]
         public void ReadbackOrientationAndViewportScalingProduceTheSameEdge()
         {
             var bottom = new byte[4 * 4 * 4];

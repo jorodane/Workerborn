@@ -25,6 +25,11 @@ namespace Workerborn
         [SerializeField, Range(0, 1)] private float luckyChance = .1f;
         [SerializeField, Range(0, 1)] private float greatLuckyChance = .01f;
         [SerializeField, Range(0, 8)] private int greatLuckyRank = 6;
+        [Header("Loot Scatter")]
+        [SerializeField] private bool scatterTowardWorker;
+        [SerializeField, Range(0, 360)] private float scatterAngle = 360f;
+        [SerializeField] private Vector2 scatterRadius = new Vector2(.4f, 1.25f);
+        [SerializeField, Range(1, 48)] private int maxVisibleDrops = 24;
         [Header("Legacy harvest demo model references")]
         [SerializeField]
         private GameObject plantPrefab;
@@ -46,6 +51,16 @@ namespace Workerborn
         public Sprite SkillIcon => skillIcon;
         public WorkAnimationDefinition WorkAnimation => workAnimation;
         public int StaminaCost => staminaCost;
+        public int MaxVisibleDrops => Mathf.Clamp(maxVisibleDrops, 1, 48);
+
+        public Vector3 SampleDropOffset(Vector3 towardWorker, int index, int count, float angleRoll, float radiusRoll)
+        {
+            towardWorker.y = 0;
+            Vector3 forward = scatterTowardWorker && towardWorker.sqrMagnitude > .001f ? towardWorker.normalized : Vector3.forward;
+            float angle = ((index + angleRoll) / count - .5f) * scatterAngle;
+            float radius = Mathf.Lerp(Mathf.Max(0, scatterRadius.x), Mathf.Max(scatterRadius.x, scatterRadius.y), radiusRoll);
+            return Quaternion.AngleAxis(angle, Vector3.up) * forward * radius;
+        }
 
         public WorkOutcome RollOutcome(int rank, float successRoll, float bonusRoll)
         {

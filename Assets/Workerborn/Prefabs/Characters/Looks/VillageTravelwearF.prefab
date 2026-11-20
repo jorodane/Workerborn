@@ -147,6 +147,7 @@ GameObject:
   m_Component:
   - component: {fileID: 100006}
   - component: {fileID: 100149}
+  - component: {fileID: 1900000000}
   m_Layer: 2
   m_Name: Outfit_top.08_ranger_coat
   m_TagString: Untagged
@@ -2504,6 +2505,7 @@ GameObject:
   m_Component:
   - component: {fileID: 100151}
   - component: {fileID: 100152}
+  - component: {fileID: 1900000001}
   m_Layer: 2
   m_Name: Outfit_bottoms.02
   m_TagString: Untagged
@@ -2660,6 +2662,7 @@ GameObject:
   m_Component:
   - component: {fileID: 100154}
   - component: {fileID: 100155}
+  - component: {fileID: 1900000002}
   m_Layer: 2
   m_Name: Outfit_shoes.01
   m_TagString: Untagged
@@ -2806,3 +2809,48 @@ SkinnedMeshRenderer:
     m_Center: {x: -2.413988e-06, y: 0.03475684, z: 0.81}
     m_Extent: {x: 0.39, y: 0.12, z: 0.75}
   m_DirtyAABB: 0
+--- !u!114 &1900000000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100005}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c74f4e781a45ce494932a009f74cf78, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  slot: 2
+  coveredSkin: 62
+  skinBinding: {fileID: 0}
+--- !u!114 &1900000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100150}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c74f4e781a45ce494932a009f74cf78, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  slot: 8
+  coveredSkin: 896
+  skinBinding: {fileID: 0}
+--- !u!114 &1900000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100153}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c74f4e781a45ce494932a009f74cf78, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  slot: 4
+  coveredSkin: 2048
+  skinBinding: {fileID: 0}

@@ -20,6 +20,7 @@ namespace Workerborn
         public static bool Pressed(string name) => Current?.Find(name)?.WasPressedThisFrame() ?? false;
         public static bool Released(string name) => Current?.Find(name)?.WasReleasedThisFrame() ?? false;
         public static bool Held(string name) => Current?.Find(name)?.IsPressed() ?? false;
+        public static Vector2 Move => Current?.Find("Gameplay/Move")?.ReadValue<Vector2>() ?? Vector2.zero;
         public static Vector2 Point => Current?.Find("Gameplay/Point")?.ReadValue<Vector2>() ?? Vector2.zero;
         public static Vector2 Look => Current?.Find("Camera/Look")?.ReadValue<Vector2>() ?? Vector2.zero;
         public static float Scroll => Current?.Find("Camera/Zoom")?.ReadValue<float>() ?? 0f;

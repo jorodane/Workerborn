@@ -30,7 +30,7 @@ namespace Workerborn
         [SerializeField]
         private RenderTexture minimapTexture;
         [SerializeField]
-        private Camera portraitCamera;
+        private NpcPortrait playerPortrait;
         [SerializeField]
         private RenderTexture portraitTexture;
         [SerializeField]
@@ -168,6 +168,11 @@ namespace Workerborn
             foreach (var item in FindObjectsByType<GroundPickup>(FindObjectsSortMode.None))
                 if (item.gameObject.scene == gameObject.scene)
                     pickups.Add(item);
+            if (minimapCamera != null && minimapTexture != null)
+            {
+                minimapCamera.targetTexture = minimapTexture;
+                minimapCamera.enabled = true;
+            }
             hud.Initialize(this, settings.InterfaceFont);
             targeting?.Initialize(this, hud.TargetLink);
             worldCamera.GetComponent<CameraVisibility>()?.Initialize(player.transform);
@@ -315,11 +320,20 @@ namespace Workerborn
                 hud.ShowFloatingText(crop.transform.position + Vector3.up, "실패", new Color(1f, .65f, .55f));
                 return;
             }
-            Vector3 towardWorker = Vector3.Lerp(crop.transform.position, worker.transform.position, .65f);
-            Vector3 end = SurfacePosition(towardWorker.x, towardWorker.z) + Vector3.up * .08f;
             var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
             if (prefab != null)
-                SpawnPickup(prefab, work, count, crop.transform.position + Vector3.up * .5f, end);
+            {
+                Vector3 source = crop.transform.position;
+                Vector3 direction = worker.transform.position - source;
+                int piles = Mathf.Min(count, work.MaxVisibleDrops);
+                for (int i = 0; i < piles; i++)
+                {
+                    Vector3 point = source + work.SampleDropOffset(direction, i, piles, UnityEngine.Random.Range(.18f, .82f), UnityEngine.Random.value);
+                    Vector3 end = SurfacePosition(point.x, point.z) + Vector3.up * .08f;
+                    int quantity = count / piles + (i < count % piles ? 1 : 0);
+                    SpawnPickup(prefab, work, quantity, source + Vector3.up * .5f, end);
+                }
+            }
             else
                 Debug.LogError("Assign a ground-item prefab to " + work.name, this);
 
@@ -336,7 +350,10 @@ namespace Workerborn
             item.SetQuantity(quantity);
             item.Initialize(definition, start, end);
             if (effects != null)
+            {
                 item.Landed += effects.PlayLanding;
+                effects.PlayDropTrail(item);
+            }
             pickups.Add(item);
         }
 
@@ -344,7 +361,7 @@ namespace Workerborn
 
         internal GroundPickup DropPrefabFor(InventoryEntry entry)
         {
-            if (entry != null && !(entry.ItemId == ItemIds.Bag && State.BagExpanded) &&
+            if (entry != null &&
                 settings.FindItem(entry.ItemId)?.GroundPrefab is GroundPickup prefab &&
                 prefab.ItemId == entry.ItemId)
                 return prefab;
@@ -383,12 +400,12 @@ namespace Workerborn
                 return false;
             }
 
-            Vector3 itemPosition = item.transform.position;
+            Vector3 itemPosition = item.VisualPosition + Vector3.up * .08f;
             if (!item.TryCollect(() => State.Inventory.TryAdd(id, item.Quantity)))
                 return false;
             if (!string.IsNullOrEmpty(item.PersistentId))
                 collectedPickups.Add(item.PersistentId);
-            effects?.PlayPickup(itemPosition + Vector3.up * .12f);
+            effects?.PlayPickupTrail(itemPosition, worker.transform);
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.5f, item.DisplayName + " +" + item.Quantity, Color.white);
             return true;
         }
@@ -613,12 +630,10 @@ namespace Workerborn
             if (equipmentVersion != State.Version)
             {
                 equipmentVersion = State.Version;
-                State.Equipment.TryGetValue(EquipmentSlot.MainHand, out string equipped);
-                player.ShowEquipment(equipped, settings.FindItem(equipped)?.EquipmentPart);
+                player.ShowEquipment(State.Equipment, settings);
             }
 
-            if (portraitCamera != null)
-                portraitCamera.enabled = hud.InventoryOpen;
+            playerPortrait?.Show(hud.InventoryOpen ? player : null);
             if (State.AdvanceTime(Time.deltaTime, hud.HasModal))
             {
                 BeginDay();

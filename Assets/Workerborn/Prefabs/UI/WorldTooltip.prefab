@@ -167,13 +167,13 @@ MonoBehaviour:
   m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor: {r: 1, g: 1, b: 1, a: 1}
-  m_fontSize: 13
-  m_fontSizeBase: 13
+  m_fontSize: 18
+  m_fontSizeBase: 18
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 10
   m_fontSizeMax: 40
-  m_fontStyle: 0
+  m_fontStyle: 1
   m_HorizontalAlignment: 1
   m_VerticalAlignment: 256
   m_textAlignment: 257

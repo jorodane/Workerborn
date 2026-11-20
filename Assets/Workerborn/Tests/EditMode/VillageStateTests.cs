@@ -27,6 +27,46 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void EquippedBagPersistsAndCanOnlyBeRemovedWhenItsContentsFit()
+        {
+            var state = Funded();
+            Assert.That(state.TryBuy(ItemIds.Bag), Is.True);
+            Assert.That(state.Inventory.Rows, Is.EqualTo(6));
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, 640), Is.True);
+
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.Equipment[EquipmentSlot.Bag], Is.EqualTo(ItemIds.Bag));
+            Assert.That(state.TryUnequip(EquipmentSlot.Bag), Is.False);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(640));
+            Assert.That(state.Inventory.Rows, Is.EqualTo(6));
+
+            Assert.That(state.Inventory.TryRemove(ItemIds.Potato, 640), Is.True);
+            Assert.That(state.TryUnequip(EquipmentSlot.Bag), Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.Bag), Is.EqualTo(1));
+            Assert.That(state.Inventory.Rows, Is.EqualTo(4));
+            Assert.That(state.TryEquip(state.Inventory.Entries[1].Id), Is.True);
+            Assert.That(state.Inventory.Rows, Is.EqualTo(6));
+        }
+
+        [Test]
+        public void LegacyExpandedBagMigratesIntoTheEquipmentSlot()
+        {
+            var inventory = new GridInventory(8, 6);
+            inventory.TryAdd(ItemIds.Bag, 1);
+            inventory.TryAdd(ItemIds.Potato, 31);
+            var save = new VillageState().Export();
+            save.schema = 3;
+            save.bagExpanded = true;
+            save.inventoryRows = 6;
+            save.inventory = inventory.Export();
+            var state = VillageState.Restore(save);
+            Assert.That(state.Equipment[EquipmentSlot.Bag], Is.EqualTo(ItemIds.Bag));
+            Assert.That(state.Inventory.Count(ItemIds.Bag), Is.Zero);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(31));
+            Assert.That(state.Inventory.Rows, Is.EqualTo(6));
+        }
+
+        [Test]
         public void InvalidActiveJobTermsAreRejectedOnLoad()
         {
             var state = new VillageState();
@@ -175,7 +215,7 @@ namespace Workerborn.Tests
             var state = Funded();
             Assert.That(state.TryBuy(ItemIds.Bag), Is.True);
             Assert.That(state.Inventory.Rows, Is.EqualTo(6));
-            Assert.That(state.Inventory.Count(ItemIds.Bag), Is.EqualTo(1));
+            Assert.That(state.Equipment[EquipmentSlot.Bag], Is.EqualTo(ItemIds.Bag));
             Assert.That(state.TryBuy(ItemIds.Bag), Is.False);
             Assert.That(state.Gold, Is.EqualTo(400));
         }

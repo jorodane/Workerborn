@@ -27,6 +27,7 @@ namespace Workerborn
         private float fadeInSeconds = .28f;
         private Camera view;
         private readonly HashSet<Renderer> hidden = new HashSet<Renderer>();
+        private readonly RaycastHit[] sightHits = new RaycastHit[64];
         private readonly HashSet<VillageMapProp> hiddenProps = new HashSet<VillageMapProp>();
         private readonly Dictionary<Renderer, FadeState> states = new Dictionary<Renderer, FadeState>();
         private readonly List<Renderer> removed = new List<Renderer>();
@@ -48,10 +49,12 @@ namespace Workerborn
                 return false;
             var prop = collider.GetComponentInParent<VillageMapProp>();
             if (prop != null)
-                return hiddenProps.Contains(prop);
+                return prop.OcclusionRenderers != null && System.Array.Exists(prop.OcclusionRenderers, IsPointerTransparent);
             var renderer = collider.GetComponent<Renderer>();
-            return renderer != null && hidden.Contains(renderer);
+            return renderer != null && IsPointerTransparent(renderer);
         }
+
+        private bool IsPointerTransparent(Renderer renderer) => renderer != null && Opacity(renderer) <= .2f;
 
         private void Awake()
         {
@@ -79,24 +82,13 @@ namespace Workerborn
             if (player == null)
                 return;
             Vector3 position = transform.position;
-            var renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
-            Vector3 low = player.TransformPoint(lowerSightPoint), high = player.TransformPoint(upperSightPoint);
-            foreach (var renderer in renderers)
-            {
-                if (!renderer.enabled || renderer.forceRenderingOff || renderer is ParticleSystemRenderer || renderer.gameObject.layer == VillageWeather.SkyLayer || renderer.GetComponentInParent<WorldInteractable>() != null || renderer.GetComponentInParent<CharacterActor>() != null)
-                    continue;
-                if (!Blocks(renderer.bounds, position, low) && !Blocks(renderer.bounds, position, high))
-                    continue;
-                var prop = renderer.GetComponentInParent<VillageMapProp>();
-                if (prop != null)
-                    hiddenProps.Add(prop);
-                else
-                    hidden.Add(renderer);
-            }
-
+            DetectOccluders(position, player.TransformPoint(lowerSightPoint));
+            DetectOccluders(position, player.TransformPoint(upperSightPoint));
             foreach (var prop in hiddenProps)
-                foreach (var renderer in prop.GetComponentsInChildren<Renderer>())
-                    hidden.Add(renderer);
+                foreach (var renderer in prop.OcclusionRenderers)
+                    if (renderer != null && renderer.enabled && !(renderer is ParticleSystemRenderer))
+                        hidden.Add(renderer);
+
             // Visual bounds cover hats, hair, equipment and the bobbing/rotating pickup model.
             // Expanded capsules and near-plane corners begin fading before the camera cuts the mesh.
             foreach (var capsule in FindObjectsByType<CapsuleCollider>(FindObjectsSortMode.None))
@@ -207,11 +199,39 @@ namespace Workerborn
                 states.Remove(renderer);
         }
 
-        private bool Blocks(Bounds bounds, Vector3 origin, Vector3 destination)
+        private void DetectOccluders(Vector3 origin, Vector3 destination)
         {
             Vector3 delta = destination - origin;
-            float length = delta.magnitude;
-            return length > playerClearance && bounds.IntersectRay(new Ray(origin, delta / length), out float entry) && entry < length - playerClearance;
+            float distance = delta.magnitude - playerClearance;
+            if (distance <= 0)
+                return;
+            Vector3 direction = delta.normalized;
+            MarkOccluders(new Ray(origin, direction), distance);
+            // The reverse ray also finds an exit surface when the camera is inside a mesh.
+            MarkOccluders(new Ray(origin + direction * distance, -direction), distance);
+        }
+
+        private void MarkOccluders(Ray ray, float distance)
+        {
+            const int mask = 1 << VillageMapProp.PointerGeometryLayer;
+            var hits = sightHits;
+            int count = Physics.RaycastNonAlloc(ray, hits, distance, mask, QueryTriggerInteraction.Ignore);
+            if (count == hits.Length)
+            {
+                hits = Physics.RaycastAll(ray, distance, mask, QueryTriggerInteraction.Ignore);
+                count = hits.Length;
+            }
+            for (int i = 0; i < count; i++)
+            {
+                var collider = hits[i].collider;
+                if (!(collider is MeshCollider) || collider.GetComponentInParent<WorldInteractable>() != null)
+                    continue;
+                var prop = collider.GetComponentInParent<VillageMapProp>();
+                if (prop != null)
+                    hiddenProps.Add(prop);
+                else if (collider.TryGetComponent<Renderer>(out var renderer))
+                    hidden.Add(renderer);
+            }
         }
 
         public static bool Contains(CapsuleCollider capsule, Vector3 point, float padding = 0)

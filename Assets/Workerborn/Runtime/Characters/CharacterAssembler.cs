@@ -36,13 +36,19 @@ namespace Workerborn
                     ApplyMaterialPart(part, baseRenderers);
                     continue;
                 }
-                if (AttachPart(part, rig.transform, bones) == null)
+                GameObject module = AttachPart(part, rig.transform, bones);
+                if (module == null)
                     continue;
+                var slots = module.GetComponentsInChildren<CharacterGarment>();
                 foreach (var renderer in baseRenderers)
-                    if (Matches(renderer.name, part.Slot) && MatchesHand(renderer.transform, part.Slot))
+                    if (Matches(renderer.name, part.Slot) && MatchesHand(renderer.transform, part.Slot) ||
+                        part.HideHair && IsHair(renderer.name) ||
+                        renderer.TryGetComponent<CharacterGarment>(out var garment) &&
+                        Array.Exists(slots, other => other.Slot == garment.Slot))
                         renderer.enabled = false;
             }
 
+            CharacterGarment.RefreshSkin(rig.transform);
             foreach (var collider in root.GetComponentsInChildren<Collider>(true))
                 collider.enabled = false;
             foreach (var child in root.GetComponentsInChildren<Transform>(true))
@@ -116,7 +122,7 @@ namespace Workerborn
                 }
             }
 
-            var module = InstantiateSource(part.Prefab, attachment);
+            var module = InstantiateSource(part.PrefabForRig(bones.ContainsKey("F02_body_torso")), attachment);
             var instance = module.GetComponent<CharacterPartInstance>();
             if (instance == null)
                 instance = module.AddComponent<CharacterPartInstance>();
@@ -129,7 +135,8 @@ namespace Workerborn
                 animator.enabled = false;
             foreach (var renderer in module.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
-                var source = renderer.bones;
+                var binding = renderer.GetComponent<CharacterGarment>()?.SkinBinding;
+                var source = binding != null ? binding.bones : renderer.bones;
                 var mapped = new Transform[source.Length];
                 bool valid = true;
                 for (int i = 0; i < source.Length; i++)
@@ -152,7 +159,8 @@ namespace Workerborn
                 }
 
                 renderer.bones = mapped;
-                if (renderer.rootBone != null && bones.TryGetValue(renderer.rootBone.name, out var bone))
+                var sourceRoot = binding != null ? binding.rootBone : renderer.rootBone;
+                if (sourceRoot != null && bones.TryGetValue(sourceRoot.name, out var bone))
                     renderer.rootBone = bone;
                 renderer.updateWhenOffscreen = true;
             }
@@ -208,6 +216,7 @@ namespace Workerborn
         }
 
         private static bool IsWeapon(string name) => name.Contains("sword") || name.Contains("shield") || name.Contains("bow_") || name.Contains("arrow_") || name.Contains("knife_") || name.Contains("shuriken");
+        public static bool IsHair(string name) => Matches(name, CharacterPartSlot.Hair);
         private static bool MatchesHand(Transform part, CharacterPartSlot slot)
         {
             if (slot != CharacterPartSlot.RightHand && slot != CharacterPartSlot.LeftHand)

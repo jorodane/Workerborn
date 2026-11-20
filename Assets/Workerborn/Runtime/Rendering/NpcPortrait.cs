@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Workerborn
 {
@@ -13,12 +14,28 @@ namespace Workerborn
         private CharacterActor actor;
         public void Show(CharacterActor target)
         {
-            if (actor != null)
-                actor.SetPortraitLayer(false);
+            if (actor == target)
+                return;
             actor = target;
-            if (actor != null)
-                actor.SetPortraitLayer(true);
             portraitCamera.enabled = actor != null;
+        }
+
+        private void OnEnable()
+        {
+            RenderPipelineManager.beginCameraRendering += BeginCamera;
+            RenderPipelineManager.endCameraRendering += EndCamera;
+        }
+
+        private void BeginCamera(ScriptableRenderContext context, Camera camera)
+        {
+            if (camera == portraitCamera && actor != null)
+                actor.SetPortraitLayer(true);
+        }
+
+        private void EndCamera(ScriptableRenderContext context, Camera camera)
+        {
+            if (camera == portraitCamera && actor != null)
+                actor.SetPortraitLayer(false);
         }
 
         private void LateUpdate()
@@ -31,6 +48,8 @@ namespace Workerborn
 
         private void OnDisable()
         {
+            RenderPipelineManager.beginCameraRendering -= BeginCamera;
+            RenderPipelineManager.endCameraRendering -= EndCamera;
             if (actor != null)
                 actor.SetPortraitLayer(false);
         }

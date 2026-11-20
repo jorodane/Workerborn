@@ -305,7 +305,7 @@ namespace Workerborn
                 return;
             Vector2 screen = WorkerbornInput.Point;
             GameObject hit = game.Targeting.UiAt(screen);
-            if (hit == null)
+            if (hit == null || hit.GetComponentInParent<WorldNameplateView>() != null)
                 DropHeldOnGround(screen);
             else if (hit.GetComponentInParent<ShopSellTarget>() != null)
                 SellHeldItem();

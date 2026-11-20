@@ -165,6 +165,10 @@ PrefabInstance:
       propertyPath: fogStyle
       value: '0'
       objectReference: {fileID: 0}
+    - target: {fileID: 2020168426178690679, guid: 9a118a53adef55a479045a26c28f920e, type: 3}
+      propertyPath: cloudStyle
+      value: '5'
+      objectReference: {fileID: 0}
     - target: {fileID: 3563390890926748850, guid: 9a118a53adef55a479045a26c28f920e, type: 3}
       propertyPath: perennialProfile
       value: ''

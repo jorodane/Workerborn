@@ -146,7 +146,7 @@ for id,go in gos.items():
     for c in go['m_Component']: assert c['component']['fileID'] in ids,f'Missing component in {go["m_Name"]}'
 
 controller=behaviours(scene,'Village/VillagePrototype.cs');assert len(controller)==1
-for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','guideStage','fateGuide','guideCameraPose']:
+for field in ['targeting','npcPortrait','npcPortraitTexture','playerPortrait','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','guideStage','fateGuide','guideCameraPose']:
     assert controller[0][field]['fileID'],f'Missing binding: {field}'
 lighting=behaviours(scene,'World/VillageLighting.cs')[0]
 assert lighting['sun']['fileID'] and lighting['nightIntensity']>.6
@@ -165,9 +165,11 @@ assert int(settings_overrides['handleSceneLighting']['value'])==0
 sky_layers=[m for m in cozy['m_Modification']['m_Modifications'] if m['propertyPath']=='m_Layer']
 assert sky_layers and all(int(m['value'])==12 for m in sky_layers)
 effects=behaviours(scene,'World/VillageEffects.cs')[0]
-assert all(resolve(effects[name]).is_relative_to(CONTENT/'Prefabs/Effects') for name in ('click','itemLanding','itemPickup','levelUp'))
+assert all(resolve(effects[name]).is_relative_to(CONTENT/'Prefabs/Effects') for name in ('click','itemLanding','itemPickup','levelUp','lootTrail'))
 assert not behaviours(scene,'HarvestPrototype.cs'),'Village must not generate its map from the harvest demo'
-crops=behaviours(scene,'HarvestableCrop.cs')
+animals=behaviours(scene,'Village/AnimalNpc.cs')
+assert len(animals)==2 and all(a['keepVisualWhenDepleted'] for a in animals)
+crops=behaviours(scene,'HarvestableCrop.cs')+animals
 assert Counter(docs(resolve(c['definition']))[0]['MonoBehaviour']['itemId'] for c in crops)=={'potato':24,'egg':2,'timber':3}
 assert len(set(c['persistentId'] for c in crops))==len(crops),'Duplicated crop save IDs'
 assert all(c['definition']['fileID'] and c['visual']['fileID'] for c in crops)
@@ -199,10 +201,17 @@ assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values
 
 settings=docs(resolve(controller[0]['settings']))[0]['MonoBehaviour']
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
-assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','timber_contract','farm_contract'}
+wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
+assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','timber_contract','farm_contract'} | set(wardrobe)
 assert all(i['icon']['fileID'] for i in itemdefs)
 assert next(i for i in itemdefs if i['id']=='gold')['maxStack']==1000
 assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5
+assert next(i for i in itemdefs if i['id']=='small_bag')['equipmentSlot']==9
+for item in itemdefs:
+    if item['id'] in wardrobe:
+        assert item['equipmentSlot']==wardrobe[item['id']]
+        part=docs(resolve(item['equipmentPart']))[0]['MonoBehaviour']
+        assert part['prefab']['fileID'] and part['femalePrefab']['fileID'] and item['groundPrefab']['fileID']
 for actor in actors:
     definition=docs(resolve(actor['npc']))[0]['MonoBehaviour']['appearance'] if actor['npc']['fileID'] else settings['player']
     appearance=docs(resolve(definition))[0]['MonoBehaviour']

@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Workerborn
 {
-    public sealed class HarvestableCrop : WorldInteractable
+    public class HarvestableCrop : WorldInteractable
     {
         [SerializeField]
         private CropDefinition definition;
@@ -30,7 +30,7 @@ namespace Workerborn
         public float Progress => cycle?.Progress ?? 0f;
 
         public event Action<HarvestableCrop> Harvested;
-        private void Awake() => EnsureInitialized();
+        protected void Awake() => EnsureInitialized();
         public void EnsureInitialized()
         {
             if (cycle != null || definition == null || visual == null)

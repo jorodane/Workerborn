@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: field_cap
+  m_EditorClassIdentifier: ''
+  id: field_cap
+  displayName: 작업용 모자
+  description: 머리에 장착하는 숲빛 작업 모자.
+  icon: {fileID: 21300000, guid: 8c7cc7d049e25c89ac1f85e3e6823480, type: 3}
+  worldPrefab: {fileID: 919132149155446097, guid: 1df7a436c7c8a9b41bfa1f2a256bf8a8, type: 3}
+  width: 1
+  height: 1
+  maxStack: 1
+  price: 12
+  equipmentSlot: 1
+  equipmentPart: {fileID: 11400000, guid: 4b9819e492be51529b01d75d22004c84, type: 2}
+  groundPrefab: {fileID: 100008, guid: 1d48e5511314549fa477b7a590a4fba3, type: 3}

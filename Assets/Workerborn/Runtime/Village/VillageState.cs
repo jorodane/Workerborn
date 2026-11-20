@@ -111,7 +111,7 @@ namespace Workerborn
         public int JobExperience { get; private set; }
         public string JobRewardItemId { get; private set; }
         public int JobRewardItemCount { get; private set; }
-        public bool BagExpanded { get; private set; }
+        public bool BagExpanded => equipment.ContainsKey(EquipmentSlot.Bag);
         public bool LastRestWasCollapse { get; private set; }
         public GridInventory Inventory { get; private set; } = new GridInventory();
 
@@ -169,6 +169,8 @@ namespace Workerborn
             var slot = item.Spec.EquipmentSlot;
             if (equipment.TryGetValue(slot, out string previous) && !copy.TryAdd(previous, 1))
                 return Result(false, "기존 장비를 넣을 공간이 없습니다.");
+            if (slot == EquipmentSlot.Bag && copy.Rows < 6)
+                copy.ExpandRows(6);
             Inventory.ReplaceWith(copy);
             equipment[slot] = item.ItemId;
             return Result(true, item.Spec.Name + " 장착");
@@ -178,8 +180,10 @@ namespace Workerborn
         {
             if (!equipment.TryGetValue(slot, out string item))
                 return false;
-            if (!Inventory.TryAdd(item, 1))
-                return Result(false, "장비를 넣을 공간이 없습니다.");
+            var copy = Inventory.Copy();
+            if ((slot == EquipmentSlot.Bag && !copy.TryShrinkRows(4)) || !copy.TryAdd(item, 1))
+                return Result(false, "장비를 해제할 소지품 공간이 부족합니다.");
+            Inventory.ReplaceWith(copy);
             equipment.Remove(slot);
             return Result(true, ItemCatalog.Get(item).Name + " 해제");
         }
@@ -332,25 +336,30 @@ namespace Workerborn
         public bool TryBuy(string itemId) => TryBuy(itemId, 1);
         public bool TryBuy(string itemId, int quantity)
         {
-            if (quantity < 1 || quantity > 999 || quantity > 1 && (itemId == ItemIds.Hoe || itemId == ItemIds.Axe || itemId == ItemIds.Bag))
+            if (quantity < 1 || quantity > 999)
                 return Result(false, "구입할 수 없는 수량입니다.");
             if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || TryGetDocumentPage(itemId, out _))
                 return Result(false, "판매하지 않는 물건입니다.");
             var spec = ItemCatalog.Get(itemId);
+            if (quantity > 1 && spec.EquipmentSlot != EquipmentSlot.None)
+                return Result(false, "장비는 한 개씩 구입할 수 있어요.");
             if (itemId == ItemIds.Hoe && (HasHoe || Inventory.Count(ItemIds.Hoe) > 0))
                 return Result(false, "이미 같은 도구를 가지고 있습니다.");
-            if (itemId == ItemIds.Bag && BagExpanded)
-                return Result(false, "이미 여행 가방을 사용 중이에요.");
+            if (itemId == ItemIds.Bag && (BagExpanded || Inventory.Count(ItemIds.Bag) > 0))
+                return Result(false, "이미 여행 가방을 가지고 있어요.");
             if ((long)Gold < (long)spec.Price * quantity)
                 return Result(false, "골드가 부족해요.");
-            if (!Inventory.TryExchange(ItemIds.Gold, checked(spec.Price * quantity), itemId, quantity))
-                return Result(false, "골드나 소지품 공간이 부족합니다.");
             if (itemId == ItemIds.Bag)
             {
-                BagExpanded = true;
-                Inventory.ExpandRows(Math.Max(Inventory.Rows, 6));
+                if (spec.Price > 0 && !Inventory.TryRemove(ItemIds.Gold, spec.Price))
+                    return Result(false, "골드가 부족해요.");
+                equipment.Add(EquipmentSlot.Bag, itemId);
+                if (Inventory.Rows < 6)
+                    Inventory.ExpandRows(6);
+                return Result(true, $"{spec.Name} 구입 및 장착. {spec.Price}G를 지불했어요.");
             }
-
+            if (!Inventory.TryExchange(ItemIds.Gold, checked(spec.Price * quantity), itemId, quantity))
+                return Result(false, "골드나 소지품 공간이 부족합니다.");
             return Result(true, $"{spec.Name} {quantity}개 구입! {spec.Price * quantity}G를 지불했어요.");
         }
 
@@ -466,7 +475,6 @@ namespace Workerborn
             Experience = 0;
             Energy = MaxEnergy;
             Inventory = new GridInventory();
-            BagExpanded = false;
             equipment.Clear();
             Job = JobStatus.None;
             LastJobDay = -1;
@@ -484,7 +492,7 @@ namespace Workerborn
                 worn.Add(new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value });
             return new VillageSave
             {
-                schema = 3,
+                schema = 4,
                 equipment = worn.ToArray(),
                 day = Day,
                 lifeDay = LifeDay,
@@ -525,7 +533,7 @@ namespace Workerborn
         public static VillageState Restore(VillageSave save, VillageRules rules = null)
         {
             rules = rules ?? new VillageRules();
-            if (save == null || (save.schema < 1 || save.schema > 3) || save.day < 1 || save.lifeDay < 1 || save.life < 1 || save.day > 1000000 || save.life > 1000000 || save.lifeDay > save.day || float.IsNaN(save.minute) || float.IsInfinity(save.minute) || save.minute < 0 || save.minute >= 1440 || save.energy < 0 || save.energy > MaxEnergy || save.gold < 0 || save.gold > 100000000 || save.level < 1 || save.level > 200 || save.experience < 0 || save.experience >= 20 + save.level * 10 || save.totalLevel < save.level || save.totalLevel > 100000000 || save.ap < 0 || save.ap > 1000000 || save.skillRank < 0 || save.skillRank > 8 || save.career < 0 || save.career > 1000000 || save.lifetimeHarvests < 0 || save.donatedGold < 0 || save.donatedGold > Math.Max(RequiredDonationGold, rules.DonationGold) || save.donatedPotatoes < 0 || save.donatedPotatoes > Math.Max(RequiredDonationPotatoes, rules.DonationItems) || save.farmLevel < 1 || save.farmLevel > Math.Max(2, rules.ExpandedStage) || save.jobStatus < 0 || save.jobStatus > 3 || save.lastJobDay > save.day || save.lastJobDay < -1 || save.inventoryColumns != 8 || save.inventoryRows < 4 || save.inventoryRows > 16)
+            if (save == null || (save.schema < 1 || save.schema > 4) || save.day < 1 || save.lifeDay < 1 || save.life < 1 || save.day > 1000000 || save.life > 1000000 || save.lifeDay > save.day || float.IsNaN(save.minute) || float.IsInfinity(save.minute) || save.minute < 0 || save.minute >= 1440 || save.energy < 0 || save.energy > MaxEnergy || save.gold < 0 || save.gold > 100000000 || save.level < 1 || save.level > 200 || save.experience < 0 || save.experience >= 20 + save.level * 10 || save.totalLevel < save.level || save.totalLevel > 100000000 || save.ap < 0 || save.ap > 1000000 || save.skillRank < 0 || save.skillRank > 8 || save.career < 0 || save.career > 1000000 || save.lifetimeHarvests < 0 || save.donatedGold < 0 || save.donatedGold > Math.Max(RequiredDonationGold, rules.DonationGold) || save.donatedPotatoes < 0 || save.donatedPotatoes > Math.Max(RequiredDonationPotatoes, rules.DonationItems) || save.farmLevel < 1 || save.farmLevel > Math.Max(2, rules.ExpandedStage) || save.jobStatus < 0 || save.jobStatus > 3 || save.lastJobDay > save.day || save.lastJobDay < -1 || save.inventoryColumns != 8 || save.inventoryRows < 4 || save.inventoryRows > 16)
                 throw new ArgumentException("Invalid village save.");
             if ((JobStatus)save.jobStatus == JobStatus.Active && (save.lastJobDay != save.day || save.jobRequirement < 1 || save.jobRequirement > 10000 || save.jobReward < 0 || save.jobReward > 10000 || save.jobExperience < 0 || save.jobExperience > 100000))
                 throw new ArgumentException("Invalid active job.");
@@ -547,7 +555,7 @@ namespace Workerborn
                 }
             }
 
-            if (save.bagExpanded != (inventory.Count(ItemIds.Bag) == 1) || inventory.Count(ItemIds.Hoe) > 1)
+            if (inventory.Count(ItemIds.Hoe) > 1)
                 throw new ArgumentException("Invalid equipment.");
             var state = new VillageState(rules)
             {
@@ -579,7 +587,6 @@ namespace Workerborn
                 FoundationStage = foundationStage,
                 FarmSiteId = save.farmSiteId,
                 LastGuideLife = save.schema < 3 ? save.life : save.lastGuideLife,
-                BagExpanded = save.bagExpanded,
                 Inventory = inventory
             };
             if (save.schema >= 2 && save.equipment != null)
@@ -589,6 +596,15 @@ namespace Workerborn
                         throw new ArgumentException("Invalid equipped item.");
                     state.equipment.Add(entry.slot, entry.itemId);
                 }
+
+            if (save.schema < 4 && save.bagExpanded)
+            {
+                if (state.BagExpanded || inventory.Count(ItemIds.Bag) != 1 || !inventory.TryRemove(ItemIds.Bag, 1))
+                    throw new ArgumentException("Invalid legacy bag.");
+                state.equipment.Add(EquipmentSlot.Bag, ItemIds.Bag);
+            }
+            if (save.bagExpanded != state.BagExpanded || state.BagExpanded && inventory.Rows < 6)
+                throw new ArgumentException("Invalid bag equipment.");
 
             if (state.Job == JobStatus.Active && state.Minute >= rules.JobEnd)
                 state.Job = JobStatus.Failed;

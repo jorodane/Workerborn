@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: field_trousers
+  m_EditorClassIdentifier: ''
+  id: field_trousers
+  displayName: 작업용 바지
+  description: 하의에 장착하는 작업용 바지.
+  icon: {fileID: 21300000, guid: faadc1ca0d175de3b852b53d4ea22f75, type: 3}
+  worldPrefab: {fileID: 919132149155446097, guid: 1df7a436c7c8a9b41bfa1f2a256bf8a8, type: 3}
+  width: 1
+  height: 2
+  maxStack: 1
+  price: 18
+  equipmentSlot: 8
+  equipmentPart: {fileID: 11400000, guid: 27ce794608335747ad9bbca65c185d37, type: 2}
+  groundPrefab: {fileID: 100008, guid: 4b3127aa3d525f73a2294cb50d73d8a4, type: 3}
