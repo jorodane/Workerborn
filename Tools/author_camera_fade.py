@@ -86,6 +86,10 @@ def clone_graph(source, target):
         prop = append(scalar, reference + ' property')
         prop.update(m_Name=label, m_DefaultReferenceName=reference, m_OverrideReferenceName=reference,
                     m_Value=default, m_Hidden=hidden, m_GeneratePropertyBlock=True)
+        if reference == '_AlphaClip':
+            # PointerTargeting reads this material flag on the CPU. Built-in passes reserve
+            # _AlphaClip as a preprocessor macro, so omit the HLSL variable declaration.
+            prop.update(overrideHLSLDeclaration=True, hlslDeclarationOverride=0)  # DoNotDeclare
         prop['m_Guid'] = {'m_GuidSerialized': str(uuid.UUID(new_id(reference + '-guid')))}
         root['m_Properties'].append({'m_Id': prop['m_ObjectId']})
         if reference == '_Cutoff':

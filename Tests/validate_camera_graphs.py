@@ -33,6 +33,9 @@ for path in sorted((ROOT/'Assets/Workerborn/Shaders').glob('CameraFade*.shadergr
     assert any(e['m_OutputSlot']['m_Node']['m_Id']==propnode['m_ObjectId']and e['m_InputSlot']['m_Node']['m_Id']==coverage['m_ObjectId']for e in graph['m_Edges'])
     assert any(e['m_OutputSlot']['m_Node']['m_Id']==coverage['m_ObjectId']and e['m_InputSlot']['m_Node']['m_Id']==multiply['m_ObjectId']for e in graph['m_Edges'])
     assert any(d.get('m_Name')=='SurfaceDescription.AlphaClipThreshold'for d in objects)
+    clip_flag=next(d for d in objects if d.get('m_OverrideReferenceName')=='_AlphaClip')
+    assert clip_flag['m_GeneratePropertyBlock'] and clip_flag['m_Value']==1
+    assert clip_flag['overrideHLSLDeclaration'] and clip_flag['hlslDeclarationOverride']==0, f'{path.name}: _AlphaClip would collide with the Built-in pass macro'
     target=next(d for d in objects if d.get('m_Type','').endswith('UniversalTarget'))
     assert not target['m_AllowMaterialOverride']and target['m_SurfaceType']==0 and target['m_AlphaClip']
     print(f'{path.name}: {len(objects)} unique objects, valid edge slots, opaque coverage fade preserving source alpha/cutouts.')
