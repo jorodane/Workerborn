@@ -1,5 +1,3 @@
-using UnityEngine;
-
 namespace Workerborn
 {
     public sealed partial class VillageHud
@@ -16,8 +14,7 @@ namespace Workerborn
             dialogueTarget = target;
             if (dialogueBackdrop != null)
                 dialogueBackdrop.SetActive(true);
-            (OpenWindow("conversation") as ConversationWindowView)?.Open(target, topic);
-            SetTradeDialogue(false);
+            (OpenWindow("conversation") as ConversationWindowView)?.Open(target, topic == DialogueAction.Shop ? null : topic);
             if (topic == DialogueAction.Shop && target.IsTopicAvailable(game, DialogueAction.Shop))
                 OpenShop(target);
         }
@@ -32,18 +29,8 @@ namespace Workerborn
 
         private void SetTradeDialogue(bool trading)
         {
-            if (dialogueTarget == null || !views.TryGetValue("conversation", out var panel) || !(panel is ConversationWindowView dialogue))
-                return;
-            float width = CanvasRect.rect.width - 24f;
-            if (trading && !dialogue.HasSavedPosition && windows.TryGetValue("inventory", out var inventory))
-            {
-                float leftOfInventory = WindowDragHandle.BoundsInParent(inventory).xMin - CanvasRect.rect.xMin;
-                if (leftOfInventory > 440f)
-                    width = leftOfInventory - 24f;
-            }
-            if (trading)
-                dialogue.SelectTopic(DialogueAction.Shop);
-            dialogue.FitWidth(width);
+            if (dialogueTarget != null && views.TryGetValue("conversation", out var panel) && panel is ConversationWindowView dialogue)
+                dialogue.SetTrading(trading);
         }
 
         public void CloseDialogue()

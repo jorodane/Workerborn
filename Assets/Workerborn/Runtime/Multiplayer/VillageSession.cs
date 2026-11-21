@@ -108,6 +108,7 @@ namespace Workerborn
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Install()
         {
+            Application.runInBackground = true;
             if (Instance != null)
                 return;
             var root = new GameObject("Workerborn Session");
@@ -122,7 +123,6 @@ namespace Workerborn
         {
             if (IsDedicated)
             {
-                Application.runInBackground = true;
                 Application.targetFrameRate = 30;
                 if (SceneManager.GetActiveScene().name != VillageScene)
                     SceneManager.LoadScene(VillageScene);
@@ -242,7 +242,6 @@ namespace Workerborn
             SessionMessageText(message, true);
             connectBy = Time.unscaledTime + ConnectionTimeout;
             lastHostMessage = Time.unscaledTime;
-            Application.runInBackground = true;
         }
 
         private bool RequireSteam()

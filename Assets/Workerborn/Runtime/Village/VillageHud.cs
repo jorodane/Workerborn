@@ -23,6 +23,7 @@ namespace Workerborn
         public RectTransform CanvasRect => (RectTransform)transform;
         [SerializeField] private RawImage selectionOutline;
         [SerializeField] private GameObject dialogueBackdrop;
+        [SerializeField] private RectTransform chatLayer;
         [SerializeField] private TMP_Text dateText;
         [SerializeField] private TMP_Text weatherText;
         private readonly List<VillageWindowView> windowFocus = new List<VillageWindowView>();
@@ -157,15 +158,16 @@ namespace Workerborn
 
         private void Update()
         {
-            if (WorkerbornInput.Current == null || game == null || game.AwaitingWorldCommand)
+            if (WorkerbornInput.Current == null || game == null)
                 return;
-            if (WorkerbornInput.Pressed("Gameplay/Interact") || WorkerbornInput.Pressed("Camera/OrbitRight"))
+            if (!game.AwaitingWorldCommand &&
+                (WorkerbornInput.Pressed("Gameplay/Interact") || WorkerbornInput.Pressed("Camera/OrbitRight")))
             {
                 var hit = game.Targeting?.UiAt(WorkerbornInput.Point);
                 if (hit != null)
                     FocusWindow(hit.GetComponentInParent<VillageWindowView>());
             }
-            if (HandleChatInput())
+            if (HandleChatInput() || game.AwaitingWorldCommand)
                 return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
@@ -361,7 +363,8 @@ namespace Workerborn
                 return;
             windowFocus.Remove(view);
             windowFocus.Add(view);
-            view.transform.SetAsLastSibling();
+            if (view.Id != "conversation" || !IsShopOpen)
+                view.transform.SetAsLastSibling();
         }
 
         private bool CloseFocusedWindow()
@@ -398,7 +401,11 @@ namespace Workerborn
                 CloseItemContext();
             }
             if (id == "shop")
+            {
+                if (views.TryGetValue("quantity", out var quantity) && quantity is QuantityWindowView prompt && prompt.IsTrade)
+                    CloseQuantity();
                 SetTradeDialogue(false);
+            }
         }
 
         public void ToggleWindow(string id)
@@ -455,7 +462,9 @@ namespace Workerborn
                 OpenDialogue(npc);
             CloseQuantity();
             CancelItemDrag();
-            if (!InventoryOpen)
+            if (InventoryOpen)
+                FocusWindow(views["inventory"]);
+            else
                 OpenWindow("inventory")?.Refresh();
             bool wasOpen = IsShopOpen;
             if (!(OpenWindow("shop") is ShopWindowView shop))

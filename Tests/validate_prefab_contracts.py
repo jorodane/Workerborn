@@ -42,8 +42,9 @@ def validate(path):
         for field,type in fields.items():
             value=mono.get(field)
             # All UI view object references must be authored; runtime only binds data/listeners.
-            is_popup_chrome=name=='WorldContextView' and field in {'closeButton','dragHandle','minimizeButton','windowBody'}
-            if (name.endswith('View') or name=='FrontEndMenu') and not is_popup_chrome and type in {'TMP_Text','TMP_InputField','Image','Button','Slider','RawImage','RectTransform','ScrollRect','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget','UiActionView'}:
+            optional_chrome=(name=='WorldContextView' and field in {'closeButton','dragHandle','minimizeButton','windowBody'}
+                             or name=='ConversationWindowView' and field in {'closeButton','dragHandle','minimizeButton'})
+            if (name.endswith('View') or name=='FrontEndMenu') and not optional_chrome and type in {'TMP_Text','TMP_InputField','Image','Button','Slider','RawImage','RectTransform','CanvasGroup','ScrollRect','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget','UiActionView'}:
                 assert value and value.get('fileID'),f'{path.name}: missing {name}.{field}'
             if not isinstance(value,dict) or not value.get('fileID'):continue
             target=None
@@ -53,7 +54,7 @@ def validate(path):
                     target=next((d for d in documents(asset)if d['_id']==value['fileID']),None)
             else:target=objects.get(value['fileID'])
             if target is None:continue # vendor import subobjects are validated by Unity/asset pointer checks
-            expected={'RectTransform':'RectTransform','Transform':('Transform','RectTransform'),'GameObject':'GameObject','Camera':'Camera','Light':'Light','BoxCollider':'BoxCollider','Terrain':'Terrain'}.get(type)
+            expected={'RectTransform':'RectTransform','Transform':('Transform','RectTransform'),'GameObject':'GameObject','Camera':'Camera','Light':'Light','BoxCollider':'BoxCollider','Terrain':'Terrain','CanvasGroup':'CanvasGroup'}.get(type)
             if expected:assert kind(target)in ((expected,)if isinstance(expected,str)else expected),f'{path.name}: {name}.{field} expects {type}, got {kind(target)}'
             if type=='TMP_Text':
                 assert target.get('MonoBehaviour',{}).get('m_Script',{}).get('guid')=='f4688fdb7df04437aeb418b961361dc5',f'{path.name}: {name}.{field} expects TMP_Text'

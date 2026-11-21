@@ -666,7 +666,18 @@ namespace Workerborn.Tests
             var scale = inventory.Rect.localScale;
             game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
             var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+            Canvas.ForceUpdateCanvases();
+            Assert.That(dialogue.Rect.rect.width, Is.EqualTo(game.Hud.CanvasRect.rect.width).Within(.01f));
+            Assert.That(dialogue.Rect.anchoredPosition, Is.EqualTo(Vector2.zero));
+            var line = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
+            Assert.That(line.maxVisibleCharacters, Is.Zero);
+            yield return Until(() => line.maxVisibleCharacters > 0, 1f);
+            int revealed = line.maxVisibleCharacters;
+            dialogue.Refresh();
+            Assert.That(line.maxVisibleCharacters, Is.EqualTo(revealed));
             FindButton(dialogue, "거래하기").onClick.Invoke();
+            Assert.That(dialogue.GetComponentsInChildren<Button>().Select(button => button.GetComponentInChildren<TMP_Text>().text),
+                Is.EqualTo(new[] { "거래 종료" }));
             Assert.That(game.Hud.HasModal, Is.True);
             Assert.That(dialogue.isActiveAndEnabled, Is.True);
             Assert.That(game.ControlsBlocked, Is.True);
@@ -695,7 +706,8 @@ namespace Workerborn.Tests
             Assert.That(game.State.Inventory.Find(entry.Id).Quantity, Is.EqualTo(7));
             Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(9));
             Assert.That(game.Hud.HasQuantityPrompt, Is.False);
-            game.Hud.CloseWindow("shop");
+            FindButton(dialogue, "거래 종료").onClick.Invoke();
+            Assert.That(game.Hud.IsShopOpen, Is.False);
             Assert.That(game.Hud.HasModal, Is.True);
             Assert.That(dialogue.isActiveAndEnabled, Is.True);
             yield return null;
@@ -748,21 +760,69 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator ChatPlacesTheSameMessageInTheLogAndAboveThePlayer()
+        public IEnumerator ChatKeepsEditingAboveDialogueAndShowsTheNewestLinesInTheBubble()
         {
+            game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
+            var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
             var chat = UnityEngine.Object.FindFirstObjectByType<VillageChatView>();
             var input = chat.GetComponentInChildren<TMP_InputField>();
-            input.text = "안녕하세요!";
-            FindButton(chat, "보내기").onClick.Invoke();
-            yield return null;
-            Assert.That(chat.GetComponentsInChildren<TMP_Text>().Any(text => text.text.Contains("안녕하세요!")), Is.True);
+            var chatLayer = chat.transform.parent;
+            var presentation = chat.GetComponentInChildren<CanvasGroup>();
             var overhead = UnityEngine.Object.FindFirstObjectByType<PlayerOverheadView>(FindObjectsInactive.Include);
             var texts = overhead.GetComponentsInChildren<TMP_Text>(true);
-            var bubble = texts.Single(text => text.text == "안녕하세요!");
+            var bubble = texts.Single(text => text.name == "Speech");
             var label = texts.Single(text => text.text == game.LegendPlayerName);
-            Assert.That(bubble.gameObject.activeSelf, Is.True);
-            Assert.That(label.rectTransform.anchoredPosition.y, Is.GreaterThan(0));
-            Assert.That(bubble.maxVisibleLines, Is.EqualTo(4));
+            Assert.That(chatLayer.GetSiblingIndex(), Is.LessThan(dialogue.transform.GetSiblingIndex()));
+            Assert.That(presentation.alpha, Is.Zero);
+
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            try
+            {
+                yield return TapEnter();
+                Assert.That(input.isFocused, Is.True);
+                Assert.That(chatLayer.GetSiblingIndex(), Is.GreaterThan(dialogue.transform.GetSiblingIndex()));
+                Assert.That(presentation.alpha, Is.EqualTo(1f));
+
+                foreach (string post in new[] { "첫 번째", "두 번째", "세 번째", "네 번째" })
+                {
+                    input.text = post;
+                    input.onSubmit.Invoke(post);
+                    input.DeactivateInputField(); // TMP does this as it finishes the submitted line.
+                    yield return null;
+                    yield return null;
+                    Assert.That(input.isFocused, Is.True);
+                    Assert.That(input.text, Is.Empty);
+                }
+
+                var history = chat.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Messages");
+                Assert.That(history.text, Does.Contain(game.LegendPlayerName + " : 첫 번째"));
+                Assert.That(bubble.text, Is.EqualTo("두 번째\n세 번째\n네 번째"));
+                Assert.That(label.rectTransform.anchoredPosition.y, Is.GreaterThan(0));
+
+                input.text = new string('W', 225) + "끝";
+                yield return TapEnter();
+                bubble.ForceMeshUpdate();
+                Assert.That(bubble.text, Does.EndWith("끝").And.Not.Contain("네 번째"));
+                Assert.That(bubble.textInfo.lineCount, Is.LessThanOrEqualTo(4));
+                Assert.That(bubble.maxVisibleLines, Is.EqualTo(4));
+
+                yield return TapEnter();
+                Assert.That(input.isFocused, Is.False);
+                Assert.That(chatLayer.GetSiblingIndex(), Is.LessThan(dialogue.transform.GetSiblingIndex()));
+                Assert.That(game.Hud.HasModal, Is.True);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(keyboard);
+            }
+
+            IEnumerator TapEnter()
+            {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Enter));
+                yield return null;
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                yield return null;
+            }
         }
 
         private static Button FindButton(Component root, string label) =>

@@ -12,8 +12,8 @@ namespace Workerborn
 
         private void InitializeChat()
         {
-            chat = Instantiate(library.Chat, transform);
-            chat.Bind(game.TrySendChat);
+            chat = Instantiate(library.Chat, chatLayer);
+            chat.Bind(game.TrySendChat, chatLayer);
             localOverhead = CreatePlayerOverhead(game.LegendPlayerName);
         }
 
@@ -47,7 +47,7 @@ namespace Workerborn
             if (chat == null || !WorkerbornInput.Pressed("Gameplay/Chat"))
                 return false;
             var selected = EventSystem.current?.currentSelectedGameObject;
-            if (selected != null && selected.GetComponent<TMP_InputField>() != null)
+            if (!HasModal && selected != null && selected.GetComponent<TMP_InputField>() != null)
                 return false;
             chat.OpenInput();
             return true;
