@@ -7,6 +7,7 @@ using NUnit.Framework;
 using TMPro;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.InputSystem;
@@ -659,10 +660,19 @@ namespace Workerborn.Tests
         [UnityTest]
         public IEnumerator MerchantOpensInOneClickAndStackSplittingUsesTheSharedQuantityControls()
         {
+            var inventory = game.Hud.OpenWindow("inventory");
+            var place = inventory.Rect.anchoredPosition;
+            var size = inventory.Rect.rect.size;
+            var scale = inventory.Rect.localScale;
             game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
             var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
             FindButton(dialogue, "거래하기").onClick.Invoke();
-            Assert.That(game.Hud.HasModal, Is.False);
+            Assert.That(game.Hud.HasModal, Is.True);
+            Assert.That(dialogue.isActiveAndEnabled, Is.True);
+            Assert.That(game.ControlsBlocked, Is.True);
+            Assert.That(inventory.Rect.anchoredPosition, Is.EqualTo(place));
+            Assert.That(inventory.Rect.rect.size, Is.EqualTo(size));
+            Assert.That(inventory.Rect.localScale, Is.EqualTo(scale));
             var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
             Assert.That(shop.GetComponentInChildren<ShopSellTarget>().name, Is.EqualTo("Stock viewport"));
 
@@ -685,7 +695,74 @@ namespace Workerborn.Tests
             Assert.That(game.State.Inventory.Find(entry.Id).Quantity, Is.EqualTo(7));
             Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(9));
             Assert.That(game.Hud.HasQuantityPrompt, Is.False);
+            game.Hud.CloseWindow("shop");
+            Assert.That(game.Hud.HasModal, Is.True);
+            Assert.That(dialogue.isActiveAndEnabled, Is.True);
             yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator InventoryRestoresTheLastPositionSavedByDraggingItsTitle()
+        {
+            const string xKey = "Workerborn.UI.Position.inventory.x";
+            const string yKey = "Workerborn.UI.Position.inventory.y";
+            bool hadX = PlayerPrefs.HasKey(xKey), hadY = PlayerPrefs.HasKey(yKey);
+            float oldX = PlayerPrefs.GetFloat(xKey), oldY = PlayerPrefs.GetFloat(yKey);
+            VillageWindowView recreated = null;
+            try
+            {
+                PlayerPrefs.DeleteKey(xKey);
+                PlayerPrefs.DeleteKey(yKey);
+                var inventory = game.Hud.OpenWindow("inventory");
+                Canvas.ForceUpdateCanvases();
+                var startPosition = inventory.Rect.anchoredPosition;
+                var handle = inventory.GetComponentInChildren<WindowDragHandle>();
+                var startPointer = RectTransformUtility.WorldToScreenPoint(null, handle.transform.position);
+                var drag = new PointerEventData(EventSystem.current)
+                {
+                    button = PointerEventData.InputButton.Left,
+                    pressPosition = startPointer,
+                    position = startPointer
+                };
+                handle.OnBeginDrag(drag);
+                drag.position += new Vector2(-Screen.width * .06f, Screen.height * .08f);
+                handle.OnDrag(drag);
+                handle.OnEndDrag(drag);
+                var moved = inventory.Rect.anchoredPosition;
+                Assert.That(moved, Is.Not.EqualTo(startPosition));
+                game.Hud.CloseWindow("inventory");
+
+                recreated = UnityEngine.Object.Instantiate(game.Hud.Library.Find("inventory"), game.Hud.CanvasRect);
+                recreated.Bind(game, game.Hud);
+                Assert.That(recreated.Rect.anchoredPosition, Is.EqualTo(moved));
+                yield return null;
+            }
+            finally
+            {
+                if (recreated != null)
+                    UnityEngine.Object.Destroy(recreated.gameObject);
+                if (hadX) PlayerPrefs.SetFloat(xKey, oldX); else PlayerPrefs.DeleteKey(xKey);
+                if (hadY) PlayerPrefs.SetFloat(yKey, oldY); else PlayerPrefs.DeleteKey(yKey);
+                PlayerPrefs.Save();
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ChatPlacesTheSameMessageInTheLogAndAboveThePlayer()
+        {
+            var chat = UnityEngine.Object.FindFirstObjectByType<VillageChatView>();
+            var input = chat.GetComponentInChildren<TMP_InputField>();
+            input.text = "안녕하세요!";
+            FindButton(chat, "보내기").onClick.Invoke();
+            yield return null;
+            Assert.That(chat.GetComponentsInChildren<TMP_Text>().Any(text => text.text.Contains("안녕하세요!")), Is.True);
+            var overhead = UnityEngine.Object.FindFirstObjectByType<PlayerOverheadView>(FindObjectsInactive.Include);
+            var texts = overhead.GetComponentsInChildren<TMP_Text>(true);
+            var bubble = texts.Single(text => text.text == "안녕하세요!");
+            var label = texts.Single(text => text.text == game.LegendPlayerName);
+            Assert.That(bubble.gameObject.activeSelf, Is.True);
+            Assert.That(label.rectTransform.anchoredPosition.y, Is.GreaterThan(0));
+            Assert.That(bubble.maxVisibleLines, Is.EqualTo(4));
         }
 
         private static Button FindButton(Component root, string label) =>

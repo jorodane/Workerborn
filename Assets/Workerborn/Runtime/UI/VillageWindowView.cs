@@ -15,12 +15,13 @@ namespace Workerborn
         private Button minimizeButton;
         [SerializeField]
         private GameObject windowBody;
-        [SerializeField] private bool docked;
         private float expandedHeight;
         protected VillagePrototype Game;
         protected VillageHud Hud;
         public string Id => windowId;
         public RectTransform Rect => (RectTransform)transform;
+        internal bool HasSavedPosition => dragHandle != null && dragHandle.HasSavedPosition;
+        internal bool IsFloating => dragHandle != null && Id != "tooltip" && Id != "itemcontext";
 
         public virtual void Bind(VillagePrototype game, VillageHud hud)
         {
@@ -32,9 +33,10 @@ namespace Workerborn
                 {
                     windowBody.SetActive(!windowBody.activeSelf);
                     Rect.sizeDelta = new Vector2(Rect.sizeDelta.x, windowBody.activeSelf ? expandedHeight : 30f);
+                    WindowDragHandle.KeepOnScreen(Rect);
                 });
-            if (dragHandle != null)
-                dragHandle.Window = docked ? null : Rect;
+            if (IsFloating)
+                dragHandle.Bind(Rect, Id);
             if (closeButton != null)
                 closeButton.onClick.AddListener(() => hud.CloseWindow(Id));
         }

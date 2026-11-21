@@ -9,6 +9,7 @@ namespace Workerborn
         private readonly HashSet<string> currentPeers = new HashSet<string>();
         private readonly List<string> departedPeers = new List<string>();
         private readonly Dictionary<string, RemoteVillagePlayer> peers = new Dictionary<string, RemoteVillagePlayer>();
+        private readonly Dictionary<string, (string Text, float Until)> pendingSpeech = new Dictionary<string, (string, float)>();
         private VillageSession Session => VillageSession.Instance;
         private bool wasOnline;
         public bool IsOnline => wasOnline || Session?.Online == true;
@@ -18,6 +19,28 @@ namespace Workerborn
         public CampaignStatus EraStatus => Session?.Status;
         public string LegendPlayerId => Session?.LocalPlayerId ?? "single-player";
         public string LegendPlayerName => Session?.LocalPlayerName ?? "일꾼";
+
+        internal bool TrySendChat(string input)
+        {
+            if (!VillageChatText.TryNormalize(input, out var text))
+                return false;
+            if (IsOnline)
+                return Session?.SendChat(text) == true;
+            ReceiveChat(LegendPlayerId, LegendPlayerName, text);
+            return true;
+        }
+
+        internal void ReceiveChat(string playerId, string sender, string text)
+        {
+            bool local = playerId == LegendPlayerId;
+            hud.ShowChat(sender, text, local);
+            if (local)
+                return;
+            if (peers.TryGetValue(playerId, out var peer))
+                peer.Say(text);
+            else if (pendingSpeech.Count < 12 || pendingSpeech.ContainsKey(playerId))
+                pendingSpeech[playerId] = (text, Time.unscaledTime + 2f);
+        }
 
         private void StartHeadless()
         {
@@ -150,6 +173,8 @@ namespace Workerborn
                     peer = Instantiate(prefab, SurfacePosition(avatar.x, avatar.z), Quaternion.identity);
                     peer.Bind(settings.Player, hud, avatar.name, avatar.look);
                     peers.Add(avatar.id, peer);
+                    if (pendingSpeech.Remove(avatar.id, out var speech) && Time.unscaledTime < speech.Until)
+                        peer.Say(speech.Text);
                 }
                 peer.SetPose(avatar, SurfacePosition(avatar.x, avatar.z).y);
             }
@@ -162,6 +187,12 @@ namespace Workerborn
                 Destroy(peers[id].gameObject);
                 peers.Remove(id);
             }
+            departedPeers.Clear();
+            foreach (var speech in pendingSpeech)
+                if (Time.unscaledTime >= speech.Value.Until)
+                    departedPeers.Add(speech.Key);
+            foreach (string id in departedPeers)
+                pendingSpeech.Remove(id);
         }
 
         public void InviteFriends() => Session?.InviteFriends();

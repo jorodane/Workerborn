@@ -18,10 +18,24 @@ namespace Workerborn
         private int renderLayer = 2;
         private CharacterDefinition trialAppearance = null;
         private CharacterLook? customLook;
+        private Transform headBone;
         public CharacterDefinition Appearance => trialAppearance != null ? trialAppearance :
             npc != null ? npc.Appearance : playerSettings != null ? playerSettings.Player : appearance;
         public Transform VisualRoot => visualRoot;
-        public Vector3 NamePosition => transform.position + Vector3.up * ((Appearance?.Height ?? 1.7f) + .21f);
+        public Vector3 NamePosition
+        {
+            get
+            {
+                if (headBone == null)
+                {
+                    var animator = Animator;
+                    if (animator != null && animator.avatar != null && animator.avatar.isValid && animator.isHuman)
+                        headBone = animator.GetBoneTransform(HumanBodyBones.Head);
+                }
+                return headBone != null ? headBone.position + Vector3.up * .32f
+                    : transform.position + Vector3.up * ((Appearance?.Height ?? 1.7f) + .21f);
+            }
+        }
         private CharacterLook CurrentLook => customLook ?? Appearance.DefaultLook;
 
         internal void ApplyProfileLook(CharacterLook look)
@@ -172,6 +186,7 @@ namespace Workerborn
 
 #endif
             visualRoot = next.transform;
+            headBone = null;
             OnEnable();
 #if UNITY_EDITOR
             if (!Application.isPlaying)

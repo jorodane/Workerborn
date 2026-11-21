@@ -3,39 +3,86 @@ using UnityEngine.EventSystems;
 
 namespace Workerborn
 {
-    public sealed class WindowDragHandle : MonoBehaviour, IBeginDragHandler, IDragHandler
+    public sealed class WindowDragHandle : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
-        public RectTransform Window { get; set; }
-
+        private RectTransform window;
+        private string positionKey;
         private Vector2 start;
         private Vector2 pointerStart;
+        private bool dragging;
+        internal bool HasSavedPosition { get; private set; }
+
+        internal void Bind(RectTransform target, string windowId)
+        {
+            window = target;
+            positionKey = windowId == null ? null : "Workerborn.UI.Position." + windowId;
+            if (positionKey == null || !PlayerPrefs.HasKey(positionKey + ".x") || !PlayerPrefs.HasKey(positionKey + ".y"))
+                return;
+            var saved = new Vector2(PlayerPrefs.GetFloat(positionKey + ".x"), PlayerPrefs.GetFloat(positionKey + ".y"));
+            if (!float.IsNaN(saved.x) && !float.IsNaN(saved.y) && !float.IsInfinity(saved.x) && !float.IsInfinity(saved.y))
+            {
+                HasSavedPosition = true;
+                window.anchoredPosition = saved;
+            }
+        }
+
         public void OnBeginDrag(PointerEventData eventData)
         {
-            if (eventData.button != PointerEventData.InputButton.Left || Window == null)
+            if (eventData.button != PointerEventData.InputButton.Left || window == null)
                 return;
-            Window.SetAsLastSibling();
-            start = Window.anchoredPosition;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)Window.parent, eventData.position, eventData.pressEventCamera, out pointerStart);
+            start = window.anchoredPosition;
+            dragging = RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)window.parent,
+                eventData.pressPosition, eventData.pressEventCamera, out pointerStart);
         }
 
         public void OnDrag(PointerEventData eventData)
         {
-            if (eventData.button != PointerEventData.InputButton.Left || Window == null)
+            if (!dragging || eventData.button != PointerEventData.InputButton.Left)
                 return;
-            var parent = (RectTransform)Window.parent;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, eventData.position, eventData.pressEventCamera, out Vector2 pointer);
-            Vector2 next = start + pointer - pointerStart;
-            Vector2 size = Window.rect.size;
-            Vector2 anchor = Window.anchorMin + Vector2.Scale(Window.anchorMax - Window.anchorMin, Window.pivot);
-            Vector2 reference = parent.rect.min + Vector2.Scale(parent.rect.size, anchor);
-            Vector2 minimum = parent.rect.min + Vector2.Scale(size, Window.pivot);
-            Vector2 maximum = parent.rect.max - Vector2.Scale(size, Vector2.one - Window.pivot);
-            if (minimum.x > maximum.x)
-                minimum.x = maximum.x = parent.rect.center.x + size.x * (Window.pivot.x - .5f);
-            if (minimum.y > maximum.y)
-                minimum.y = maximum.y = parent.rect.center.y + size.y * (Window.pivot.y - .5f);
-            Vector2 pivot = reference + next;
-            Window.anchoredPosition = new Vector2(Mathf.Clamp(pivot.x, minimum.x, maximum.x), Mathf.Clamp(pivot.y, minimum.y, maximum.y)) - reference;
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)window.parent, eventData.position,
+                eventData.pressEventCamera, out var pointer))
+            {
+                window.anchoredPosition = start + pointer - pointerStart;
+                KeepOnScreen(window);
+            }
+        }
+
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Left)
+                FinishDrag();
+        }
+
+        private void OnDisable() => FinishDrag();
+
+        private void FinishDrag()
+        {
+            if (!dragging)
+                return;
+            dragging = false;
+            if (window == null || positionKey == null || window.anchoredPosition == start)
+                return;
+            HasSavedPosition = true;
+            PlayerPrefs.SetFloat(positionKey + ".x", window.anchoredPosition.x);
+            PlayerPrefs.SetFloat(positionKey + ".y", window.anchoredPosition.y);
+            PlayerPrefs.Save();
+        }
+
+        internal static Rect BoundsInParent(RectTransform rect)
+        {
+            var origin = (Vector2)rect.localPosition;
+            return new Rect(origin + Vector2.Scale(rect.rect.min, rect.localScale), Vector2.Scale(rect.rect.size, rect.localScale));
+        }
+
+        internal static void KeepOnScreen(RectTransform rect)
+        {
+            var windowBounds = BoundsInParent(rect);
+            var canvas = ((RectTransform)rect.parent).rect;
+            float x = windowBounds.width > canvas.width ? canvas.center.x - windowBounds.center.x
+                : Mathf.Clamp(0f, canvas.xMin - windowBounds.xMin, canvas.xMax - windowBounds.xMax);
+            float y = windowBounds.height > canvas.height ? canvas.yMax - windowBounds.yMax
+                : Mathf.Clamp(0f, canvas.yMin - windowBounds.yMin, canvas.yMax - windowBounds.yMax);
+            rect.anchoredPosition += new Vector2(x, y);
         }
     }
 }

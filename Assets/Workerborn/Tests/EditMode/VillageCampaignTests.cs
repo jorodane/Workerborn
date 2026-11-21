@@ -206,6 +206,17 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void ChatValidatesSizeAndPreservesPlainUnicodeText()
+        {
+            Assert.That(VillageChatText.TryNormalize("   안녕하세요!  ", out var message), Is.True);
+            Assert.That(message, Is.EqualTo("안녕하세요!"));
+            Assert.That(VillageChatText.TryNormalize(new string('가', VillageChatText.MaximumLength), out _), Is.True);
+            Assert.That(VillageChatText.TryNormalize(new string('가', VillageChatText.MaximumLength + 1), out _), Is.False);
+            Assert.That(VillageChatText.TryNormalize(" ", out _), Is.False);
+            Assert.That(VillageChatText.TryNormalize("가\n나", out _), Is.False);
+        }
+
+        [Test]
         public async Task TcpPeersExchangeBoundedFramesOverLoopback()
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);

@@ -32,6 +32,8 @@ namespace Workerborn
         public bool FarmAvailable => Rules.Foundation == null || FoundationStage == FarmFoundationStage.Built;
         public bool NeedsGuide => Rules.Foundation != null && LastGuideLife < Life;
         public bool CanSelectFarmSite => FoundationStage == FarmFoundationStage.SelectingSite || FoundationStage == FarmFoundationStage.ReadyToRebirth;
+        public bool TimberContractActive => Rules.Foundation != null && FoundationStage == FarmFoundationStage.CollectingTimber;
+        public bool ExpansionQuestActive => FarmAvailable && !FarmUpgradePending && FarmLevel < Rules.ExpandedStage;
 
         public void FinishGuideVisit()
         {
@@ -79,9 +81,14 @@ namespace Workerborn
             if (amount < 1)
                 return Result(false, "납품할 목재가 없어요.");
             int reward = TimberDelivered + amount == quest.TimberCount ? quest.RewardGold : 0;
-            if (!Inventory.TryExchange(quest.TimberItemId, amount, ItemIds.Gold, reward))
+            var updated = Inventory.Copy();
+            updated.TryRemove(quest.TimberItemId, amount);
+            if (TimberDelivered + amount == quest.TimberCount)
+                RemoveDocument(updated, quest.DocumentItemId);
+            if (reward > 0 && !updated.TryAdd(ItemIds.Gold, reward))
                 return Result(false, "목재를 납품하고 보상을 받을 소지품 공간이 부족합니다.");
 
+            Inventory.ReplaceWith(updated);
             TimberDelivered += amount;
             if (TimberDelivered < quest.TimberCount)
                 return Result(true, $"목재 {amount}개를 납품했어요. ({TimberDelivered}/{quest.TimberCount})");
@@ -90,6 +97,15 @@ namespace Workerborn
             AP += quest.RewardAP;
             AddExperience(quest.RewardExperience);
             return Result(true, "납품을 마쳤어요. 농장이 들어설 부지를 지정해 주세요.");
+        }
+
+        private static void RemoveDocument(GridInventory inventory, string id)
+        {
+            if (string.IsNullOrEmpty(id))
+                return;
+            int count = inventory.Count(id);
+            if (count > 0)
+                inventory.TryRemove(id, count);
         }
 
         public bool TryChooseFarmSite(string siteId, string siteName)

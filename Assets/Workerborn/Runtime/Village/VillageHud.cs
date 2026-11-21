@@ -22,11 +22,12 @@ namespace Workerborn
         public TargetLinkView TargetLink => targetLink;
         public RectTransform CanvasRect => (RectTransform)transform;
         [SerializeField] private RawImage selectionOutline;
+        [SerializeField] private GameObject dialogueBackdrop;
         [SerializeField] private TMP_Text dateText;
         [SerializeField] private TMP_Text weatherText;
-        private WorldNameplateView localName;
         private readonly List<VillageWindowView> windowFocus = new List<VillageWindowView>();
         private int clockDay, clockMinute = -1;
+        private Vector2 lastCanvasSize;
 
 
         [SerializeField]
@@ -63,7 +64,7 @@ namespace Workerborn
         public bool HasModal => dialogueTarget != null;
         public bool IsShopOpen => views.TryGetValue("shop", out var shop) && shop.gameObject.activeSelf;
         public bool WorldActionsLocked => HasModal || IsShopOpen || HasQuantityPrompt;
-        public bool AllowsGroundItems => game != null && !game.AwaitingWorldCommand;
+        public bool AllowsGroundItems => game != null && !game.AwaitingWorldCommand && !IsChatTyping;
         public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.gameObject.activeSelf;
         public bool IsHoldingItem => draggedEntry != 0;
         public bool InventoryOpen => windows.TryGetValue("inventory", out var panel) && panel.gameObject.activeSelf;
@@ -101,9 +102,7 @@ namespace Workerborn
             if (minimapImage != null)
                 DrawMap(minimapImage, false);
             BuildWorldFeedback();
-            localName = Instantiate(library.NpcName, transform);
-            localName.SetText(game.LegendPlayerName);
-            localName.SetBox(false);
+            InitializeChat();
             floatingTexts = new PrefabPool<TMP_Text>(library.FloatingText, transform);
             floatingTexts.Prewarm(12);
             pickupNames?.Initialize(game, game.PrewarmGroundPickups);
@@ -166,6 +165,8 @@ namespace Workerborn
                 if (hit != null)
                     FocusWindow(hit.GetComponentInParent<VillageWindowView>());
             }
+            if (HandleChatInput())
+                return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
                 if (!CloseFocusedWindow())
@@ -222,9 +223,15 @@ namespace Workerborn
                 if (weatherText != null)
                     weatherText.text = game.WeatherName;
             }
-            DockTradeWindows();
-            if (localName != null)
-                PositionPeerLabel(localName, game.PlayerActor.NamePosition);
+            if (lastCanvasSize != CanvasRect.rect.size)
+            {
+                lastCanvasSize = CanvasRect.rect.size;
+                foreach (var view in views.Values)
+                    if (view.IsFloating && view.gameObject.activeSelf)
+                        WindowDragHandle.KeepOnScreen(view.Rect);
+            }
+            if (localOverhead != null)
+                PositionPlayerOverhead(localOverhead, game.PlayerActor.NamePosition);
             int stamina = state.StaminaLimit;
             energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
@@ -258,15 +265,6 @@ namespace Workerborn
                 controls = gameObject.AddComponent<CanvasGroup>();
             }
             controls.interactable = !pending;
-        }
-
-        internal void PositionPeerLabel(WorldNameplateView label, Vector3 position)
-        {
-            var screen = game.WorldCamera.WorldToViewportPoint(position);
-            bool visible = screen.z > 0 && screen.x >= 0 && screen.x <= 1 && screen.y >= 0 && screen.y <= 1;
-            label.gameObject.SetActive(visible);
-            if (visible)
-                PlaceWorld(label.Rect, position);
         }
 
         private void OnApplicationFocus(bool focused)
@@ -349,6 +347,8 @@ namespace Workerborn
             }
 
             view.gameObject.SetActive(true);
+            if (view.IsFloating)
+                WindowDragHandle.KeepOnScreen(view.Rect);
             FocusWindow(view);
             if (id == "tooltip")
                 view.transform.SetAsLastSibling();
@@ -397,6 +397,8 @@ namespace Workerborn
                 CancelItemDrag();
                 CloseItemContext();
             }
+            if (id == "shop")
+                SetTradeDialogue(false);
         }
 
         public void ToggleWindow(string id)
@@ -414,28 +416,6 @@ namespace Workerborn
             selectionOutline.texture = texture;
             selectionOutline.uvRect = SystemInfo.graphicsUVStartsAtTop ? new Rect(0, 1, 1, -1) : new Rect(0, 0, 1, 1);
             selectionOutline.gameObject.SetActive(texture != null);
-        }
-
-        private void DockTradeWindows()
-        {
-            if (!windows.TryGetValue("inventory", out var inventory) || !inventory.gameObject.activeSelf)
-                inventory = null;
-            if (!windows.TryGetValue("shop", out var shop) || !shop.gameObject.activeSelf)
-                shop = null;
-            float inventoryHeight = inventory != null ? inventory.rect.height : 0f;
-            float tradeHeight = inventoryHeight + (shop != null ? shop.rect.height + 8f : 0f);
-            if (tradeHeight <= 0)
-                return;
-            float tradeWidth = Mathf.Max(inventory != null ? inventory.rect.width : 0f, shop != null ? shop.rect.width : 0f);
-            float scale = Mathf.Min(1f, Mathf.Max(1f, CanvasRect.rect.height - 63f) / tradeHeight,
-                Mathf.Max(1f, CanvasRect.rect.width - 36f) / tradeWidth);
-            if (inventory != null)
-                inventory.localScale = Vector3.one * scale;
-            if (shop != null)
-            {
-                shop.localScale = Vector3.one * scale;
-                shop.anchoredPosition = new Vector2(-18f, 44f + inventoryHeight * scale + 8f);
-            }
         }
 
         public void OpenQuestDetail(bool expansion) => OpenQuestDetail(expansion ? VillageQuestPage.Expansion : VillageQuestPage.FirstWork);
@@ -471,14 +451,28 @@ namespace Workerborn
 
         public void OpenShop(VillageInteractable npc)
         {
-            CloseDialogue();
+            if (dialogueTarget != npc)
+                OpenDialogue(npc);
             CloseQuantity();
             CancelItemDrag();
-            game.Worker.Cancel();
             if (!InventoryOpen)
                 OpenWindow("inventory")?.Refresh();
-            (OpenWindow("shop") as ShopWindowView)?.Open(npc);
-            DockTradeWindows();
+            bool wasOpen = IsShopOpen;
+            if (!(OpenWindow("shop") is ShopWindowView shop))
+                return;
+            shop.Open(npc);
+            if (!wasOpen && !shop.HasSavedPosition && windows.TryGetValue("inventory", out var inventory))
+            {
+                const float gap = 8f;
+                var bag = WindowDragHandle.BoundsInParent(inventory);
+                Rect canvas = CanvasRect.rect;
+                var origin = new Vector2(bag.xMax, bag.yMax + gap);
+                if (origin.y + shop.Rect.rect.height > canvas.yMax && bag.xMin - gap - shop.Rect.rect.width >= canvas.xMin)
+                    origin = new Vector2(bag.xMin - gap, bag.yMin);
+                shop.Rect.anchoredPosition = origin - new Vector2(canvas.xMax, canvas.yMin);
+                WindowDragHandle.KeepOnScreen(shop.Rect);
+            }
+            SetTradeDialogue(true);
         }
 
         internal void OpenPurchaseQuantity(string id)
@@ -495,24 +489,21 @@ namespace Workerborn
 
         private void OpenQuantity(string id, QuantityAction action, int stackId = 0)
         {
+            bool wasOpen = HasQuantityPrompt;
             if (!(OpenWindow("quantity") is QuantityWindowView prompt))
                 return;
             prompt.Open(id, action, stackId);
-            DockTradeWindows();
+            if (wasOpen || prompt.HasSavedPosition)
+                return;
 
             const float gap = 10f;
-            float right = -18f;
-            foreach (string dock in new[] { "inventory", "shop" })
-                if (windows.TryGetValue(dock, out var panel) && panel.gameObject.activeSelf)
-                    right = Mathf.Min(right, panel.anchoredPosition.x - panel.rect.width * panel.localScale.x - gap);
+            var canvas = CanvasRect.rect;
+            float right = canvas.xMax - gap;
+            if (windows.TryGetValue(action == QuantityAction.Buy ? "shop" : "inventory", out var panel) && panel.gameObject.activeSelf)
+                right = WindowDragHandle.BoundsInParent(panel).xMin - gap;
             var rect = prompt.Rect;
-            float width = CanvasRect.rect.width;
-            float height = CanvasRect.rect.height;
-            float scale = Mathf.Min(1f, Mathf.Max(1f, width - 2 * gap) / rect.rect.width,
-                Mathf.Max(1f, height - 63f) / rect.rect.height);
-            rect.localScale = Vector3.one * scale;
-            right = Mathf.Max(right, -width + rect.rect.width * scale + gap);
-            rect.anchoredPosition = new Vector2(right, Mathf.Max(44f, (height - rect.rect.height * scale) * .5f));
+            rect.anchoredPosition = new Vector2(right - canvas.xMax, Mathf.Max(28f, (canvas.height - rect.rect.height) * .5f));
+            WindowDragHandle.KeepOnScreen(rect);
         }
 
         private void CloseQuantity()

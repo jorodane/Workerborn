@@ -9,26 +9,28 @@ namespace Workerborn
         [SerializeField]
         private TMP_Text speaker;
         [SerializeField]
-        private TMP_Text occupation;
-        [SerializeField]
         private TMP_Text bodyTitle;
         [SerializeField]
         private TMP_Text body;
+        [SerializeField] private ScrollRect dialogueScroll;
         [SerializeField]
         private RectTransform keywords;
         [SerializeField]
         private RectTransform actions;
         [SerializeField]
         private Button leave;
+        [SerializeField] private UiActionView dialogueChoice;
         [SerializeField]
         private RawImage portrait;
         private VillageInteractable npc;
         private DialogueAction topic;
         private bool confirmingRebirth;
         private bool confirmingEra;
+        private float preferredWidth;
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
+            preferredWidth = Rect.rect.width;
             leave.onClick.AddListener(hud.CloseDialogue);
             portrait.texture = game.NpcPortraitTexture;
         }
@@ -56,7 +58,7 @@ namespace Workerborn
                     if (string.IsNullOrWhiteSpace(entry.keyword) || !npc.IsTopicAvailable(Game, entry.action))
                         continue;
                     var selected = entry.action;
-                    var button = Instantiate(Hud.Library.ActionButton, keywords);
+                    var button = Instantiate(dialogueChoice, keywords);
                     button.Bind(entry.keyword, () =>
                     {
                         if (selected == DialogueAction.Shop)
@@ -64,28 +66,46 @@ namespace Workerborn
                             Hud.OpenShop(npc);
                             return;
                         }
-                        topic = selected;
-                        confirmingRebirth = confirmingEra = false;
-                        Refresh();
+                        Hud.SelectDialogueTopic(selected);
                     });
                 }
 
             if (npc.Role == VillageRole.Shrine)
-                Instantiate(Hud.Library.ActionButton, keywords).Bind("전설의 나무꾼", () =>
-                {
-                    topic = DialogueAction.Legend;
-                    Refresh();
-                });
+                Instantiate(dialogueChoice, keywords).Bind("전설의 나무꾼", () => Hud.SelectDialogueTopic(DialogueAction.Legend));
 
-            var actor = npc.Role != VillageRole.Guide ? npc.GetComponent<CharacterActor>() : null;
+            var actor = npc.GetComponent<CharacterActor>();
             Game.ShowNpcPortrait(actor);
             portrait.gameObject.SetActive(actor != null);
             Refresh();
+            dialogueScroll.verticalNormalizedPosition = 1f;
+        }
+
+        internal void SelectTopic(DialogueAction next)
+        {
+            topic = next;
+            confirmingRebirth = confirmingEra = false;
+            Refresh();
+            dialogueScroll.verticalNormalizedPosition = 1f;
+        }
+
+        internal void FitWidth(float available)
+        {
+            float width = Mathf.Clamp(available, 320f, preferredWidth);
+            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            WindowDragHandle.KeepOnScreen(Rect);
+            ResizeText();
+        }
+
+        private void ResizeText()
+        {
+            var content = dialogueScroll.content;
+            float height = body.GetPreferredValues(body.text, Mathf.Max(1, body.rectTransform.rect.width), Mathf.Infinity).y + 8f;
+            content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(dialogueScroll.viewport.rect.height, height));
         }
 
         private void Action(string text, System.Action callback, bool enabled = true)
         {
-            Instantiate(Hud.Library.ActionButton, actions).Bind(text, callback, enabled);
+            Instantiate(dialogueChoice, actions).Bind(text, callback, enabled);
         }
 
         public override void Refresh()
@@ -93,16 +113,16 @@ namespace Workerborn
             if (npc == null)
                 return;
             speaker.text = npc.DisplayName;
-            occupation.text = npc.Subtitle;
             var s = Game.State;
             var r = s.Rules;
             InventoryWindowView.Clear(actions);
-            bodyTitle.text = npc.DisplayName;
+            bodyTitle.text = topic == DialogueAction.Shop ? "잡화점" : "";
             string prose = npc.Definition != null && npc.Definition.Dialogue != null ? npc.Definition.Dialogue.TextFor(topic) : "";
             body.text = prose;
             if (npc.Role == VillageRole.Guide)
             {
                 Action("마을로 내려간다", Hud.CloseDialogue);
+                ResizeText();
                 return;
             }
             switch (topic)
@@ -159,7 +179,7 @@ namespace Workerborn
                 case DialogueAction.Contribution:
                     bodyTitle.text = r.ExpansionTitle;
                     body.text = r.ExpansionDescription + $"\n\n자금 {s.DonatedGold}/{r.DonationGold} Gold\n{ItemCatalog.Get(r.DonationItemId).Name} {s.DonatedPotatoes}/{r.DonationItems}";
-                    bool accepts = s.FarmAvailable && !s.FarmUpgradePending && s.FarmLevel < r.ExpandedStage;
+                    bool accepts = s.ExpansionQuestActive;
                     Action($"{r.DonationGoldStep} Gold 기부", () => Game.PerformWorld(CampaignAction.DonateGold), accepts);
                     Action("물품 기부", () => Game.PerformWorld(CampaignAction.DonateItems), accepts);
                     break;
@@ -212,6 +232,7 @@ namespace Workerborn
                     Action("시련을 마친다", () => Game.PerformWorld(CampaignAction.ProveLegend), s.CanProveLegend(Game.LegendPlayerId));
                     break;
             }
+            ResizeText();
         }
     }
 }

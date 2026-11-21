@@ -106,7 +106,7 @@ namespace Workerborn
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
         internal int PrewarmGroundPickups => prewarmGroundPickups;
-        public bool ControlsBlocked => AwaitingWorldCommand || hud != null && (hud.WorldActionsLocked || hud.IsHoldingItem);
+        public bool ControlsBlocked => AwaitingWorldCommand || hud != null && (hud.WorldActionsLocked || hud.IsHoldingItem || hud.IsChatTyping);
 
         public int RemainingHarvests
         {

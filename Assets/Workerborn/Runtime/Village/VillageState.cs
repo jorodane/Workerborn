@@ -224,7 +224,7 @@ namespace Workerborn
             Minute += seconds * Rules.MinutesPerSecond;
             if (Job == JobStatus.Active && Minute >= Rules.JobEnd)
             {
-                Job = JobStatus.Failed;
+                ExpireJob();
                 Result(false, "아르바이트 시간이 종료되었습니다.");
             }
 
@@ -283,20 +283,28 @@ namespace Workerborn
             if (!JobWindowOpen)
             {
                 if (Minute >= Rules.JobEnd)
-                    Job = JobStatus.Failed;
+                    ExpireJob();
                 return Result(false, "아르바이트 납품 시간이 아니에요.");
             }
 
             var updated = Inventory.Copy();
-            if (!updated.TryRemove(Rules.JobItemId, JobRequirement)
-                || JobReward > 0 && !updated.TryAdd(ItemIds.Gold, JobReward)
+            if (!updated.TryRemove(Rules.JobItemId, JobRequirement))
+                return Result(false, "납품할 물품이 부족합니다.");
+            RemoveDocument(updated, Rules.JobDocumentItemId);
+            if (JobReward > 0 && !updated.TryAdd(ItemIds.Gold, JobReward)
                 || JobRewardItemCount > 0 && !updated.TryAdd(JobRewardItemId, JobRewardItemCount))
-                return Result(false, "납품 물품이나 보상을 받을 공간이 부족합니다.");
+                return Result(false, "보상을 받을 소지품 공간이 부족합니다.");
             Inventory.ReplaceWith(updated);
             Job = JobStatus.Completed;
             Career++;
             AddExperience(JobExperience);
             return Result(true, $"아르바이트 완료! {JobReward}G · 경험치 {JobExperience} · 농장 경력 +1");
+        }
+
+        private void ExpireJob()
+        {
+            Job = JobStatus.Failed;
+            RemoveDocument(Inventory, Rules.JobDocumentItemId);
         }
 
         public bool TryClaimIntroQuest()
@@ -531,7 +539,7 @@ namespace Workerborn
             Energy = Math.Min(energy, StaminaLimit);
             Health = HealthLimit;
             if (Job == JobStatus.Active)
-                Job = JobStatus.Failed;
+                ExpireJob();
             LastRestWasCollapse = collapsed;
             Version++;
         }
@@ -709,10 +717,14 @@ namespace Workerborn
                 throw new ArgumentException("Invalid bag equipment.");
 
             if (state.Job == JobStatus.Active && state.Minute >= rules.JobEnd)
-                state.Job = JobStatus.Failed;
-            if (save.schema < 3 && state.Job != JobStatus.None && !string.IsNullOrEmpty(rules.JobDocumentItemId)
+                state.ExpireJob();
+            if (state.Job != JobStatus.Active)
+                RemoveDocument(inventory, rules.JobDocumentItemId);
+            else if (save.schema < 3 && !string.IsNullOrEmpty(rules.JobDocumentItemId)
                 && state.Inventory.Count(rules.JobDocumentItemId) == 0)
                 state.Inventory.TryAdd(rules.JobDocumentItemId, 1);
+            if (state.FoundationStage >= FarmFoundationStage.SelectingSite)
+                RemoveDocument(inventory, rules.Foundation?.DocumentItemId);
             return state;
         }
     }

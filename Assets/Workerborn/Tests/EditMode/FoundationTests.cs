@@ -55,6 +55,8 @@ namespace Workerborn.Tests
                 Assert.That(state.Inventory.TryAdd(ItemIds.Timber, timber), Is.True);
             }
             Assert.That(state.TryDeliverTimber(), Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.TimberContract), Is.Zero);
+            Assert.That(state.TimberContractActive, Is.False);
             Assert.That(state.TryDeliverTimber(), Is.False);
             Assert.That(state.TryRebirth(), Is.False);
             Assert.That(state.TryChooseFarmSite("south", "남쪽 밭터"), Is.True);
@@ -80,6 +82,7 @@ namespace Workerborn.Tests
             Assert.That(state.JobReward, Is.GreaterThan(retail));
             state.Inventory.TryAdd(rules.JobItemId, state.JobRequirement);
             Assert.That(state.TryDeliverJob(), Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.Zero);
             Assert.That(state.Career, Is.EqualTo(1));
         }
 
@@ -95,21 +98,52 @@ namespace Workerborn.Tests
             Assert.That(state.TryAcceptJob(), Is.True);
             state.AdvanceTime((rules.JobEnd - rules.JobStart) / rules.MinutesPerSecond);
             Assert.That(state.Job, Is.EqualTo(JobStatus.Failed));
+            Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.Zero);
             Assert.That(state.TryDeliverJob(), Is.False);
             state.TrySleep(false);
             state.TryWaitForWork();
             Assert.That(state.TryAcceptJob(), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.EqualTo(1));
-            Assert.That(state.Inventory.TryAdd(rules.JobItemId, state.JobRequirement), Is.True);
+            Assert.That(state.Inventory.TryAdd(rules.JobItemId, state.JobRequirement + 1), Is.True);
             Assert.That(state.Inventory.TryAdd(ItemIds.Egg, ItemCatalog.Get(ItemIds.Egg).MaxStack * 30), Is.True);
             state = VillageState.Restore(state.Export(), rules);
             Assert.That(state.TryDeliverJob(), Is.False);
-            Assert.That(state.Inventory.Count(rules.JobItemId), Is.EqualTo(state.JobRequirement));
+            Assert.That(state.Inventory.Count(rules.JobItemId), Is.EqualTo(state.JobRequirement + 1));
+            Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.EqualTo(1));
             Assert.That(state.Gold, Is.Zero);
             Assert.That(state.Career, Is.Zero);
             state.Inventory.TryRemove(ItemIds.Egg, ItemCatalog.Get(ItemIds.Egg).MaxStack);
             Assert.That(state.TryDeliverJob(), Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.Zero);
             Assert.That(state.Inventory.Count(ItemIds.Bread), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void CompletedContractsAreRemovedFromExistingSavesAndOtherPlayers()
+        {
+            var rules = Rules();
+            var worker = new VillageState(rules);
+            Assert.That(worker.TryAcceptFoundation(), Is.True);
+            var other = VillageState.Restore(worker.Export(), rules);
+            Assert.That(other.Inventory.Count(ItemIds.TimberContract), Is.EqualTo(1));
+            worker.Inventory.TryAdd(ItemIds.Timber, rules.Foundation.TimberCount - 1);
+            Assert.That(worker.TryDeliverTimber(), Is.True);
+            Assert.That(worker.Inventory.Count(ItemIds.TimberContract), Is.EqualTo(1));
+            worker.Inventory.TryAdd(ItemIds.Timber, 1);
+            Assert.That(worker.TryDeliverTimber(), Is.True);
+            other.ApplyWorld(worker.ExportWorld());
+            Assert.That(other.Inventory.Count(ItemIds.TimberContract), Is.Zero);
+
+            var built = VillageState.Restore(new VillageSave { schema = 2 }, rules);
+            Assert.That(built.TryAcceptJob(), Is.True);
+            built.Inventory.TryAdd(rules.JobItemId, built.JobRequirement);
+            Assert.That(built.TryDeliverJob(), Is.True);
+            built.Inventory.TryAdd(ItemIds.TimberContract, 1);
+            built.Inventory.TryAdd(ItemIds.FarmContract, 1);
+            var loaded = VillageState.Restore(built.Export(), rules);
+            Assert.That(loaded.Job, Is.EqualTo(JobStatus.Completed));
+            Assert.That(loaded.Inventory.Count(ItemIds.TimberContract), Is.Zero);
+            Assert.That(loaded.Inventory.Count(ItemIds.FarmContract), Is.Zero);
         }
 
         [Test]

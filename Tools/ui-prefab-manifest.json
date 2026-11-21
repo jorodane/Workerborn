@@ -89,7 +89,7 @@
   },
   "ConversationWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/ConversationWindow.prefab",
-    "component": 100073
+    "component": 100077
   },
   "MainMenu": {
     "path": "Assets/Workerborn/Prefabs/UI/MainMenu.prefab",
@@ -98,5 +98,17 @@
   "EraWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/EraWindow.prefab",
     "component": 100095
+  },
+  "DialogueChoice": {
+    "path": "Assets/Workerborn/Prefabs/UI/DialogueChoice.prefab",
+    "component": 100011
+  },
+  "PlayerOverhead": {
+    "path": "Assets/Workerborn/Prefabs/UI/PlayerOverhead.prefab",
+    "component": 100015
+  },
+  "VillageChat": {
+    "path": "Assets/Workerborn/Prefabs/UI/VillageChat.prefab",
+    "component": 100042
   }
 }

@@ -28,6 +28,7 @@
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Life.cs" Link="VillageState.Life.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Legends.cs" Link="VillageState.Legends.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.cs" Link="VillageCampaign.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageChatText.cs" Link="VillageChatText.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Characters/CharacterLook.cs" Link="CharacterLook.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageTcpPeer.cs" Link="VillageTcpPeer.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/VillageCampaignTests.cs" Link="VillageCampaignTests.cs" />

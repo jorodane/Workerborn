@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 
 namespace Workerborn
 {
-    // A low-resolution ID/depth pass tracks visible animated silhouettes, not bounding boxes.
+    // Mesh picking and the display outline use separate render targets.
     [DefaultExecutionOrder(-25)]
     public sealed class PointerTargeting : MonoBehaviour
     {
@@ -17,10 +17,7 @@ namespace Workerborn
         private float outlinePixels = 3f;
         private Material flatKitOutline, silhouetteMaterial;
         private RenderTexture silhouette, edges, outline;
-        private int outlinedId;
-        private Color outlinedColor;
-        private bool maskChanged;
-        [SerializeField, Range(256, 1536)]
+        [SerializeField, Range(256, 1536), Tooltip("GPU readback resolution for mesh picking.")]
         private int maskWidth = 768;
         [SerializeField, Range(10, 60)]
         private float capturesPerSecond = 30;
@@ -50,6 +47,7 @@ namespace Workerborn
         private readonly List<Renderer> actorGeometry = new List<Renderer>();
         private readonly Dictionary<Renderer, int> targetIds = new Dictionary<Renderer, int>();
         private readonly List<Material> materials = new List<Material>();
+        private CommandBuffer drawCommands;
         private AsyncGPUReadbackRequest request;
         private bool waiting;
         private bool useAsyncReadback;
@@ -64,6 +62,7 @@ namespace Workerborn
             game = owner;
             link = targetLink;
             visibility = game.WorldCamera.GetComponent<CameraVisibility>();
+            drawCommands = new CommandBuffer();
             if (outlineFilter != null && maskMaterial != null)
             {
                 flatKitOutline = new Material(outlineFilter);
@@ -286,74 +285,76 @@ namespace Workerborn
             if (game == null)
                 return;
             var selected = CurrentTarget;
-            Color tint = IsPressed ? pressedColor : highlightColor;
-            if (maskMaterial == null || Screen.width < 1 || Screen.height < 1)
-                return;
-            if (!game.Hud.AllowsGroundItems)
+            if (selected == null || !selected.CanInteract || !game.Hud.AllowsGroundItems || flatKitOutline == null)
             {
                 link?.Hide();
                 game.Hud.SetSelectionOutline(null);
                 return;
             }
 
-            EnsureTexture();
-            ShowTargetLink(selected, tint);
+            var camera = game.WorldCamera;
+            if (camera.pixelWidth < 1 || camera.pixelHeight < 1)
+                return;
+            EnsureOutlineTextures(camera.pixelWidth, camera.pixelHeight);
+            game.Hud.SetSelectionOutline(outline);
+            ShowTargetLink(selected, IsPressed ? pressedColor : highlightColor);
+        }
+
+        private void OnEnable() => RenderPipelineManager.beginCameraRendering += RenderForWorldCamera;
+
+        private void RenderForWorldCamera(ScriptableRenderContext context, Camera camera)
+        {
+            if (game == null || camera != game.WorldCamera || maskMaterial == null ||
+                Screen.width < 1 || Screen.height < 1 || !game.Hud.AllowsGroundItems)
+                return;
+
+            var active = RenderTexture.active;
             if (!waiting && Time.unscaledTime >= nextCapture)
             {
-                DrawMask();
+                EnsureTexture();
+                DrawMask(mask);
                 Capture();
             }
-            ShowOutline(selected, tint);
+            var selected = CurrentTarget;
+            if (selected != null && selected.CanInteract && silhouette != null && flatKitOutline != null &&
+                silhouette.width == camera.pixelWidth && silhouette.height == camera.pixelHeight)
+                DrawOutline(selected, IsPressed ? pressedColor : highlightColor);
+            RenderTexture.active = active;
         }
 
-        private void ShowOutline(WorldInteractable selected, Color tint)
+        private void DrawOutline(WorldInteractable selected, Color tint)
         {
-            int id = selected != null ? frameTargets.FindIndex(candidate => candidate.Target == selected) : 0;
-            if (id <= 0 || mask == null || flatKitOutline == null)
-            {
-                game.Hud.SetSelectionOutline(null);
+            // Use the camera and animated meshes for this frame. Only picking waits for readback.
+            DrawMask(silhouette, selected);
+            var draw = drawCommands;
+            draw.Clear();
+            draw.name = "Flat Kit selected object outline";
+            draw.SetGlobalTexture("_CameraColorTexture", silhouette);
+            draw.SetGlobalVector("_SourceSize", new Vector4(silhouette.width, silhouette.height,
+                1f / silhouette.width, 1f / silhouette.height));
+            draw.Blit(silhouette, edges, flatKitOutline, 0);
+            draw.SetGlobalTexture("_CameraColorTexture", Shader.GetGlobalTexture("_CameraColorTexture") ?? Texture2D.blackTexture);
+            draw.SetGlobalVector("_SourceSize", Shader.GetGlobalVector("_SourceSize"));
+            Graphics.ExecuteCommandBuffer(draw);
+            silhouetteMaterial.SetColor("_OutlineTint", tint);
+            Graphics.Blit(edges, outline, silhouetteMaterial, 1);
+        }
+
+        private void EnsureOutlineTextures(int width, int height)
+        {
+            if (silhouette != null && silhouette.width == width && silhouette.height == height)
                 return;
-            }
-            if (silhouette == null || silhouette.width != mask.width || silhouette.height != mask.height)
-            {
-                ReleaseOutlineTextures();
-                silhouette = NewOutlineTexture("Selection coverage");
-                edges = NewOutlineTexture("Flat Kit selection edges");
-                outline = NewOutlineTexture("Visible selection edges");
-                maskChanged = true;
-            }
-
-            if (maskChanged || id != outlinedId || tint != outlinedColor)
-            {
-                // Flat Kit detects the color boundary of one merged silhouette. Original
-                // material colors, lighting and mesh seams cannot appear in that input.
-                silhouetteMaterial.SetVector("_IsolatedId", new Vector4((id & 255) / 255f, ((id >> 8) & 255) / 255f, ((id >> 16) & 255) / 255f, 0));
-                silhouetteMaterial.SetColor("_OutlineTint", tint);
-                var active = RenderTexture.active;
-                Graphics.Blit(mask, silhouette, silhouetteMaterial, 1);
-                using (var draw = new CommandBuffer { name = "Flat Kit selected object outline" })
-                {
-                    draw.SetGlobalTexture("_CameraColorTexture", silhouette);
-                    draw.SetGlobalVector("_SourceSize", new Vector4(mask.width, mask.height, 1f / mask.width, 1f / mask.height));
-                    draw.Blit(silhouette, edges, flatKitOutline, 0);
-                    draw.SetGlobalTexture("_CameraColorTexture", Shader.GetGlobalTexture("_CameraColorTexture") ?? Texture2D.blackTexture);
-                    draw.SetGlobalVector("_SourceSize", Shader.GetGlobalVector("_SourceSize"));
-                    Graphics.ExecuteCommandBuffer(draw);
-                }
-                Graphics.Blit(edges, outline, silhouetteMaterial, 2);
-                RenderTexture.active = active;
-                maskChanged = false;
-                outlinedId = id;
-                outlinedColor = tint;
-            }
-            game.Hud.SetSelectionOutline(outline);
+            ReleaseOutlineTextures();
+            silhouette = NewOutlineTexture(width, height, 24, FilterMode.Point, "Selection coverage");
+            edges = NewOutlineTexture(width, height, 0, FilterMode.Bilinear, "Flat Kit selection edges");
+            outline = NewOutlineTexture(width, height, 0, FilterMode.Bilinear, "Visible selection edges");
         }
 
-        private RenderTexture NewOutlineTexture(string label)
+        private static RenderTexture NewOutlineTexture(int width, int height, int depth, FilterMode filter, string label)
         {
-            var result = new RenderTexture(mask.width, mask.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
+            var result = new RenderTexture(width, height, depth, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
             {
-                name = label, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp
+                name = label, filterMode = filter, wrapMode = TextureWrapMode.Clamp
             };
             result.Create();
             return result;
@@ -383,7 +384,7 @@ namespace Workerborn
                 Vector3 center = game.WorldCamera.WorldToScreenPoint(selected.TargetCenter);
                 if (center.z > 0)
                 {
-                    link.SetSilhouetteMask(mask, SystemInfo.graphicsUVStartsAtTop);
+                    link.SetSilhouetteMask(silhouette, SystemInfo.graphicsUVStartsAtTop);
                     link.Show(game.Hud.CanvasRect, WorkerbornInput.Point, center, tint);
                     return;
                 }
@@ -415,18 +416,21 @@ namespace Workerborn
             pixels = null;
         }
 
-        private void DrawMask()
+        private void DrawMask(RenderTexture destination, WorldInteractable selected = null)
         {
-            maskChanged = true;
-            frameTargets.Clear();
-            frameTargets.Add(default);
+            bool forOutline = selected != null;
+            if (!forOutline)
+            {
+                frameTargets.Clear();
+                frameTargets.Add(default);
+            }
             targetIds.Clear();
             foreach (var item in WorldInteractable.Active)
             {
                 if (item == null || item.gameObject.scene != game.gameObject.scene)
                     continue;
-                int id = 0;
-                if (item.CanInteract)
+                int id = item == selected ? 1 : 0;
+                if (!forOutline && item.CanInteract)
                 {
                     id = frameTargets.Count;
                     frameTargets.Add(new WorldTargetReference(item));
@@ -437,10 +441,12 @@ namespace Workerborn
                         targetIds[renderer] = id;
             }
 
-            using var command = new CommandBuffer { name = "Workerborn visible target mask" };
-            command.SetRenderTarget(mask);
+            var command = drawCommands;
+            command.Clear();
+            command.name = forOutline ? "Visible selected silhouette" : "Workerborn visible target mask";
+            command.SetRenderTarget(destination);
             command.ClearRenderTarget(true, true, Color.clear);
-            command.SetViewport(new Rect(0, 0, mask.width, mask.height));
+            command.SetViewport(new Rect(0, 0, destination.width, destination.height));
             command.SetGlobalMatrix("_SelectionViewProjection", GL.GetGPUProjectionMatrix(game.WorldCamera.projectionMatrix, false) * game.WorldCamera.worldToCameraMatrix);
             if (terrainMask != null && terrain != null)
             {
@@ -453,12 +459,18 @@ namespace Workerborn
 
             GeometryUtility.CalculateFrustumPlanes(game.WorldCamera, maskFrustum);
             foreach (var renderer in staticGeometry)
-                Draw(command, renderer, 0);
+                Draw(command, renderer, Vector4.zero);
             game.Worker.GetComponentsInChildren(false, actorGeometry);
             foreach (var renderer in actorGeometry)
-                Draw(command, renderer, 0);
+                Draw(command, renderer, Vector4.zero);
             foreach (var pair in targetIds)
-                Draw(command, pair.Key, pair.Value);
+            {
+                int id = pair.Value;
+                var color = forOutline ? (id != 0 ? Vector4.one : Vector4.zero)
+                    : new Vector4((id & 255) / 255f, ((id >> 8) & 255) / 255f, ((id >> 16) & 255) / 255f,
+                        id > 0 && frameTargets[id].Target?.CanTarget == true ? 1f : 0f);
+                Draw(command, pair.Key, color);
+            }
             Graphics.ExecuteCommandBuffer(command);
         }
 
@@ -520,7 +532,7 @@ namespace Workerborn
             flipReadback = flip;
         }
 
-        private void Draw(CommandBuffer command, Renderer renderer, int id)
+        private void Draw(CommandBuffer command, Renderer renderer, Vector4 idColor)
         {
             if (renderer == null || !renderer.enabled || renderer.forceRenderingOff || !renderer.gameObject.activeInHierarchy ||
                 !(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) || renderer.gameObject.layer == VillageWeather.SkyLayer ||
@@ -545,7 +557,7 @@ namespace Workerborn
                 float cutoff = SelectionCutoff(material);
                 if (material.renderQueue >= 3000 && cutoff == 0f)
                 {
-                    if (id == 0 || texture == null)
+                    if (idColor == Vector4.zero || texture == null)
                         continue;
                     cutoff = .5f;
                 }
@@ -554,7 +566,7 @@ namespace Workerborn
                 command.SetGlobalTexture("_SelectionBaseMap", texture != null ? texture : Texture2D.whiteTexture);
                 command.SetGlobalVector("_SelectionMapST", new Vector4(scale.x, scale.y, offset.x, offset.y));
                 command.SetGlobalFloat("_SelectionCutoff", cutoff);
-                command.SetGlobalVector("_SelectionId", new Vector4((id & 255) / 255f, ((id >> 8) & 255) / 255f, ((id >> 16) & 255) / 255f, id > 0 && frameTargets[id].Target?.CanTarget == true ? 1 : 0));
+                command.SetGlobalVector("_SelectionId", idColor);
                 command.DrawRenderer(renderer, maskMaterial, index, 0);
             }
         }
@@ -582,6 +594,7 @@ namespace Workerborn
 
         private void OnDisable()
         {
+            RenderPipelineManager.beginCameraRendering -= RenderForWorldCamera;
             generation++;
             currentTarget = pressTarget = rightTarget = default;
             game?.Hud.SetSelectionOutline(null);
@@ -593,6 +606,7 @@ namespace Workerborn
         private void OnDestroy()
         {
             TerrainCallbacks.heightmapChanged -= TerrainChanged;
+            drawCommands?.Release();
             ReleaseOutlineTextures();
             if (flatKitOutline != null) Destroy(flatKitOutline);
             if (silhouetteMaterial != null) Destroy(silhouetteMaterial);

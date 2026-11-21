@@ -150,9 +150,11 @@ namespace Workerborn
             DonatedPotatoes = world.donatedItems;
             FarmUpgradePending = world.expansionReady;
             Legend = world.legend;
+            if (FoundationStage >= FarmFoundationStage.SelectingSite && changed)
+                RemoveDocument(Inventory, Rules.Foundation?.DocumentItemId);
             if (Job == JobStatus.Active && (Day != previousDay || Minute >= Rules.JobEnd))
             {
-                Job = JobStatus.Failed;
+                ExpireJob();
                 changed = true;
             }
             if (changed)

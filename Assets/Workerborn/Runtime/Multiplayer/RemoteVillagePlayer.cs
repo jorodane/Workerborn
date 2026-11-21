@@ -7,7 +7,7 @@ namespace Workerborn
         [SerializeField] private Transform visual;
         [SerializeField] private WorkerAnimation animationDriver;
         [SerializeField, Min(0f)] private float labelHeight = 1.9f;
-        private WorldNameplateView label;
+        private PlayerOverheadView label;
         private VillageHud hud;
         private Vector3 destination;
         private Quaternion yaw;
@@ -22,10 +22,10 @@ namespace Workerborn
                 var model = CharacterAssembler.Build(appearance, visual, look);
                 animationDriver?.Initialize(model.GetComponentInChildren<Animator>(), appearance.Idle, appearance.Run, appearance.Work, appearance.Walk);
             }
-            label = Instantiate(hud.Library.NpcName, hud.CanvasRect);
-            label.SetText(name);
-            label.SetBox(false);
+            label = hud.CreatePlayerOverhead(name);
         }
+
+        internal void Say(string message) => label?.Say(message);
 
         internal void SetPose(SessionAvatar avatar, float surfaceY)
         {
@@ -46,7 +46,7 @@ namespace Workerborn
             transform.SetPositionAndRotation(Vector3.Lerp(transform.position, destination, factor),
                 Quaternion.Slerp(transform.rotation, yaw, factor));
             if (label != null && hud != null)
-                hud.PositionPeerLabel(label, transform.position + Vector3.up * labelHeight);
+                hud.PositionPlayerOverhead(label, transform.position + Vector3.up * labelHeight);
         }
 
         private void OnDestroy()

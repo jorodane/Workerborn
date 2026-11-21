@@ -1,0 +1,56 @@
+using TMPro;
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+namespace Workerborn
+{
+    public sealed partial class VillageHud
+    {
+        private VillageChatView chat;
+        private PlayerOverheadView localOverhead;
+        internal bool IsChatTyping => chat != null && chat.IsTyping;
+
+        private void InitializeChat()
+        {
+            chat = Instantiate(library.Chat, transform);
+            chat.Bind(game.TrySendChat);
+            localOverhead = CreatePlayerOverhead(game.LegendPlayerName);
+        }
+
+        internal PlayerOverheadView CreatePlayerOverhead(string playerName)
+        {
+            var overhead = Instantiate(library.PlayerOverhead, transform);
+            overhead.SetName(playerName);
+            return overhead;
+        }
+
+        internal void PositionPlayerOverhead(PlayerOverheadView overhead, Vector3 position)
+        {
+            overhead.Position(game.WorldCamera, CanvasRect, position);
+        }
+
+        internal void ShowChat(string speaker, string message, bool local)
+        {
+            chat?.Append(speaker, message);
+            if (local)
+                localOverhead?.Say(message);
+        }
+
+        private bool HandleChatInput()
+        {
+            if (IsChatTyping)
+            {
+                if (WorkerbornInput.Pressed("Gameplay/Cancel"))
+                    chat.LeaveInput();
+                return true;
+            }
+            if (chat == null || !WorkerbornInput.Pressed("Gameplay/Chat"))
+                return false;
+            var selected = EventSystem.current?.currentSelectedGameObject;
+            if (selected != null && selected.GetComponent<TMP_InputField>() != null)
+                return false;
+            chat.OpenInput();
+            return true;
+        }
+    }
+}

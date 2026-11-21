@@ -12,7 +12,7 @@ using UnityEngine.SceneManagement;
 
 namespace Workerborn
 {
-    internal enum SessionMessage { Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave }
+    internal enum SessionMessage { Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave, Chat }
 
     [Serializable]
     internal sealed class SessionPacket
@@ -34,12 +34,13 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 2;
+        public const int ProtocolVersion = 3;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
         private const float WorldInterval = .15f;
         private const float SaveInterval = 15f;
+        private const float ChatInterval = .35f;
         private static readonly Encoding WireEncoding = new UTF8Encoding(false, true);
 
         private sealed class Connection
@@ -50,6 +51,7 @@ namespace Workerborn
             public float LastSeen;
             public bool Leaving;
             public float CloseAfter;
+            public float NextChat;
         }
 
         public static VillageSession Instance { get; private set; }
@@ -101,6 +103,7 @@ namespace Workerborn
         private bool inviteWhenReady, exitRequested;
         private string exitMessage;
         private ulong pendingInvite;
+        private float nextLocalChat;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Install()
@@ -426,6 +429,31 @@ namespace Workerborn
             return host != null && Send(host, new SessionPacket { type = SessionMessage.Checkpoint, character = character });
         }
 
+        public bool SendChat(string message)
+        {
+            float now = Time.unscaledTime;
+            if (!Online || village == null || leaveBy > 0f || now < nextLocalChat)
+                return false;
+            bool sent = authority != null && localIdentity != null ? RelayChat(localIdentity, message)
+                : host != null && Send(host, new SessionPacket { type = SessionMessage.Chat, message = message });
+            if (sent)
+                nextLocalChat = now + ChatInterval;
+            return sent;
+        }
+
+        private bool RelayChat(string identity, string message)
+        {
+            if (!VillageChatText.TryNormalize(message, out string text))
+                return false;
+            var sender = authority.Profile(identity);
+            var packet = new SessionPacket { type = SessionMessage.Chat, player = sender.id, name = sender.name, message = text };
+            foreach (var connection in connections)
+                if (connection.Identity != null && !connection.Leaving)
+                    Send(connection, packet);
+            village?.ReceiveChat(sender.id, sender.name, text);
+            return true;
+        }
+
         public bool Submit(CampaignAction action, string argument = null, int value = 1)
         {
             if (!Online || village == null || Submitting)
@@ -690,6 +718,10 @@ namespace Workerborn
                 case SessionMessage.Command:
                     CampaignCommand(connection.Identity, packet, connection);
                     break;
+                case SessionMessage.Chat:
+                    if (Time.unscaledTime >= connection.NextChat && RelayChat(connection.Identity, packet.message))
+                        connection.NextChat = Time.unscaledTime + ChatInterval;
+                    break;
                 case SessionMessage.Leave:
                     authority.Checkpoint(connection.Identity, packet.character);
                     authority.Disconnect(connection.Identity);
@@ -830,6 +862,9 @@ namespace Workerborn
                 QueueExit("");
             else if (packet.type == SessionMessage.Profile)
                 ApplyProfile(packet);
+            else if (packet.type == SessionMessage.Chat && village != null && !string.IsNullOrEmpty(packet.player) &&
+                VillageChatText.TryNormalize(packet.message, out string text))
+                village.ReceiveChat(packet.player, PortableCharacter.CleanName(packet.name, "일꾼"), text);
             else if (packet.type == SessionMessage.World)
             {
                 UpdateStatus(packet.status);
@@ -959,6 +994,7 @@ namespace Workerborn
             Busy = false;
             waitingForRequest = 0;
             leaveBy = 0;
+            nextLocalChat = 0;
             inviteWhenReady = false;
         }
 

@@ -53,7 +53,7 @@ MonoBehaviour:
   - fileID: 100080
     guid: ab72a3c9d4285d4b8ef0c7590848afe9
     type: 3
-  - fileID: 100073
+  - fileID: 100077
     guid: 983abd1dfeb151acb381ba5f320bb7b1
     type: 3
   - {fileID: 100012, guid: 55b0ecea6fe859158d6deaa08b31c4b1, type: 3}
@@ -99,3 +99,5 @@ MonoBehaviour:
     fileID: 100004
     guid: 7b196214a1c05a5a8196cf9de2ba37a6
     type: 3
+  playerOverhead: {fileID: 100015, guid: 081a545444fd526ab5ad7a28fd6a9af4, type: 3}
+  chat: {fileID: 100042, guid: a4bb8cc84386579eb5f774ff910de67b, type: 3}
