@@ -15,7 +15,7 @@ Steam 친구 방에는 실행 중인 Steam 클라이언트와 게임에 접근�
 
 캐릭터의 이름과 P09 체형·머리·얼굴·기본 의상은 Unity 영구 데이터 폴더의 `workerborn-launch-v1.json`에 저장합니다. 월드 파일은 `worlds/`에 있으며, 같은 캐릭터의 레벨·장비·소지품도 월드마다 따로 기록합니다. 싱글플레이에서 연 월드를 나중에 Steam 친구 방에서도 열 수 있습니다.
 
-친구 방과 데디케이티드 서버는 최대 12명까지 같은 마을의 시간과 시대, 농장 부지·건물, 납품·기부, 전설 기록을 공유합니다. 다른 플레이어의 접속, 위치와 기본 동작도 보입니다. 이 버전의 채집·전투·아이템 드롭은 캐릭터별로 계산되며 재산과 성장 기록은 방에서 플레이어별로 저장합니다. 같은 주소로 재접속하려면 서버가 발급한 접속 기록이 들어 있는 클라이언트 설정이 필요합니다.
+친구 방과 데디케이티드 서버는 최대 12명까지 같은 마을의 시간과 시대, 농장 부지·건물, 납품·기부, 전설 기록을 공유합니다. 다른 플레이어의 접속, 위치와 기본 동작도 보입니다. 이 버전의 채집·전투·아이템 드롭은 캐릭터별로 계산되며 재산과 성장 기록은 방에서 플레이어별로 저장합니다. 데디케이티드 서버의 접속 기록은 클라이언트에 월드별로 저장됩니다. 예전 접속 기록은 기존 주소와 포트로 처음 연결할 때 옮겨집니다.
 
 캐릭터 정원은 월드에 저장할 수 있는 캐릭터 수이며 1~256명으로 설정합니다. 접속을 끊은 캐릭터도 정원에 포함되며, 정원이 찬 월드에도 기존 캐릭터로 다시 들어갈 수 있습니다. Steam 방장은 **메뉴 → 공동 환생**에서 정원을 변경할 수 있습니다.
 
@@ -23,8 +23,22 @@ Steam 친구 방에는 실행 중인 Steam 클라이언트와 게임에 접근�
 
 ## 데디케이티드 서버 실행
 
+### Windows 관리 창
+
+Unity Hub에서 Windows **Dedicated Server Build Support**를 설치하고, 빌드하는 PC에 **.NET 8 SDK**를 설치합니다. Unity에서 **Workerborn → Build → Dedicated Server (Windows)**를 실행하면 서버와 관리 창이 같은 폴더에 만들어집니다.
+
+1. `Build/WorkerbornServer-Windows/WorkerbornServerManager.exe`를 더블클릭합니다.
+2. 월드를 고르고 **서버 시작**을 누릅니다. **새 월드 → 만들고 시작**에서는 월드 이름, 수신 IPv4 주소, TCP 포트, 캐릭터 정원을 지정합니다. 기존 `-world` 저장 파일은 **기존 월드 열기**로 등록합니다.
+3. 실행 중인 포트와 동시 접속 인원, 평균 왕복 지연시간을 상단에서 확인합니다. **서버 로그** 아래 입력란에는 `save`, `announce 1`, `cancel`, `stop` 같은 서버 명령을 입력할 수 있습니다.
+
+**설정**에서 실행 중인 월드의 캐릭터 정원을 변경할 수 있습니다. 수신 주소와 포트는 서버를 정지한 상태에서 수정합니다. **캐릭터** 탭에는 플레이어 ID, 차단 여부, 생성·최근 접속·종료 시각, 접속 시간과 왕복 지연시간이 표시됩니다. 이전 저장에 없는 시각과 아직 측정하지 못한 지연시간은 `—`로 표시됩니다.
+
+캐릭터 단위로 차단하거나 해제할 수 있습니다. 차단하면 해당 캐릭터의 진행은 월드에 보관되며 정원에도 포함됩니다. **캐릭터 삭제**를 확인하면 이 월드의 개인 기록이 삭제되어 정원 슬롯이 비고, 공동 납품량과 시설은 이어집니다. **서버 정지**를 누르거나 창을 닫으면 월드를 저장한 뒤 서버가 종료됩니다.
+
+### 명령줄에서 실행
+
 1. Unity Hub에서 해당 플랫폼의 **Dedicated Server Build Support**를 설치합니다.
-2. **Workerborn → Build → Dedicated Server (Linux)** 또는 **(Windows)**를 실행합니다. 기본 출력은 Linux의 `Build/WorkerbornServer/WorkerbornServer`, Windows의 `Build/WorkerbornServer-Windows/WorkerbornServer.exe`입니다.
+2. **Workerborn → Build → Dedicated Server (Linux)**를 실행합니다. Linux의 기본 실행 파일은 `Build/WorkerbornServer/WorkerbornServer`입니다.
 3. 서버를 실행하고 클라이언트의 **서버 입장**에서 `127.0.0.1:7777`로 접속합니다.
 
 ```bash
@@ -32,7 +46,7 @@ Steam 친구 방에는 실행 중인 Steam 클라이언트와 게임에 접근�
   -bind 127.0.0.1 -port 7777 -world ./Build/WorkerbornServer/worlds/solbaram.json -character-limit 4
 ```
 
-Windows에서는 위 실행 파일 대신 `Build/WorkerbornServer-Windows/WorkerbornServer.exe`를 사용합니다. 로컬 시험은 일반 데스크톱 빌드를 `-workerborn-server -batchmode -nographics -logFile -`로 실행해도 됩니다. 자동 빌드는 Unity에서 `-executeMethod Workerborn.Editor.WorkerbornDedicatedBuild.BuildLinux` 또는 `.BuildWindows`와 `-workerborn-output`을 사용합니다.
+Windows에서 명령줄로 실행할 때는 `Build/WorkerbornServer-Windows/WorkerbornServer.exe`를 사용합니다. 로컬 시험은 일반 데스크톱 빌드를 `-workerborn-server -batchmode -nographics -logFile -`로 실행해도 됩니다. Unity 자동 빌드는 `-executeMethod Workerborn.Editor.WorkerbornDedicatedBuild.BuildLinux` 또는 `.BuildWindows`와 `-workerborn-output`을 사용합니다. Windows 서버 실행 파일만 빌드할 때는 `.BuildWindowsHeadless`를 사용합니다.
 
 새 서버 월드는 최초 실행 인수 `-character-limit 4`의 숫자에 캐릭터 정원을 지정해야 만들어집니다. 이미 생성한 월드는 저장된 정원으로 시작합니다. 서버 콘솔에서 `character-limit`으로 현재 정원을 확인하고 `character-limit 6`처럼 새 정원을 적용할 수 있습니다.
 

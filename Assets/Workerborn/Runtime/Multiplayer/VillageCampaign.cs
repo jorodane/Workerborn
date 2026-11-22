@@ -32,6 +32,9 @@ namespace Workerborn
         public string identity;
         public string id;
         public string name;
+        public string portableId;
+        public long createdUtc, lastConnectedUtc, lastDisconnectedUtc;
+        public bool banned;
         public VillageSave character;
         public int enteredEra;
         public bool optedIn;
@@ -40,6 +43,7 @@ namespace Workerborn
     [Serializable]
     public sealed class CampaignRecord
     {
+        public string worldId;
         public VillageWorldRecord world;
         public CampaignProfile[] profiles = Array.Empty<CampaignProfile>();
         public double deadline;
@@ -69,10 +73,12 @@ namespace Workerborn
         private readonly Dictionary<string, SessionAvatar> avatars = new Dictionary<string, SessionAvatar>();
         private double deadline;
         private readonly float spawnX, spawnZ;
+        public string WorldId { get; }
         public VillageWorldRecord World { get; private set; }
         public int CharacterLimit => World.characterLimit == 0 ? WorldCapacity.MaxCharacters : World.characterLimit;
         public int CreatedCharacters => profiles.Count;
         public bool HasFreeCharacterSlot => CreatedCharacters < CharacterLimit;
+        public IEnumerable<CampaignProfile> Profiles => profiles.Values;
 
         public VillageCampaign(VillageRules rules, IReadOnlyDictionary<string, string> sites,
             float spawnX, float spawnZ, CampaignRecord saved = null, int initialCharacterLimit = 0)
@@ -83,6 +89,7 @@ namespace Workerborn
             this.sites = sites;
             this.spawnX = spawnX;
             this.spawnZ = spawnZ;
+            WorldId = Guid.TryParseExact(saved?.worldId, "N", out var id) ? id.ToString("N") : Guid.NewGuid().ToString("N");
             World = saved?.world ?? new VillageState(rules).ExportWorld();
             deadline = saved?.deadline ?? 0;
             if (saved == null)
@@ -111,11 +118,12 @@ namespace Workerborn
             }
         }
 
-        public bool Connect(string identity, string name, out CampaignProfile profile, CharacterLook look = default)
+        public bool Connect(string identity, string name, out CampaignProfile profile, CharacterLook look = default, string portableId = null)
         {
             profile = null;
-            if (connected.Count >= WorldCapacity.MaxConnections || connected.Contains(identity))
+            if (connected.Count >= WorldCapacity.MaxConnections || connected.Contains(identity) || IsBanned(identity, portableId))
                 return false;
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             if (!profiles.TryGetValue(identity, out profile))
             {
                 if (!HasFreeCharacterSlot)
@@ -127,6 +135,7 @@ namespace Workerborn
                     identity = identity,
                     id = Guid.NewGuid().ToString("N"),
                     name = name,
+                    createdUtc = now,
                     character = state.Export(),
                     enteredEra = World.era
                 };
@@ -136,6 +145,9 @@ namespace Workerborn
             if (profile.enteredEra != World.era)
                 SpawnAtStart(profile);
             profile.name = name;
+            profile.lastConnectedUtc = now;
+            if (string.IsNullOrEmpty(profile.portableId))
+                profile.portableId = portableId;
             ApplyWorld(profile.character);
             connected.Add(identity);
             avatars.Add(identity, new SessionAvatar { id = profile.id, name = name, look = look.Validated(), x = profile.character.playerX, z = profile.character.playerZ });
@@ -163,15 +175,71 @@ namespace Workerborn
 
         public void Disconnect(string identity)
         {
-            connected.Remove(identity);
+            if (connected.Remove(identity) && profiles.TryGetValue(identity, out var profile))
+                profile.lastDisconnectedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             votes.Remove(identity);
             avatars.Remove(identity);
         }
 
         public bool HasIdentity(string identity) => profiles.ContainsKey(identity);
+        public bool MatchesPortableCharacter(string identity, string portableId) =>
+            profiles.TryGetValue(identity, out var profile) && (string.IsNullOrEmpty(profile.portableId) ||
+                string.Equals(profile.portableId, portableId, StringComparison.OrdinalIgnoreCase));
+        public bool HasPortableCharacter(string portableId) =>
+            !string.IsNullOrEmpty(portableId) && profiles.Values.Any(profile =>
+                string.Equals(profile.portableId, portableId, StringComparison.OrdinalIgnoreCase));
+        public bool IsConnected(string identity) => connected.Contains(identity);
+        public int ConnectedCount => connected.Count;
+        public bool IsBanned(string identity, string portableId) =>
+            profiles.TryGetValue(identity, out var profile) && profile.banned ||
+            !string.IsNullOrEmpty(portableId) && profiles.Values.Any(other =>
+                other.banned && string.Equals(other.portableId, portableId, StringComparison.OrdinalIgnoreCase));
         public CampaignProfile Profile(string identity) => profiles[identity];
         public SessionAvatar[] Avatars() => avatars.Values.ToArray();
         public bool CanAdvance => World.foundationStage == (int)FarmFoundationStage.ReadyToRebirth || World.expansionReady;
+
+        public bool TrySetBan(string id, bool banned, Func<bool> save, out string identity)
+        {
+            identity = null;
+            var profile = FindCharacter(id);
+            if (profile == null)
+                return false;
+            bool wasBanned = profile.banned;
+            long previousDisconnect = profile.lastDisconnectedUtc;
+            profile.banned = banned;
+            if (banned && IsConnected(profile.identity))
+                profile.lastDisconnectedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!save())
+            {
+                profile.banned = wasBanned;
+                profile.lastDisconnectedUtc = previousDisconnect;
+                return false;
+            }
+            identity = profile.identity;
+            if (banned)
+                Disconnect(identity);
+            return true;
+        }
+
+        public bool TryDeleteCharacter(string id, Func<bool> save, out string identity)
+        {
+            identity = null;
+            var profile = FindCharacter(id);
+            if (profile == null)
+                return false;
+            profiles.Remove(profile.identity);
+            if (!save())
+            {
+                profiles.Add(profile.identity, profile);
+                return false;
+            }
+            identity = profile.identity;
+            Disconnect(identity);
+            return true;
+        }
+
+        private CampaignProfile FindCharacter(string id) =>
+            profiles.Values.FirstOrDefault(profile => string.Equals(profile.id, id, StringComparison.OrdinalIgnoreCase));
 
         public bool TrySetCharacterLimit(int limit, out string message)
         {
@@ -398,7 +466,7 @@ namespace Workerborn
         {
             foreach (var profile in profiles.Values)
                 ApplyWorld(profile.character);
-            return new CampaignRecord { world = World, deadline = deadline, profiles = profiles.Values.ToArray() };
+            return new CampaignRecord { worldId = WorldId, world = World, deadline = deadline, profiles = profiles.Values.ToArray() };
         }
     }
 }

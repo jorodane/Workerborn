@@ -10,7 +10,7 @@ namespace Workerborn
 {
     internal sealed class VillageTcpPeer : IDisposable
     {
-        public const int DefaultPort = 7777;
+        public const int DefaultPort = DedicatedAdminProtocol.DefaultPort;
         public const int MaxPayload = 256 * 1024;
         private const int QueueLimit = 2 * MaxPayload;
         private readonly TcpClient client;

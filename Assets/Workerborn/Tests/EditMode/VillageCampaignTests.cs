@@ -39,12 +39,14 @@ namespace Workerborn.Tests
             first.StoreSolo(identity, world, player.Export());
 
             var loaded = new VillageCampaign(rules, Sites, 10, 22, first.Export());
+            Assert.That(loaded.WorldId, Is.EqualTo(first.WorldId));
             Assert.That(loaded.Connect(identity, "새 이름", out var saved, look), Is.True);
             Assert.That(saved.name, Is.EqualTo("새 이름"));
             Assert.That(loaded.World.Clock, Is.EqualTo(world.Clock));
             Assert.That(VillageState.Restore(saved.character, rules).Inventory.Count(ItemIds.Bread), Is.EqualTo(3));
 
             var fresh = new VillageCampaign(rules, Sites, 10, 22);
+            Assert.That(fresh.WorldId, Is.Not.EqualTo(first.WorldId));
             Assert.That(fresh.Connect(identity, "새 이름", out var newcomer, look), Is.True);
             Assert.That(fresh.World.Clock, Is.LessThan(loaded.World.Clock));
             Assert.That(VillageState.Restore(newcomer.character, rules).Inventory.Count(ItemIds.Bread), Is.Zero);
@@ -194,6 +196,71 @@ namespace Workerborn.Tests
             var state = VillageState.Restore(player.character, rules);
             Assert.That(state.TimberRequired, Is.EqualTo(6));
             Assert.That(state.CanAdvanceEra, Is.True);
+        }
+
+        [Test]
+        public void ACharacterBanPersistsAndRejectsAReplacementToken()
+        {
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 10, 22, initialCharacterLimit: 3);
+            const string appearance = "7ccc4dfe484b48d592cff22787bba284";
+            Assert.That(campaign.Connect("first-token", "하나", out var player, portableId: appearance), Is.True);
+            Assert.That(player.createdUtc, Is.GreaterThan(0));
+            Assert.That(player.lastConnectedUtc, Is.GreaterThanOrEqualTo(player.createdUtc));
+            Assert.That(campaign.TrySetBan(player.id, true, () => true, out var identity), Is.True);
+            Assert.That(identity, Is.EqualTo("first-token"));
+            Assert.That(player.lastDisconnectedUtc, Is.GreaterThanOrEqualTo(player.lastConnectedUtc));
+            Assert.That(campaign.ConnectedCount, Is.Zero);
+            Assert.That(campaign.CreatedCharacters, Is.EqualTo(1));
+
+            campaign = new VillageCampaign(rules, Sites, 10, 22, campaign.Export());
+            Assert.That(campaign.Connect("first-token", "하나", out _), Is.False);
+            Assert.That(campaign.Connect("replacement-token", "하나", out _, portableId: appearance), Is.False);
+            Assert.That(campaign.MatchesPortableCharacter("first-token", appearance), Is.True);
+            Assert.That(campaign.MatchesPortableCharacter("first-token", "different-character"), Is.False);
+            Assert.That(campaign.HasPortableCharacter(appearance), Is.True);
+            Assert.That(campaign.TrySetBan(player.id, false, () => true, out _), Is.True);
+            Assert.That(campaign.Connect("first-token", "하나", out var returning, portableId: appearance), Is.True);
+            Assert.That(returning.id, Is.EqualTo(player.id));
+            Assert.That(returning.createdUtc, Is.EqualTo(player.createdUtc));
+        }
+
+        [Test]
+        public void CharacterDeletionReleasesTheSlotAndKeepsSharedProgress()
+        {
+            var campaign = ReadyCampaign(out var rules);
+            Assert.That(campaign.Connect("b", "둘", out var second), Is.True);
+            Assert.That(campaign.TrySetCharacterLimit(2, out _), Is.True);
+            Assert.That(campaign.TrySetCharacterLimit(1, out _), Is.False);
+            CampaignRecord saved = null;
+            Assert.That(campaign.TryDeleteCharacter(second.id, () =>
+            {
+                saved = campaign.Export();
+                return true;
+            }, out var identity), Is.True);
+            Assert.That(identity, Is.EqualTo("b"));
+            Assert.That(campaign.ConnectedCount, Is.EqualTo(1));
+            Assert.That(campaign.TrySetCharacterLimit(1, out _), Is.True);
+            var restored = new VillageCampaign(rules, Sites, 10, 22, saved);
+            Assert.That(restored.CreatedCharacters, Is.EqualTo(1));
+            Assert.That(restored.HasIdentity("b"), Is.False);
+            Assert.That(restored.World.timberDelivered, Is.EqualTo(6));
+            Assert.That(restored.World.farmSiteId, Is.EqualTo("east"));
+            Assert.That(restored.CanAdvance, Is.True);
+        }
+
+        [Test]
+        public void FailedRosterWritesLeaveTheOriginalCharacterConnected()
+        {
+            var campaign = new VillageCampaign(Rules(), Sites, 10, 22, initialCharacterLimit: 1);
+            Assert.That(campaign.Connect("a", "하나", out var player), Is.True);
+            Assert.That(campaign.TrySetBan(player.id, true, () => false, out _), Is.False);
+            Assert.That(player.banned, Is.False);
+            Assert.That(player.lastDisconnectedUtc, Is.Zero);
+            Assert.That(campaign.TryDeleteCharacter(player.id, () => false, out _), Is.False);
+            Assert.That(campaign.IsConnected("a"), Is.True);
+            Assert.That(campaign.Profile("a"), Is.SameAs(player));
+            Assert.That(campaign.HasFreeCharacterSlot, Is.False);
         }
 
         [Test]

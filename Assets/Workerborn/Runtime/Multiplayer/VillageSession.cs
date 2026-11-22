@@ -12,7 +12,7 @@ using UnityEngine.SceneManagement;
 
 namespace Workerborn
 {
-    internal enum SessionMessage { Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave, Chat }
+    internal enum SessionMessage { Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave, Chat, Ping, Pong, RemoveClient, DiscoverWorld }
 
     [Serializable]
     internal sealed class SessionPacket
@@ -20,7 +20,7 @@ namespace Workerborn
         public int version = VillageSession.ProtocolVersion;
         public SessionKind kind;
         public SessionMessage type;
-        public string message, token, player, name, argument;
+        public string message, token, player, name, argument, worldId;
         public int request, value;
         public CampaignAction action;
         public VillageSave character;
@@ -34,13 +34,14 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 4;
+        public const int ProtocolVersion = 5;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
         private const float WorldInterval = .15f;
         private const float SaveInterval = 15f;
         private const float ChatInterval = .35f;
+        private const float PingInterval = 4f;
         private static readonly Encoding WireEncoding = new UTF8Encoding(false, true);
 
         private sealed class Connection
@@ -52,6 +53,9 @@ namespace Workerborn
             public bool Leaving;
             public float CloseAfter;
             public float NextChat;
+            public int PendingPing;
+            public float PingSentAt;
+            public int PingMilliseconds = -1;
         }
 
         public static VillageSession Instance { get; private set; }
@@ -88,6 +92,11 @@ namespace Workerborn
         private readonly SteamVillageRooms steam = new SteamVillageRooms();
         private readonly List<Connection> connections = new List<Connection>();
         private readonly ConcurrentQueue<string> console = new ConcurrentQueue<string>();
+        private DedicatedAdminPipe admin;
+        private bool adminStopFailed;
+        private float nextAdminStopAttempt;
+        private float nextPing;
+        private int pingSequence;
         private VillagePrototype village;
         private VillageCampaign authority;
         private SessionKind? kind;
@@ -96,7 +105,8 @@ namespace Workerborn
         private TcpClient dialingClient;
         private Task dialing;
         private FileStream saveLock;
-        private string savePath, addressKey, legacyAddressKey, joinName, localIdentity;
+        private string savePath, addressKey, legacyAddressKey, dedicatedWorldKey, joinName, localIdentity;
+        private bool usingLegacyToken;
         private LocalWorld selectedWorld;
         private float lastHostMessage, nextNetwork, nextSave, connectBy, requestBy, nextHello, leaveBy;
         private int requestSequence, waitingForRequest, operationGeneration;
@@ -282,7 +292,7 @@ namespace Workerborn
                 if (IsDedicated)
                 {
                     var args = Environment.GetCommandLineArgs();
-                    string bind = Option(args, "-bind") ?? "127.0.0.1";
+                    string bind = Option(args, "-bind") ?? DedicatedAdminProtocol.DefaultBind;
                     string portText = Option(args, "-port") ?? VillageTcpPeer.DefaultPort.ToString();
                     if (!IPAddress.TryParse(bind, out var ip) || ip.AddressFamily != AddressFamily.InterNetwork ||
                         !int.TryParse(portText, out int port) || port < 1 || port > 65535)
@@ -293,12 +303,19 @@ namespace Workerborn
                         (!int.TryParse(limitText, out characterLimit) || !WorldCapacity.IsValid(characterLimit)))
                         throw new ArgumentException($"Use -character-limit between 1 and {WorldCapacity.MaxCharacters}.");
                     string path = Option(args, "-world") ?? Path.Combine(Application.persistentDataPath, "worlds", "dedicated.json");
-                    bool created = OpenCampaign(path, rules, sites, spawn, initialCharacterLimit: characterLimit, requireCharacterLimit: true);
+                    if (Array.IndexOf(args, DedicatedAdminProtocol.PipeOption) >= 0)
+                    {
+                        if (!Guid.TryParseExact(Option(args, DedicatedAdminProtocol.PipeOption), "N", out var pipeId))
+                            throw new ArgumentException("Invalid server manager instance ID.");
+                        admin = new DedicatedAdminPipe(pipeId, console);
+                    }
+                    OpenCampaign(path, rules, sites, spawn, initialCharacterLimit: characterLimit, requireCharacterLimit: true);
                     listener = new TcpListener(ip, port);
                     listener.Start(16);
-                    if (created && !SaveWorld())
-                        throw new IOException("The new world could not be saved.");
-                    _ = Task.Run(ReadConsole);
+                    if (!SaveWorld())
+                        throw new IOException("The server world could not be saved.");
+                    if (admin == null)
+                        _ = Task.Run(ReadConsole);
                     Debug.Log($"Workerborn dedicated server listening on {ip}:{port}. World: {savePath}. Characters: {authority.CreatedCharacters}/{authority.CharacterLimit}.");
                 }
                 else if (selectedWorld != null && SelectedCharacter != null)
@@ -323,7 +340,7 @@ namespace Workerborn
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is ArgumentException || ex is UnauthorizedAccessException ||
-                ex is SocketException || ex is InvalidOperationException)
+                ex is SocketException || ex is InvalidOperationException || ex is TimeoutException)
             {
                 Debug.LogError("Workerborn could not start the session: " + ex.Message);
                 if (IsDedicated)
@@ -336,7 +353,7 @@ namespace Workerborn
             }
         }
 
-        private bool OpenCampaign(string path, VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn,
+        private void OpenCampaign(string path, VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn,
             CampaignRecord seed = null, int initialCharacterLimit = 0, bool requireCharacterLimit = false)
         {
             savePath = Path.GetFullPath(path);
@@ -357,7 +374,7 @@ namespace Workerborn
                     if (candidate != savePath && File.Exists(savePath))
                         File.Move(savePath, savePath + ".corrupt-" + DateTime.UtcNow.Ticks);
                     nextSave = Time.unscaledTime + SaveInterval;
-                    return false;
+                    return;
                 }
                 catch (Exception e) when (e is IOException || e is ArgumentException)
                 {
@@ -370,7 +387,6 @@ namespace Workerborn
                 throw new ArgumentException($"Choose -character-limit 1 to {WorldCapacity.MaxCharacters} when creating a server world.");
             authority = new VillageCampaign(rules, sites, spawn.x, spawn.z, seed, initialCharacterLimit);
             nextSave = Time.unscaledTime + SaveInterval;
-            return true;
         }
 
         private CampaignRecord ReadLegacySolo(VillageRules rules)
@@ -543,11 +559,7 @@ namespace Workerborn
                 host = new Connection { Tcp = new VillageTcpPeer(dialingClient) };
                 dialing = null;
                 dialingClient = null;
-                if (!Send(host, new SessionPacket
-                {
-                    type = SessionMessage.Hello, appearance = SelectedCharacter,
-                    token = PlayerPrefs.GetString(addressKey, PlayerPrefs.GetString(legacyAddressKey, ""))
-                }))
+                if (!Send(host, new SessionPacket { type = SessionMessage.DiscoverWorld }))
                 {
                     FailConnect("서버에 연결하지 못했어요.");
                     return;
@@ -649,6 +661,35 @@ namespace Workerborn
 
             for (int i = 0; i < 16 && authority != null && console.TryDequeue(out string command); i++)
                 RunConsoleCommand(command);
+            if (authority == null || !IsDedicated)
+                return;
+            if (admin?.Closed == true && now >= nextAdminStopAttempt)
+            {
+                nextAdminStopAttempt = now + SaveInterval;
+                if (TryStopDedicated())
+                    return;
+            }
+            if (now >= nextPing)
+                ProbeClientLatency(now);
+        }
+
+        private void ProbeClientLatency(float now)
+        {
+            nextPing = now + PingInterval;
+            if (++pingSequence == 0)
+                pingSequence = 1;
+            foreach (var connection in connections)
+            {
+                if (connection.Identity == null || connection.Leaving || connection.Tcp == null)
+                    continue;
+                if (connection.PendingPing != 0)
+                    connection.PingMilliseconds = -1;
+                if (Send(connection, new SessionPacket { type = SessionMessage.Ping, request = pingSequence }))
+                {
+                    connection.PendingPing = pingSequence;
+                    connection.PingSentAt = now;
+                }
+            }
         }
 
         private static void ReadTcp(Connection connection, Action<Connection, SessionPacket> consume)
@@ -715,6 +756,11 @@ namespace Workerborn
                 return;
             }
             connection.LastSeen = Time.unscaledTime;
+            if (packet.type == SessionMessage.DiscoverWorld && connection.Tcp != null && connection.Identity == null)
+            {
+                Send(connection, new SessionPacket { type = SessionMessage.DiscoverWorld, worldId = authority.WorldId });
+                return;
+            }
             if (packet.type == SessionMessage.Hello)
             {
                 Welcome(connection, packet);
@@ -724,6 +770,10 @@ namespace Workerborn
                 return;
             switch (packet.type)
             {
+                case SessionMessage.Pong when IsDedicated && packet.request != 0 && packet.request == connection.PendingPing:
+                    connection.PingMilliseconds = Mathf.RoundToInt((Time.unscaledTime - connection.PingSentAt) * 1000f);
+                    connection.PendingPing = 0;
+                    break;
                 case SessionMessage.Checkpoint:
                     authority.Checkpoint(connection.Identity, packet.character);
                     break;
@@ -770,16 +820,35 @@ namespace Workerborn
                 }
                 else if (string.IsNullOrEmpty(packet.token))
                     identity = "tcp:" + Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-                else if (packet.token.Length == 68 && packet.token.StartsWith("tcp:", StringComparison.Ordinal) && authority.HasIdentity(packet.token))
+                else if (packet.token.Length == 68 && packet.token.StartsWith("tcp:", StringComparison.Ordinal) &&
+                    authority.MatchesPortableCharacter(packet.token, appearance.id))
                     identity = packet.token;
                 else
                 {
                     Send(connection, new SessionPacket { type = SessionMessage.Error, value = 1, message = "이 서버에 이전 접속 기록이 없어요. 다시 입장해 주세요." });
                     return;
                 }
-                if (!authority.Connect(identity, name, out _, appearance.look))
+                string portableId = connection.Tcp == null ? null : appearance.id;
+                if (authority.IsBanned(identity, portableId))
+                {
+                    Send(connection, new SessionPacket { type = SessionMessage.Error, message = "서버에서 차단된 캐릭터예요." });
+                    return;
+                }
+                if (connection.Tcp != null && string.IsNullOrEmpty(packet.token) && authority.HasPortableCharacter(portableId))
+                {
+                    Send(connection, new SessionPacket { type = SessionMessage.Error, message = "이 월드에서 사용하던 캐릭터예요. 기존 접속 기록으로 입장해 주세요." });
+                    return;
+                }
+                bool newDedicatedCharacter = connection.Tcp != null && string.IsNullOrEmpty(packet.token);
+                if (!authority.Connect(identity, name, out var joined, appearance.look, portableId))
                 {
                     Send(connection, new SessionPacket { type = SessionMessage.Error, message = JoinFailure(identity) });
+                    return;
+                }
+                if (newDedicatedCharacter && !SaveWorld())
+                {
+                    authority.TryDeleteCharacter(joined.id, () => true, out _);
+                    Send(connection, new SessionPacket { type = SessionMessage.Error, message = "월드에 새 캐릭터를 저장하지 못했어요." });
                     return;
                 }
                 connection.Identity = identity;
@@ -861,7 +930,20 @@ namespace Workerborn
                 return;
             }
             lastHostMessage = Time.unscaledTime;
-            if (packet.type == SessionMessage.Welcome && LocalPlayerId == null && packet.character != null && !string.IsNullOrEmpty(packet.player))
+            if (packet.type == SessionMessage.DiscoverWorld && connection.Tcp != null && dedicatedWorldKey == null &&
+                Guid.TryParseExact(packet.worldId, "N", out var worldId))
+            {
+                dedicatedWorldKey = "workerborn.world." + worldId.ToString("N") + "." + SelectedCharacter.id;
+                string token = PlayerPrefs.GetString(dedicatedWorldKey, "");
+                if (string.IsNullOrEmpty(token))
+                {
+                    token = PlayerPrefs.GetString(addressKey, PlayerPrefs.GetString(legacyAddressKey, ""));
+                    usingLegacyToken = !string.IsNullOrEmpty(token);
+                }
+                SendDedicatedHello(connection, token);
+            }
+            else if (packet.type == SessionMessage.Welcome && LocalPlayerId == null && packet.character != null && !string.IsNullOrEmpty(packet.player) &&
+                (connection.Tcp == null || dedicatedWorldKey != null))
             {
                 LocalPlayerId = packet.player;
                 joinName = packet.name;
@@ -869,24 +951,41 @@ namespace Workerborn
                 Status = packet.status;
                 if (connection.Tcp != null && !string.IsNullOrEmpty(packet.token))
                 {
-                    PlayerPrefs.SetString(addressKey, packet.token);
-                    PlayerPrefs.DeleteKey(legacyAddressKey);
+                    PlayerPrefs.SetString(dedicatedWorldKey, packet.token);
+                    if (usingLegacyToken)
+                    {
+                        if (PlayerPrefs.GetString(addressKey, "") == packet.token)
+                            PlayerPrefs.DeleteKey(addressKey);
+                        if (PlayerPrefs.GetString(legacyAddressKey, "") == packet.token)
+                            PlayerPrefs.DeleteKey(legacyAddressKey);
+                    }
                     PlayerPrefs.Save();
                 }
+                usingLegacyToken = false;
                 OpenVillage();
             }
             else if (packet.type == SessionMessage.Error && LocalPlayerId == null)
             {
-                if (packet.value == 1 && addressKey != null)
+                if (packet.value == 1 && usingLegacyToken)
                 {
-                    PlayerPrefs.DeleteKey(addressKey);
-                    PlayerPrefs.DeleteKey(legacyAddressKey);
-                    PlayerPrefs.Save();
+                    usingLegacyToken = false;
+                    SendDedicatedHello(connection, "");
+                    return;
                 }
+                if (packet.value == 1)
+                    ForgetDedicatedToken();
                 FailConnect(packet.message);
             }
             else if (packet.type == SessionMessage.Leave && leaveBy > 0)
                 QueueExit("");
+            else if (packet.type == SessionMessage.Ping && connection.Tcp != null && LocalPlayerId != null)
+                Send(connection, new SessionPacket { type = SessionMessage.Pong, request = packet.request });
+            else if (packet.type == SessionMessage.RemoveClient && connection.Tcp != null && LocalPlayerId != null)
+            {
+                if (packet.value == 1)
+                    ForgetDedicatedToken();
+                QueueExit(packet.message);
+            }
             else if (packet.type == SessionMessage.Profile)
                 ApplyProfile(packet);
             else if (packet.type == SessionMessage.Chat && village != null && !string.IsNullOrEmpty(packet.player) &&
@@ -898,6 +997,20 @@ namespace Workerborn
                 if (village != null)
                     village.ApplySharedWorld(packet.world, packet.avatars);
             }
+        }
+
+        private void SendDedicatedHello(Connection connection, string token)
+        {
+            if (!Send(connection, new SessionPacket { type = SessionMessage.Hello, appearance = SelectedCharacter, token = token }))
+                FailConnect("서버에 접속 기록을 보내지 못했어요.");
+        }
+
+        private void ForgetDedicatedToken()
+        {
+            if (dedicatedWorldKey == null)
+                return;
+            PlayerPrefs.DeleteKey(dedicatedWorldKey);
+            PlayerPrefs.Save();
         }
 
         private void ApplyProfile(SessionPacket packet)
@@ -929,7 +1042,7 @@ namespace Workerborn
                     string command = Console.ReadLine();
                     if (command == null)
                         break;
-                    if (command.Length <= 80 && console.Count < 16)
+                    if (command.Length <= DedicatedAdminProtocol.MaxCommandLength && console.Count < 16)
                         console.Enqueue(command);
                 }
             }
@@ -943,8 +1056,16 @@ namespace Workerborn
                 return;
             switch (words[0].ToLowerInvariant())
             {
-                case "save": SaveWorld(); break;
-                case "stop": Shutdown(); Application.Quit(); break;
+                case "save":
+                    if (SaveWorld())
+                        Debug.Log("월드를 저장했어요.");
+                    break;
+                case "stop":
+                    adminStopFailed = !TryStopDedicated();
+                    if (adminStopFailed)
+                        PublishAdminStatus();
+                    break;
+                case "status": PublishAdminStatus(); break;
                 case "cancel": authority.Announce(CampaignAction.CancelAnnouncement, 0, out string canceled); Debug.Log(canceled); SaveWorld(); break;
                 case "announce" when words.Length == 2 && int.TryParse(words[1], out int days):
                     authority.Announce(CampaignAction.AnnounceEra, days, out string announced);
@@ -956,8 +1077,97 @@ namespace Workerborn
                     TrySaveCharacterLimit(limit, out string limitMessage);
                     Debug.Log(limitMessage);
                     break;
-                default: Debug.Log("Workerborn server commands: character-limit [count], announce <days>, cancel, save, stop"); break;
+                case "ban" when words.Length == 2: ChangeBan(words[1], true); break;
+                case "unban" when words.Length == 2: ChangeBan(words[1], false); break;
+                case "delete-character" when words.Length == 2: DeleteCharacter(words[1]); break;
+                default:
+                    Debug.Log("Workerborn server commands: character-limit [count], announce <days>, cancel, save, stop, ban <id>, unban <id>, delete-character <id>");
+                    break;
             }
+        }
+
+        private void PublishAdminStatus()
+        {
+            if (admin == null || listener == null)
+                return;
+            var endpoint = (IPEndPoint)listener.LocalEndpoint;
+            var active = connections.Where(connection => connection.Identity != null && !connection.Leaving)
+                .ToDictionary(connection => connection.Identity);
+            var status = new DedicatedAdminStatus
+            {
+                bind = endpoint.Address.ToString(),
+                port = endpoint.Port,
+                connected = authority.ConnectedCount,
+                characterLimit = authority.CharacterLimit,
+                requirementCharacters = authority.World.requirementCharacters,
+                stopFailed = adminStopFailed,
+                characters = authority.Profiles.Select(profile => new DedicatedAdminCharacter
+                {
+                    id = profile.id,
+                    name = profile.name,
+                    online = authority.IsConnected(profile.identity),
+                    banned = profile.banned,
+                    createdUtc = profile.createdUtc,
+                    lastConnectedUtc = profile.lastConnectedUtc,
+                    lastDisconnectedUtc = profile.lastDisconnectedUtc,
+                    pingMilliseconds = active.TryGetValue(profile.identity, out var connection) ? connection.PingMilliseconds : -1
+                }).ToArray()
+            };
+            adminStopFailed = false;
+            admin.Publish(JsonUtility.ToJson(status));
+        }
+
+        private void ChangeBan(string id, bool banned)
+        {
+            if (!authority.TrySetBan(id, banned, () => SaveWorld(), out string identity))
+            {
+                Debug.LogWarning("캐릭터 차단 상태를 저장하지 못했어요. 캐릭터 ID와 저장 경로를 확인해 주세요.");
+                return;
+            }
+            if (banned)
+                RemoveClient(identity, "서버에서 이 캐릭터를 차단했어요.", deleted: false);
+            Debug.Log(banned ? "캐릭터를 차단했어요." : "캐릭터 차단을 해제했어요.");
+        }
+
+        private void DeleteCharacter(string id)
+        {
+            if (!authority.TryDeleteCharacter(id, () => SaveWorld(), out string identity))
+            {
+                Debug.LogWarning("캐릭터를 삭제하지 못했어요. 캐릭터 ID와 저장 경로를 확인해 주세요.");
+                return;
+            }
+            RemoveClient(identity, "이 월드에서 캐릭터가 삭제됐어요.", deleted: true);
+            Debug.Log("월드의 캐릭터 기록을 삭제했어요.");
+        }
+
+        private void RemoveClient(string identity, string message, bool deleted)
+        {
+            var connection = connections.Find(candidate => candidate.Identity == identity && !candidate.Leaving);
+            if (connection == null)
+                return;
+            Send(connection, new SessionPacket { type = SessionMessage.RemoveClient, message = message, value = deleted ? 1 : 0 });
+            connection.Identity = null;
+            connection.Leaving = true;
+            connection.CloseAfter = Time.unscaledTime + 1.5f;
+        }
+
+        private bool TryStopDedicated()
+        {
+            var connected = authority.Profiles.Where(profile => authority.IsConnected(profile.identity))
+                .Select(profile => (profile, previousEnd: profile.lastDisconnectedUtc)).ToArray();
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            foreach (var entry in connected)
+                entry.profile.lastDisconnectedUtc = now;
+            if (!SaveWorld())
+            {
+                foreach (var entry in connected)
+                    entry.profile.lastDisconnectedUtc = entry.previousEnd;
+                return false;
+            }
+            Debug.Log("월드를 저장하고 서버를 종료해요.");
+            Shutdown(save: false);
+            Application.Quit();
+            return true;
         }
 
         private bool TrySaveCharacterLimit(int limit, out string message)
@@ -1016,6 +1226,8 @@ namespace Workerborn
             operationGeneration++;
             listener?.Stop();
             listener = null;
+            admin?.Dispose();
+            admin = null;
             foreach (var connection in connections)
                 connection.Tcp?.Dispose();
             connections.Clear();
@@ -1034,7 +1246,8 @@ namespace Workerborn
             selectedWorld = null;
             SelectedCharacter = null;
             joinName = null;
-            addressKey = legacyAddressKey = null;
+            addressKey = legacyAddressKey = dedicatedWorldKey = null;
+            usingLegacyToken = false;
             LocalPlayerId = null;
             InitialCharacter = null;
             Status = null;
