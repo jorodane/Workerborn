@@ -122,5 +122,9 @@
   "SettingsWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/SettingsWindow.prefab",
     "component": 100089
+  },
+  "PartTimeScheduleRow": {
+    "path": "Assets/Workerborn/Prefabs/UI/PartTimeScheduleRow.prefab",
+    "component": 100018
   }
 }

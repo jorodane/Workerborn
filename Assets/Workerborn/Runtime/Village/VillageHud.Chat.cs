@@ -19,14 +19,14 @@ namespace Workerborn
 
         internal PlayerOverheadView CreatePlayerOverhead(string playerName)
         {
-            var overhead = Instantiate(library.PlayerOverhead, transform);
+            var overhead = Instantiate(library.PlayerOverhead, pickupNames != null ? pickupNames.transform : transform);
             overhead.SetName(playerName);
             return overhead;
         }
 
         internal void PositionPlayerOverhead(PlayerOverheadView overhead, Vector3 position)
         {
-            overhead.Position(game.WorldCamera, CanvasRect, position);
+            overhead.Position(game.WorldCamera, (RectTransform)overhead.transform.parent, position);
         }
 
         internal void ShowChat(string speaker, string message, bool local)

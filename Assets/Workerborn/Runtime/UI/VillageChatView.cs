@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -12,13 +13,22 @@ namespace Workerborn
     {
         [SerializeField] private ScrollRect history;
         [SerializeField] private TMP_Text messages;
+        [SerializeField] private TMP_Text recentMessages;
+        [SerializeField, Min(1f)] private float secondsVisible = 7f;
         [SerializeField] private TMP_InputField input;
         [SerializeField] private Button send;
         [SerializeField] private CanvasGroup inputChrome;
         [SerializeField] private VerticalGradient historyFrame;
         [SerializeField] private Image inputBackground;
         private const int HistoryLimit = 80;
-        private readonly Queue<string> lines = new Queue<string>(HistoryLimit);
+        private const int RecentLimit = 3;
+        private const float VerticalPadding = 8f;
+        private readonly List<(string Text, float Expires)> lines = new List<(string, float)>(HistoryLimit);
+        private readonly StringBuilder text = new StringBuilder();
+        private Graphic scrollHitArea;
+        private Vector2 historySize;
+        private float nextExpiry = float.PositiveInfinity;
+        private bool showingHistory;
         private Func<string, bool> submit;
         private int submittedFrame = -1;
         private int openedFrame = -1;
@@ -36,6 +46,7 @@ namespace Workerborn
             submit = post;
             layer = chatLayer;
             restingOrder = layer.GetSiblingIndex();
+            scrollHitArea = history.GetComponent<Graphic>();
             input.characterLimit = VillageChatText.MaximumLength;
             input.onSubmit.AddListener(message => Send(message, false));
             send.onClick.AddListener(() => Send(input.text, true));
@@ -122,13 +133,28 @@ namespace Workerborn
 
         public void OnPointerEnter(PointerEventData eventData) => pointerOverChat = true;
         public void OnPointerExit(PointerEventData eventData) => pointerOverChat = false;
-        public void OnScroll(PointerEventData eventData) => history.OnScroll(eventData);
+        public void OnScroll(PointerEventData eventData)
+        {
+            if (showingHistory)
+                history.OnScroll(eventData);
+        }
 
         private void SetPresentation(bool focused)
         {
             bool visible = !duringDialogue || focused;
             history.gameObject.SetActive(visible);
             inputChrome.gameObject.SetActive(visible);
+            history.content.gameObject.SetActive(focused);
+            recentMessages.gameObject.SetActive(!focused);
+            history.enabled = focused;
+            if (scrollHitArea != null)
+                scrollHitArea.raycastTarget = focused;
+            if (focused && (!showingHistory || historySize != history.viewport.rect.size))
+                UpdateHistory(follow: !showingHistory || history.verticalNormalizedPosition <= .01f);
+            if (!focused && (showingHistory || Time.unscaledTime >= nextExpiry))
+                UpdateRecentMessages();
+            showingHistory = focused;
+
             bool overInput = visible && pointerOverChat && RectTransformUtility.RectangleContainsScreenPoint(
                 (RectTransform)inputChrome.transform, WorkerbornInput.Point);
             inputChrome.alpha = focused || overInput ? 1f : 0f;
@@ -139,18 +165,52 @@ namespace Workerborn
 
         internal void Append(string speaker, string message)
         {
-            bool follow = history.content.rect.height <= history.viewport.rect.height || history.verticalNormalizedPosition <= .01f;
             if (lines.Count == HistoryLimit)
-                lines.Dequeue();
-            lines.Enqueue($"{speaker} : {message}");
-            messages.text = string.Join("\n", lines);
+                lines.RemoveAt(0);
+            lines.Add(($"{speaker} : {message}", Time.unscaledTime + secondsVisible));
+            if (showingHistory)
+                UpdateHistory(follow: history.verticalNormalizedPosition <= .01f);
+            else
+                UpdateRecentMessages();
+        }
+
+        private void UpdateHistory(bool follow)
+        {
+            text.Clear();
+            foreach (var line in lines)
+                AppendLine(line.Text);
+            messages.text = text.ToString();
+            historySize = history.viewport.rect.size;
             float height = messages.GetPreferredValues(messages.text, Mathf.Max(1f, messages.rectTransform.rect.width), Mathf.Infinity).y;
-            history.content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(history.viewport.rect.height, height + 8f));
+            history.content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(historySize.y, height + VerticalPadding));
             if (follow)
             {
                 history.StopMovement();
                 history.verticalNormalizedPosition = 0f;
             }
+        }
+
+        private void UpdateRecentMessages()
+        {
+            text.Clear();
+            float now = Time.unscaledTime;
+            nextExpiry = float.PositiveInfinity;
+            for (int index = Mathf.Max(0, lines.Count - RecentLimit); index < lines.Count; index++)
+            {
+                var line = lines[index];
+                if (now >= line.Expires)
+                    continue;
+                AppendLine(line.Text);
+                nextExpiry = Mathf.Min(nextExpiry, line.Expires);
+            }
+            recentMessages.text = text.ToString();
+        }
+
+        private void AppendLine(string line)
+        {
+            if (text.Length > 0)
+                text.Append('\n');
+            text.Append(line);
         }
     }
 }

@@ -740,7 +740,16 @@ namespace Workerborn.Tests
             var slot = inventory.GetComponentsInChildren<EquipmentSlotPointer>().Single(item => item.Slot == EquipmentSlot.MainHand);
             var equipped = slot.GetComponentInChildren<UiItemView>();
             Assert.That(equipped, Is.Not.Null);
+            var coatSlot = inventory.GetComponentsInChildren<EquipmentSlotPointer>().Single(item => item.Slot == EquipmentSlot.Body);
+            Assert.That(((RectTransform)slot.transform).rect.size, Is.EqualTo(Vector2.Scale(inventory.CellSize, new Vector2(1, 3)) - Vector2.one * 2f));
+            Assert.That(((RectTransform)coatSlot.transform).rect.size, Is.EqualTo(Vector2.Scale(inventory.CellSize, new Vector2(2, 3)) - Vector2.one * 2f));
+            Assert.That(equipped.Rect.rect.size, Is.EqualTo(((RectTransform)slot.transform).rect.size));
+            Assert.That(inventory.GetComponentsInChildren<RawImage>(), Is.Empty);
             Vector2 pointer = RectTransformUtility.WorldToScreenPoint(null, inventory.Rect.position);
+            game.Hud.ShowItemTooltip(ItemIds.Hoe, pointer);
+            var tooltip = UnityEngine.Object.FindFirstObjectByType<ItemTooltipView>();
+            Assert.That(tooltip.GetComponentsInChildren<Button>(), Is.Empty);
+            game.Hud.HideItemTooltip();
             game.Hud.ClickInventoryItem(stack.Id, pointer);
             Assert.That(game.Hud.IsHoldingItem, Is.True);
             Assert.That(slot.GetComponentInChildren<UiItemView>(), Is.SameAs(equipped));
@@ -964,6 +973,58 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator JobSchedulesFollowTheClockAndHighlightTheWorkplaceOnEitherMap()
+        {
+            var miniMap = game.Hud.GetComponentInChildren<VillageMapView>();
+            var miniSchedule = game.Hud.GetComponentInChildren<PartTimeScheduleView>();
+            var names = game.Hud.GetComponentInChildren<PickupNames>();
+            var normalHud = game.Hud.transform.Find("Normal HUD");
+            Assert.That(normalHud.GetSiblingIndex(), Is.GreaterThan(names.transform.GetSiblingIndex()));
+            Assert.That(miniSchedule.transform.IsChildOf(normalHud), Is.True);
+            Assert.That(miniMap.transform.IsChildOf(normalHud), Is.True);
+
+            var pointer = new PointerEventData(EventSystem.current);
+            var miniRow = miniSchedule.GetComponentInChildren<PartTimeScheduleRowView>();
+            miniRow.OnPointerEnter(pointer);
+            var miniMarker = miniMap.transform.Find("Job location");
+            Assert.That(miniMarker.gameObject.activeSelf, Is.True);
+            miniRow.OnPointerExit(pointer);
+            Assert.That(miniMarker.gameObject.activeSelf, Is.False);
+
+            var map = game.Hud.OpenWindow("map");
+            Assert.That(map.GetComponentInChildren<VillageClockView>(), Is.Not.Null);
+            var hours = map.GetComponentsInChildren<TMP_Text>().Where(label => label.name == "Job hours").ToArray();
+            Assert.That(hours.Any(label => label.text.StartsWith("오늘 ")), Is.True);
+            Assert.That(hours.Any(label => label.text.StartsWith("내일 ")), Is.True);
+            var fullRow = map.GetComponentInChildren<PartTimeScheduleRowView>();
+            var fullMarker = map.GetComponentInChildren<VillageMapView>().transform.Find("Job location");
+            var workplace = game.FindInteraction(VillageRole.Farmer).transform;
+            Vector3 position = workplace.position;
+            try
+            {
+                workplace.position += Vector3.right * 300f;
+                fullRow.OnPointerEnter(pointer);
+                Assert.That(fullMarker.gameObject.activeSelf, Is.True);
+                Assert.That(fullMarker.Find("Direction arrow").gameObject.activeSelf, Is.True);
+                Assert.That(miniMarker.gameObject.activeSelf, Is.False);
+                fullRow.OnPointerExit(pointer);
+                Assert.That(fullMarker.gameObject.activeSelf, Is.False);
+            }
+            finally
+            {
+                workplace.position = position;
+            }
+
+            var state = game.State;
+            state.AdvanceTime((state.Rules.JobEnd - state.Minute + 10) / state.Rules.MinutesPerSecond);
+            yield return null;
+            Assert.That(miniRow.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Job hours").text,
+                Does.StartWith("내일 "));
+            Assert.That(fullRow.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Job status").text,
+                Is.EqualTo("마감"));
+        }
+
+        [UnityTest]
         public IEnumerator ChatKeepsEditingAboveDialogueAndShowsTheNewestLinesInTheBubble()
         {
             var chat = UnityEngine.Object.FindFirstObjectByType<VillageChatView>();
@@ -973,12 +1034,15 @@ namespace Workerborn.Tests
             var historyFrame = chat.GetComponentInChildren<VerticalGradient>();
             var inputBackground = inputFrame.GetComponent<Image>();
             var historyViewport = chat.GetComponentInChildren<ScrollRect>().viewport;
+            var recent = chat.GetComponentsInChildren<TMP_Text>(true).Single(text => text.name == "Recent messages");
             var overhead = UnityEngine.Object.FindFirstObjectByType<PlayerOverheadView>(FindObjectsInactive.Include);
             var texts = overhead.GetComponentsInChildren<TMP_Text>(true);
             var bubble = texts.Single(text => text.name == "Speech");
             var label = texts.Single(text => text.text == game.LegendPlayerName);
             Assert.That(inputFrame.alpha, Is.Zero);
             Assert.That(historyFrame.enabled, Is.False);
+            Assert.That(recent.alignment, Is.EqualTo(TextAlignmentOptions.BottomLeft));
+            Assert.That(recent.GetComponentInParent<RectMask2D>(), Is.Not.Null);
 
             var keyboard = InputSystem.AddDevice<Keyboard>();
             var mouse = InputSystem.AddDevice<Mouse>();
@@ -1037,7 +1101,14 @@ namespace Workerborn.Tests
                 Assert.That(chatLayer.GetSiblingIndex(), Is.LessThan(dialogue.transform.GetSiblingIndex()));
                 Assert.That(game.Hud.HasModal, Is.True);
                 game.Hud.CloseDialogue();
+                Assert.That(history.gameObject.activeInHierarchy, Is.False);
+                Assert.That(recent.gameObject.activeInHierarchy, Is.True);
+                Assert.That(recent.text, Does.Contain("네 번째").And.Not.Contain("첫 번째"));
+                yield return Until(() => string.IsNullOrEmpty(recent.text), 8f);
+                yield return TapEnter();
                 Assert.That(history.gameObject.activeInHierarchy, Is.True);
+                Assert.That(history.alignment, Is.EqualTo(TextAlignmentOptions.BottomLeft));
+                Assert.That(history.text, Does.Contain("첫 번째").And.EndWith("끝"));
             }
             finally
             {

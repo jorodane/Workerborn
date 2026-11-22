@@ -30,10 +30,6 @@ namespace Workerborn
         [SerializeField]
         private RenderTexture minimapTexture;
         [SerializeField]
-        private NpcPortrait playerPortrait;
-        [SerializeField]
-        private RenderTexture portraitTexture;
-        [SerializeField]
         private Transform spawnPoint;
         [SerializeField]
         private Transform restPoint;
@@ -102,7 +98,6 @@ namespace Workerborn
         public string WeatherName => lighting != null ? lighting.WeatherName(State.Day) : "";
         public Camera MinimapCamera => minimapCamera;
         public RenderTexture MinimapTexture => minimapTexture;
-        public RenderTexture PortraitTexture => portraitTexture;
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
         internal int PrewarmGroundPickups => prewarmGroundPickups;
@@ -841,7 +836,6 @@ namespace Workerborn
                 player.ShowEquipment(State.Equipment, settings);
             }
 
-            playerPortrait?.Show(hud.InventoryOpen ? player : null);
             bool rested = IsOnline ? State.RecoverInSharedWorld() : State.AdvanceTime(Time.deltaTime, hud.HasModal);
             if (rested)
             {

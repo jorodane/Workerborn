@@ -12,13 +12,6 @@ namespace Workerborn
         private float CellX => views.TryGetValue("inventory", out var view) ? ((InventoryWindowView)view).CellSize.x : 32f;
         private float CellY => views.TryGetValue("inventory", out var view) ? ((InventoryWindowView)view).CellSize.y : 32f;
 
-        private void DrawMap(RectTransform root, bool large)
-        {
-            var map = root.GetComponent<VillageMapView>();
-            if (map != null)
-                map.Bind(game);
-        }
-
         public void RefreshWindows()
         {
             foreach (var view in views.Values)

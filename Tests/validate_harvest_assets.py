@@ -146,7 +146,7 @@ for id,go in gos.items():
     for c in go['m_Component']: assert c['component']['fileID'] in ids,f'Missing component in {go["m_Name"]}'
 
 controller=behaviours(scene,'Village/VillagePrototype.cs');assert len(controller)==1
-for field in ['targeting','npcPortrait','npcPortraitTexture','playerPortrait','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','guideStage','fateGuide','guideCameraPose']:
+for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','guideStage','fateGuide','guideCameraPose']:
     assert controller[0][field]['fileID'],f'Missing binding: {field}'
 lighting=behaviours(scene,'World/VillageLighting.cs')[0]
 assert lighting['sun']['fileID'] and lighting['nightIntensity']>.6
@@ -204,7 +204,8 @@ agent=next(d['NavMeshAgent'] for d in scene if 'NavMeshAgent'in d);assert agent[
 camera=next(d['Camera'] for d in scene if d['_id']==controller[0]['worldCamera']['fileID']);assert camera['orthographic']==0
 rig=behaviours(scene,'Village/VillageCameraRig.cs')[0];assert rig['initialPitch']<=25 and rig['maximumDistance']/rig['minimumDistance']>=10
 hud=behaviours(scene,'Village/VillageHud.cs')[0]
-clock=next(d['MonoBehaviour'] for d in scene if d['_id']==hud['clockText']['fileID'])
+clock_view=next(d['MonoBehaviour'] for d in scene if d['_id']==hud['clock']['fileID'])
+clock=next(d['MonoBehaviour'] for d in scene if d['_id']==clock_view['timeText']['fileID'])
 assert clock['m_Script']['guid']=='f4688fdb7df04437aeb418b961361dc5'
 assert clock['m_overflowMode']==0 and clock['m_fontSize']>=14
 assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values())

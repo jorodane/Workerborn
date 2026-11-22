@@ -70,7 +70,7 @@ Windows에서 명령줄로 실행할 때는 `Build/WorkerbornServer-Windows/Work
 | 소지품·스킬·퀘스트·캐릭터·공동 환생·지도·상점·대화 등 각 창 | `Assets/Workerborn/Prefabs/UI/*Window.prefab` |
 | 시작 화면과 접속 입력 | `Scenes/MainMenu.unity`, `Prefabs/UI/MainMenu.prefab` |
 | 퀘스트 스크롤·툴팁·아이템 메뉴 | `Prefabs/UI/QuestScrollWindow.prefab`, `ItemTooltip.prefab`, `ItemContext.prefab` |
-| 시계·미니맵·하단 메뉴·월드 이름 레이어 | `Prefabs/UI/VillageHUD.prefab` |
+| 시계·미니맵·아르바이트 시간표·월드 이름 레이어 | `Prefabs/UI/VillageHUD.prefab`, `MapWindow.prefab`, `PartTimeScheduleRow.prefab` |
 | 대화 프레임·선택지·채팅창·머리 위 말풍선 | `Prefabs/UI/ConversationWindow.prefab`, `DialogueChoice.prefab`, `VillageChat.prefab`, `PlayerOverhead.prefab` |
 | 시스템 메뉴·환경설정 | `Prefabs/UI/SystemWindow.prefab`, `SettingsWindow.prefab` |
 | 아이템 칸·아이콘·목록 행·버튼·이름 박스·대상 연결선 | `Prefabs/UI/InventoryCell.prefab`, `ItemTile.prefab`, `ListRow.prefab`, `ActionButton.prefab`, `PickupName.prefab`, `TargetLink.prefab` |
@@ -176,13 +176,15 @@ Ctrl을 누르면 화면에 보이는 NPC·몬스터 중 커서와 가장 가까
 | Enter | 채팅 입력 열기 / 메시지 전송 후 이어서 입력 / 빈 입력이면 닫기 |
 | 지도 클릭 | 해당 지점으로 이동 |
 
-장비 칸은 소지품 왼쪽에 있습니다. 괭이는 **장착한 동안** 작업 효과를 줍니다. 골드는 한 칸에 1,000개씩 보관하며 거래·보상·기부는 실제 금화 수량을 바꿉니다. 소지품에 공간이 없으면 거래를 취소하고 수량을 보존합니다.
+장비 칸은 소지품 왼쪽에 있습니다. 상의는 2×3, 손 장비는 각 1×3, 가방은 2×2 크기의 칸을 사용합니다. 장착한 아이콘은 아이템의 소지품 칸 크기에 맞춰 표시합니다. 괭이는 **장착한 동안** 작업 효과를 줍니다. 골드는 한 칸에 1,000개씩 보관하며 거래·보상·기부는 실제 금화 수량을 바꿉니다. 소지품에 공간이 없으면 거래를 취소하고 수량을 보존합니다.
 
 `E`를 길게 누르면 줍기 성공이 이어질수록 간격이 줄어듭니다. 기본 간격은 0.10초이며, 연속 다섯 번째 성공 후 0.025초에 도달합니다. 키를 떼거나 줍기에 실패하면 기본 간격으로 돌아갑니다. Player 프리팹의 **Nearby Pickup**에서 간격과 성공 횟수를 조절할 수 있습니다.
 
-미니맵 왼쪽에 10분 단위 시계, 날짜·요일, 오늘 날씨가 차례로 표시됩니다. 시스템 메뉴에서 저장하거나, 확인 후 현재 싱글플레이 월드의 마지막 저장을 불러올 수 있습니다. 환경설정의 전체 음량과 화면 모드는 이 클라이언트에 저장됩니다.
+시계와 미니맵 사이에 진행 중인 아르바이트와 다음 일정이 시작 시간순으로 표시됩니다. 오늘 일정이 끝나면 내일 일정으로 넘어갑니다. `M` 지도에서 날짜·요일·시간·날씨와 오늘 및 내일의 전체 일정을 볼 수 있습니다. 어느 시간표든 아르바이트에 마우스를 올리면 해당 지도에 위치가 표시되고, 지도 바깥이면 가장자리에 방향이 표시됩니다.
 
-채팅 기록은 상태창 위에 있습니다. 입력 영역에 마우스를 올리면 입력 프레임이 나타납니다. 입력란에 포커스가 있으면 그라데이션이 기록에서 입력줄까지 이어집니다. NPC 대화 중에는 Enter로 채팅을 열어 대화창 앞에 표시할 수 있습니다. 기록에는 이름과 내용 사이에 콜론이 표시됩니다. 흰색 말풍선은 최근 메시지 세 개를 줄바꿈으로 이어서 최대 네 줄까지 보여 주고, 마지막 메시지를 받은 시점부터 표시 시간을 다시 계산합니다. Steam 친구 방과 데디케이티드 서버에서는 같은 방 참가자에게 전송됩니다.
+시스템 메뉴에서 저장하거나, 확인 후 현재 싱글플레이 월드의 마지막 저장을 불러올 수 있습니다. 환경설정의 전체 음량과 화면 모드는 이 클라이언트에 저장됩니다.
+
+채팅은 상태창 위에서 아래쪽부터 차오르고 최근 메시지가 가장 아래에 표시됩니다. 평소에는 최신 세 메시지를 채팅 영역 안에서 각각 7초 동안 표시합니다. 입력란에 포커스가 있으면 그라데이션이 기록에서 입력줄까지 이어지고, 스크롤해 전체 기록을 읽을 수 있습니다. NPC 대화 중에는 Enter로 채팅을 열어 대화창 앞에 표시할 수 있습니다. 흰색 말풍선은 최근 메시지 세 개를 최대 네 줄까지 보여 주며, 표시 크기가 바뀔 때 목표 크기를 살짝 지나쳐 돌아옵니다. Steam 친구 방과 데디케이티드 서버에서는 같은 방 참가자에게 전송됩니다.
 
 UX의 기준은 마비노기의 [공식 Rookie Guide](https://mabibook.nexon.net/usa/book_rookie_guide.html)와 [Beginner Guide](https://nxcache.nexon.net/mabinogi/microsite/BeginnerGuide/)에 나오는 클릭 이동, 오른쪽 드래그 시점, 휠 줌, 클릭으로 집고 놓는 소지품, 장비 영역과 키워드 대화입니다.
 

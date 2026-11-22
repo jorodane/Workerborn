@@ -43,7 +43,8 @@ def validate(path):
             value=mono.get(field)
             # All UI view object references must be authored; runtime only binds data/listeners.
             optional_chrome=(name=='WorldContextView' and field in {'closeButton','dragHandle','minimizeButton','windowBody'}
-                             or name=='ConversationWindowView' and field in {'closeButton','dragHandle','minimizeButton'})
+                             or name=='ConversationWindowView' and field in {'closeButton','dragHandle','minimizeButton'}
+                             or name=='ItemTooltipView' and mono.get('windowId')=='tooltip' and field in {'closeButton','dragHandle','minimizeButton'})
             if (name.endswith('View') or name=='FrontEndMenu') and not optional_chrome and type in {'TMP_Text','TMP_InputField','Image','Button','Slider','RawImage','RectTransform','CanvasGroup','ScrollRect','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget','UiActionView'}:
                 assert value and value.get('fileID'),f'{path.name}: missing {name}.{field}'
             if not isinstance(value,dict) or not value.get('fileID'):continue
@@ -75,6 +76,6 @@ assert (CONTENT/'Prefabs/Crops/Potato.prefab').is_file()
 wardrobe={'field_cap','field_coat','field_trousers','field_boots','field_gloves'}
 assert {p.stem for p in (CONTENT/'Prefabs/Items').glob('*.prefab')}=={'GroundPickup','potato','bread','hoe','bag','gold','egg','timber','woodcutting_axe','legend_axe','rabbit_meat','branch'} | wardrobe
 manifest=json.loads((ROOT/'Tools/ui-prefab-manifest.json').read_text())
-for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','ShopWindow','QuantityWindow','ConversationWindow','ItemDetailWindow','MainMenu','EraWindow','SystemWindow','SettingsWindow','ServerAdminWindow','ServerAdminRosterRow','VillageChat','PlayerOverhead']:
+for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','PartTimeScheduleRow','ShopWindow','QuantityWindow','ConversationWindow','ItemDetailWindow','MainMenu','EraWindow','SystemWindow','SettingsWindow','ServerAdminWindow','ServerAdminRosterRow','VillageChat','PlayerOverhead']:
     assert name in manifest and (ROOT/manifest[name]['path']).is_file()
 print(f'Validated {count} component/content contracts, typed UI bindings, complete window prefabs and shared interaction subclasses.')

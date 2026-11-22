@@ -25,15 +25,13 @@ namespace Workerborn
         [SerializeField] private GameObject dialogueBackdrop;
         [SerializeField] private GameObject normalHud;
         [SerializeField] private RectTransform chatLayer;
-        [SerializeField] private TMP_Text dateText;
-        [SerializeField] private TMP_Text weatherText;
+        [SerializeField] private VillageClockView clock;
+        [SerializeField] private VillageMapView minimap;
+        [SerializeField] private PartTimeScheduleView mapSchedule;
         private readonly List<VillageWindowView> windowFocus = new List<VillageWindowView>();
-        private int clockDay, clockMinute = -1;
         private Vector2 lastCanvasSize;
 
 
-        [SerializeField]
-        private TMP_Text clockText;
         [SerializeField]
         private TMP_Text energyText;
         [SerializeField]
@@ -64,9 +62,6 @@ namespace Workerborn
         private int seenInventoryVersion = -1;
         private int seenNotice = -1;
         private bool suppressRightContext;
-        private static readonly string[] Weekdays = { "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일" };
-        [SerializeField]
-        private RectTransform minimapImage;
         public bool HasModal => dialogueTarget != null;
         public bool IsShopOpen => views.TryGetValue("shop", out var shop) && shop.IsOpen;
         public bool WorldActionsLocked => HasModal || dialogueClosing || IsShopOpen || HasQuantityPrompt;
@@ -99,14 +94,15 @@ namespace Workerborn
             }
             else
                 WorkerbornInput.Current?.BindUi(EventSystem.current.GetComponent<InputSystemUIInputModule>());
-            if (clockText == null || library == null)
+            if (clock == null || library == null)
             {
                 Debug.LogError("Assign the authored HUD and UI prefab library.", this);
                 return;
             }
 
-            if (minimapImage != null)
-                DrawMap(minimapImage, false);
+            clock.Bind(game);
+            minimap?.Bind(game);
+            mapSchedule?.Bind(game);
             if (dialogueBackdrop != null)
                 backdropTransitions = dialogueBackdrop.GetComponentsInChildren<WindowTransition>(true);
             BuildWorldFeedback();
@@ -240,20 +236,6 @@ namespace Workerborn
             if (!game.AwaitingWorldCommand)
                 ReleaseDraggedItem();
             var state = game.State;
-            int minute = Mathf.FloorToInt(state.Minute / 10f) * 10;
-            if (minute != clockMinute)
-            {
-                clockMinute = minute;
-                clockText.text = $"{minute / 60:00}:{minute % 60:00}";
-            }
-            if (state.Day != clockDay)
-            {
-                clockDay = state.Day;
-                if (dateText != null)
-                    dateText.text = $"{state.Day}일 · {Weekdays[(state.Day - 1) % Weekdays.Length]}";
-                if (weatherText != null)
-                    weatherText.text = game.WeatherName;
-            }
             if (lastCanvasSize != CanvasRect.rect.size)
             {
                 lastCanvasSize = CanvasRect.rect.size;

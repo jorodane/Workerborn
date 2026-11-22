@@ -13,8 +13,13 @@ namespace Workerborn
         private RectTransform player;
         [SerializeField]
         private TMP_Text npcMarker;
+        [SerializeField] private RectTransform jobMarker;
+        [SerializeField] private GameObject jobPin;
+        [SerializeField] private RectTransform jobArrow;
         private VillagePrototype game;
         private readonly Dictionary<VillageInteractable, TMP_Text> markers = new Dictionary<VillageInteractable, TMP_Text>();
+        private PartTimeScheduleRowView jobSource;
+        private Transform jobLocation;
         public void Bind(VillagePrototype owner)
         {
             if (game != null)
@@ -29,6 +34,7 @@ namespace Workerborn
                 label.gameObject.SetActive(true);
                 markers.Add(npc, label);
             }
+            jobMarker.SetAsLastSibling();
         }
 
         private void LateUpdate()
@@ -39,6 +45,44 @@ namespace Workerborn
             foreach (var pair in markers)
                 if (pair.Key != null)
                     Place(pair.Value.rectTransform, pair.Key.transform.position);
+            PlaceJobMarker();
+        }
+
+        internal void ShowJobLocation(PartTimeScheduleRowView source, Transform location)
+        {
+            jobSource = source;
+            jobLocation = location;
+            PlaceJobMarker();
+        }
+
+        internal void ClearJobLocation(PartTimeScheduleRowView source)
+        {
+            if (jobSource != source)
+                return;
+            jobSource = null;
+            jobLocation = null;
+            jobMarker.gameObject.SetActive(false);
+        }
+
+        private void PlaceJobMarker()
+        {
+            bool visible = jobLocation != null && game != null && game.MinimapCamera != null;
+            jobMarker.gameObject.SetActive(visible);
+            if (!visible)
+                return;
+
+            var point = game.MinimapCamera.WorldToViewportPoint(jobLocation.position);
+            Vector2 size = ((RectTransform)transform).rect.size;
+            Vector2 center = size * .5f;
+            Vector2 offset = Vector2.Scale(new Vector2(point.x, point.y), size) - center;
+            Vector2 edge = Vector2.Max(Vector2.one, center - jobMarker.sizeDelta * .5f - Vector2.one * 3f);
+            float distance = Mathf.Max(Mathf.Abs(offset.x) / edge.x, Mathf.Abs(offset.y) / edge.y);
+            bool outside = distance > 1f;
+            jobMarker.anchoredPosition = center + (outside ? offset / distance : offset);
+            jobPin.SetActive(!outside);
+            jobArrow.gameObject.SetActive(outside);
+            if (outside)
+                jobArrow.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg - 90f);
         }
 
         private void Place(RectTransform marker, Vector3 position)
