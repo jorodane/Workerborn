@@ -19,8 +19,12 @@ namespace Workerborn
     {
         [SerializeField, Min(.1f)] private float runSpeed = 3.7f;
         [SerializeField, Min(.1f)] private float walkSpeed = 1.65f;
+        [Header("Nearby Pickup")]
         [SerializeField, Min(.1f)] private float pickupDistance = 1.5f;
         [SerializeField, Min(.04f)] private float collectRepeatSeconds = .1f;
+        [SerializeField, Min(.01f)] private float collectFastestRepeatSeconds = .025f;
+        [SerializeField, Min(2), Tooltip("Successful pickups in a row needed to reach the fastest interval.")]
+        private int collectRampPickups = 5;
         [Header("Basic Attack")]
         [SerializeField] private AnimationClip attackClip;
         [SerializeField, Min(1)] private int attackDamage = 10;
@@ -43,6 +47,7 @@ namespace Workerborn
         private int collectedCount;
         private bool manualMoving;
         private float nextCollect;
+        private int consecutiveCollections;
         public bool AcceptsInteractionCommands => village == null || !village.ControlsBlocked;
         public bool AcceptsGroundItemCommands => village == null || village.Hud.AllowsGroundItems;
         public PointerTargeting Targeting => village != null ? village.Targeting : null;
@@ -125,10 +130,17 @@ namespace Workerborn
         private void UpdateNearbyCollection()
         {
             const string action = "Gameplay/CollectNearby";
-            if (!AcceptsGroundItemCommands || !WorkerbornInput.Held(action) ||
-                !WorkerbornInput.Pressed(action) && Time.unscaledTime < nextCollect)
+            if (!AcceptsGroundItemCommands || !WorkerbornInput.Held(action))
+            {
+                ResetCollectHold();
                 return;
-            nextCollect = Time.unscaledTime + collectRepeatSeconds;
+            }
+
+            float now = Time.unscaledTime;
+            if (WorkerbornInput.Pressed(action))
+                consecutiveCollections = 0;
+            else if (now < nextCollect)
+                return;
 
             GroundPickup nearest = null;
             float bestDistance = float.MaxValue;
@@ -145,12 +157,21 @@ namespace Workerborn
                 }
             }
 
-            if (nearest != null)
-            {
-                if (nearest == pickupTarget.Target)
-                    Cancel();
-                CollectPickup(nearest);
-            }
+            if (nearest != null && nearest == pickupTarget.Target)
+                Cancel();
+            bool collected = nearest != null && CollectPickup(nearest);
+            int ramp = Mathf.Max(2, collectRampPickups);
+            consecutiveCollections = collected ? Mathf.Min(consecutiveCollections + 1, ramp) : 0;
+            float progress = Mathf.Clamp01((consecutiveCollections - 1f) / (ramp - 1));
+            float initialInterval = Mathf.Max(.04f, collectRepeatSeconds);
+            float fastestInterval = Mathf.Clamp(collectFastestRepeatSeconds, .01f, initialInterval);
+            nextCollect = now + Mathf.Lerp(initialInterval, fastestInterval, progress * progress);
+        }
+
+        private void ResetCollectHold()
+        {
+            consecutiveCollections = 0;
+            nextCollect = 0f;
         }
 
         private void ReadInput()
@@ -535,6 +556,7 @@ namespace Workerborn
         public void ResetWorker(Vector3 spawn)
         {
             Cancel();
+            ResetCollectHold();
             inventory.Clear();
             collectedCount = 0;
             nextStrikeAt = 0;
@@ -552,6 +574,10 @@ namespace Workerborn
             agent.Warp(position);
         }
 
-        private void OnDisable() => Cancel();
+        private void OnDisable()
+        {
+            Cancel();
+            ResetCollectHold();
+        }
     }
 }

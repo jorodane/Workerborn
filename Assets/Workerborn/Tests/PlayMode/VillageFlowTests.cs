@@ -709,7 +709,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator HoldingAnItemKeepsEquipmentIconsAndShowsTheCenteredNotice()
+        public IEnumerator HoldingAnItemKeepsEquipmentIconsAndShowsTheNoticeAboveCenter()
         {
             Assert.That(game.State.Inventory.TryAdd(ItemIds.Hoe, 1), Is.True);
             var hoe = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Hoe);
@@ -741,7 +741,9 @@ namespace Workerborn.Tests
             Assert.That(notice.alpha, Is.Zero);
             Assert.That(noticeCanvas.overrideSorting, Is.True);
             Assert.That(noticeCanvas.sortingOrder, Is.GreaterThan(game.Hud.GetComponent<Canvas>().sortingOrder));
-            Assert.That(((RectTransform)notice.transform).anchorMin, Is.EqualTo(Vector2.one * .5f));
+            var noticeRect = (RectTransform)notice.transform;
+            Assert.That(noticeRect.anchorMin, Is.EqualTo(new Vector2(.5f, .64f)));
+            Assert.That(noticeRect.anchorMax, Is.EqualTo(noticeRect.anchorMin));
             yield return new WaitForSecondsRealtime(.3f);
             Assert.That(notice.alpha, Is.EqualTo(1f).Within(.001f));
 

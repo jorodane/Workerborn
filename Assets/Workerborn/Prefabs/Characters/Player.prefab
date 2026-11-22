@@ -92,6 +92,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbc4372c87105106a76a595abc5f4398, type: 3}
   m_Name:
   m_EditorClassIdentifier:
+  collectRepeatSeconds: 0.1
+  collectFastestRepeatSeconds: 0.025
+  collectRampPickups: 5
   attackClip: {fileID: 992911294148604404, guid: dddab171c4921bd4aa92cfec58cc6a53, type: 3}
   attackDamage: 10
   attackDelay: 0.85
