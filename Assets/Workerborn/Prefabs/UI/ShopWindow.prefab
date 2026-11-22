@@ -904,6 +904,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 100037}
+  - component: {fileID: 100329}
   m_Layer: 5
   m_Name: Body
   m_TagString: Untagged
@@ -6495,3 +6496,15 @@ MonoBehaviour:
   description: {fileID: 100314}
   funds: {fileID: 100318}
   sellTarget: {fileID: 100327}
+--- !u!225 &100329
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100036}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0

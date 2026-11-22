@@ -10,7 +10,7 @@ namespace Workerborn
         public void OnPointerClick(PointerEventData data)
         {
             if (data.button == PointerEventData.InputButton.Left && Hud != null)
-                Hud.SellHeldItem();
+                Hud.SellHeldItem(data.position);
         }
     }
 }

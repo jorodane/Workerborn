@@ -38,7 +38,7 @@ namespace Workerborn
 
     public sealed partial class VillageState
     {
-        public const int CurrentSaveSchema = 6;
+        public const int CurrentSaveSchema = 7;
         public const int LevelLimit = 200;
         private double lifeStartedAt;
 
@@ -109,7 +109,7 @@ namespace Workerborn
             RefreshSkillStats();
             Health = HealthLimit;
             Energy = StaminaLimit;
-            Inventory = new GridInventory();
+            Inventory = new GridInventory(InventoryColumns, BaseInventoryRows);
             equipment.Clear();
             Job = JobStatus.None;
             LastJobDay = -1;

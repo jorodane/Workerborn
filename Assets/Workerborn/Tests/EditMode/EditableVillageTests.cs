@@ -110,10 +110,11 @@ namespace Workerborn.Tests
         {
             var state = new VillageState(); state.Inventory.TryAdd(ItemIds.Hoe, 1);
             state.TryEquip(state.Inventory.Entries[0].Id);
-            state.Inventory.TryAdd(ItemIds.Potato, 640);
+            int potatoes = state.Inventory.Columns * state.Inventory.Rows * ItemCatalog.Get(ItemIds.Potato).MaxStack;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, potatoes), Is.True);
             Assert.That(state.TryUnequip(EquipmentSlot.MainHand), Is.False);
             Assert.That(state.HasHoe, Is.True);
-            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(640));
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(potatoes));
         }
 
         [Test]

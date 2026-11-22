@@ -29,7 +29,6 @@ namespace Workerborn
         private int entryId;
         private int quantity;
         private bool updating;
-        internal bool IsSelling => action == QuantityAction.Sell;
         internal bool IsTrade => action != QuantityAction.Split;
 
         public override void Bind(VillagePrototype game, VillageHud hud)

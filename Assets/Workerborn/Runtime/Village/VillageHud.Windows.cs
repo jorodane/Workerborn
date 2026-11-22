@@ -52,14 +52,15 @@ namespace Workerborn
         public void ClickInventoryItem(int id, Vector2 screen)
         {
             if (HasQuantityPrompt)
-            {
-                if (IsShopOpen && views["quantity"] is QuantityWindowView prompt && prompt.IsSelling &&
-                    game.State.MaximumSellQuantity(id) > 0)
-                    OpenStackQuantity(game.State.Inventory.Find(id), QuantityAction.Sell);
                 return;
-            }
             HideItemTooltip();
             CloseItemContext();
+            bool control = WorkerbornInput.Held("Gameplay/Target");
+            if (IsShopOpen && control)
+            {
+                OpenSaleQuantity(id, screen);
+                return;
+            }
             if (IsHoldingItem)
             {
                 EndItemDrag(screen);
@@ -73,7 +74,7 @@ namespace Workerborn
                 OpenQuestDetail(page);
                 return;
             }
-            if (WorkerbornInput.Held("Gameplay/Target"))
+            if (control)
             {
                 UseSelectedInventoryItem();
                 return;
@@ -85,6 +86,8 @@ namespace Workerborn
         public void SelectInventoryItem(int id) => selectedEntry = id;
         public void UseSelectedInventoryItem()
         {
+            if (HasQuantityPrompt)
+                return;
             var item = game.State.Inventory.Find(selectedEntry);
             if (item == null)
                 return;
@@ -204,11 +207,13 @@ namespace Workerborn
                 ShowToast("나눌 공간이 부족합니다.");
                 return;
             }
-            OpenStackQuantity(item, QuantityAction.Split);
+            OpenQuantity(item.ItemId, QuantityAction.Split, item.Id);
         }
 
         public void BeginItemDrag(int id, Vector2 screen, bool releaseOnMouseUp = false)
         {
+            if (TradeQuantityOpen)
+                return;
             CancelItemDrag();
             var item = game.State.Inventory.Find(id);
             if (item == null || inventoryGrid == null)
@@ -320,7 +325,7 @@ namespace Workerborn
             if (hit == null || hit.GetComponentInParent<WorldNameplateView>() != null)
                 DropHeldOnGround(screen);
             else if (hit.GetComponentInParent<ShopSellTarget>() != null)
-                SellHeldItem();
+                SellHeldItem(screen);
             else if (hit.GetComponentInParent<EquipmentSlotPointer>() is EquipmentSlotPointer equipment)
                 ClickEquipment(equipment.Slot, screen);
             else

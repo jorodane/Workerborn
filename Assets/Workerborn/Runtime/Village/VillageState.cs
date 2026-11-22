@@ -85,8 +85,8 @@ namespace Workerborn
         public string farmSiteId;
         public int lastGuideLife;
         public bool bagExpanded;
-        public int inventoryColumns = 8;
-        public int inventoryRows = 4;
+        public int inventoryColumns = VillageState.LegacyInventoryColumns;
+        public int inventoryRows = VillageState.BaseInventoryRows;
         public InventoryEntrySave[] inventory = Array.Empty<InventoryEntrySave>();
         public int[] cropRemaining = Array.Empty<int>();
         public CropStateSave[] cropStates = Array.Empty<CropStateSave>();
@@ -101,6 +101,12 @@ namespace Workerborn
     // Unity-independent rules, shared by the playable village and its NUnit tests.
     public sealed partial class VillageState
     {
+        internal const int InventoryColumns = 6;
+        internal const int LegacyInventoryColumns = 8;
+        internal const int BaseInventoryRows = 4;
+        private const int BagInventoryRows = 6;
+        private const int LegacyMaxInventoryRows = 16;
+        private const int SixColumnInventorySchema = 7;
         public const int MaxEnergy = 100;
         public const int JobStart = 8 * 60;
         public const int JobEnd = 18 * 60;
@@ -134,7 +140,7 @@ namespace Workerborn
         public int JobRewardItemCount { get; private set; }
         public bool BagExpanded => equipment.ContainsKey(EquipmentSlot.Bag);
         public bool LastRestWasCollapse { get; private set; }
-        public GridInventory Inventory { get; private set; } = new GridInventory();
+        public GridInventory Inventory { get; private set; } = new GridInventory(InventoryColumns, BaseInventoryRows);
 
         private readonly Dictionary<EquipmentSlot, string> equipment = new Dictionary<EquipmentSlot, string>();
         public IReadOnlyDictionary<EquipmentSlot, string> Equipment => equipment;
@@ -190,8 +196,8 @@ namespace Workerborn
             var slot = item.Spec.EquipmentSlot;
             if (equipment.TryGetValue(slot, out string previous) && !copy.TryAdd(previous, 1))
                 return Result(false, "기존 장비를 넣을 공간이 없습니다.");
-            if (slot == EquipmentSlot.Bag && copy.Rows < 6)
-                copy.ExpandRows(6);
+            if (slot == EquipmentSlot.Bag && copy.Rows < BagInventoryRows)
+                copy.ExpandRows(BagInventoryRows);
             Inventory.ReplaceWith(copy);
             equipment[slot] = item.ItemId;
             return Result(true, item.Spec.Name + " 장착");
@@ -202,7 +208,7 @@ namespace Workerborn
             if (!equipment.TryGetValue(slot, out string item))
                 return false;
             var copy = Inventory.Copy();
-            if ((slot == EquipmentSlot.Bag && !copy.TryShrinkRows(4)) || !copy.TryAdd(item, 1))
+            if ((slot == EquipmentSlot.Bag && !copy.TryShrinkRows(BaseInventoryRows)) || !copy.TryAdd(item, 1))
                 return Result(false, "장비를 해제할 소지품 공간이 부족합니다.");
             Inventory.ReplaceWith(copy);
             equipment.Remove(slot);
@@ -405,8 +411,8 @@ namespace Workerborn
                 if (spec.Price > 0 && !Inventory.TryRemove(ItemIds.Gold, spec.Price))
                     return Result(false, "골드가 부족해요.");
                 equipment.Add(EquipmentSlot.Bag, itemId);
-                if (Inventory.Rows < 6)
-                    Inventory.ExpandRows(6);
+                if (Inventory.Rows < BagInventoryRows)
+                    Inventory.ExpandRows(BagInventoryRows);
                 return Result(true, $"{spec.Name} 구입 및 장착. {spec.Price}G를 지불했어요.");
             }
             if (!Inventory.TryExchange(ItemIds.Gold, checked(spec.Price * quantity), itemId, quantity))
@@ -643,7 +649,9 @@ namespace Workerborn
                 save.donatedPotatoes < 0 || save.donatedPotatoes > WorldCapacity.ScaleRequirement(Math.Max(RequiredDonationPotatoes, rules.DonationItems), highestScale) ||
                 save.farmLevel < 1 || save.farmLevel > Math.Max(2, rules.ExpandedStage) ||
                 save.jobStatus < 0 || save.jobStatus > 3 || save.lastJobDay > save.day || save.lastJobDay < -1 ||
-                save.inventoryColumns != 8 || save.inventoryRows < 4 || save.inventoryRows > 16)
+                save.inventoryColumns != (save.schema < SixColumnInventorySchema ? LegacyInventoryColumns : InventoryColumns) ||
+                save.inventoryRows < BaseInventoryRows ||
+                save.inventoryRows > (save.schema < SixColumnInventorySchema ? LegacyMaxInventoryRows : GridInventory.MaxRows))
                 throw new ArgumentException("Invalid village save.");
             if ((JobStatus)save.jobStatus == JobStatus.Active && (save.lastJobDay != save.day || save.jobRequirement < 1 || save.jobRequirement > 10000 || save.jobReward < 0 || save.jobReward > 10000 || save.jobExperience < 0 || save.jobExperience > 100000))
                 throw new ArgumentException("Invalid active job.");
@@ -665,7 +673,7 @@ namespace Workerborn
                 while (remaining > 0)
                 {
                     int amount = Math.Min(remaining, 10000);
-                    while (!inventory.CanAdd(ItemIds.Gold, amount) && inventory.Rows < 16)
+                    while (!inventory.CanAdd(ItemIds.Gold, amount) && inventory.Rows < LegacyMaxInventoryRows)
                         inventory.ExpandRows(inventory.Rows + 1);
                     if (!inventory.TryAdd(ItemIds.Gold, amount))
                         throw new ArgumentException("Legacy gold exceeds inventory capacity.");
@@ -736,7 +744,7 @@ namespace Workerborn
                     throw new ArgumentException("Invalid legacy bag.");
                 state.equipment.Add(EquipmentSlot.Bag, ItemIds.Bag);
             }
-            if (save.bagExpanded != state.BagExpanded || state.BagExpanded && inventory.Rows < 6)
+            if (save.bagExpanded != state.BagExpanded || state.BagExpanded && inventory.Rows < BagInventoryRows)
                 throw new ArgumentException("Invalid bag equipment.");
 
             if (state.Job == JobStatus.Active && state.Minute >= rules.JobEnd)
@@ -748,6 +756,8 @@ namespace Workerborn
                 state.Inventory.TryAdd(rules.JobDocumentItemId, 1);
             if (state.FoundationStage >= FarmFoundationStage.SelectingSite)
                 RemoveDocument(inventory, rules.Foundation?.DocumentItemId);
+            if (inventory.Columns != InventoryColumns)
+                state.Inventory = inventory.ReflowColumns(InventoryColumns);
             return state;
         }
     }

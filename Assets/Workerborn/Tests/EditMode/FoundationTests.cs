@@ -105,7 +105,8 @@ namespace Workerborn.Tests
             Assert.That(state.TryAcceptJob(), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.EqualTo(1));
             Assert.That(state.Inventory.TryAdd(rules.JobItemId, state.JobRequirement + 1), Is.True);
-            Assert.That(state.Inventory.TryAdd(ItemIds.Egg, ItemCatalog.Get(ItemIds.Egg).MaxStack * 30), Is.True);
+            int freeCells = state.Inventory.Columns * state.Inventory.Rows - state.Inventory.Entries.Count;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Egg, ItemCatalog.Get(ItemIds.Egg).MaxStack * freeCells), Is.True);
             state = VillageState.Restore(state.Export(), rules);
             Assert.That(state.TryDeliverJob(), Is.False);
             Assert.That(state.Inventory.Count(rules.JobItemId), Is.EqualTo(state.JobRequirement + 1));

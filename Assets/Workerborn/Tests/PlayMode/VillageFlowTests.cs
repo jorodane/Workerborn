@@ -737,13 +737,25 @@ namespace Workerborn.Tests
             inventory.Refresh();
             yield return null;
 
-            var slot = inventory.GetComponentsInChildren<EquipmentSlotPointer>().Single(item => item.Slot == EquipmentSlot.MainHand);
+            var slots = inventory.GetComponentsInChildren<EquipmentSlotPointer>().ToDictionary(item => item.Slot);
+            Vector2 Footprint(int columns, int rows) => Vector2.Scale(inventory.CellSize, new Vector2(columns, rows)) - Vector2.one * 2f;
+            Assert.That(game.State.Inventory.Columns, Is.EqualTo(6));
+            Assert.That(inventory.ItemViewport.rect.width, Is.EqualTo(6f * inventory.CellSize.x));
+            void VerifySlot(EquipmentSlot equipmentSlot, int columns, int rows) =>
+                Assert.That(((RectTransform)slots[equipmentSlot].transform).rect.size, Is.EqualTo(Footprint(columns, rows)));
+            VerifySlot(EquipmentSlot.MainHand, 2, 3);
+            VerifySlot(EquipmentSlot.OffHand, 2, 3);
+            VerifySlot(EquipmentSlot.Body, 2, 3);
+            VerifySlot(EquipmentSlot.Legs, 2, 2);
+            VerifySlot(EquipmentSlot.Head, 1, 2);
+            VerifySlot(EquipmentSlot.Feet, 2, 2);
+            VerifySlot(EquipmentSlot.Hands, 2, 2);
+            VerifySlot(EquipmentSlot.Bag, 1, 1);
+            VerifySlot(EquipmentSlot.Accessory, 1, 1);
+            var slot = slots[EquipmentSlot.MainHand];
             var equipped = slot.GetComponentInChildren<UiItemView>();
             Assert.That(equipped, Is.Not.Null);
-            var coatSlot = inventory.GetComponentsInChildren<EquipmentSlotPointer>().Single(item => item.Slot == EquipmentSlot.Body);
-            Assert.That(((RectTransform)slot.transform).rect.size, Is.EqualTo(Vector2.Scale(inventory.CellSize, new Vector2(1, 3)) - Vector2.one * 2f));
-            Assert.That(((RectTransform)coatSlot.transform).rect.size, Is.EqualTo(Vector2.Scale(inventory.CellSize, new Vector2(2, 3)) - Vector2.one * 2f));
-            Assert.That(equipped.Rect.rect.size, Is.EqualTo(((RectTransform)slot.transform).rect.size));
+            Assert.That(equipped.Rect.rect.size, Is.EqualTo(Footprint(1, 3)));
             Assert.That(inventory.GetComponentsInChildren<RawImage>(), Is.Empty);
             Vector2 pointer = RectTransformUtility.WorldToScreenPoint(null, inventory.Rect.position);
             game.Hud.ShowItemTooltip(ItemIds.Hoe, pointer);
@@ -841,6 +853,83 @@ namespace Workerborn.Tests
             yield return Until(() => normalHud.activeSelf, 1f);
             Assert.That(dialogue.isActiveAndEnabled, Is.False);
             Assert.That(inventory.gameObject.activeSelf, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator TradeQuantityOpensAtTheClickAndLocksBothItemGrids()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            var mouse = InputSystem.AddDevice<Mouse>();
+            try
+            {
+                Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 3), Is.True);
+                Assert.That(game.State.Inventory.TryAdd(ItemIds.Bread, 2), Is.True);
+                var potato = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
+                var bread = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Bread);
+                game.Hud.OpenShop(game.FindInteraction(VillageRole.Merchant));
+                yield return null;
+                Canvas.ForceUpdateCanvases();
+
+                var inventory = UnityEngine.Object.FindFirstObjectByType<InventoryWindowView>();
+                var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
+                var stock = shop.GetComponentInChildren<UiItemView>().GetComponent<Button>();
+                var potatoCell = inventory.ItemLayer.GetComponentsInChildren<InventoryItemDrag>().Single(cell => cell.EntryId == potato.Id);
+                Vector2 ScreenCenter(RectTransform rect) => RectTransformUtility.WorldToScreenPoint(null, rect.TransformPoint(rect.rect.center));
+                Vector2 saleClick = ScreenCenter((RectTransform)potatoCell.transform);
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
+                yield return null;
+                potatoCell.OnPointerClick(new PointerEventData(EventSystem.current)
+                {
+                    position = saleClick, button = PointerEventData.InputButton.Left
+                });
+                Assert.That(game.Hud.IsHoldingItem, Is.False);
+                var prompt = UnityEngine.Object.FindFirstObjectByType<QuantityWindowView>();
+                Assert.That(prompt, Is.Not.Null);
+                Assert.That(stock.IsInteractable(), Is.False);
+                var inventoryInput = inventory.transform.Find("Body").GetComponent<CanvasGroup>();
+                Assert.That(inventoryInput.blocksRaycasts, Is.False);
+                Assert.That(shop.transform.Find("Body").GetComponent<CanvasGroup>().blocksRaycasts, Is.False);
+                VerifyPopupPosition(prompt.Rect, saleClick);
+
+                game.Hud.ClickInventoryItem(bread.Id, saleClick);
+                stock.onClick.Invoke();
+                FindButton(prompt, "판매").onClick.Invoke();
+                Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(2));
+                Assert.That(game.State.Inventory.Count(ItemIds.Bread), Is.EqualTo(2));
+                Assert.That(game.Hud.HasQuantityPrompt, Is.False);
+                Assert.That(inventoryInput.blocksRaycasts, Is.True);
+                stock = shop.GetComponentInChildren<UiItemView>().GetComponent<Button>();
+                Assert.That(stock.IsInteractable(), Is.True);
+
+                Vector2 buyClick = ScreenCenter((RectTransform)stock.transform);
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = buyClick });
+                yield return null;
+                shop.GetComponentInChildren<UiItemView>().GetComponent<Button>().onClick.Invoke();
+                Assert.That(game.Hud.HasQuantityPrompt, Is.True);
+                VerifyPopupPosition(prompt.Rect, buyClick);
+                Assert.That(inventoryInput.blocksRaycasts, Is.False);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(mouse);
+                InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        private void VerifyPopupPosition(RectTransform popup, Vector2 screen)
+        {
+            var parent = game.Hud.CanvasRect;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screen, null, out var click);
+            Vector2 origin = popup.localPosition;
+            Vector2 min = origin + popup.rect.min;
+            Vector2 max = origin + popup.rect.max;
+            var nearest = new Vector2(Mathf.Clamp(click.x, min.x, max.x), Mathf.Clamp(click.y, min.y, max.y));
+            Assert.That(Vector2.Distance(click, nearest), Is.LessThan(16f));
+            Assert.That(min.x, Is.GreaterThanOrEqualTo(parent.rect.xMin - .05f));
+            Assert.That(min.y, Is.GreaterThanOrEqualTo(parent.rect.yMin - .05f));
+            Assert.That(max.x, Is.LessThanOrEqualTo(parent.rect.xMax + .05f));
+            Assert.That(max.y, Is.LessThanOrEqualTo(parent.rect.yMax + .05f));
         }
 
         [UnityTest]

@@ -20,7 +20,8 @@ namespace Workerborn.Tests
         public void FullInventoryPurchaseDoesNotChargeGold()
         {
             var state = Funded();
-            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, 620), Is.True);
+            int freeCells = state.Inventory.Columns * state.Inventory.Rows - 1;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, freeCells * ItemCatalog.Get(ItemIds.Potato).MaxStack), Is.True);
             Assert.That(state.TryBuy(ItemIds.Bread), Is.False);
             Assert.That(state.Gold, Is.EqualTo(500));
             Assert.That(state.Inventory.Count(ItemIds.Bread), Is.Zero);
@@ -57,13 +58,48 @@ namespace Workerborn.Tests
             var save = new VillageState().Export();
             save.schema = 3;
             save.bagExpanded = true;
-            save.inventoryRows = 6;
+            save.inventoryColumns = inventory.Columns;
+            save.inventoryRows = inventory.Rows;
             save.inventory = inventory.Export();
             var state = VillageState.Restore(save);
             Assert.That(state.Equipment[EquipmentSlot.Bag], Is.EqualTo(ItemIds.Bag));
             Assert.That(state.Inventory.Count(ItemIds.Bag), Is.Zero);
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(31));
             Assert.That(state.Inventory.Rows, Is.EqualTo(6));
+        }
+
+        [Test]
+        public void FullEightColumnSaveKeepsEveryStackWhenReflowedToSixColumns()
+        {
+            var legacy = GridInventory.Restore(8, 16, new[]
+            {
+                new InventoryEntrySave { id = 9, itemId = ItemIds.Bag, quantity = 1, x = 5, y = 14 }
+            });
+            int potatoes = (8 * 16 - 4) * ItemCatalog.Get(ItemIds.Potato).MaxStack;
+            Assert.That(legacy.TryAdd(ItemIds.Potato, potatoes), Is.True);
+            var save = new VillageState().Export();
+            save.schema = 6;
+            save.inventoryColumns = legacy.Columns;
+            save.inventoryRows = legacy.Rows;
+            save.inventory = legacy.Export();
+
+            var migrated = VillageState.Restore(save);
+            Assert.That(migrated.Inventory.Columns, Is.EqualTo(6));
+            Assert.That(migrated.Inventory.Rows, Is.GreaterThan(16));
+            var roundTrip = VillageState.Restore(migrated.Export()).Inventory;
+            Assert.That(roundTrip.Entries.Count, Is.EqualTo(legacy.Entries.Count));
+            foreach (var before in legacy.Entries)
+            {
+                var after = roundTrip.Find(before.Id);
+                Assert.That(after, Is.Not.Null);
+                Assert.That(after.ItemId, Is.EqualTo(before.ItemId));
+                Assert.That(after.Quantity, Is.EqualTo(before.Quantity));
+                if (before.X + before.Spec.Width <= roundTrip.Columns)
+                {
+                    Assert.That(after.X, Is.EqualTo(before.X));
+                    Assert.That(after.Y, Is.EqualTo(before.Y));
+                }
+            }
         }
 
         [Test]

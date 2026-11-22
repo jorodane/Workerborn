@@ -16,6 +16,7 @@ namespace Workerborn
         [SerializeField]
         private GameObject windowBody;
         private float expandedHeight;
+        private CanvasGroup bodyInput;
         private WindowTransition transition;
         protected VillagePrototype Game;
         protected VillageHud Hud;
@@ -32,6 +33,8 @@ namespace Workerborn
             Hud = hud;
             expandedHeight = Rect.sizeDelta.y;
             transition = GetComponent<WindowTransition>();
+            if (windowBody != null)
+                bodyInput = windowBody.GetComponent<CanvasGroup>();
             if (minimizeButton != null && windowBody != null)
                 minimizeButton.onClick.AddListener(() =>
                 {
@@ -47,6 +50,14 @@ namespace Workerborn
 
         public virtual void Refresh()
         {
+        }
+
+        internal void SetBodyInputEnabled(bool enabled)
+        {
+            if (bodyInput == null)
+                return;
+            bodyInput.interactable = enabled;
+            bodyInput.blocksRaycasts = enabled;
         }
 
         internal void PlayOpening() => transition?.PlayOpening();

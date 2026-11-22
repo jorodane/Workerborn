@@ -15,7 +15,7 @@ namespace Workerborn
         private Sprite icon;
         [SerializeField, Tooltip("Source model. Edit the complete ground prefab to change its scene appearance and collider.")]
         private GameObject worldPrefab;
-        [SerializeField, Range(1, 8)]
+        [SerializeField, Range(1, VillageState.InventoryColumns)]
         private int width = 1;
         [SerializeField, Range(1, 8)]
         private int height = 1;
@@ -38,6 +38,7 @@ namespace Workerborn
         public EquipmentSlot EquipmentSlot => equipmentSlot;
         public CharacterPartDefinition EquipmentPart => equipmentPart;
 
-        public ItemSpec ToSpec() => new ItemSpec(id, displayName, description, width, height, maxStack, price, equipmentSlot);
+        public ItemSpec ToSpec() => new ItemSpec(id, displayName, description, Mathf.Min(width, VillageState.InventoryColumns),
+            height, maxStack, price, equipmentSlot);
     }
 }

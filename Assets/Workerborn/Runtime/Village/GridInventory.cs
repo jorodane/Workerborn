@@ -27,6 +27,9 @@ namespace Workerborn
     // Adds are transactional: a full bag never silently destroys part of a pickup.
     public sealed class GridInventory
     {
+        // Reflow can add up to two rows per row of a legacy 8×16 inventory.
+        internal const int MaxRows = 48;
+
         private List<InventoryEntry> entries = new List<InventoryEntry>();
         private int nextId = 1;
         public int Columns { get; }
@@ -36,7 +39,7 @@ namespace Workerborn
 
         public GridInventory(int columns = 8, int rows = 4)
         {
-            if (columns < 1 || columns > 16 || rows < 1 || rows > 16) throw new ArgumentOutOfRangeException();
+            if (columns < 1 || columns > 16 || rows < 1 || rows > MaxRows) throw new ArgumentOutOfRangeException();
             Columns = columns; Rows = rows;
         }
 
@@ -232,7 +235,7 @@ namespace Workerborn
 
         public void ExpandRows(int rows)
         {
-            if (rows < Rows || rows > 16) throw new ArgumentOutOfRangeException(nameof(rows));
+            if (rows < Rows || rows > MaxRows) throw new ArgumentOutOfRangeException(nameof(rows));
             Rows = rows;
             Version++;
         }
@@ -260,6 +263,34 @@ namespace Workerborn
             }
             ReplaceWith(smaller);
             return true;
+        }
+
+        internal GridInventory ReflowColumns(int columns)
+        {
+            var result = new GridInventory(columns, Rows) { nextId = nextId };
+            foreach (var entry in entries)
+                if (entry.X + entry.Spec.Width <= columns)
+                    result.entries.Add(entry.Copy());
+
+            foreach (var entry in entries)
+            {
+                var spec = entry.Spec;
+                if (entry.X + spec.Width <= columns)
+                    continue;
+                if (spec.Width > columns)
+                    throw new ArgumentException("Item is wider than the inventory.");
+                if (!result.FirstFit(result.entries, spec, out int x, out int y))
+                {
+                    x = 0;
+                    y = result.Rows;
+                    result.ExpandRows(y + spec.Height);
+                }
+                var moved = entry.Copy();
+                moved.X = x;
+                moved.Y = y;
+                result.entries.Add(moved);
+            }
+            return result;
         }
 
         private bool FirstFit(List<InventoryEntry> items, ItemSpec spec, out int x, out int y)
