@@ -268,15 +268,16 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator ClickingAnItemNameApproachesThenCollectsWithinOneMetre()
+        public IEnumerator ClickingAnItemNameApproachesAndCollectsWithinTwoMetres()
         {
             var mouse = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Mouse>();
             var keyboard = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
             var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
             try
             {
-                Vector3 at = game.Worker.transform.position + Vector3.right * 2;
+                Vector3 at = NearbyDestination();
                 item.Initialize(game.Crops[0].Definition, at, at, true);
+                Assert.That(game.Worker.IsInPickupRange(item), Is.False);
                 UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.LeftAlt));
                 yield return null;
                 yield return null;
@@ -295,8 +296,11 @@ namespace Workerborn.Tests
                 yield return null;
                 Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before));
                 Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+                Assert.That(GameObject.Find("WorldClick(Clone)"), Is.Null);
                 yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) == before + quantity, 6f);
-                Assert.That(Vector3.Distance(game.Worker.transform.position, at), Is.LessThanOrEqualTo(1.001f));
+                Vector3 offset = game.Worker.transform.position - at;
+                offset.y = 0f;
+                Assert.That(offset.magnitude, Is.LessThanOrEqualTo(2.001f));
                 Assert.That(item == null || !item.gameObject.activeSelf, Is.True);
             }
             finally
@@ -395,6 +399,7 @@ namespace Workerborn.Tests
         {
             game.Worker.CommandMove(NearbyDestination());
             Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+            Assert.That(GameObject.Find("WorldClick(Clone)"), Is.Not.Null);
             var agent = game.Worker.GetComponent<NavMeshAgent>();
             var destination = agent.destination;
             int messages = 0;
@@ -422,7 +427,11 @@ namespace Workerborn.Tests
             yield return Until(() => game.Worker.Action == WorkerAction.Harvesting, 10f);
             var at = game.Worker.transform.position;
             var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
-            item.Initialize(crop.Definition, at + Vector3.up * 4, at + Vector3.up * 3 + Vector3.right * .5f, false);
+            Vector3 start = at + Vector3.up * 4;
+            Vector3 elevated = at + Vector3.up * 3;
+            item.Initialize(crop.Definition, start, elevated + Vector3.right * 2.1f);
+            Assert.That(game.TryCollectPickup(item), Is.False);
+            item.Initialize(crop.Definition, start, elevated + Vector3.right * 1.9f);
             int before = game.State.Inventory.Count(ItemIds.Potato);
             item.RequestInteraction(game.Worker);
             Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before + item.Quantity));
@@ -670,6 +679,14 @@ namespace Workerborn.Tests
                 yield return null;
                 Assert.That(Quaternion.Angle(pose, game.WorldCamera.transform.rotation), Is.GreaterThan(4f));
                 Assert.That(UnityEngine.Object.FindFirstObjectByType<WorldContextView>(), Is.Null);
+
+                int before = game.State.Inventory.Count(ItemIds.Potato);
+                int quantity = item.Quantity;
+                game.Hud.OpenWorldContext(item, screen);
+                var context = UnityEngine.Object.FindFirstObjectByType<WorldContextView>();
+                FindButton(context, "줍기").onClick.Invoke();
+                Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(before + quantity));
+                Assert.That(GameObject.Find("WorldClick(Clone)"), Is.Null);
             }
             finally
             {
@@ -1088,7 +1105,7 @@ namespace Workerborn.Tests
         [UnityTest]
         public IEnumerator GroundDropsReuseTheSameInstanceWithNewItemDataAndOneLandingEvent()
         {
-            Vector3 destination = game.Worker.transform.position + Vector3.right * .35f;
+            Vector3 destination = game.Worker.transform.position + Vector3.right * 1.9f;
             var potato = DropStack(ItemIds.Potato, 3, destination);
             var firstFilter = potato.GetComponentInChildren<MeshFilter>();
             Mesh firstMesh = firstFilter.sharedMesh;

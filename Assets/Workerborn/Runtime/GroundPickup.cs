@@ -31,7 +31,7 @@ namespace Workerborn
         public string ItemId => item != null ? item.Id : definition != null ? definition.ItemId : string.Empty;
         public int Quantity => quantity;
         public override string DisplayName => item != null ? item.DisplayName : definition != null ? definition.DisplayName : name;
-        protected override float DefaultDistance => 1.5f;
+        protected override float DefaultDistance => HarvestWorker.DefaultPickupDistance;
         public bool CanCollect => !collected && isActiveAndEnabled;
         public bool IsInFlight => initialized && age < flightSeconds;
         public override bool CanInteract => CanCollect;

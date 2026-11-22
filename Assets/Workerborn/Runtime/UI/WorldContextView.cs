@@ -27,12 +27,8 @@ namespace Workerborn
                 Instantiate(Hud.Library.ActionButton, actions).Bind(selected.Label, () =>
                 {
                     Hud.CloseWorldContext();
-                    var current = shownTarget.Target;
-                    if (current != null)
-                    {
-                        Game.ShowClick(current.transform.position);
+                    if (shownTarget.Target != null)
                         selected.Select();
-                    }
                 });
             }
             LayoutRebuilder.ForceRebuildLayoutImmediate(actions);

@@ -224,10 +224,7 @@ namespace Workerborn
                 return;
             }
             if (target != null)
-            {
-                game.ShowClick(target.transform.position);
                 target.RequestInteraction(game.Worker);
-            }
             else if (!game.ControlsBlocked && !overUi && !control && (HasMask || maskMaterial == null) &&
                 TryWorldHit(cursor, out var hit) && game.IsGround(hit.collider))
                 game.Worker.CommandMove(hit.point);

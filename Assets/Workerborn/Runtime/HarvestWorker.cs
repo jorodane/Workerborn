@@ -17,10 +17,11 @@ namespace Workerborn
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class HarvestWorker : MonoBehaviour
     {
+        internal const float DefaultPickupDistance = 2f;
         [SerializeField, Min(.1f)] private float runSpeed = 3.7f;
         [SerializeField, Min(.1f)] private float walkSpeed = 1.65f;
         [Header("Nearby Pickup")]
-        [SerializeField, Min(.1f)] private float pickupDistance = 1.5f;
+        [SerializeField, Min(.1f)] private float pickupDistance = DefaultPickupDistance;
         [SerializeField, Min(.04f)] private float collectRepeatSeconds = .1f;
         [SerializeField, Min(.01f)] private float collectFastestRepeatSeconds = .025f;
         [SerializeField, Min(2), Tooltip("Successful pickups in a row needed to reach the fastest interval.")]
