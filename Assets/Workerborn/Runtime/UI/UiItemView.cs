@@ -64,6 +64,13 @@ namespace Workerborn
             background.raycastTarget = inspect != null;
         }
 
+        internal void ShowHeldIcon()
+        {
+            Passive();
+            background.enabled = false;
+            count.enabled = false;
+        }
+
         public void OnPointerEnter(PointerEventData data) => tooltipHud?.ShowItemTooltip(tooltipItem, data.position);
         public void OnPointerExit(PointerEventData data) => tooltipHud?.HideItemTooltip();
         private void OnDisable() => tooltipHud?.HideItemTooltip();

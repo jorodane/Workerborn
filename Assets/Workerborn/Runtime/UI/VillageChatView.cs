@@ -14,7 +14,8 @@ namespace Workerborn
         [SerializeField] private TMP_Text messages;
         [SerializeField] private TMP_InputField input;
         [SerializeField] private Button send;
-        [SerializeField] private CanvasGroup panel;
+        [SerializeField] private CanvasGroup inputChrome;
+        [SerializeField] private ChatHistoryGradient historyFrame;
         private const int HistoryLimit = 80;
         private readonly Queue<string> lines = new Queue<string>(HistoryLimit);
         private Func<string, bool> submit;
@@ -22,7 +23,7 @@ namespace Workerborn
         private int openedFrame = -1;
         private RectTransform layer;
         private int restingOrder;
-        private bool hovered;
+        private bool pointerOverChat;
         private bool raised;
         private bool resumeEditing;
 
@@ -36,7 +37,7 @@ namespace Workerborn
             input.characterLimit = VillageChatText.MaximumLength;
             input.onSubmit.AddListener(message => Send(message, false));
             send.onClick.AddListener(() => Send(input.text, true));
-            SetPanelVisible(false);
+            SetPresentation(false);
         }
 
         internal void OpenInput()
@@ -49,7 +50,7 @@ namespace Workerborn
 
         private void FocusInput()
         {
-            SetPanelVisible(true);
+            SetPresentation(true);
             RaiseLayer();
             input.Select();
             input.ActivateInputField();
@@ -101,7 +102,7 @@ namespace Workerborn
                 layer.SetSiblingIndex(restingOrder);
                 raised = false;
             }
-            SetPanelVisible(focused || hovered);
+            SetPresentation(focused);
         }
 
         private void RaiseLayer()
@@ -111,17 +112,16 @@ namespace Workerborn
             raised = true;
         }
 
-        public void OnPointerEnter(PointerEventData eventData) => hovered = true;
-        public void OnPointerExit(PointerEventData eventData) => hovered = false;
+        public void OnPointerEnter(PointerEventData eventData) => pointerOverChat = true;
+        public void OnPointerExit(PointerEventData eventData) => pointerOverChat = false;
         public void OnScroll(PointerEventData eventData) => history.OnScroll(eventData);
 
-        private void SetPanelVisible(bool visible)
+        private void SetPresentation(bool focused)
         {
-            if (panel.blocksRaycasts == visible)
-                return;
-            panel.alpha = visible ? 1f : 0f;
-            panel.blocksRaycasts = visible;
-            panel.interactable = visible;
+            bool overInput = pointerOverChat && RectTransformUtility.RectangleContainsScreenPoint(
+                (RectTransform)inputChrome.transform, WorkerbornInput.Point);
+            inputChrome.alpha = focused || overInput ? 1f : 0f;
+            historyFrame.enabled = focused;
         }
 
         internal void Append(string speaker, string message)

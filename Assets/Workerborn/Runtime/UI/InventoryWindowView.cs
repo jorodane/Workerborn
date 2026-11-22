@@ -26,6 +26,7 @@ namespace Workerborn
         private EquipmentSlotPointer[] equipment;
         [SerializeField]
         private RectTransform[] equipmentIcons;
+        private UiItemView[] equippedItems;
         public RectTransform ItemLayer => itemLayer;
         public RectTransform ItemViewport => itemViewport;
         public Vector2 CellSize => gridLayout.cellSize + gridLayout.spacing;
@@ -46,6 +47,7 @@ namespace Workerborn
         {
             base.Bind(game, hud);
             portrait.texture = game.PortraitTexture;
+            equippedItems = new UiItemView[equipment.Length];
             foreach (var slot in equipment)
                 slot.Hud = hud;
             itemLayer.GetComponent<InventoryGridPointer>().Hud = hud;
@@ -72,16 +74,25 @@ namespace Workerborn
             gold.text = Game.State.Gold.ToString("N0");
             for (int i = 0; i < equipment.Length; i++)
             {
-                Clear(equipmentIcons[i]);
-                if (Game.State.Equipment.TryGetValue(equipment[i].Slot, out var id))
+                var visual = equippedItems[i];
+                if (!Game.State.Equipment.TryGetValue(equipment[i].Slot, out var id))
                 {
-                    var visual = Instantiate(Hud.Library.Item, equipmentIcons[i]);
-                    visual.Display(Game.Settings.FindItem(id), id, 1);
+                    if (visual != null)
+                        visual.gameObject.SetActive(false);
+                    continue;
+                }
+
+                if (visual == null)
+                {
+                    visual = Instantiate(Hud.Library.Item, equipmentIcons[i]);
                     visual.Passive();
                     visual.Rect.anchorMin = Vector2.zero;
                     visual.Rect.anchorMax = Vector2.one;
                     visual.Rect.offsetMin = visual.Rect.offsetMax = Vector2.zero;
+                    equippedItems[i] = visual;
                 }
+                visual.Display(Game.Settings.FindItem(id), id, 1);
+                visual.gameObject.SetActive(true);
             }
 
             Hud.RenderInventoryItems(this);

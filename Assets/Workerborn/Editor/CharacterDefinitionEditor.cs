@@ -1,5 +1,4 @@
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace Workerborn.Editor
@@ -235,13 +234,9 @@ namespace Workerborn.Editor
             EditorGUI.BeginChangeCheck();
             DrawDefaultInspector();
             bool changed = EditorGUI.EndChangeCheck();
-            if (GUILayout.Button("외형을 Scene에 반영") || changed)
-            {
-                var actor = (CharacterActor)target;
-                Undo.RegisterFullObjectHierarchyUndo(actor.gameObject, "Change character appearance");
-                actor.RebuildAppearance();
-                EditorSceneManager.MarkSceneDirty(actor.gameObject.scene);
-            }
+            using (new EditorGUI.DisabledScope(!CharacterAppearanceSynchronizer.CanEditScene))
+                if (GUILayout.Button("외형을 Scene에 반영") || changed)
+                    CharacterAppearanceSynchronizer.Rebuild((CharacterActor)target, "Change character appearance");
 
             if (((CharacterActor)target).Appearance != null && GUILayout.Button("외형 에셋 선택"))
                 Selection.activeObject = ((CharacterActor)target).Appearance;
@@ -255,21 +250,17 @@ namespace Workerborn.Editor
 
         public static void RefreshActors()
         {
-            if (queued || EditorApplication.isPlayingOrWillChangePlaymode)
+            if (queued || !CharacterAppearanceSynchronizer.CanEditScene)
                 return;
             Revision++;
             queued = true;
             EditorApplication.delayCall += () =>
             {
                 queued = false;
+                if (!CharacterAppearanceSynchronizer.CanEditScene)
+                    return;
                 foreach (var actor in Resources.FindObjectsOfTypeAll<CharacterActor>())
-                {
-                    if (EditorUtility.IsPersistent(actor) || !actor.gameObject.scene.IsValid() || actor.Appearance == null)
-                        continue;
-                    Undo.RegisterFullObjectHierarchyUndo(actor.gameObject, "Refresh character appearance");
-                    actor.RebuildAppearance();
-                    EditorSceneManager.MarkSceneDirty(actor.gameObject.scene);
-                }
+                    CharacterAppearanceSynchronizer.Rebuild(actor, "Refresh character appearance");
             };
         }
     }

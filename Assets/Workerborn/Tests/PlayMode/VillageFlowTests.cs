@@ -658,6 +658,48 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator HoldingAnItemKeepsEquipmentIconsAndShowsTheCenteredNotice()
+        {
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.Hoe, 1), Is.True);
+            var hoe = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Hoe);
+            Assert.That(game.State.TryEquip(hoe.Id), Is.True);
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 3), Is.True);
+            var stack = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Potato);
+            var inventory = (InventoryWindowView)game.Hud.OpenWindow("inventory");
+            inventory.Refresh();
+            yield return null;
+
+            var slot = inventory.GetComponentsInChildren<EquipmentSlotPointer>().Single(item => item.Slot == EquipmentSlot.MainHand);
+            var equipped = slot.GetComponentInChildren<UiItemView>();
+            Assert.That(equipped, Is.Not.Null);
+            Vector2 pointer = RectTransformUtility.WorldToScreenPoint(null, inventory.Rect.position);
+            game.Hud.ClickInventoryItem(stack.Id, pointer);
+            Assert.That(game.Hud.IsHoldingItem, Is.True);
+            Assert.That(slot.GetComponentInChildren<UiItemView>(), Is.SameAs(equipped));
+
+            var held = game.Hud.GetComponentsInChildren<UiItemView>().Single(item => item.transform.parent == game.Hud.transform);
+            Assert.That(held.GetComponent<Image>().enabled, Is.False);
+            Assert.That(held.GetComponentsInChildren<Image>().Single(image => image.enabled).sprite,
+                Is.SameAs(game.Settings.FindItem(ItemIds.Potato).Icon));
+            Assert.That(held.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Count").enabled, Is.False);
+
+            game.Hud.ClickEquipment(EquipmentSlot.MainHand, pointer);
+            var notice = game.Hud.GetComponentsInChildren<CanvasGroup>(true).Single(group => group.name == "System message");
+            var noticeCanvas = notice.GetComponent<Canvas>();
+            Assert.That(notice.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("해당 위치에 장착할 수 없습니다."));
+            Assert.That(notice.alpha, Is.Zero);
+            Assert.That(noticeCanvas.overrideSorting, Is.True);
+            Assert.That(noticeCanvas.sortingOrder, Is.GreaterThan(game.Hud.GetComponent<Canvas>().sortingOrder));
+            Assert.That(((RectTransform)notice.transform).anchorMin, Is.EqualTo(Vector2.one * .5f));
+            yield return new WaitForSecondsRealtime(.3f);
+            Assert.That(notice.alpha, Is.EqualTo(1f).Within(.001f));
+
+            game.Hud.CancelItemDrag();
+            inventory.Refresh();
+            Assert.That(slot.GetComponentInChildren<UiItemView>(), Is.SameAs(equipped));
+        }
+
+        [UnityTest]
         public IEnumerator MerchantOpensInOneClickAndStackSplittingUsesTheSharedQuantityControls()
         {
             var inventory = game.Hud.OpenWindow("inventory");
@@ -762,26 +804,41 @@ namespace Workerborn.Tests
         [UnityTest]
         public IEnumerator ChatKeepsEditingAboveDialogueAndShowsTheNewestLinesInTheBubble()
         {
-            game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
-            var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
             var chat = UnityEngine.Object.FindFirstObjectByType<VillageChatView>();
             var input = chat.GetComponentInChildren<TMP_InputField>();
             var chatLayer = chat.transform.parent;
-            var presentation = chat.GetComponentInChildren<CanvasGroup>();
+            var inputFrame = chat.GetComponentInChildren<CanvasGroup>();
+            var historyFrame = chat.GetComponentInChildren<ChatHistoryGradient>();
+            var historyViewport = chat.GetComponentInChildren<ScrollRect>().viewport;
             var overhead = UnityEngine.Object.FindFirstObjectByType<PlayerOverheadView>(FindObjectsInactive.Include);
             var texts = overhead.GetComponentsInChildren<TMP_Text>(true);
             var bubble = texts.Single(text => text.name == "Speech");
             var label = texts.Single(text => text.text == game.LegendPlayerName);
-            Assert.That(chatLayer.GetSiblingIndex(), Is.LessThan(dialogue.transform.GetSiblingIndex()));
-            Assert.That(presentation.alpha, Is.Zero);
+            Assert.That(inputFrame.alpha, Is.Zero);
+            Assert.That(historyFrame.enabled, Is.False);
 
             var keyboard = InputSystem.AddDevice<Keyboard>();
+            var mouse = InputSystem.AddDevice<Mouse>();
             try
             {
+                Canvas.ForceUpdateCanvases();
+                yield return MovePointer(historyViewport);
+                Assert.That(inputFrame.alpha, Is.Zero);
+                Assert.That(historyFrame.enabled, Is.False);
+                yield return MovePointer((RectTransform)inputFrame.transform);
+                Assert.That(inputFrame.alpha, Is.EqualTo(1f));
+                Assert.That(historyFrame.enabled, Is.False);
+                yield return MovePointer(historyViewport);
+                Assert.That(inputFrame.alpha, Is.Zero);
+
+                game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
+                var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+                Assert.That(chatLayer.GetSiblingIndex(), Is.LessThan(dialogue.transform.GetSiblingIndex()));
                 yield return TapEnter();
                 Assert.That(input.isFocused, Is.True);
                 Assert.That(chatLayer.GetSiblingIndex(), Is.GreaterThan(dialogue.transform.GetSiblingIndex()));
-                Assert.That(presentation.alpha, Is.EqualTo(1f));
+                Assert.That(inputFrame.alpha, Is.EqualTo(1f));
+                Assert.That(historyFrame.enabled, Is.True);
 
                 foreach (string post in new[] { "첫 번째", "두 번째", "세 번째", "네 번째" })
                 {
@@ -808,12 +865,23 @@ namespace Workerborn.Tests
 
                 yield return TapEnter();
                 Assert.That(input.isFocused, Is.False);
+                Assert.That(historyFrame.enabled, Is.False);
+                Assert.That(history.enabled, Is.True);
                 Assert.That(chatLayer.GetSiblingIndex(), Is.LessThan(dialogue.transform.GetSiblingIndex()));
                 Assert.That(game.Hud.HasModal, Is.True);
             }
             finally
             {
                 InputSystem.RemoveDevice(keyboard);
+                InputSystem.RemoveDevice(mouse);
+            }
+
+            IEnumerator MovePointer(RectTransform area)
+            {
+                Vector2 position = RectTransformUtility.WorldToScreenPoint(null, area.TransformPoint(area.rect.center));
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = position });
+                yield return null;
+                yield return null;
             }
 
             IEnumerator TapEnter()

@@ -26,10 +26,10 @@ namespace Workerborn
                     view.Refresh();
         }
 
-        private void RenderInventory()
+        private void RefreshInventoryItems()
         {
-            if (views.TryGetValue("inventory", out var view) && view.gameObject.activeSelf)
-                view.Refresh();
+            if (views.TryGetValue("inventory", out var view) && view is InventoryWindowView inventory && view.gameObject.activeSelf)
+                RenderInventoryItems(inventory);
         }
 
         public void RenderInventoryItems(InventoryWindowView view)
@@ -225,7 +225,7 @@ namespace Workerborn
             draggedEntry = id;
             selectedEntry = id;
             RebuildHeldVisual();
-            RenderInventory();
+            RefreshInventoryItems();
             MoveItemDrag(screen);
         }
 
@@ -247,7 +247,7 @@ namespace Workerborn
             dragGhost.pivot = new Vector2(0, 1);
             dragGhost.sizeDelta = new Vector2(item.Spec.Width * CellX, item.Spec.Height * CellY);
             visual.Display(game.Settings.FindItem(item.ItemId), item.ItemId, item.Quantity);
-            visual.Passive();
+            visual.ShowHeldIcon();
         }
 
         public void MoveItemDrag(Vector2 screen)
@@ -279,7 +279,7 @@ namespace Workerborn
                 CancelItemDrag();
             else
                 RebuildHeldVisual();
-            RenderInventory();
+            RefreshInventoryItems();
             MoveItemDrag(screen);
             game.SaveGame(false);
         }
@@ -351,7 +351,7 @@ namespace Workerborn
             HideItemTooltip();
             CloseItemContext();
             if (wasHolding && InventoryOpen)
-                RenderInventory();
+                RefreshInventoryItems();
         }
     }
 }

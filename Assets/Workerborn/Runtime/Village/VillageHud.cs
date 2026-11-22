@@ -44,8 +44,12 @@ namespace Workerborn
         [SerializeField]
         private Image experienceFill;
         [SerializeField]
-        private RectTransform toast;
-        private float toastUntil;
+        private CanvasGroup toast;
+        private const float ToastFadeIn = .22f;
+        private const float ToastHold = 2.5f;
+        private const float ToastFadeOut = .48f;
+        private float toastStartedAt;
+        private float toastInitialAlpha;
         private RectTransform skillBubble;
         private SkillBalloonView skillBalloon;
         private RectTransform hoverTip;
@@ -126,10 +130,13 @@ namespace Workerborn
 
         public void ShowToast(string message)
         {
-            if (toastText == null || string.IsNullOrEmpty(message))
+            if (toast == null || toastText == null || string.IsNullOrEmpty(message))
                 return;
+            toastInitialAlpha = toast.gameObject.activeSelf && toastText.text == message ? toast.alpha : 0f;
+            toastStartedAt = Time.unscaledTime;
             toastText.text = message;
-            toastUntil = Time.unscaledTime + 5f;
+            toast.alpha = toastInitialAlpha;
+            toast.gameObject.SetActive(true);
             string shortMessage = message.Length > 42 ? message.Substring(0, 41) + "…" : message;
             if (lastLoggedMessage != message)
             {
@@ -138,6 +145,22 @@ namespace Workerborn
                     log.Dequeue();
                 lastLoggedMessage = message;
             }
+        }
+
+        private void UpdateToast()
+        {
+            if (toast == null || !toast.gameObject.activeSelf)
+                return;
+            float elapsed = Time.unscaledTime - toastStartedAt;
+            float remaining = ToastFadeIn + ToastHold + ToastFadeOut - elapsed;
+            if (remaining <= 0f)
+            {
+                toast.gameObject.SetActive(false);
+                return;
+            }
+            float fadeIn = Mathf.SmoothStep(toastInitialAlpha, 1f, elapsed / ToastFadeIn);
+            float fadeOut = Mathf.SmoothStep(0f, 1f, remaining / ToastFadeOut);
+            toast.alpha = fadeIn * fadeOut;
         }
 
         public void ShowFloatingText(Vector3 position, string content, Color color)
@@ -240,13 +263,13 @@ namespace Workerborn
             energyFill.fillAmount = (float)state.Energy / stamina;
             growthText.text = $"Lv.{state.Level}";
             experienceFill.fillAmount = state.Level == VillageState.LevelLimit ? 1f : (float)state.Experience / state.NextLevelExperience;
-            toast.gameObject.SetActive(Time.unscaledTime < toastUntil);
             if (state.NoticeSerial != seenNotice)
             {
                 if (state.NoticeSerial > 0)
                     ShowToast(state.LastMessage);
                 seenNotice = state.NoticeSerial;
             }
+            UpdateToast();
 
             if (state.Version != seenVersion || state.Inventory.Version != seenInventoryVersion)
             {
