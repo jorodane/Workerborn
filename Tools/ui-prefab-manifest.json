@@ -118,5 +118,9 @@
   "ServerAdminWindow": {
     "path": "Assets/Workerborn/Prefabs/UI/ServerAdminWindow.prefab",
     "component": 100192
+  },
+  "SettingsWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/SettingsWindow.prefab",
+    "component": 100089
   }
 }

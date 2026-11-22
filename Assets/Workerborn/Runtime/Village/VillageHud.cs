@@ -23,6 +23,7 @@ namespace Workerborn
         public RectTransform CanvasRect => (RectTransform)transform;
         [SerializeField] private RawImage selectionOutline;
         [SerializeField] private GameObject dialogueBackdrop;
+        [SerializeField] private GameObject normalHud;
         [SerializeField] private RectTransform chatLayer;
         [SerializeField] private TMP_Text dateText;
         [SerializeField] private TMP_Text weatherText;
@@ -194,7 +195,9 @@ namespace Workerborn
                 return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
-                if (!CloseFocusedWindow())
+                if (IsShopOpen)
+                    CloseDialogue();
+                else if (!CloseFocusedWindow())
                 {
                     if (IsHoldingItem)
                         CancelItemDrag();
@@ -234,7 +237,7 @@ namespace Workerborn
             if (!game.AwaitingWorldCommand)
                 ReleaseDraggedItem();
             var state = game.State;
-            int minute = Mathf.FloorToInt(state.Minute);
+            int minute = Mathf.FloorToInt(state.Minute / 10f) * 10;
             if (minute != clockMinute)
             {
                 clockMinute = minute;
@@ -354,8 +357,11 @@ namespace Workerborn
             rect.anchoredPosition = local - root.rect.min;
         }
 
-        public VillageWindowView OpenWindow(string id)
+        public VillageWindowView OpenWindow(string id) => OpenWindow(id, temporaryInDialogue: false);
+
+        private VillageWindowView OpenWindow(string id, bool temporaryInDialogue)
         {
+            bool opening;
             if (!views.TryGetValue(id, out var view))
             {
                 var prefab = library != null ? library.Find(id) : null;
@@ -369,14 +375,26 @@ namespace Workerborn
                 views.Add(id, view);
                 windows.Add(id, view.Rect);
                 view.Bind(game, this);
+                opening = true;
             }
+            else
+                opening = !view.gameObject.activeSelf;
 
+            if (HasModal)
+            {
+                if (temporaryInDialogue)
+                    dialogueWindowStates.TryAdd(id, !opening);
+                else
+                    dialogueWindowStates.Remove(id);
+            }
             view.gameObject.SetActive(true);
             if (view.IsFloating)
                 WindowDragHandle.KeepOnScreen(view.Rect);
             FocusWindow(view);
             if (id == "tooltip")
                 view.transform.SetAsLastSibling();
+            if (opening)
+                view.GetComponent<WindowOpeningAnimation>()?.Play();
             return view;
         }
 
@@ -397,7 +415,8 @@ namespace Workerborn
                 var view = windowFocus[index];
                 if (view == null || !view.gameObject.activeSelf)
                 {
-                    windowFocus.RemoveAt(index);
+                    if (view == null || !dialogueWindowStates.ContainsKey(view.Id))
+                        windowFocus.RemoveAt(index);
                     continue;
                 }
                 CloseWindow(view.Id);
@@ -408,11 +427,17 @@ namespace Workerborn
 
         public void CloseWindow(string id)
         {
-            if (id == "conversation")
+            if (id == "conversation" || (id == "shop" && HasModal))
             {
                 CloseDialogue();
                 return;
             }
+            dialogueWindowStates.Remove(id);
+            HideWindow(id);
+        }
+
+        private void HideWindow(string id)
+        {
             if (!views.TryGetValue(id, out var view) || !view.gameObject.activeSelf)
                 return;
             view.gameObject.SetActive(false);
@@ -422,12 +447,6 @@ namespace Workerborn
             {
                 CancelItemDrag();
                 CloseItemContext();
-            }
-            if (id == "shop")
-            {
-                if (views.TryGetValue("quantity", out var quantity) && quantity is QuantityWindowView prompt && prompt.IsTrade)
-                    CloseQuantity();
-                SetTradeDialogue(false);
             }
         }
 
@@ -488,7 +507,7 @@ namespace Workerborn
             if (InventoryOpen)
                 FocusWindow(views["inventory"]);
             else
-                OpenWindow("inventory")?.Refresh();
+                OpenWindow("inventory", temporaryInDialogue: true)?.Refresh();
             bool wasOpen = IsShopOpen;
             if (!(OpenWindow("shop") is ShopWindowView shop))
                 return;
@@ -504,7 +523,8 @@ namespace Workerborn
                 shop.Rect.anchoredPosition = origin - new Vector2(canvas.xMax, canvas.yMin);
                 WindowDragHandle.KeepOnScreen(shop.Rect);
             }
-            SetTradeDialogue(true);
+            if (views.TryGetValue("conversation", out var dialogue) && dialogue is ConversationWindowView conversation)
+                conversation.SetTrading();
         }
 
         internal void OpenPurchaseQuantity(string id)

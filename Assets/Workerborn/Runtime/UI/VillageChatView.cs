@@ -15,7 +15,8 @@ namespace Workerborn
         [SerializeField] private TMP_InputField input;
         [SerializeField] private Button send;
         [SerializeField] private CanvasGroup inputChrome;
-        [SerializeField] private ChatHistoryGradient historyFrame;
+        [SerializeField] private VerticalGradient historyFrame;
+        [SerializeField] private Image inputBackground;
         private const int HistoryLimit = 80;
         private readonly Queue<string> lines = new Queue<string>(HistoryLimit);
         private Func<string, bool> submit;
@@ -26,6 +27,7 @@ namespace Workerborn
         private bool pointerOverChat;
         private bool raised;
         private bool resumeEditing;
+        private bool duringDialogue;
 
         internal bool IsTyping => EventSystem.current != null && EventSystem.current.currentSelectedGameObject == input.gameObject;
 
@@ -62,6 +64,12 @@ namespace Workerborn
             input.DeactivateInputField();
             if (IsTyping)
                 EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        internal void SetDialogueMode(bool active)
+        {
+            duringDialogue = active;
+            SetPresentation(IsTyping);
         }
 
         private void Send(string message, bool fromButton)
@@ -118,10 +126,15 @@ namespace Workerborn
 
         private void SetPresentation(bool focused)
         {
-            bool overInput = pointerOverChat && RectTransformUtility.RectangleContainsScreenPoint(
+            bool visible = !duringDialogue || focused;
+            history.gameObject.SetActive(visible);
+            inputChrome.gameObject.SetActive(visible);
+            bool overInput = visible && pointerOverChat && RectTransformUtility.RectangleContainsScreenPoint(
                 (RectTransform)inputChrome.transform, WorkerbornInput.Point);
             inputChrome.alpha = focused || overInput ? 1f : 0f;
             historyFrame.enabled = focused;
+            // The focused gradient already fills the input strip with its darkest color.
+            inputBackground.color = focused ? Color.clear : historyFrame.color;
         }
 
         internal void Append(string speaker, string message)

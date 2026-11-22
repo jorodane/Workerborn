@@ -44,5 +44,17 @@ namespace Workerborn
         public virtual void Refresh()
         {
         }
+
+        protected void SetExpandedHeight(float height)
+        {
+            if (expandedHeight == height)
+                return;
+            expandedHeight = height;
+            if (windowBody != null && !windowBody.activeSelf)
+                return;
+            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            if (IsFloating)
+                WindowDragHandle.KeepOnScreen(Rect);
+        }
     }
 }

@@ -170,7 +170,9 @@ namespace Workerborn
             State = new VillageState(rules);
             string notice = null;
             usesSelectedWorld = !IsAppearanceTrial && Session?.HasLocalWorld == true;
-            if (IsOnline || usesSelectedWorld)
+            if (Session != null && Session.TakeSoloReload(out restoredWorld, out notice))
+                State = VillageState.Restore(restoredWorld, rules);
+            else if (IsOnline || usesSelectedWorld)
             {
                 if (IsOnline)
                     MarkOnline();
@@ -784,6 +786,20 @@ namespace Workerborn
                 hud.ShowToast(success ? "저장했습니다." : "저장에 실패했습니다.");
             nextSave = Time.unscaledTime + 15f;
             return success;
+        }
+
+        public bool CanReloadSavedGame => initialized && !IsOnline && !IsAppearanceTrial && Session != null &&
+            (usesSelectedWorld ? Session.HasLocalSave : loadSavedGame && VillageSaveStore.HasSave);
+
+        public void ReloadSavedGame()
+        {
+            if (!CanReloadSavedGame || !Session.TryReloadSolo(State.Rules, AuthoredSites(), spawnPoint.position, usesSelectedWorld))
+            {
+                hud.ShowToast("불러올 저장 기록을 열지 못했어요.");
+                return;
+            }
+            initialized = false;
+            worker.Cancel();
         }
 
         internal VillageSave CaptureSave()

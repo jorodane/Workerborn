@@ -9,6 +9,7 @@ namespace Workerborn
         // PlayMode tests use an isolated directory and never touch the player's village.
         public static string DirectoryOverride { get; set; }
         public static string SavePath => Path.Combine(DirectoryOverride ?? Application.persistentDataPath, "workerborn-village-v1.json");
+        public static bool HasSave => File.Exists(SavePath) || File.Exists(SavePath + ".bak");
 
         public static bool TryLoad(out VillageState state, out VillageSave world, out string message, VillageRules rules = null, bool repairBackup = true)
         {
@@ -32,7 +33,8 @@ namespace Workerborn
                     }
                     return true;
                 }
-                catch (Exception exception) when (exception is IOException || exception is ArgumentException || exception is UnauthorizedAccessException)
+                catch (Exception exception) when (exception is IOException || exception is InvalidDataException ||
+                    exception is ArgumentException || exception is UnauthorizedAccessException)
                 {
                     Debug.LogWarning("Workerborn could not read a village save: " + exception.Message);
                 }

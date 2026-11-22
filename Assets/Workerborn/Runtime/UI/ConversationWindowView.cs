@@ -33,13 +33,7 @@ namespace Workerborn
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
-            leave.onClick.AddListener(() =>
-            {
-                if (trading)
-                    hud.CloseWindow("shop");
-                else
-                    hud.CloseDialogue();
-            });
+            leave.onClick.AddListener(hud.CloseDialogue);
             portrait.texture = game.NpcPortraitTexture;
         }
 
@@ -98,13 +92,13 @@ namespace Workerborn
             Refresh();
         }
 
-        internal void SetTrading(bool active)
+        internal void SetTrading()
         {
-            if (trading == active)
+            if (trading)
                 return;
-            trading = active;
-            keywords.gameObject.SetActive(!trading);
-            actions.gameObject.SetActive(!trading);
+            trading = true;
+            keywords.gameObject.SetActive(false);
+            actions.gameObject.SetActive(false);
             Refresh();
         }
 

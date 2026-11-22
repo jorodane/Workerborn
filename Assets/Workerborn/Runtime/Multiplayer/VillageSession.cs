@@ -76,6 +76,7 @@ namespace Workerborn
         public bool IsDedicated { get; private set; }
         public bool Online => kind.HasValue;
         public bool HasLocalWorld => selectedWorld != null && !Online;
+        public bool HasLocalSave => HasLocalWorld && selectedWorld.HasSave;
         public PortableCharacter SelectedCharacter { get; private set; }
         public bool SteamHost => kind == SessionKind.SteamFriends && authority != null;
         public bool Busy { get; private set; }
@@ -117,6 +118,8 @@ namespace Workerborn
         private string exitMessage;
         private ulong pendingInvite;
         private float nextLocalChat;
+        private VillageSave pendingSoloReload;
+        private string reloadNotice;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Install()
@@ -342,7 +345,7 @@ namespace Workerborn
                     CommitInitial(profile, Online ? authority.Status(localIdentity, true) : null);
                 }
             }
-            catch (Exception ex) when (ex is IOException || ex is ArgumentException || ex is UnauthorizedAccessException ||
+            catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is ArgumentException || ex is UnauthorizedAccessException ||
                 ex is SocketException || ex is InvalidOperationException || ex is TimeoutException)
             {
                 Debug.LogError("Workerborn could not start the session: " + ex.Message);
@@ -362,6 +365,18 @@ namespace Workerborn
             savePath = Path.GetFullPath(path);
             Directory.CreateDirectory(Path.GetDirectoryName(savePath));
             saveLock = new FileStream(savePath + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            authority = ReadCampaign(rules, sites, spawn);
+            if (authority == null)
+            {
+                if (requireCharacterLimit && initialCharacterLimit == 0)
+                    throw new ArgumentException($"Choose -character-limit 1 to {WorldCapacity.MaxCharacters} when creating a server world.");
+                authority = new VillageCampaign(rules, sites, spawn.x, spawn.z, seed, initialCharacterLimit);
+            }
+            nextSave = Time.unscaledTime + SaveInterval;
+        }
+
+        private VillageCampaign ReadCampaign(VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn)
+        {
             foreach (string candidate in new[] { savePath, savePath + ".bak" })
             {
                 if (!File.Exists(candidate))
@@ -373,23 +388,19 @@ namespace Workerborn
                     var record = JsonUtility.FromJson<CampaignRecord>(File.ReadAllText(candidate));
                     if (record == null)
                         throw new InvalidDataException("Invalid world save.");
-                    authority = new VillageCampaign(rules, sites, spawn.x, spawn.z, record);
+                    var restored = new VillageCampaign(rules, sites, spawn.x, spawn.z, record);
                     if (candidate != savePath && File.Exists(savePath))
                         File.Move(savePath, savePath + ".corrupt-" + DateTime.UtcNow.Ticks);
-                    nextSave = Time.unscaledTime + SaveInterval;
-                    return;
+                    return restored;
                 }
-                catch (Exception e) when (e is IOException || e is ArgumentException)
+                catch (Exception e) when (e is IOException || e is InvalidDataException || e is ArgumentException || e is UnauthorizedAccessException)
                 {
                     Debug.LogWarning("Workerborn could not read a world record: " + e.Message);
                 }
             }
             if (File.Exists(savePath) || File.Exists(savePath + ".bak"))
                 throw new InvalidDataException("Both world records are unreadable.");
-            if (requireCharacterLimit && initialCharacterLimit == 0)
-                throw new ArgumentException($"Choose -character-limit 1 to {WorldCapacity.MaxCharacters} when creating a server world.");
-            authority = new VillageCampaign(rules, sites, spawn.x, spawn.z, seed, initialCharacterLimit);
-            nextSave = Time.unscaledTime + SaveInterval;
+            return null;
         }
 
         private CampaignRecord ReadLegacySolo(VillageRules rules)
@@ -421,6 +432,49 @@ namespace Workerborn
                 return false;
             authority.StoreSolo(localIdentity, world, character);
             return SaveWorld();
+        }
+
+        internal bool TryReloadSolo(VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn, bool usesSelectedWorld)
+        {
+            if (Busy || Online || exitRequested)
+                return false;
+            if (usesSelectedWorld)
+            {
+                if (localIdentity == null || savePath == null || SelectedCharacter == null)
+                    return false;
+                VillageCampaign restored;
+                try { restored = ReadCampaign(rules, sites, spawn); }
+                catch (Exception error) when (error is IOException || error is InvalidDataException ||
+                    error is UnauthorizedAccessException || error is ArgumentException)
+                {
+                    Debug.LogWarning("Workerborn could not reload the world: " + error.Message);
+                    return false;
+                }
+                if (restored == null || !restored.Connect(localIdentity, joinName, out var profile, SelectedCharacter.look))
+                    return false;
+                authority = restored;
+                CommitInitial(profile, null);
+                pendingSoloReload = profile.character;
+                reloadNotice = "저장한 월드를 불러왔어요.";
+            }
+            else
+            {
+                if (!VillageSaveStore.TryLoad(out _, out var save, out string notice, rules))
+                    return false;
+                pendingSoloReload = save;
+                reloadNotice = notice;
+            }
+            OpenVillage();
+            return true;
+        }
+
+        internal bool TakeSoloReload(out VillageSave save, out string notice)
+        {
+            save = pendingSoloReload;
+            notice = reloadNotice;
+            pendingSoloReload = null;
+            reloadNotice = null;
+            return save != null;
         }
 
         private void CommitInitial(CampaignProfile profile, CampaignStatus status)
@@ -1233,6 +1287,8 @@ namespace Workerborn
             LocalPlayerId = null;
             InitialCharacter = null;
             Status = null;
+            pendingSoloReload = null;
+            reloadNotice = null;
             Administration = null;
             adminLog.Clear();
             village = null;

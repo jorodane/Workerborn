@@ -1,19 +1,24 @@
+using System.Collections.Generic;
+
 namespace Workerborn
 {
     public sealed partial class VillageHud
     {
         private VillageInteractable dialogueTarget;
+        private readonly Dictionary<string, bool> dialogueWindowStates = new Dictionary<string, bool>();
 
         public void OpenDialogue(VillageInteractable target, DialogueAction? topic = null)
         {
+            if (target == null)
+                return;
             CloseDialogue();
             CloseWorldContext();
             CloseQuantity();
             CancelItemDrag();
             game.Worker.Cancel();
             dialogueTarget = target;
-            if (dialogueBackdrop != null)
-                dialogueBackdrop.SetActive(true);
+            SuspendDialogueWindows();
+            SetDialoguePresentation(true);
             (OpenWindow("conversation") as ConversationWindowView)?.Open(target, topic == DialogueAction.Shop ? null : topic);
             if (topic == DialogueAction.Shop && target.IsTopicAvailable(game, DialogueAction.Shop))
                 OpenShop(target);
@@ -22,39 +27,71 @@ namespace Workerborn
         internal void SelectDialogueTopic(DialogueAction topic)
         {
             CloseQuantity();
-            CloseWindow("shop");
             if (views.TryGetValue("conversation", out var panel) && panel is ConversationWindowView dialogue)
                 dialogue.SelectTopic(topic);
         }
 
-        private void SetTradeDialogue(bool trading)
-        {
-            if (dialogueTarget != null && views.TryGetValue("conversation", out var panel) && panel is ConversationWindowView dialogue)
-                dialogue.SetTrading(trading);
-        }
-
         public void CloseDialogue()
         {
-            bool leavingGuide = dialogueTarget != null && dialogueTarget.Role == VillageRole.Guide;
+            if (dialogueTarget == null)
+                return;
+            bool leavingGuide = dialogueTarget.Role == VillageRole.Guide;
             dialogueTarget = null;
-            if (dialogueBackdrop != null)
-                dialogueBackdrop.SetActive(false);
             if (IsShopOpen)
             {
                 CloseQuantity();
-                CloseWindow("shop");
+                HideWindow("shop");
+                CancelItemDrag();
             }
-            if (views.TryGetValue("conversation", out var view))
+            HideWindow("conversation");
+            RestoreDialogueWindows();
+            SetDialoguePresentation(false);
+            game.ShowNpcPortrait(null);
+            if (leavingGuide)
+                game.FinishGuideVisit();
+        }
+
+        private void SetDialoguePresentation(bool active)
+        {
+            if (normalHud != null)
+                normalHud.SetActive(!active);
+            chat?.SetDialogueMode(active);
+            if (dialogueBackdrop == null)
+                return;
+            dialogueBackdrop.SetActive(active);
+            if (active)
+                foreach (var animation in dialogueBackdrop.GetComponentsInChildren<WindowOpeningAnimation>())
+                    animation.Play();
+        }
+
+        private void SuspendDialogueWindows()
+        {
+            foreach (var view in views.Values)
             {
+                if (!view.gameObject.activeSelf)
+                    continue;
+                dialogueWindowStates.Add(view.Id, true);
                 view.gameObject.SetActive(false);
-                windowFocus.Remove(view);
             }
-            if (game != null)
+        }
+
+        private void RestoreDialogueWindows()
+        {
+            foreach (var entry in dialogueWindowStates)
             {
-                game.ShowNpcPortrait(null);
-                if (leavingGuide)
-                    game.FinishGuideVisit();
+                if (!views.TryGetValue(entry.Key, out var view) || view.gameObject.activeSelf == entry.Value)
+                    continue;
+                if (entry.Value)
+                {
+                    view.gameObject.SetActive(true);
+                    if (view.IsFloating)
+                        WindowDragHandle.KeepOnScreen(view.Rect);
+                }
+                else
+                    HideWindow(entry.Key);
             }
+            dialogueWindowStates.Clear();
+            RefreshWindows();
         }
     }
 }
