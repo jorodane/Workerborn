@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: pond_fish
+  m_EditorClassIdentifier: ''
+  id: pond_fish
+  displayName: 연못 물고기
+  description: 연못에서 낚은 작은 물고기입니다.
+  icon: {fileID: 21300000, guid: 07700e9938513406a9d66de6fa63f916, type: 3}
+  worldPrefab: {fileID: 2129397341412540919, guid: 27953f015db2c1a4c9c2c22512797377, type: 3}
+  width: 1
+  height: 1
+  maxStack: 20
+  price: 5
+  equipmentSlot: 0
+  equipmentPart: {fileID: 0}
+  groundPrefab: {fileID: 100008, guid: 17a2a961edaf5ddbb554a12c1932e4bb, type: 3}

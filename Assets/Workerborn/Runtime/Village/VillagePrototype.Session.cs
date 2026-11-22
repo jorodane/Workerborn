@@ -57,7 +57,7 @@ namespace Workerborn
             }
             farmSites = mapRoot.GetComponentsInChildren<VillageFarmSite>(true);
             npcs.AddRange(mapRoot.GetComponentsInChildren<VillageInteractable>(true));
-            Session.InitializeAuthority(settings.CreateRules(FindInteraction(VillageRole.Farmer)?.Definition), AuthoredSites(), spawnPoint.position);
+            Session.InitializeAuthority(CreateVillageRules(), AuthoredSites(), spawnPoint.position);
             foreach (var root in gameObject.scene.GetRootGameObjects())
                 root.SetActive(false);
         }
@@ -103,6 +103,7 @@ namespace Workerborn
                 case CampaignAction.DonateItems: return Perform(State.TryDonatePotatoes);
                 case CampaignAction.RecordLegend: return Perform(() => State.TryRecordLegend(LegendPlayerId, LegendPlayerName));
                 case CampaignAction.ProveLegend: return Perform(() => State.TryProveLegend(LegendPlayerId));
+                case CampaignAction.BuildFacility: return InstallLocalFacility(argument, value);
                 default: return false;
             }
         }
@@ -123,8 +124,12 @@ namespace Workerborn
             State.ApplyWorld(world);
             if (era != State.Era)
                 FinishTransition(reborn: false, eraChanged: true);
-            else if (day != State.Day)
-                ResetDailyResources();
+            else
+            {
+                RefreshBuiltPlots();
+                if (day != State.Day)
+                    ResetDailyResources();
+            }
             if (avatars != null)
                 SetPeers(avatars);
         }
@@ -154,6 +159,7 @@ namespace Workerborn
             }
             else
             {
+                RefreshBuiltPlots();
                 if (day != State.Day)
                     ResetDailyResources();
                 ShowLevelUp(level);

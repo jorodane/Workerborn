@@ -30,4 +30,5 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 31bcf1891fbc563892440986af575a8d, type: 2}
   - {fileID: 11400000, guid: 0e4a86e8cf2a5fdaafc29902e47d30eb, type: 2}
   - {fileID: 11400000, guid: c8483cb65fa85278a4653ccb78981b83, type: 2}
+  - {fileID: 11400000, guid: b88151912b855ae89b248fd099ca72d4, type: 2}
   interactionDistance: 1.8

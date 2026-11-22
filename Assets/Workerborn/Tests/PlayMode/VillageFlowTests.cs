@@ -697,6 +697,39 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator ConstructionSignBuildsAFullFieldAndThePondNeedsAnEquippedRod()
+        {
+            var plots = UnityEngine.Object.FindObjectsByType<VillagePlot>(FindObjectsSortMode.None);
+            var large = plots.Single(plot => plot.name == "동쪽 큰 부지");
+            var sign = large.GetComponentInChildren<VillagePlotSign>();
+            var standing = sign.transform.position + sign.transform.forward * 1.4f;
+            Assert.That(NavMesh.SamplePosition(standing, out var point, 2f, NavMesh.AllAreas), Is.True);
+            game.Worker.WarpTo(point.position);
+            sign.RequestInteraction(game.Worker);
+            yield return Until(() => UnityEngine.Object.FindFirstObjectByType<PlotWindowView>() != null, 4f);
+
+            var window = UnityEngine.Object.FindFirstObjectByType<PlotWindowView>();
+            var options = window.GetComponentsInChildren<UiListRow>();
+            Assert.That(options.Select(row => row.GetComponentsInChildren<TMP_Text>().First().text),
+                Is.EquivalentTo(new[] { "감자밭", "상점", "여관", "광장" }));
+            var field = options.Single(row => row.GetComponentsInChildren<TMP_Text>().First().text == "감자밭");
+            field.GetComponent<Button>().onClick.Invoke();
+            Assert.That(large.GetComponentsInChildren<HarvestableCrop>().Length, Is.EqualTo(16));
+            Assert.That(game.Crops.Count, Is.EqualTo(28));
+            Assert.That(game.State.Export().plotPlacements.Single().facilityId, Is.EqualTo("potato_field"));
+
+            Assert.That(game.PerformWorld(CampaignAction.BuildFacility, "east_pond", 4), Is.True);
+            var pond = plots.Single(plot => plot.name == "낚시터 전용 부지");
+            var fishing = pond.GetComponentInChildren<HarvestableCrop>();
+            Assert.That(fishing.Definition.Skill, Is.EqualTo(SkillId.Fishing));
+            Assert.That(game.CanHarvest(fishing), Is.False);
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.FishingRod, 1), Is.True);
+            Assert.That(game.State.TryEquip(game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.FishingRod).Id), Is.True);
+            Assert.That(game.CanHarvest(fishing), Is.True);
+            Assert.That(game.State.Life, Is.EqualTo(1));
+        }
+
+        [UnityTest]
         public IEnumerator InventoryPlacesTheTopLeftCellUnderThePointer()
         {
             Assert.That(game.State.Inventory.TryAdd(ItemIds.Hoe, 1), Is.True);
@@ -747,11 +780,13 @@ namespace Workerborn.Tests
             VerifySlot(EquipmentSlot.OffHand, 2, 3);
             VerifySlot(EquipmentSlot.Body, 2, 3);
             VerifySlot(EquipmentSlot.Legs, 2, 2);
-            VerifySlot(EquipmentSlot.Head, 1, 2);
+            VerifySlot(EquipmentSlot.Head, 2, 2);
             VerifySlot(EquipmentSlot.Feet, 2, 2);
             VerifySlot(EquipmentSlot.Hands, 2, 2);
             VerifySlot(EquipmentSlot.Bag, 1, 1);
             VerifySlot(EquipmentSlot.Accessory, 1, 1);
+            Assert.That(((RectTransform)slots[EquipmentSlot.Hands].transform).anchoredPosition.y,
+                Is.EqualTo(((RectTransform)slots[EquipmentSlot.Legs].transform).anchoredPosition.y));
             var slot = slots[EquipmentSlot.MainHand];
             var equipped = slot.GetComponentInChildren<UiItemView>();
             Assert.That(equipped, Is.Not.Null);

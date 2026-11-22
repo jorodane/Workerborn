@@ -184,12 +184,13 @@ assert Counter(docs(resolve(c['definition']))[0]['MonoBehaviour']['itemId'] for 
 assert len(set(c['persistentId'] for c in crops))==len(crops),'Duplicated crop save IDs'
 assert all(c['definition']['fileID'] and c['visual']['fileID'] for c in crops)
 work_clips={}
-for p in ['Potato.asset','Gathering/GatherEggs.asset','Gathering/CutTimber.asset']:
+for p in ['Potato.asset','Gathering/GatherEggs.asset','Gathering/CutTimber.asset','Gathering/PondFishing.asset']:
     crop=docs(CONTENT/'Data'/p)[0]['MonoBehaviour']
     work=docs(resolve(crop['workAnimation']))[0]['MonoBehaviour']
     work_clips[crop['itemId']]=[resolve(work[k]) for k in ('begin','loop','finish') if work[k]['fileID']]
 assert all(p.is_relative_to(ROOT/'Assets/Kevin Iglesias') for clips in work_clips.values() for p in clips)
 assert len(work_clips['timber'])==3 and all('TreeChopping' in p.stem for p in work_clips['timber'])
+assert len(work_clips['pond_fish'])==3 and all('Fishing' in p.stem for p in work_clips['pond_fish'])
 assert all('Gathering' in work_clips[item][0].stem for item in ('potato','egg'))
 assert len(behaviours(scene,'Village/VillageInteractable.cs'))==6
 assert {s['siteId'] for s in behaviours(scene,'World/VillageFarmSite.cs')}=={'meadow','south'}
@@ -212,15 +213,26 @@ assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values
 
 settings=docs(resolve(controller[0]['settings']))[0]['MonoBehaviour']
 skills=[docs(resolve(pointer))[0]['MonoBehaviour'] for pointer in settings['skills']]
-assert {skill['skill'] for skill in skills}==set(range(5))
+assert {skill['skill'] for skill in skills}==set(range(6))
 assert all(0<=row['fromRank']<=row['throughRank']<=100 for skill in skills for row in skill['rankEffects'])
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
 wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
-assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch'} | set(wardrobe)
+assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch','fishing_rod','pond_fish'} | set(wardrobe)
 assert all(i['icon']['fileID'] for i in itemdefs)
 assert next(i for i in itemdefs if i['id']=='gold')['maxStack']==1000
 assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5
 assert next(i for i in itemdefs if i['id']=='small_bag')['equipmentSlot']==9
+plots=behaviours(scene,'World/VillagePlot.cs')
+assert len(plots)==5 and len({plot['plotId'] for plot in plots})==len(plots)
+assert Counter((p['width'],p['depth'],p['ground']) for p in plots)=={(1,1,0):1,(1,2,0):2,(2,2,0):1,(1,2,1):1}
+assert all(p['sign']['fileID'] and p['frontMarker']['fileID'] for p in plots)
+facilities=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['plotFacilities']]
+assert {f['id']:(f['width'],f['depth'],f['ground']) for f in facilities}=={
+    'potato_field':(1,1,0),'shop':(1,2,0),'inn':(1,2,0),'square':(2,2,0),'fishing_pond':(1,2,1)}
+assert [f['id'] for f in facilities if f['fieldCrop']['fileID']]==['potato_field']
+pond=expand(resolve(next(f for f in facilities if f['id']=='fishing_pond')['prefab']))
+fishing=docs(resolve(behaviours(pond,'HarvestableCrop.cs')[0]['definition']))[0]['MonoBehaviour']
+assert resolve(fishing['requiredTool']).stem=='fishing_rod' and fishing['itemId']=='pond_fish'
 for item in itemdefs:
     if item['id'] in wardrobe:
         assert item['equipmentSlot']==wardrobe[item['id']]

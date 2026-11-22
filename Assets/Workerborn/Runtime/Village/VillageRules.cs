@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Workerborn
 {
     public sealed class JobTier
@@ -29,6 +32,17 @@ namespace Workerborn
 
     public sealed class VillageRules
     {
+        internal readonly Dictionary<string, PlotFootprint> BuildPlots = new Dictionary<string, PlotFootprint>();
+        internal PlotFacilityRule[] PlotFacilities = Array.Empty<PlotFacilityRule>();
+
+        internal PlotFacilityRule FindFacility(string id)
+        {
+            foreach (var facility in PlotFacilities)
+                if (facility != null && facility.Id == id)
+                    return facility;
+            return null;
+        }
+
         private readonly SkillProgression[] skills = new SkillProgression[SkillProgression.All.Count];
         public SkillProgression Skill(SkillId id) => skills[(int)id] ?? SkillProgression.Default(id);
         public void SetSkill(SkillProgression skill) => skills[(int)skill.Id] = skill;

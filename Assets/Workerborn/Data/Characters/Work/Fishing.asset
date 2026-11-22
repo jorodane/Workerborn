@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 866cff6d52105ecba52928aa5ba7deca, type: 3}
+  m_Name: Fishing
+  m_EditorClassIdentifier: ''
+  begin: {fileID: 3094330708855449807, guid: c1eb42725689cc34daf0bf5f43e21298, type: 3}
+  loop: {fileID: 3094330708855449807, guid: b533ccc0ff1cca34694d3496604caf80, type: 3}
+  finish: {fileID: 3094330708855449807, guid: daafd2777f26cb7459559ed03e6e5bc5, type: 3}

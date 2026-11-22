@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Workerborn
 {
-    public enum SkillId { Harvesting = 0, Woodcutting = 1, Carving = 2, UnarmedCombat = 3, EggGathering = 4 }
+    public enum SkillId { Harvesting = 0, Woodcutting = 1, Carving = 2, UnarmedCombat = 3, EggGathering = 4, Fishing = 5 }
 
     public enum SkillEffect
     {
@@ -39,7 +39,7 @@ namespace Workerborn
         public const int MaxRank = 100;
         public static IReadOnlyList<SkillId> All { get; } = Array.AsReadOnly(new[]
         {
-            SkillId.Harvesting, SkillId.Woodcutting, SkillId.Carving, SkillId.UnarmedCombat, SkillId.EggGathering
+            SkillId.Harvesting, SkillId.Woodcutting, SkillId.Carving, SkillId.UnarmedCombat, SkillId.EggGathering, SkillId.Fishing
         });
         private static readonly SkillProgression[] defaults =
         {
@@ -47,7 +47,8 @@ namespace Workerborn
             new SkillProgression(SkillId.Woodcutting, "벌목", GatheringRows(2, new SkillRankEffect(20, 20, SkillEffect.StaminaSaving, 1))),
             new SkillProgression(SkillId.Carving, "갈무리", new[] { new SkillRankEffect(1, 100, SkillEffect.YieldMultiplier, 1) }),
             new SkillProgression(SkillId.UnarmedCombat, "맨손전투", new[] { new SkillRankEffect(1, 100, SkillEffect.UnarmedDamage, 1), new SkillRankEffect(20, 20, SkillEffect.MaxStamina, 5) }),
-            new SkillProgression(SkillId.EggGathering, "달걀 채집", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.LuckyChance, 5)))
+            new SkillProgression(SkillId.EggGathering, "달걀 채집", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.LuckyChance, 5))),
+            new SkillProgression(SkillId.Fishing, "낚시", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.LuckyChance, 5)))
         };
 
         private readonly SkillRankEffect[] effects;
@@ -70,10 +71,11 @@ namespace Workerborn
         {
             ItemIds.Timber => SkillId.Woodcutting,
             ItemIds.Egg => SkillId.EggGathering,
+            ItemIds.Fish => SkillId.Fishing,
             _ => SkillId.Harvesting
         };
         public static bool IsGathering(SkillId id) =>
-            id == SkillId.Harvesting || id == SkillId.Woodcutting || id == SkillId.EggGathering;
+            id == SkillId.Harvesting || id == SkillId.Woodcutting || id == SkillId.EggGathering || id == SkillId.Fishing;
         public static string RankLabel(int rank) => rank == 0 ? "연습 랭크" : $"랭크 {rank}";
 
         public int UpgradeCost(int currentRank) =>

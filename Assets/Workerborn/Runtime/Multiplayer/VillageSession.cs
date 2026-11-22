@@ -36,7 +36,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 6;
+        public const int ProtocolVersion = 7;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -950,7 +950,7 @@ namespace Workerborn
             bool success = authority.Checkpoint(identity, packet.character) &&
                 authority.Perform(identity, packet.action, packet.argument, packet.value, CanManageProfile(identity), out message);
             bool characterChanged = success && packet.action != CampaignAction.VoteForEra && packet.action != CampaignAction.AnnounceEra &&
-                packet.action != CampaignAction.CancelAnnouncement && packet.action != CampaignAction.ParticipateInEra;
+                packet.action != CampaignAction.CancelAnnouncement && packet.action != CampaignAction.ParticipateInEra && packet.action != CampaignAction.BuildFacility;
             SendProfile(identity, connection, message, packet.request, characterChanged, transition: false);
             if (success)
             {

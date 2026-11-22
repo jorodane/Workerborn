@@ -489,6 +489,12 @@ namespace Workerborn
             view?.Select(page);
         }
 
+        internal void OpenPlot(VillagePlot plot)
+        {
+            HideItemTooltip();
+            (OpenWindow("plot") as PlotWindowView)?.Show(plot);
+        }
+
         public void OpenShop(VillageInteractable npc)
         {
             if (dialogueTarget != npc)

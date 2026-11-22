@@ -31,12 +31,21 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 608359c05769534d8eff00afb932220e, type: 2}
   - {fileID: 11400000, guid: 0b6aea990be9511cb653eaa17255d689, type: 2}
   - {fileID: 11400000, guid: 94f4ff335a7d53bfb35dcbfb0481aa51, type: 2}
+  - {fileID: 11400000, guid: b88151912b855ae89b248fd099ca72d4, type: 2}
+  - {fileID: 11400000, guid: bb1ef81786595f10aee828aaf57a217c, type: 2}
   skills:
   - {fileID: 11400000, guid: 621d8bbd2e435add925d683cd1874aaf, type: 2}
   - {fileID: 11400000, guid: 5c5694c0fe18556f9615ee867a0e5668, type: 2}
   - {fileID: 11400000, guid: 55e3269551d55ae1812b37132d855af6, type: 2}
   - {fileID: 11400000, guid: 84e7f6cf7bd959c3953506d48d7c87f3, type: 2}
   - {fileID: 11400000, guid: 25b5046aa7015add94616f12cd701b28, type: 2}
+  - {fileID: 11400000, guid: 74bc6cf72a29520a8df092968ca41d54, type: 2}
+  plotFacilities:
+  - {fileID: 11400000, guid: 8e24bbcf371c51b98b4206ac37ffc95a, type: 2}
+  - {fileID: 11400000, guid: eea723dd4c3359bbbb9fd81e88a72d7b, type: 2}
+  - {fileID: 11400000, guid: 2f4cf70e286e5f13ae7d203867c39e39, type: 2}
+  - {fileID: 11400000, guid: de59a94ecdf952458a2af79468c785fa, type: 2}
+  - {fileID: 11400000, guid: 8cae09669e1053879c03ecc506ba7938, type: 2}
   defaultJob: {fileID: 11400000, guid: 1d7c5edaa4915cc08ad45cc31d2a79e7, type: 2}
   introQuest: {fileID: 11400000, guid: a316910e63955ff3a8de8de6d0d1fb03, type: 2}
   expansionQuest: {fileID: 11400000, guid: 9fd82f28b7565027ae8cd208ef37e123, type: 2}

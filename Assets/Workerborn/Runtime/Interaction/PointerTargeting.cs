@@ -79,6 +79,13 @@ namespace Workerborn
             }
             terrain = game.GroundTerrain;
             useAsyncReadback = SystemInfo.supportsAsyncGPUReadback;
+            RefreshStaticGeometry();
+            RebuildTerrainMask();
+            TerrainCallbacks.heightmapChanged += TerrainChanged;
+        }
+
+        internal void RefreshStaticGeometry()
+        {
             var geometry = new List<Renderer>();
             foreach (var renderer in FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (renderer.gameObject.scene == game.gameObject.scene && renderer.gameObject.layer != VillageWeather.SkyLayer &&
@@ -87,8 +94,9 @@ namespace Workerborn
                     renderer.GetComponentInParent<VillageEffects>(true) == null)
                     geometry.Add(renderer);
             staticGeometry = geometry.ToArray();
-            RebuildTerrainMask();
-            TerrainCallbacks.heightmapChanged += TerrainChanged;
+            generation++;
+            pixels = null;
+            nextCapture = 0f;
         }
 
         private void TerrainChanged(Terrain changed, RectInt region, bool synced)

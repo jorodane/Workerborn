@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99e950849f9155e0ad9ea2d759a9dde0, type: 3}
+  m_Name: Inn
+  m_EditorClassIdentifier: ''
+  id: inn
+  title: 여관
+  ground: 0
+  width: 1
+  depth: 2
+  prefab: {fileID: 100001, guid: 47f7e4871e8f564c96f679ea241a1b23, type: 3}
+  fieldCrop: {fileID: 0}
+  plantsPerCell: {x: 2, y: 2}

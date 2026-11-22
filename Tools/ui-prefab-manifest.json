@@ -126,5 +126,9 @@
   "PartTimeScheduleRow": {
     "path": "Assets/Workerborn/Prefabs/UI/PartTimeScheduleRow.prefab",
     "component": 100018
+  },
+  "PlotWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/PlotWindow.prefab",
+    "component": 100056
   }
 }

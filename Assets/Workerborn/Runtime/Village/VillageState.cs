@@ -83,6 +83,7 @@ namespace Workerborn
         public int jobRewardItemCount;
         public int foundationStage;
         public string farmSiteId;
+        public PlotPlacement[] plotPlacements = Array.Empty<PlotPlacement>();
         public int lastGuideLife;
         public bool bagExpanded;
         public int inventoryColumns = VillageState.LegacyInventoryColumns;
@@ -621,6 +622,7 @@ namespace Workerborn
                 jobRewardItemCount = JobRewardItemCount,
                 foundationStage = (int)FoundationStage,
                 farmSiteId = FarmSiteId,
+                plotPlacements = plotPlacements,
                 lastGuideLife = LastGuideLife,
                 bagExpanded = BagExpanded,
                 inventoryColumns = Inventory.Columns,
@@ -723,6 +725,7 @@ namespace Workerborn
                 LifetimeTimber = save.lifetimeTimber,
                 Legend = RestoreLegend(save.legend),
                 FarmSiteId = save.farmSiteId,
+                plotPlacements = RestorePlotPlacements(save.plotPlacements),
                 LastGuideLife = save.schema < 3 ? save.life : save.lastGuideLife,
                 Inventory = inventory
             };

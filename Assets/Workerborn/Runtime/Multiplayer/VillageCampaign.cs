@@ -13,7 +13,7 @@ namespace Workerborn
     {
         AcceptFoundation, DeliverTimber, SelectFarmSite, DonateGold, DonateItems,
         Rebirth, VoteForEra, AnnounceEra, ParticipateInEra, CancelAnnouncement,
-        RecordLegend, ProveLegend, SetCharacterLimit
+        RecordLegend, ProveLegend, SetCharacterLimit, BuildFacility
     }
 
     [Serializable]
@@ -366,6 +366,7 @@ namespace Workerborn
                 CampaignAction.Rebirth => state.TryRebirth(),
                 CampaignAction.RecordLegend => state.TryRecordLegend(profile.id, profile.name),
                 CampaignAction.ProveLegend => state.TryProveLegend(profile.id),
+                CampaignAction.BuildFacility => state.TryInstallFacility(argument, value),
                 _ => false
             };
             message = state.LastMessage;
@@ -467,6 +468,7 @@ namespace Workerborn
             save.foundationStage = World.foundationStage;
             save.timberDelivered = World.timberDelivered;
             save.farmSiteId = World.farmSiteId;
+            save.plotPlacements = World.plotPlacements;
             save.donatedGold = World.donatedGold;
             save.donatedPotatoes = World.donatedItems;
             save.farmUpgradePending = World.expansionReady;

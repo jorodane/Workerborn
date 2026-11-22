@@ -69,13 +69,13 @@ def validate(path):
 
 count=0
 for path in [*(CONTENT/'Prefabs').rglob('*.prefab'),*(CONTENT/'Data').rglob('*.asset')]:count+=validate(path)
-for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc','LoggingTree']:assert subclass(child,'WorldInteractable')
+for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc','LoggingTree','VillagePlotSign']:assert subclass(child,'WorldInteractable')
 for name in ['Mira','Noah','Lena','Player']:assert (CONTENT/'Prefabs/Characters'/(name+'.prefab')).is_file()
 for name in ['Board','Shrine','Monster','ForestRabbit']:assert (CONTENT/'Prefabs/Interaction'/(name+'.prefab')).is_file()
 assert (CONTENT/'Prefabs/Crops/Potato.prefab').is_file()
 wardrobe={'field_cap','field_coat','field_trousers','field_boots','field_gloves'}
-assert {p.stem for p in (CONTENT/'Prefabs/Items').glob('*.prefab')}=={'GroundPickup','potato','bread','hoe','bag','gold','egg','timber','woodcutting_axe','legend_axe','rabbit_meat','branch'} | wardrobe
+assert {p.stem for p in (CONTENT/'Prefabs/Items').glob('*.prefab')}=={'GroundPickup','potato','bread','hoe','bag','gold','egg','timber','woodcutting_axe','legend_axe','rabbit_meat','branch','fishing_rod','pond_fish'} | wardrobe
 manifest=json.loads((ROOT/'Tools/ui-prefab-manifest.json').read_text())
-for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','PartTimeScheduleRow','ShopWindow','QuantityWindow','ConversationWindow','ItemDetailWindow','MainMenu','EraWindow','SystemWindow','SettingsWindow','ServerAdminWindow','ServerAdminRosterRow','VillageChat','PlayerOverhead']:
+for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','PartTimeScheduleRow','ShopWindow','QuantityWindow','ConversationWindow','ItemDetailWindow','MainMenu','EraWindow','SystemWindow','SettingsWindow','ServerAdminWindow','ServerAdminRosterRow','VillageChat','PlayerOverhead','PlotWindow']:
     assert name in manifest and (ROOT/manifest[name]['path']).is_file()
 print(f'Validated {count} component/content contracts, typed UI bindings, complete window prefabs and shared interaction subclasses.')

@@ -227,8 +227,8 @@ namespace Workerborn
                     break;
                 case DialogueAction.Rest:
                     text = Game.IsOnline ? prose + $"\n\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복" : prose + $"\n\n기상  {r.WakeMinute / 60:00}:{r.WakeMinute % 60:00}\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복";
-                    Action("무료 잠자리", () => Game.Sleep(false));
-                    Action("객실을 빌린다", () => Game.Sleep(true), s.Gold >= r.RoomPrice);
+                    Action("무료 잠자리", () => Game.Sleep(false, npc));
+                    Action("객실을 빌린다", () => Game.Sleep(true, npc), s.Gold >= r.RoomPrice);
                     break;
                 case DialogueAction.Rebirth:
                     if (confirmingRebirth || confirmingEra)

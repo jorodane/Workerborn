@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99e950849f9155e0ad9ea2d759a9dde0, type: 3}
+  m_Name: PotatoField
+  m_EditorClassIdentifier: ''
+  id: potato_field
+  title: 감자밭
+  ground: 0
+  width: 1
+  depth: 1
+  prefab: {fileID: 100001, guid: 7c2ba40c89d555abbe4683e791e979a4, type: 3}
+  fieldCrop: {fileID: 100356, guid: 116af9de18435283a3a5eb88c8c23bb2, type: 3}
+  plantsPerCell: {x: 2, y: 2}

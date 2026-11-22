@@ -161,7 +161,7 @@ namespace Workerborn
             farmSites = mapRoot.GetComponentsInChildren<VillageFarmSite>(true);
             if (farm != null)
                 originalFarmPosition = farm.position;
-            var rules = settings.CreateRules(FindInteraction(VillageRole.Farmer)?.Definition);
+            var rules = CreateVillageRules();
             State = new VillageState(rules);
             string notice = null;
             usesSelectedWorld = !IsAppearanceTrial && Session?.HasLocalWorld == true;
@@ -191,7 +191,10 @@ namespace Workerborn
             pickupPool.Prewarm(prewarmGroundPickups);
 
             ApplyWorldStage();
-            navigation.Activate(useBakedData: State.FarmAvailable && string.IsNullOrEmpty(State.FarmSiteId));
+            foreach (var plot in buildPlots.Values)
+                plot.Bind(this);
+            bool plotBlocksNavigation = RenderPlots();
+            navigation.Activate(useBakedData: !plotBlocksNavigation && State.FarmAvailable && string.IsNullOrEmpty(State.FarmSiteId));
             var agent = worker.GetComponent<NavMeshAgent>();
             agent.enabled = true;
             if (NavMesh.SamplePosition(SurfacePosition(spawnPoint.position.x, spawnPoint.position.z), out var initialPosition, 2f, NavMesh.AllAreas))
@@ -299,7 +302,7 @@ namespace Workerborn
             SaveGame(false);
         }
 
-        private static void BindCharacter(CharacterActor actor, bool idleOnly)
+        internal static void BindCharacter(CharacterActor actor, bool idleOnly)
         {
             var definition = actor.Appearance;
             var driver = actor.GetComponent<WorkerAnimation>();
@@ -551,7 +554,9 @@ namespace Workerborn
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 2.1f, "LEVEL UP", new Color(1f, 0.88f, 0.5f));
         }
 
-        public void Sleep(bool paidRoom)
+        public void Sleep(bool paidRoom) => Sleep(paidRoom, null);
+
+        internal void Sleep(bool paidRoom, VillageInteractable innkeeper)
         {
             if (AwaitingWorldCommand)
                 return;
@@ -561,15 +566,17 @@ namespace Workerborn
                 return;
             }
 
-            BeginDay(resetResources: !IsOnline);
+            var lodging = innkeeper != null && innkeeper.GetComponentInParent<VillagePlot>() != null ? innkeeper.transform : restPoint;
+            BeginDay(resetResources: !IsOnline, lodging: lodging);
             hud.CloseDialogue();
             hud.ShowToast(State.LastMessage);
             SaveGame(false);
         }
 
-        private void BeginDay(bool resetResources = true)
+        private void BeginDay(bool resetResources = true, Transform lodging = null)
         {
-            var rest = SurfacePosition(restPoint.position.x, restPoint.position.z);
+            var position = (lodging != null ? lodging : restPoint).position;
+            var rest = SurfacePosition(position.x, position.z);
             if (NavMesh.SamplePosition(rest, out var point, 2f, NavMesh.AllAreas))
                 worker.WarpTo(point.position);
             else
@@ -632,6 +639,7 @@ namespace Workerborn
             if (eraChanged)
             {
                 ApplyWorldStage();
+                RenderPlots();
                 var agent = worker.GetComponent<NavMeshAgent>();
                 agent.enabled = false;
                 navigation.Activate(useBakedData: false);

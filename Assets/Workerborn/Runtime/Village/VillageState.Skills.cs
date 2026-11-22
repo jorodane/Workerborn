@@ -78,7 +78,7 @@ namespace Workerborn
             if (save.schema < 5)
             {
                 foreach (var skill in SkillProgression.All)
-                    if (SkillProgression.IsGathering(skill))
+                    if (skill != SkillId.Fishing && SkillProgression.IsGathering(skill))
                         skillRanks[(int)skill] = save.skillRank;
                 return;
             }

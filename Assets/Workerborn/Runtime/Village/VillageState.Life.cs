@@ -20,6 +20,7 @@ namespace Workerborn
         public int characterLimit;
         public int requirementCharacters = 1;
         public WoodcuttingLegend legend = new WoodcuttingLegend();
+        public PlotPlacement[] plotPlacements = Array.Empty<PlotPlacement>();
 
         public double Clock => (day - 1) * 1440d + minute;
 
@@ -134,7 +135,8 @@ namespace Workerborn
             expansionReady = FarmUpgradePending,
             characterLimit = CharacterLimit,
             requirementCharacters = RequirementCharacters,
-            legend = Legend
+            legend = Legend,
+            plotPlacements = plotPlacements
         };
 
         internal void ApplyWorld(VillageWorldRecord world)
@@ -168,7 +170,7 @@ namespace Workerborn
                 ExpireJob();
                 changed = true;
             }
-            if (changed)
+            if (ApplyPlotPlacements(world.plotPlacements) || changed)
                 Version++;
         }
 

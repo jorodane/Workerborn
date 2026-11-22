@@ -65,6 +65,7 @@ MonoBehaviour:
     guid: c5efc84616c857abaaae317a8a14ec67
     type: 3
   - {fileID: 100089, guid: 8f845d0170af522fbe3c97f00184850e, type: 3}
+  - {fileID: 100056, guid: 2981b7c4702059a2912ec6c397664886, type: 3}
   item:
     fileID: 100023
     guid: b25d2df002c55a0082970f072fcd1039

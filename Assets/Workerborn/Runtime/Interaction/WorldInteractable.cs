@@ -48,6 +48,7 @@ namespace Workerborn
         [SerializeField]
         private UnityEvent onInteractionCompleted = new UnityEvent();
         public string PersistentId => persistentId;
+        internal void AssignPersistentId(string id) => persistentId = id;
         public abstract string DisplayName { get; }
 
         [SerializeField, Min(0f), Tooltip("0 uses this interaction type's default distance.")]

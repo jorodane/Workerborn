@@ -12,6 +12,8 @@ namespace Workerborn
         [SerializeField]
         private SkillDefinition[] skills;
         [SerializeField]
+        private PlotFacilityDefinition[] plotFacilities;
+        [SerializeField]
         private PartTimeJobDefinition defaultJob;
         [SerializeField]
         private QuestDefinition introQuest;
@@ -55,6 +57,16 @@ namespace Workerborn
         public QuestDefinition IntroQuest => introQuest;
         public QuestDefinition ExpansionQuest => expansionQuest;
         internal System.Collections.Generic.IReadOnlyList<ItemDefinition> Items => items ?? System.Array.Empty<ItemDefinition>();
+        internal System.Collections.Generic.IReadOnlyList<PlotFacilityDefinition> PlotFacilities => plotFacilities ?? System.Array.Empty<PlotFacilityDefinition>();
+
+        internal PlotFacilityDefinition FindPlotFacility(string id)
+        {
+            if (!string.IsNullOrEmpty(id))
+                foreach (var facility in PlotFacilities)
+                    if (facility != null && facility.Id == id && facility.IsConfigured)
+                        return facility;
+            return null;
+        }
 
         public SkillDefinition FindSkill(SkillId id)
         {
@@ -118,6 +130,20 @@ namespace Workerborn
                 HarvestExperience = harvestExperience,
                 HarvestEnergy = harvestEnergy
             };
+            rules.PlotFacilities = new PlotFacilityRule[PlotFacilities.Count];
+            var facilityIds = new System.Collections.Generic.HashSet<string>();
+            for (int index = 0; index < PlotFacilities.Count; index++)
+            {
+                var facility = PlotFacilities[index];
+                if (facility == null)
+                    continue;
+                if (!facility.IsConfigured || !facilityIds.Add(facility.Id))
+                {
+                    Debug.LogError("Assign a valid plot facility with a unique ID.", facility);
+                    continue;
+                }
+                rules.PlotFacilities[index] = new PlotFacilityRule(facility.Id, facility.Title, facility.Footprint, facility.FillsPlot);
+            }
             woodcuttingLegend?.Configure(rules);
             foreach (var id in SkillProgression.All)
             {
