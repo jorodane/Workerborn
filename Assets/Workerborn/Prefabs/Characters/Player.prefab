@@ -99,6 +99,7 @@ MonoBehaviour:
   attackClip: {fileID: 992911294148604404, guid: dddab171c4921bd4aa92cfec58cc6a53, type: 3}
   attackDamage: 10
   attackDelay: 0.85
+  fishingBobberPrefab: {fileID: 100015, guid: b0904e8a70d85938824fae2360acc308, type: 3}
 --- !u!195 &100573
 NavMeshAgent:
   m_ObjectHideFlags: 0

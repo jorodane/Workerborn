@@ -13,14 +13,16 @@ namespace Workerborn
         private readonly List<WorldContextAction> choices = new List<WorldContextAction>();
         private WorldTargetReference target;
 
-        public void Show(WorldInteractable subject)
+        internal bool Show(WorldInteractable subject, Ray pointerRay)
         {
             target = new WorldTargetReference(subject);
             var shownTarget = target;
             targetName.text = subject.DisplayName;
             InventoryWindowView.Clear(actions);
             choices.Clear();
-            subject.AddContextActions(Game, choices);
+            subject.AddContextActions(Game, choices, pointerRay);
+            if (choices.Count == 0)
+                return false;
             foreach (var choice in choices)
             {
                 var selected = choice;
@@ -33,6 +35,7 @@ namespace Workerborn
             }
             LayoutRebuilder.ForceRebuildLayoutImmediate(actions);
             Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, headerHeight + LayoutUtility.GetPreferredHeight(actions));
+            return true;
         }
 
         private void LateUpdate()

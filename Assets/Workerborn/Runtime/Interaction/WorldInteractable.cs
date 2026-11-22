@@ -96,6 +96,8 @@ namespace Workerborn
             Interact(worker);
         }
 
+        internal virtual void RequestInteraction(HarvestWorker worker, Ray pointerRay) => RequestInteraction(worker);
+
         protected bool BeginInteraction(HarvestWorker worker)
         {
             if (worker == null || !CanInteract ||
@@ -109,6 +111,9 @@ namespace Workerborn
         {
             actions.Add(new WorldContextAction(InteractionVerb, () => RequestInteraction(village.Worker)));
         }
+
+        internal virtual void AddContextActions(VillagePrototype village, List<WorldContextAction> actions, Ray pointerRay) =>
+            AddContextActions(village, actions);
 
         public void Arrive(VillagePrototype village, HarvestWorker worker, System.Action arrival = null)
         {

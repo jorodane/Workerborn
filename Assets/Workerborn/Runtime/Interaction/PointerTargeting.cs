@@ -232,7 +232,7 @@ namespace Workerborn
                 return;
             }
             if (target != null)
-                target.RequestInteraction(game.Worker);
+                target.RequestInteraction(game.Worker, game.WorldCamera.ScreenPointToRay(cursor));
             else if (!game.ControlsBlocked && !overUi && !control && (HasMask || maskMaterial == null) &&
                 TryWorldHit(cursor, out var hit) && game.IsGround(hit.collider))
                 game.Worker.CommandMove(hit.point);

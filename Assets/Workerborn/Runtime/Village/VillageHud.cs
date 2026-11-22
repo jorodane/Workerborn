@@ -469,7 +469,11 @@ namespace Workerborn
             var view = OpenWindow("worldcontext") as WorldContextView;
             if (view == null)
                 return;
-            view.Show(subject);
+            if (!view.Show(subject, game.WorldCamera.ScreenPointToRay(screen)))
+            {
+                CloseWorldContext();
+                return;
+            }
             RectTransformUtility.ScreenPointToLocalPointInRectangle(CanvasRect, screen, null, out var point);
             var bounds = CanvasRect.rect;
             point.x = Mathf.Clamp(point.x, bounds.xMin, bounds.xMax - view.Rect.rect.width);

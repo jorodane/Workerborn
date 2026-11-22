@@ -231,8 +231,19 @@ assert {f['id']:(f['width'],f['depth'],f['ground']) for f in facilities}=={
     'potato_field':(1,1,0),'shop':(1,2,0),'inn':(1,2,0),'square':(2,2,0),'fishing_pond':(1,2,1)}
 assert [f['id'] for f in facilities if f['fieldCrop']['fileID']]==['potato_field']
 pond=expand(resolve(next(f for f in facilities if f['id']=='fishing_pond')['prefab']))
-fishing=docs(resolve(behaviours(pond,'HarvestableCrop.cs')[0]['definition']))[0]['MonoBehaviour']
+water=behaviours(pond,'World/FishingWater.cs')[0]
+fishing=docs(resolve(water['definition']))[0]['MonoBehaviour']
 assert resolve(fishing['requiredTool']).stem=='fishing_rod' and fishing['itemId']=='pond_fish'
+surface=next(d['MeshCollider'] for d in pond if d['_id']==water['surface']['fileID'])
+water_object=surface['m_GameObject']
+plane=next(d['MeshFilter'] for d in pond if d.get('MeshFilter',{}).get('m_GameObject')==water_object)
+renderer=next(d['MeshRenderer'] for d in pond if d.get('MeshRenderer',{}).get('m_GameObject')==water_object)
+assert surface['m_Convex']==0 and surface['m_Mesh']==plane['m_Mesh']
+water_material=next(d['Material'] for d in docs(resolve(renderer['m_Materials'][0])) if 'Material' in d)
+water_properties={k:v for field in water_material['m_SavedProperties']['m_Floats'] for k,v in field.items()}
+assert water_properties['_WaveAmplitude']==water_properties['_WaterClearness']==0 and water_material['m_CustomRenderQueue']==2000
+fisher=behaviours(scene,'HarvestWorker.cs')[0]
+assert resolve(fisher['fishingBobberPrefab']).stem=='FishingBobber'
 for item in itemdefs:
     if item['id'] in wardrobe:
         assert item['equipmentSlot']==wardrobe[item['id']]

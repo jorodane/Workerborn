@@ -19,4 +19,4 @@ MonoBehaviour:
   depth: 1
   prefab: {fileID: 100001, guid: 7c2ba40c89d555abbe4683e791e979a4, type: 3}
   fieldCrop: {fileID: 100356, guid: 116af9de18435283a3a5eb88c8c23bb2, type: 3}
-  plantsPerCell: {x: 2, y: 2}
+  plantsPerCell: {x: 4, y: 4}

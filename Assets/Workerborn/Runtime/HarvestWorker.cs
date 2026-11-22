@@ -15,7 +15,7 @@ namespace Workerborn
     }
 
     [RequireComponent(typeof(NavMeshAgent))]
-    public sealed class HarvestWorker : MonoBehaviour
+    public sealed partial class HarvestWorker : MonoBehaviour
     {
         internal const float DefaultPickupDistance = 2f;
         [SerializeField, Min(.1f)] private float runSpeed = 3.7f;
@@ -30,6 +30,8 @@ namespace Workerborn
         [SerializeField] private AnimationClip attackClip;
         [SerializeField, Min(1)] private int attackDamage = 10;
         [SerializeField, Min(.2f)] private float attackDelay = .85f;
+        [Header("Fishing")]
+        [SerializeField] private FishingBobber fishingBobberPrefab;
         private readonly Dictionary<CropDefinition, int> inventory = new Dictionary<CropDefinition, int>();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
         private Camera worldCamera;
@@ -213,7 +215,7 @@ namespace Workerborn
 
         public void CommandHarvest(HarvestableCrop crop)
         {
-            if (crop == null || !crop.isActiveAndEnabled)
+            if (crop == null || crop is FishingWater || !crop.isActiveAndEnabled)
                 return;
             if (crop == cropTarget && (Action == WorkerAction.Moving || Action == WorkerAction.Harvesting))
                 return;
@@ -379,7 +381,12 @@ namespace Workerborn
                 return false;
 
             var path = new NavMeshPath();
-            if (!agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete || !agent.SetPath(path))
+            return agent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete && FollowPath(path);
+        }
+
+        private bool FollowPath(NavMeshPath path)
+        {
+            if (!agent.SetPath(path))
                 return false;
 
             ClearInteractionTargets();
@@ -433,25 +440,7 @@ namespace Workerborn
                 Message?.Invoke("그곳에 아이템을 놓을 수 없어요.");
             }
             else if (cropTarget != null)
-            {
-                if (village != null && !village.CanHarvest(cropTarget))
-                {
-                    Cancel();
-                    return;
-                }
-                if (!InReach(cropTarget.transform.position, cropTarget.InteractionDistance + 0.15f) || !cropTarget.TryBegin(this))
-                {
-                    Cancel();
-                    Message?.Invoke("이 작물에서는 지금 수확할 수 없어요.");
-                    return;
-                }
-
-                Action = WorkerAction.Harvesting;
-                Face(cropTarget.transform.position);
-                animationDriver?.BeginWork(cropTarget.Definition.WorkAnimation, cropTarget.Definition.HarvestSeconds);
-                if (village == null)
-                    Message?.Invoke("수확 중이에요. 완료하면 감자가 바닥에 떨어져요.");
-            }
+                BeginHarvesting();
             else if (pickupTarget.IsAssigned)
             {
                 // A sampled approach point may land outside reach near obstacles.
@@ -487,9 +476,35 @@ namespace Workerborn
             return village.PlaceInventoryDrop(requested, position);
         }
 
+        private Vector3 HarvestPoint => FishingPoint ?? cropTarget.transform.position;
+
+        private void BeginHarvesting()
+        {
+            if (village != null && !village.CanHarvest(cropTarget))
+            {
+                Cancel();
+                return;
+            }
+            if (!InReach(HarvestPoint, cropTarget.InteractionDistance + .15f) || !cropTarget.TryBegin(this))
+            {
+                bool fishing = FishingPoint.HasValue;
+                Cancel();
+                Message?.Invoke(fishing ? "지금 이곳에서는 낚시할 수 없어요." : "이 작물에서는 지금 수확할 수 없어요.");
+                return;
+            }
+
+            Action = WorkerAction.Harvesting;
+            Face(HarvestPoint);
+            animationDriver?.BeginWork(cropTarget.Definition.WorkAnimation, cropTarget.Definition.HarvestSeconds);
+            if (FishingPoint is Vector3 spot)
+                ShowFishingCast(spot);
+            if (village == null)
+                Message?.Invoke("수확 중이에요. 완료하면 감자가 바닥에 떨어져요.");
+        }
+
         private void UpdateHarvest()
         {
-            if (cropTarget == null || !cropTarget.isActiveAndEnabled || !InReach(cropTarget.transform.position, cropTarget.InteractionDistance + 0.3f))
+            if (cropTarget == null || !cropTarget.isActiveAndEnabled || !InReach(HarvestPoint, cropTarget.InteractionDistance + 0.3f))
             {
                 Cancel();
                 return;
@@ -510,6 +525,7 @@ namespace Workerborn
             if (village == null)
                 Message?.Invoke($"수확 완료! 바닥의 {cropTarget.Definition.DisplayName}를 클릭해서 주워 주세요.");
             cropTarget = null;
+            ClearFishingCast();
             Action = WorkerAction.Idle;
         }
 
@@ -534,6 +550,7 @@ namespace Workerborn
             if (cropTarget != null)
                 cropTarget.Cancel(this);
             cropTarget = null;
+            ClearFishingCast();
             pickupTarget = default;
             interactionTarget = null;
             strikeTarget = null;

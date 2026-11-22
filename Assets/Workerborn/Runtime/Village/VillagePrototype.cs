@@ -402,30 +402,35 @@ namespace Workerborn
             int level = State.Level;
             if (!CanHarvest(crop))
                 return;
+            var water = crop as FishingWater;
+            Vector3 source = water != null ? worker.FishingPoint ?? crop.transform.position : crop.transform.position;
             if (!State.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(work), outcome, out int count))
             {
-                hud.ShowFloatingText(crop.transform.position + Vector3.up, "실패", new Color(1f, .65f, .55f));
+                hud.ShowFloatingText(source + Vector3.up, "실패", new Color(1f, .65f, .55f));
                 return;
             }
             var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
             if (pickupPool.CanSpawn(prefab))
             {
-                Vector3 source = crop.transform.position;
                 Vector3 direction = worker.transform.position - source;
+                Vector3 landingOrigin = water != null ? worker.transform.position : source;
                 int piles = Mathf.Min(count, work.MaxVisibleDrops);
                 for (int i = 0; i < piles; i++)
                 {
-                    Vector3 point = source + work.SampleDropOffset(direction, i, piles, UnityEngine.Random.Range(.18f, .82f), UnityEngine.Random.value);
-                    Vector3 end = SurfacePosition(point.x, point.z) + Vector3.up * .08f;
+                    Vector3 point = landingOrigin + work.SampleDropOffset(direction, i, piles, UnityEngine.Random.Range(.18f, .82f), UnityEngine.Random.value);
+                    Vector3 end = SurfacePosition(point.x, point.z);
+                    if (water != null)
+                        end = NavMesh.SamplePosition(end, out var shore, .4f, NavMesh.AllAreas) && !water.CoversGround(shore.position)
+                            ? shore.position : landingOrigin;
                     int quantity = count / piles + (i < count % piles ? 1 : 0);
-                    SpawnPickup(prefab, work, quantity, source + Vector3.up * .5f, end);
+                    SpawnPickup(prefab, work, quantity, source + Vector3.up * .5f, end + Vector3.up * .08f);
                 }
             }
             else
                 Debug.LogError("Assign a ground-item prefab with a mesh to " + work.name, this);
 
             if (outcome == WorkOutcome.Lucky || outcome == WorkOutcome.GreatLucky)
-                hud.ShowFloatingText(crop.transform.position + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
+                hud.ShowFloatingText(source + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "+" + State.Rules.HarvestExperience + " EXP", Color.white);
             ShowLevelUp(level);
         }

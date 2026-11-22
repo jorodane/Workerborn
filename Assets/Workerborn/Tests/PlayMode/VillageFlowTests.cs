@@ -714,19 +714,55 @@ namespace Workerborn.Tests
                 Is.EquivalentTo(new[] { "감자밭", "상점", "여관", "광장" }));
             var field = options.Single(row => row.GetComponentsInChildren<TMP_Text>().First().text == "감자밭");
             field.GetComponent<Button>().onClick.Invoke();
-            Assert.That(large.GetComponentsInChildren<HarvestableCrop>().Length, Is.EqualTo(16));
-            Assert.That(game.Crops.Count, Is.EqualTo(28));
+            Assert.That(VillagePlot.CellSide, Is.EqualTo(2f * Mathf.Sqrt(10f)).Within(.001f));
+            Assert.That(large.GetComponentsInChildren<HarvestableCrop>().Length, Is.EqualTo(64));
+            Assert.That(game.Crops.Count, Is.EqualTo(76));
             Assert.That(game.State.Export().plotPlacements.Single().facilityId, Is.EqualTo("potato_field"));
 
             Assert.That(game.PerformWorld(CampaignAction.BuildFacility, "east_pond", 4), Is.True);
             var pond = plots.Single(plot => plot.name == "낚시터 전용 부지");
-            var fishing = pond.GetComponentInChildren<HarvestableCrop>();
+            var fishing = pond.GetComponentInChildren<FishingWater>();
             Assert.That(fishing.Definition.Skill, Is.EqualTo(SkillId.Fishing));
             Assert.That(game.CanHarvest(fishing), Is.False);
             Assert.That(game.State.Inventory.TryAdd(ItemIds.FishingRod, 1), Is.True);
             Assert.That(game.State.TryEquip(game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.FishingRod).Id), Is.True);
             Assert.That(game.CanHarvest(fishing), Is.True);
             Assert.That(game.State.Life, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator CastingAtTheWaterWalksToTheNearBankAndKeepsTheClickedPoint()
+        {
+            Assert.That(game.PerformWorld(CampaignAction.BuildFacility, "east_pond", 4), Is.True);
+            var water = UnityEngine.Object.FindFirstObjectByType<FishingWater>();
+            var pond = water.GetComponentInParent<VillagePlot>();
+            var surface = water.GetComponentInChildren<MeshCollider>();
+            Vector3 clicked = surface.transform.TransformPoint(new Vector3(3.75f, 0f, -1.55f));
+            Vector3 farBank = pond.transform.TransformPoint(new Vector3(-4.3f, 0f, -2.2f));
+            Assert.That(NavMesh.SamplePosition(farBank, out var standing, 1f, NavMesh.AllAreas), Is.True);
+            game.Worker.WarpTo(standing.position);
+            Physics.SyncTransforms();
+            var ray = new Ray(clicked + Vector3.up * 5f, Vector3.down);
+            water.CastFromPointer(game.Worker, ray);
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
+
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.FishingRod, 1), Is.True);
+            var rod = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.FishingRod);
+            Assert.That(game.State.TryEquip(rod.Id), Is.True);
+            int remaining = water.Remaining;
+            water.CastFromPointer(game.Worker, ray);
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+            yield return Until(() => game.Worker.ActiveCrop == water, 12f);
+            Assert.That(pond.transform.InverseTransformPoint(game.Worker.transform.position).x, Is.GreaterThan(3f));
+
+            var floatInWater = UnityEngine.Object.FindFirstObjectByType<FishingBobber>();
+            Assert.That(floatInWater, Is.Not.Null);
+            yield return Until(() => Vector2.Distance(new Vector2(floatInWater.transform.position.x, floatInWater.transform.position.z),
+                new Vector2(clicked.x, clicked.z)) < .025f, 2f);
+            Assert.That(floatInWater.transform.position.y, Is.GreaterThan(clicked.y));
+            game.Worker.Cancel();
+            Assert.That(floatInWater.gameObject.activeSelf, Is.False);
+            Assert.That(water.Remaining, Is.EqualTo(remaining));
         }
 
         [UnityTest]

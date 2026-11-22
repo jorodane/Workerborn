@@ -34,15 +34,18 @@ namespace Workerborn
         protected void Awake() => EnsureInitialized();
         public void EnsureInitialized()
         {
-            if (cycle != null || definition == null || visual == null)
+            if (cycle != null || definition == null)
                 return;
-            foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
-                if (collider.gameObject.layer != PointerTargeting.HoverAssistLayer)
-                    collider.enabled = false;
-            foreach (var child in visual.GetComponentsInChildren<Transform>(true))
-                if (child.gameObject.layer != PointerTargeting.HoverAssistLayer)
-                    child.gameObject.layer = 2;
-            restScale = visual.localScale;
+            if (visual != null)
+            {
+                foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
+                    if (collider.gameObject.layer != PointerTargeting.HoverAssistLayer)
+                        collider.enabled = false;
+                foreach (var child in visual.GetComponentsInChildren<Transform>(true))
+                    if (child.gameObject.layer != PointerTargeting.HoverAssistLayer)
+                        child.gameObject.layer = 2;
+                restScale = visual.localScale;
+            }
             ResetHarvests();
         }
 
