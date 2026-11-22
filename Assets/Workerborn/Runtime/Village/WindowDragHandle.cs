@@ -55,7 +55,7 @@ namespace Workerborn
 
         private void OnDisable() => FinishDrag();
 
-        private void FinishDrag()
+        internal void FinishDrag()
         {
             if (!dragging)
                 return;

@@ -9,6 +9,8 @@ namespace Workerborn
     [DefaultExecutionOrder(-25)]
     public sealed class PointerTargeting : MonoBehaviour
     {
+        public const int HoverAssistLayer = 13;
+        private const float PointerDistance = 200f;
         [SerializeField]
         private Material maskMaterial;
         [SerializeField]
@@ -42,6 +44,7 @@ namespace Workerborn
         private readonly List<WorldTargetReference> frameTargets = new List<WorldTargetReference>();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>();
         private readonly RaycastHit[] worldHits = new RaycastHit[128];
+        private readonly RaycastHit[] hoverHits = new RaycastHit[8];
         private readonly Plane[] maskFrustum = new Plane[6];
         private Renderer[] staticGeometry;
         private readonly List<Renderer> actorGeometry = new List<Renderer>();
@@ -237,8 +240,11 @@ namespace Workerborn
             if (!HasMask)
                 return null;
             if (!control)
-                return SnapshotTarget(TargetMaskGeometry.IdAtScreen(pixels, mask.width, mask.height, flipReadback,
-                    cursor.x, cursor.y, Screen.width, Screen.height));
+            {
+                int id = TargetMaskGeometry.IdAtScreen(pixels, mask.width, mask.height, flipReadback,
+                    cursor.x, cursor.y, Screen.width, Screen.height);
+                return id != 0 ? SnapshotTarget(id) : PickHoverAssist(cursor);
+            }
             if (TargetMaskGeometry.Closest(pixels, mask.width, mask.height, flipReadback, cursor.x, cursor.y,
                 Screen.width, Screen.height, out var closest, IsLivingTarget))
                 return SnapshotTarget(closest.Id);
@@ -251,14 +257,56 @@ namespace Workerborn
             return target != null && target.CanTarget && target.CanInteract;
         }
 
-        private bool TryWorldHit(Vector2 cursor, out RaycastHit nearest)
+        private WorldInteractable PickHoverAssist(Vector2 cursor)
         {
+            if (cursor.x < 0 || cursor.y < 0 || cursor.x >= Screen.width || cursor.y >= Screen.height)
+                return null;
             Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
-            int count = Physics.RaycastNonAlloc(ray, worldHits, 200f, VillageMapProp.PointerLayers, QueryTriggerInteraction.Ignore);
+            const int layer = 1 << HoverAssistLayer;
+            var hits = hoverHits;
+            int count = Physics.RaycastNonAlloc(ray, hits, PointerDistance, layer, QueryTriggerInteraction.Collide);
+            if (count == hits.Length)
+            {
+                hits = Physics.RaycastAll(ray, PointerDistance, layer, QueryTriggerInteraction.Collide);
+                count = hits.Length;
+            }
+            if (count == 0)
+                return null;
+
+            float nearest = TryWorldHit(ray, out var blocker) ? blocker.distance : PointerDistance;
+            WorldInteractable candidate = null;
+            for (int i = 0; i < count; i++)
+            {
+                var hit = hits[i];
+                if (hit.distance >= nearest || !hit.collider.isTrigger)
+                    continue;
+                var target = hit.collider.GetComponentInParent<WorldInteractable>();
+                if (target == null || !target.CanInteract || target.gameObject.scene != game.gameObject.scene)
+                    continue;
+
+                target.GetComponentsInChildren(false, actorGeometry);
+                foreach (var renderer in actorGeometry)
+                {
+                    if (!IsPickVisible(renderer))
+                        continue;
+                    nearest = hit.distance;
+                    candidate = target;
+                    break;
+                }
+            }
+            return candidate;
+        }
+
+        private bool TryWorldHit(Vector2 cursor, out RaycastHit nearest) =>
+            TryWorldHit(game.WorldCamera.ScreenPointToRay(cursor), out nearest);
+
+        private bool TryWorldHit(Ray ray, out RaycastHit nearest)
+        {
+            int count = Physics.RaycastNonAlloc(ray, worldHits, PointerDistance, VillageMapProp.PointerLayers, QueryTriggerInteraction.Ignore);
             var hits = worldHits;
             if (count == worldHits.Length)
             {
-                hits = Physics.RaycastAll(ray, 200f, VillageMapProp.PointerLayers, QueryTriggerInteraction.Ignore);
+                hits = Physics.RaycastAll(ray, PointerDistance, VillageMapProp.PointerLayers, QueryTriggerInteraction.Ignore);
                 count = hits.Length;
             }
 
@@ -532,18 +580,22 @@ namespace Workerborn
             flipReadback = flip;
         }
 
+        private bool IsPickVisible(Renderer renderer) => renderer != null && renderer.enabled && !renderer.forceRenderingOff &&
+            renderer.gameObject.activeInHierarchy && (renderer is MeshRenderer || renderer is SkinnedMeshRenderer) &&
+            renderer.shadowCastingMode != ShadowCastingMode.ShadowsOnly &&
+            renderer.gameObject.layer != VillageWeather.SkyLayer && renderer.gameObject.layer != HoverAssistLayer &&
+            (game.WorldCamera.cullingMask & (1 << renderer.gameObject.layer)) != 0 &&
+            (visibility == null || visibility.Opacity(renderer) > .2f);
+
         private void Draw(CommandBuffer command, Renderer renderer, Vector4 idColor)
         {
-            if (renderer == null || !renderer.enabled || renderer.forceRenderingOff || !renderer.gameObject.activeInHierarchy ||
-                !(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) || renderer.gameObject.layer == VillageWeather.SkyLayer ||
-                (game.WorldCamera.cullingMask & (1 << renderer.gameObject.layer)) == 0 ||
-                visibility != null && visibility.Opacity(renderer) <= .2f || !GeometryUtility.TestPlanesAABB(maskFrustum, renderer.bounds))
+            if (!IsPickVisible(renderer) || !GeometryUtility.TestPlanesAABB(maskFrustum, renderer.bounds))
                 return;
             renderer.GetSharedMaterials(materials);
             for (int index = 0; index < materials.Count; index++)
             {
                 var material = materials[index];
-                if (material == null || renderer.shadowCastingMode == ShadowCastingMode.ShadowsOnly)
+                if (material == null)
                     continue;
                 string property = "_BaseMap";
                 foreach (string candidate in SurfaceTextures)

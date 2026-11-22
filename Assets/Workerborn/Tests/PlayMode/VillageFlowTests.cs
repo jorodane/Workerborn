@@ -343,6 +343,54 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator HoverAssistPicksAGapAndRespectsACloserObstacle()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+                Assert.Ignore("Picking around the rendered mesh requires a graphics device.");
+            var mouse = InputSystem.AddDevice<Mouse>();
+            var crop = game.Crops[0];
+            var assist = crop.GetComponentsInChildren<Collider>().Single(c => c.gameObject.layer == PointerTargeting.HoverAssistLayer);
+            var visual = crop.transform.Find("Plant visual");
+            Vector3 originalPosition = visual.localPosition;
+            var camera = game.WorldCamera;
+            var obstacle = new GameObject("Hover assist test obstacle");
+            var blocker = obstacle.AddComponent<BoxCollider>();
+            blocker.enabled = false;
+            game.CameraRig.enabled = false;
+            try
+            {
+                // Expose a gap under the pointer while keeping the target's mesh visible beside it.
+                visual.localPosition += Vector3.right * 2f;
+                Physics.SyncTransforms();
+                Vector3 center = assist.bounds.center;
+                camera.transform.SetPositionAndRotation(center + Vector3.up * 4f,
+                    Quaternion.LookRotation(Vector3.down, Vector3.forward));
+                Vector2 pixel = camera.WorldToScreenPoint(center);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel });
+                yield return Until(() => game.Targeting.CurrentTarget == crop, 3f);
+                Assert.That(game.Targeting.TryDropPoint(pixel, out _), Is.True);
+
+                obstacle.transform.position = center + Vector3.up * 1.3f;
+                blocker.enabled = true;
+                Physics.SyncTransforms();
+                yield return Until(() => game.Targeting.CurrentTarget == null, 2f);
+
+                blocker.enabled = false;
+                Physics.SyncTransforms();
+                yield return Until(() => game.Targeting.CurrentTarget == crop, 2f);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel, buttons = 1 });
+                yield return Until(() => game.Worker.LastCrop == crop, 2f);
+            }
+            finally
+            {
+                visual.localPosition = originalPosition;
+                game.CameraRig.enabled = true;
+                UnityEngine.Object.Destroy(obstacle);
+                InputSystem.RemoveDevice(mouse);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator AnUnreachableGroundClickKeepsTheCurrentRouteAndStaysQuiet()
         {
             game.Worker.CommandMove(NearbyDestination());
@@ -389,15 +437,18 @@ namespace Workerborn.Tests
         {
             var crop = game.Crops[0];
             var collider = crop.GetComponent<Collider>();
+            var assist = crop.GetComponentsInChildren<Collider>().Single(c => c.gameObject.layer == PointerTargeting.HoverAssistLayer);
             crop.RestoreRemaining(0);
             Physics.SyncTransforms();
             Assert.That(crop.CanInteract, Is.False);
             Assert.That(collider.enabled, Is.False);
+            Assert.That(assist.enabled, Is.False);
             foreach (var hit in Physics.RaycastAll(crop.transform.position + Vector3.up * 4, Vector3.down, 5, ~(1 << 2), QueryTriggerInteraction.Collide))
                 Assert.That(hit.collider.GetComponentInParent<HarvestableCrop>(), Is.Not.SameAs(crop));
             crop.ResetHarvests();
             Assert.That(crop.CanInteract, Is.True);
             Assert.That(collider.enabled, Is.True);
+            Assert.That(assist.enabled, Is.True);
             yield return null;
         }
 
@@ -756,10 +807,12 @@ namespace Workerborn.Tests
             FindButton(dialogue, "거래 종료").onClick.Invoke();
             Assert.That(game.Hud.IsShopOpen, Is.False);
             Assert.That(game.Hud.HasModal, Is.False);
+            Assert.That(dialogue.isActiveAndEnabled, Is.True);
+            Assert.That(normalHud.activeSelf, Is.False);
+            Assert.That(dialogue.GetComponent<CanvasGroup>().blocksRaycasts, Is.False);
+            yield return Until(() => normalHud.activeSelf, 1f);
             Assert.That(dialogue.isActiveAndEnabled, Is.False);
             Assert.That(inventory.gameObject.activeSelf, Is.True);
-            Assert.That(normalHud.activeSelf, Is.True);
-            yield return null;
         }
 
         [UnityTest]
@@ -782,7 +835,7 @@ namespace Workerborn.Tests
                 Assert.That(game.Hud.HasModal, Is.False);
                 Assert.That(game.Hud.IsShopOpen, Is.False);
                 Assert.That(game.Hud.InventoryOpen, Is.False);
-                Assert.That(quests.gameObject.activeSelf, Is.True);
+                yield return Until(() => quests.gameObject.activeSelf, 1f);
 
                 game.Hud.OpenDialogue(merchant);
                 game.Hud.ToggleWindow("inventory");
@@ -790,12 +843,37 @@ namespace Workerborn.Tests
                 game.Hud.CloseWindow("shop");
                 Assert.That(game.Hud.InventoryOpen, Is.True);
                 Assert.That(game.Hud.HasModal, Is.False);
-                Assert.That(quests.gameObject.activeSelf, Is.True);
+                yield return Until(() => quests.gameObject.activeSelf, 1f);
             }
             finally
             {
                 InputSystem.RemoveDevice(keyboard);
             }
+        }
+
+        [UnityTest]
+        public IEnumerator AClosingWindowCanReopenAndRestoresItsInputAndAppearance()
+        {
+            var settings = game.Hud.OpenWindow("settings");
+            var controls = settings.GetComponent<CanvasGroup>();
+            yield return Until(() => controls.alpha == 1f, 1f);
+            Vector2 position = settings.Rect.anchoredPosition;
+            game.Hud.CloseWindow("settings");
+            Assert.That(settings.gameObject.activeSelf, Is.True);
+            Assert.That(controls.blocksRaycasts, Is.False);
+            Assert.That(controls.interactable, Is.False);
+
+            game.Hud.ToggleWindow("settings");
+            Assert.That(settings.gameObject.activeSelf, Is.True);
+            Assert.That(controls.blocksRaycasts, Is.True);
+            Assert.That(controls.interactable, Is.True);
+            Assert.That(controls.alpha, Is.EqualTo(1f));
+            Assert.That(settings.Rect.anchoredPosition, Is.EqualTo(position));
+
+            game.Hud.CloseWindow("settings");
+            yield return Until(() => !settings.gameObject.activeSelf, 1f);
+            Assert.That(controls.alpha, Is.EqualTo(1f));
+            Assert.That(controls.blocksRaycasts, Is.True);
         }
 
         [UnityTest]

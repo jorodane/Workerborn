@@ -68,12 +68,12 @@ namespace Workerborn
         [SerializeField]
         private RectTransform minimapImage;
         public bool HasModal => dialogueTarget != null;
-        public bool IsShopOpen => views.TryGetValue("shop", out var shop) && shop.gameObject.activeSelf;
-        public bool WorldActionsLocked => HasModal || IsShopOpen || HasQuantityPrompt;
+        public bool IsShopOpen => views.TryGetValue("shop", out var shop) && shop.IsOpen;
+        public bool WorldActionsLocked => HasModal || dialogueClosing || IsShopOpen || HasQuantityPrompt;
         public bool AllowsGroundItems => game != null && !game.AwaitingWorldCommand && !IsChatTyping;
-        public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.gameObject.activeSelf;
+        public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.IsOpen;
         public bool IsHoldingItem => draggedEntry != 0;
-        public bool InventoryOpen => windows.TryGetValue("inventory", out var panel) && panel.gameObject.activeSelf;
+        public bool InventoryOpen => views.TryGetValue("inventory", out var inventory) && inventory.IsOpen;
 
         private struct FloatingText
         {
@@ -107,6 +107,8 @@ namespace Workerborn
 
             if (minimapImage != null)
                 DrawMap(minimapImage, false);
+            if (dialogueBackdrop != null)
+                backdropTransitions = dialogueBackdrop.GetComponentsInChildren<WindowTransition>(true);
             BuildWorldFeedback();
             InitializeChat();
             floatingTexts = new PrefabPool<TMP_Text>(library.FloatingText, transform);
@@ -191,12 +193,12 @@ namespace Workerborn
                 if (hit != null)
                     FocusWindow(hit.GetComponentInParent<VillageWindowView>());
             }
-            if (HandleChatInput() || game.AwaitingWorldCommand)
+            if (HandleChatInput() || game.AwaitingWorldCommand || dialogueClosing)
                 return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
                 if (IsShopOpen)
-                    CloseDialogue();
+                    CloseDialogue(animate: true);
                 else if (!CloseFocusedWindow())
                 {
                     if (IsHoldingItem)
@@ -234,6 +236,7 @@ namespace Workerborn
         {
             if (game == null || game.Worker == null)
                 return;
+            UpdateDialogueClose();
             if (!game.AwaitingWorldCommand)
                 ReleaseDraggedItem();
             var state = game.State;
@@ -255,7 +258,7 @@ namespace Workerborn
             {
                 lastCanvasSize = CanvasRect.rect.size;
                 foreach (var view in views.Values)
-                    if (view.IsFloating && view.gameObject.activeSelf)
+                    if (view.IsFloating && view.IsOpen)
                         WindowDragHandle.KeepOnScreen(view.Rect);
             }
             if (localOverhead != null)
@@ -378,7 +381,7 @@ namespace Workerborn
                 opening = true;
             }
             else
-                opening = !view.gameObject.activeSelf;
+                opening = !view.IsOpen;
 
             if (HasModal)
             {
@@ -390,17 +393,17 @@ namespace Workerborn
             view.gameObject.SetActive(true);
             if (view.IsFloating)
                 WindowDragHandle.KeepOnScreen(view.Rect);
+            if (opening)
+                view.PlayOpening();
             FocusWindow(view);
             if (id == "tooltip")
                 view.transform.SetAsLastSibling();
-            if (opening)
-                view.GetComponent<WindowOpeningAnimation>()?.Play();
             return view;
         }
 
         private void FocusWindow(VillageWindowView view)
         {
-            if (view == null || view.Id == "tooltip" || !view.gameObject.activeSelf)
+            if (view == null || view.Id == "tooltip" || !view.IsOpen)
                 return;
             windowFocus.Remove(view);
             windowFocus.Add(view);
@@ -413,7 +416,7 @@ namespace Workerborn
             for (int index = windowFocus.Count - 1; index >= 0; index--)
             {
                 var view = windowFocus[index];
-                if (view == null || !view.gameObject.activeSelf)
+                if (view == null || !view.IsOpen)
                 {
                     if (view == null || !dialogueWindowStates.ContainsKey(view.Id))
                         windowFocus.RemoveAt(index);
@@ -429,18 +432,18 @@ namespace Workerborn
         {
             if (id == "conversation" || (id == "shop" && HasModal))
             {
-                CloseDialogue();
+                CloseDialogue(animate: true);
                 return;
             }
             dialogueWindowStates.Remove(id);
             HideWindow(id);
         }
 
-        private void HideWindow(string id)
+        private void HideWindow(string id, bool animate = true)
         {
-            if (!views.TryGetValue(id, out var view) || !view.gameObject.activeSelf)
+            if (!views.TryGetValue(id, out var view) || !view.gameObject.activeSelf || (animate && view.IsClosing))
                 return;
-            view.gameObject.SetActive(false);
+            view.Hide(animate);
             windowFocus.Remove(view);
             HideItemTooltip();
             if (id == "inventory")
@@ -452,7 +455,7 @@ namespace Workerborn
 
         public void ToggleWindow(string id)
         {
-            if (views.TryGetValue(id, out var view) && view.gameObject.activeSelf)
+            if (views.TryGetValue(id, out var view) && view.IsOpen)
                 CloseWindow(id);
             else
                 OpenWindow(id)?.Refresh();
@@ -551,8 +554,8 @@ namespace Workerborn
             const float gap = 10f;
             var canvas = CanvasRect.rect;
             float right = canvas.xMax - gap;
-            if (windows.TryGetValue(action == QuantityAction.Buy ? "shop" : "inventory", out var panel) && panel.gameObject.activeSelf)
-                right = WindowDragHandle.BoundsInParent(panel).xMin - gap;
+            if (views.TryGetValue(action == QuantityAction.Buy ? "shop" : "inventory", out var panel) && panel.IsOpen)
+                right = WindowDragHandle.BoundsInParent(panel.Rect).xMin - gap;
             var rect = prompt.Rect;
             rect.anchoredPosition = new Vector2(right - canvas.xMax, Mathf.Max(28f, (canvas.height - rect.rect.height) * .5f));
             WindowDragHandle.KeepOnScreen(rect);

@@ -4207,6 +4207,10 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  closeDuration: 0.22
+  endOffset: {x: 0, y: 0}
+  endScale: {x: 1, y: 1}
+  endOpacity: 0
 --- !u!114 &801000005
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4249,6 +4253,10 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  closeDuration: 0.22
+  endOffset: {x: 0, y: 0}
+  endScale: {x: 1, y: 0}
+  endOpacity: 0
 --- !u!114 &801000006
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4291,3 +4299,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  closeDuration: 0.22
+  endOffset: {x: 0, y: 0}
+  endScale: {x: 1, y: 0}
+  endOpacity: 0

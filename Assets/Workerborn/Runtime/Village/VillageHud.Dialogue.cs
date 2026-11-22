@@ -6,6 +6,9 @@ namespace Workerborn
     {
         private VillageInteractable dialogueTarget;
         private readonly Dictionary<string, bool> dialogueWindowStates = new Dictionary<string, bool>();
+        private WindowTransition[] backdropTransitions = System.Array.Empty<WindowTransition>();
+        private bool dialogueClosing;
+        private bool finishGuideOnClose;
 
         public void OpenDialogue(VillageInteractable target, DialogueAction? topic = null)
         {
@@ -31,24 +34,73 @@ namespace Workerborn
                 dialogue.SelectTopic(topic);
         }
 
-        public void CloseDialogue()
+        public void CloseDialogue() => CloseDialogue(animate: false);
+
+        internal void CloseDialogue(bool animate)
         {
             if (dialogueTarget == null)
+            {
+                if (dialogueClosing && !animate)
+                    FinishDialogueClose();
                 return;
-            bool leavingGuide = dialogueTarget.Role == VillageRole.Guide;
+            }
+            finishGuideOnClose = dialogueTarget.Role == VillageRole.Guide;
             dialogueTarget = null;
             if (IsShopOpen)
             {
-                CloseQuantity();
-                HideWindow("shop");
+                HideWindow("quantity", animate);
+                HideWindow("shop", animate);
                 CancelItemDrag();
             }
-            HideWindow("conversation");
+            HideWindow("conversation", animate);
+            foreach (var entry in dialogueWindowStates)
+                if (!entry.Value)
+                    HideWindow(entry.Key, animate);
+
+            if (animate)
+            {
+                foreach (var transition in backdropTransitions)
+                    transition.PlayClosing(hideOnComplete: false);
+                if (HasDialogueCloseAnimation())
+                {
+                    dialogueClosing = true;
+                    return;
+                }
+            }
+            FinishDialogueClose();
+        }
+
+        private void UpdateDialogueClose()
+        {
+            if (dialogueClosing && !HasDialogueCloseAnimation())
+                FinishDialogueClose();
+        }
+
+        private bool HasDialogueCloseAnimation()
+        {
+            foreach (var transition in backdropTransitions)
+                if (transition.IsClosing && transition.IsPlaying)
+                    return true;
+            foreach (var view in views.Values)
+                if (view.IsClosing)
+                    return true;
+            return false;
+        }
+
+        private void FinishDialogueClose()
+        {
+            dialogueClosing = false;
+            foreach (var view in views.Values)
+                if (view.IsClosing)
+                    view.Hide(animate: false);
             RestoreDialogueWindows();
             SetDialoguePresentation(false);
             game.ShowNpcPortrait(null);
-            if (leavingGuide)
+            if (finishGuideOnClose)
+            {
+                finishGuideOnClose = false;
                 game.FinishGuideVisit();
+            }
         }
 
         private void SetDialoguePresentation(bool active)
@@ -60,8 +112,8 @@ namespace Workerborn
                 return;
             dialogueBackdrop.SetActive(active);
             if (active)
-                foreach (var animation in dialogueBackdrop.GetComponentsInChildren<WindowOpeningAnimation>())
-                    animation.Play();
+                foreach (var transition in backdropTransitions)
+                    transition.PlayOpening();
         }
 
         private void SuspendDialogueWindows()
@@ -70,8 +122,9 @@ namespace Workerborn
             {
                 if (!view.gameObject.activeSelf)
                     continue;
-                dialogueWindowStates.Add(view.Id, true);
-                view.gameObject.SetActive(false);
+                if (view.IsOpen)
+                    dialogueWindowStates.Add(view.Id, true);
+                view.Hide(animate: false);
             }
         }
 
@@ -79,7 +132,7 @@ namespace Workerborn
         {
             foreach (var entry in dialogueWindowStates)
             {
-                if (!views.TryGetValue(entry.Key, out var view) || view.gameObject.activeSelf == entry.Value)
+                if (!views.TryGetValue(entry.Key, out var view) || view.IsOpen == entry.Value)
                     continue;
                 if (entry.Value)
                 {
@@ -88,7 +141,7 @@ namespace Workerborn
                         WindowDragHandle.KeepOnScreen(view.Rect);
                 }
                 else
-                    HideWindow(entry.Key);
+                    HideWindow(entry.Key, animate: false);
             }
             dialogueWindowStates.Clear();
             RefreshWindows();

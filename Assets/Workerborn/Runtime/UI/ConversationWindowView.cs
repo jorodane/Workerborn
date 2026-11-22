@@ -33,7 +33,7 @@ namespace Workerborn
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
-            leave.onClick.AddListener(hud.CloseDialogue);
+            leave.onClick.AddListener(() => hud.CloseDialogue(animate: true));
             portrait.texture = game.NpcPortraitTexture;
         }
 

@@ -1221,6 +1221,10 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  closeDuration: 0.22
+  endOffset: {x: 0, y: -250}
+  endScale: {x: 1, y: 1}
+  endOpacity: 0.15
 --- !u!1 &801010005
 GameObject:
   m_ObjectHideFlags: 0

@@ -105,7 +105,8 @@ namespace Workerborn
             // Expanded capsules and near-plane corners begin fading before the camera cuts the mesh.
             foreach (var capsule in FindObjectsByType<CapsuleCollider>(FindObjectsSortMode.None))
             {
-                if (!capsule.enabled || !capsule.gameObject.activeInHierarchy)
+                if (!capsule.enabled || !capsule.gameObject.activeInHierarchy ||
+                    capsule.gameObject.layer == PointerTargeting.HoverAssistLayer)
                     continue;
                 var interaction = capsule.GetComponentInParent<WorldInteractable>();
                 var character = capsule.GetComponentInParent<CharacterActor>();

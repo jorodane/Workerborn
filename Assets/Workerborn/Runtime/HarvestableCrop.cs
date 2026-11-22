@@ -17,6 +17,7 @@ namespace Workerborn
         [SerializeField] private bool keepVisualWhenDepleted;
         [SerializeField] private GameObject depletedVisual;
         [SerializeField] private Collider[] interactionColliders;
+        private Collider[] hoverAssistColliders;
         public CropDefinition Definition => definition;
         public override string DisplayName => definition != null ? definition.DisplayName : name;
         protected override float DefaultDistance => 1.05f;
@@ -36,9 +37,11 @@ namespace Workerborn
             if (cycle != null || definition == null || visual == null)
                 return;
             foreach (var collider in visual.GetComponentsInChildren<Collider>(true))
-                collider.enabled = false;
+                if (collider.gameObject.layer != PointerTargeting.HoverAssistLayer)
+                    collider.enabled = false;
             foreach (var child in visual.GetComponentsInChildren<Transform>(true))
-                child.gameObject.layer = 2;
+                if (child.gameObject.layer != PointerTargeting.HoverAssistLayer)
+                    child.gameObject.layer = 2;
             restScale = visual.localScale;
             ResetHarvests();
         }
@@ -97,10 +100,15 @@ namespace Workerborn
 
         private void RefreshVisuals()
         {
-            // Root colliders are the interaction surface; decorative model colliders stay disabled.
+            bool available = !IsDepleted;
             var colliders = interactionColliders != null && interactionColliders.Length > 0 ? interactionColliders : GetComponents<Collider>();
             foreach (var collider in colliders)
-                collider.enabled = !IsDepleted;
+                collider.enabled = available;
+            hoverAssistColliders ??= Array.FindAll(GetComponentsInChildren<Collider>(true),
+                collider => collider.enabled && collider.isTrigger && collider.gameObject.layer == PointerTargeting.HoverAssistLayer);
+            foreach (var collider in hoverAssistColliders)
+                if (collider != null)
+                    collider.enabled = available;
             if (visual != null)
             {
                 visual.gameObject.SetActive(keepVisualWhenDepleted || !IsDepleted);

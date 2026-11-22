@@ -16,18 +16,22 @@ namespace Workerborn
         [SerializeField]
         private GameObject windowBody;
         private float expandedHeight;
+        private WindowTransition transition;
         protected VillagePrototype Game;
         protected VillageHud Hud;
         public string Id => windowId;
         public RectTransform Rect => (RectTransform)transform;
         internal bool HasSavedPosition => dragHandle != null && dragHandle.HasSavedPosition;
         internal bool IsFloating => dragHandle != null && Id != "tooltip" && Id != "itemcontext";
+        internal bool IsClosing => transition != null && transition.IsClosing;
+        internal bool IsOpen => gameObject.activeSelf && !IsClosing;
 
         public virtual void Bind(VillagePrototype game, VillageHud hud)
         {
             Game = game;
             Hud = hud;
             expandedHeight = Rect.sizeDelta.y;
+            transition = GetComponent<WindowTransition>();
             if (minimizeButton != null && windowBody != null)
                 minimizeButton.onClick.AddListener(() =>
                 {
@@ -43,6 +47,15 @@ namespace Workerborn
 
         public virtual void Refresh()
         {
+        }
+
+        internal void PlayOpening() => transition?.PlayOpening();
+
+        internal void Hide(bool animate)
+        {
+            dragHandle?.FinishDrag();
+            if (!(animate && transition != null && transition.PlayClosing()))
+                gameObject.SetActive(false);
         }
 
         protected void SetExpandedHeight(float height)

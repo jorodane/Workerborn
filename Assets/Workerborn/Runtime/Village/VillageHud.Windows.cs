@@ -22,13 +22,13 @@ namespace Workerborn
         public void RefreshWindows()
         {
             foreach (var view in views.Values)
-                if (view != null && view.gameObject.activeSelf)
+                if (view != null && view.IsOpen)
                     view.Refresh();
         }
 
         private void RefreshInventoryItems()
         {
-            if (views.TryGetValue("inventory", out var view) && view is InventoryWindowView inventory && view.gameObject.activeSelf)
+            if (views.TryGetValue("inventory", out var view) && view is InventoryWindowView inventory && view.IsOpen)
                 RenderInventoryItems(inventory);
         }
 
