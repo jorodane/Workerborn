@@ -15,10 +15,15 @@ namespace Workerborn
         public bool IsOnline => wasOnline || Session?.Online == true;
         public bool AwaitingWorldCommand => IsOnline && Session?.Submitting == true;
         public bool CanInviteFriends => Session?.SteamHost == true;
+        public bool CanManageServer => Session?.CanManage == true;
+        internal DedicatedAdminStatus ServerAdministration => Session?.Administration;
         public string SessionName => Session?.SessionLabel ?? "싱글플레이";
         public CampaignStatus EraStatus => Session?.Status;
         public string LegendPlayerId => Session?.LocalPlayerId ?? "single-player";
         public string LegendPlayerName => Session?.LocalPlayerName ?? "일꾼";
+
+        internal bool SendAdministration(ServerAdminAction action, string target = null, int value = 0) =>
+            Session?.SendAdministration(action, target, value) == true;
 
         internal bool TrySendChat(string input)
         {

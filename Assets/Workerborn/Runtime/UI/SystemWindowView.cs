@@ -10,6 +10,7 @@ namespace Workerborn
         [SerializeField] private Button save;
         [SerializeField] private Button character;
         [SerializeField] private Button era;
+        [SerializeField] private Button administration;
         [SerializeField] private Button invite;
         [SerializeField] private Button title;
 
@@ -19,6 +20,7 @@ namespace Workerborn
             save.onClick.AddListener(() => game.SaveGame(true));
             character.onClick.AddListener(() => hud.ToggleWindow("character"));
             era.onClick.AddListener(() => hud.ToggleWindow("era"));
+            administration.onClick.AddListener(() => hud.ToggleWindow("server-admin"));
             invite.onClick.AddListener(game.InviteFriends);
             title.onClick.AddListener(game.ReturnToMenu);
         }
@@ -27,6 +29,7 @@ namespace Workerborn
         {
             session.text = Game.SessionName;
             era.gameObject.SetActive(Game.IsOnline);
+            administration.gameObject.SetActive(Game.CanManageServer);
             invite.gameObject.SetActive(Game.CanInviteFriends);
         }
     }

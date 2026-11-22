@@ -20,6 +20,7 @@ MonoBehaviour:
   m_Name: VillageUI
   m_EditorClassIdentifier: ''
   windows:
+  - {fileID: 100192, guid: 55071506a14757c7b0d5b22f6b7283a8, type: 3}
   - fileID: 100287
     guid: 1deff7cbedd45f01b8cccb173386aa27
     type: 3

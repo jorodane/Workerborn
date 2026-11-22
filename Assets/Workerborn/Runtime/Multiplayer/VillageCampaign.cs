@@ -35,6 +35,7 @@ namespace Workerborn
         public string portableId;
         public long createdUtc, lastConnectedUtc, lastDisconnectedUtc;
         public bool banned;
+        public bool canManage;
         public VillageSave character;
         public int enteredEra;
         public bool optedIn;
@@ -189,6 +190,8 @@ namespace Workerborn
             !string.IsNullOrEmpty(portableId) && profiles.Values.Any(profile =>
                 string.Equals(profile.portableId, portableId, StringComparison.OrdinalIgnoreCase));
         public bool IsConnected(string identity) => connected.Contains(identity);
+        public bool IsOperator(string identity) => identity != null && connected.Contains(identity) &&
+            profiles.TryGetValue(identity, out var profile) && profile.canManage && !profile.banned;
         public int ConnectedCount => connected.Count;
         public bool IsBanned(string identity, string portableId) =>
             profiles.TryGetValue(identity, out var profile) && profile.banned ||
@@ -238,7 +241,19 @@ namespace Workerborn
             return true;
         }
 
-        private CampaignProfile FindCharacter(string id) =>
+        public bool TrySetOperator(CampaignProfile profile, bool enabled, Func<bool> save)
+        {
+            bool previous = profile.canManage;
+            if (previous == enabled)
+                return true;
+            profile.canManage = enabled;
+            if (save())
+                return true;
+            profile.canManage = previous;
+            return false;
+        }
+
+        public CampaignProfile FindCharacter(string id) =>
             profiles.Values.FirstOrDefault(profile => string.Equals(profile.id, id, StringComparison.OrdinalIgnoreCase));
 
         public bool TrySetCharacterLimit(int limit, out string message)

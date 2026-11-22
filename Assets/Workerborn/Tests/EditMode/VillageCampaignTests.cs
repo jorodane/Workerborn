@@ -264,6 +264,52 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void OperatorRightsAreStoredForOneWorldAndRequireThatCharacterToBeConnected()
+        {
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 10, 22);
+            Assert.That(campaign.Connect("operator", "하나", out var character), Is.True);
+            Assert.That(campaign.Connect("guest", "둘", out _), Is.True);
+            Assert.That(campaign.IsOperator("operator"), Is.False);
+            Assert.That(campaign.TrySetOperator(character, true, () => false), Is.False);
+            Assert.That(campaign.IsOperator("operator"), Is.False);
+            Assert.That(campaign.TrySetOperator(character, true, () => true), Is.True);
+            Assert.That(campaign.IsOperator("operator"), Is.True);
+            Assert.That(campaign.IsOperator("guest"), Is.False);
+            campaign.Disconnect("operator");
+            Assert.That(campaign.IsOperator("operator"), Is.False);
+
+            var restored = new VillageCampaign(rules, Sites, 10, 22, campaign.Export());
+            Assert.That(restored.Connect("operator", "하나", out var restoredCharacter), Is.True);
+            Assert.That(restored.IsOperator("operator"), Is.True);
+            Assert.That(restored.TrySetOperator(restoredCharacter, false, () => false), Is.False);
+            Assert.That(restored.IsOperator("operator"), Is.True);
+            Assert.That(restored.TrySetOperator(restoredCharacter, false, () => true), Is.True);
+            Assert.That(restored.IsOperator("operator"), Is.False);
+
+            var otherWorld = new VillageCampaign(rules, Sites, 10, 22);
+            Assert.That(otherWorld.Connect("operator", "하나", out _), Is.True);
+            Assert.That(otherWorld.IsOperator("operator"), Is.False);
+        }
+
+        [Test]
+        public void BanningAnOperatorSuspendsAccessAndDeletingTheRecordRemovesItsGrant()
+        {
+            var campaign = new VillageCampaign(Rules(), Sites, 10, 22);
+            Assert.That(campaign.Connect("operator", "하나", out var character), Is.True);
+            Assert.That(campaign.TrySetOperator(character, true, () => true), Is.True);
+            Assert.That(campaign.TrySetBan(character.id, true, () => true, out _), Is.True);
+            Assert.That(campaign.IsOperator("operator"), Is.False);
+            Assert.That(campaign.Connect("operator", "하나", out _), Is.False);
+            Assert.That(campaign.TrySetBan(character.id, false, () => true, out _), Is.True);
+            Assert.That(campaign.Connect("operator", "하나", out _), Is.True);
+            Assert.That(campaign.IsOperator("operator"), Is.True);
+            Assert.That(campaign.TryDeleteCharacter(character.id, () => true, out _), Is.True);
+            Assert.That(campaign.Connect("operator", "하나", out _), Is.True);
+            Assert.That(campaign.IsOperator("operator"), Is.False);
+        }
+
+        [Test]
         public void PersonalRebirthUsesExactLifeAgeAndPreservesPartialDeliveries()
         {
             var rules = Rules();

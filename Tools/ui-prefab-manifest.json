@@ -110,5 +110,13 @@
   "VillageChat": {
     "path": "Assets/Workerborn/Prefabs/UI/VillageChat.prefab",
     "component": 100042
+  },
+  "ServerAdminRosterRow": {
+    "path": "Assets/Workerborn/Prefabs/UI/ServerAdminRosterRow.prefab",
+    "component": 100011
+  },
+  "ServerAdminWindow": {
+    "path": "Assets/Workerborn/Prefabs/UI/ServerAdminWindow.prefab",
+    "component": 100192
   }
 }

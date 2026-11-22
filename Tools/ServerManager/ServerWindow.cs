@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 
 namespace Workerborn.ServerManager;
 
@@ -30,6 +29,7 @@ internal sealed class ServerWindow : Form
         BackgroundColor = SystemColors.Window, BorderStyle = BorderStyle.FixedSingle, AccessibleName = "월드 캐릭터 목록"
     };
     private readonly Button ban = Button("차단");
+    private readonly Button role = Button("운영 권한 부여");
     private readonly Button delete = Button("캐릭터 삭제");
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 350 };
     private readonly Dictionary<string, DataGridViewRow> rows = new();
@@ -85,6 +85,7 @@ internal sealed class ServerWindow : Form
         };
         roster.SelectionChanged += (_, _) => RefreshCharacterActions();
         ban.Click += async (_, _) => await ToggleBanAsync();
+        role.Click += async (_, _) => await ToggleRoleAsync();
         delete.Click += async (_, _) => await DeleteCharacterAsync();
         timer.Tick += async (_, _) => await PollAsync();
         FormClosing += HandleClosing;
@@ -127,7 +128,7 @@ internal sealed class ServerWindow : Form
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         foreach ((string title, int width) in new[]
         {
-            ("캐릭터", 105), ("플레이어 ID", 115), ("상태", 65), ("생성 시각", 125), ("최근 접속", 125),
+            ("캐릭터", 105), ("플레이어 ID", 115), ("상태", 65), ("권한", 60), ("생성 시각", 125), ("최근 접속", 125),
             ("마지막 접속 종료", 125), ("접속 시간", 82), ("지연시간", 71)
         })
             roster.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = title, FillWeight = width, SortMode = DataGridViewColumnSortMode.NotSortable });
@@ -135,7 +136,7 @@ internal sealed class ServerWindow : Form
         roster.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(243, 247, 250);
         layout.Controls.Add(roster, 0, 0);
         var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-        actions.Controls.AddRange(new Control[] { delete, ban });
+        actions.Controls.AddRange(new Control[] { delete, ban, role });
         layout.Controls.Add(actions, 0, 1);
         page.Controls.Add(layout);
         return page;
@@ -369,6 +370,17 @@ internal sealed class ServerWindow : Form
             await SendAsync($"{(profile.banned ? "unban" : "ban")} {profile.id}");
     }
 
+    private async Task ToggleRoleAsync()
+    {
+        if (SelectedCharacter is not { } profile)
+            return;
+        if (profile.canManage)
+            await SendAsync($"revoke-operator {profile.id}");
+        else if (MessageBox.Show(this, $"‘{profile.name}’에게 인게임 정원·캐릭터·운영 권한 관리와 서버 종료 권한을 부여할까요?",
+            "운영 권한 부여", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes)
+            await SendAsync($"grant-operator {profile.id}");
+    }
+
     private async Task DeleteCharacterAsync()
     {
         if (SelectedCharacter is not { } profile)
@@ -396,26 +408,12 @@ internal sealed class ServerWindow : Form
                 rows.Add(character.id, row);
             }
             row.Tag = character;
-            row.SetValues(character.name, character.id, character.banned ? "차단됨" : character.online ? "접속 중" : "오프라인",
-                FormatDate(character.createdUtc), FormatDate(character.lastConnectedUtc), FormatDate(character.lastDisconnectedUtc),
-                FormatDuration(character), character.pingMilliseconds < 0 ? "—" : $"{character.pingMilliseconds} ms");
+            row.SetValues(character.name, character.id, character.Presence, character.RoleLabel,
+                DedicatedAdminCharacter.FormatDate(character.createdUtc), DedicatedAdminCharacter.FormatDate(character.lastConnectedUtc),
+                DedicatedAdminCharacter.FormatDate(character.lastDisconnectedUtc), character.SessionDuration, character.Latency);
             row.Cells[1].ToolTipText = character.id;
         }
         RefreshCharacterActions();
-    }
-
-    private static string FormatDate(long value) => value is > 0 and <= 253402300799L
-        ? DateTimeOffset.FromUnixTimeSeconds(value).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-        : "—";
-
-    private static string FormatDuration(DedicatedAdminCharacter character)
-    {
-        long start = character.lastConnectedUtc;
-        long end = character.online ? DateTimeOffset.UtcNow.ToUnixTimeSeconds() : character.lastDisconnectedUtc;
-        if (start <= 0 || end < start || end > 253402300799L)
-            return "—";
-        var duration = TimeSpan.FromSeconds(end - start);
-        return $"{(long)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}";
     }
 
     private void RefreshControls()
@@ -447,7 +445,8 @@ internal sealed class ServerWindow : Form
     private void RefreshCharacterActions()
     {
         var character = SelectedCharacter;
-        ban.Enabled = delete.Enabled = character != null && server?.Connected == true && !stopping;
+        ban.Enabled = delete.Enabled = role.Enabled = character != null && server?.Connected == true && !stopping;
         ban.Text = character?.banned == true ? "차단 해제" : "차단";
+        role.Text = character?.canManage == true ? "운영 권한 해제" : "운영 권한 부여";
     }
 }
