@@ -18,6 +18,8 @@ namespace Workerborn
         [SerializeField] private TMP_Text face;
         [SerializeField] private TMP_Text status;
         [SerializeField] private TMP_InputField worldName;
+        [SerializeField] private GameObject worldCapacityRow;
+        [SerializeField] private TMP_InputField worldCapacity;
         [SerializeField] private TMP_InputField characterName;
         [SerializeField] private Button previousWorld;
         [SerializeField] private Button nextWorld;
@@ -41,20 +43,14 @@ namespace Workerborn
         private LaunchCharacterPreview preview;
         private int worldIndex, characterIndex;
         private bool selectingWorld;
+        private bool hosting;
 
         private void Awake()
         {
             previousWorld.onClick.AddListener(() => ChooseWorld(-1));
             nextWorld.onClick.AddListener(() => ChooseWorld(1));
             newWorld.onClick.AddListener(NewWorld);
-            useWorld.onClick.AddListener(() =>
-            {
-                if (world == null)
-                    return;
-                if (worldIndex < 0)
-                    world.name = PortableCharacter.CleanName(worldName.text, "솔바람 마을");
-                ShowCharacter();
-            });
+            useWorld.onClick.AddListener(UseWorld);
             previousCharacter.onClick.AddListener(() => ChooseCharacter(-1));
             nextCharacter.onClick.AddListener(() => ChooseCharacter(1));
             newCharacter.onClick.AddListener(() => SetCharacter(-1));
@@ -81,11 +77,12 @@ namespace Workerborn
             launch.onClick.AddListener(Launch);
         }
 
-        internal void Open(LaunchDirectory catalog, List<LocalWorld> choices, Action<LocalWorld, PortableCharacter> begin)
+        internal void Open(LaunchDirectory catalog, List<LocalWorld> choices, Action<LocalWorld, PortableCharacter> begin, bool hosting)
         {
             directory = catalog;
             worlds = choices;
             start = begin;
+            this.hosting = hosting;
             preview = FindFirstObjectByType<LaunchCharacterPreview>();
             if (preview != null)
                 portrait.texture = preview.Texture;
@@ -157,7 +154,34 @@ namespace Workerborn
             worldName.gameObject.SetActive(draft);
             if (draft)
                 worldName.SetTextWithoutNotify(world.name);
+            bool setCapacity = hosting && !world.FromLegacySolo && !world.HasSave;
+            worldCapacityRow.SetActive(setCapacity);
+            if (setCapacity)
+            {
+                int limit = WorldCapacity.IsValid(world.initialCharacterLimit) ? world.initialCharacterLimit : WorldCapacity.DefaultNewWorld;
+                worldCapacity.SetTextWithoutNotify(limit.ToString());
+            }
+            status.text = "";
             previousWorld.interactable = nextWorld.interactable = worlds.Count > 0;
+        }
+
+        private void UseWorld()
+        {
+            if (world == null)
+                return;
+            if (worldCapacityRow.activeSelf)
+            {
+                if (!int.TryParse(worldCapacity.text, out int limit) || !WorldCapacity.IsValid(limit))
+                {
+                    status.text = $"캐릭터 정원을 1명부터 {WorldCapacity.MaxCharacters}명까지 입력해 주세요.";
+                    return;
+                }
+                world.initialCharacterLimit = limit;
+            }
+            if (worldIndex < 0)
+                world.name = PortableCharacter.CleanName(worldName.text, "솔바람 마을");
+            status.text = "";
+            ShowCharacter();
         }
 
         private void ShowCharacter()

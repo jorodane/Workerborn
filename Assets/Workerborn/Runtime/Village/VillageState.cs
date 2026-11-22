@@ -53,6 +53,8 @@ namespace Workerborn
         public int dexterity;
         public int knowledge;
         public int timberDelivered;
+        public int characterLimit;
+        public int requirementCharacters = 1;
         public int lifetimeTimber;
         public WoodcuttingLegend legend;
         public float minute = 480f;
@@ -470,41 +472,53 @@ namespace Workerborn
 
         public bool TryDonateGold()
         {
-            if (!FarmAvailable || FarmLevel >= Rules.ExpandedStage || FarmUpgradePending)
+            if (!ExpansionQuestActive)
                 return Result(false, "지금은 농장 확장을 위한 기부를 받지 않아요.");
-            int amount = Math.Min(Rules.DonationGoldStep, Rules.DonationGold - DonatedGold);
+            if (CanConfirmExpansion)
+                return ConfirmExpansion();
+            int amount = Math.Min(Rules.DonationGoldStep, ExpansionGoldRequired - DonatedGold);
             if (amount <= 0)
                 return Result(false, "필요한 자금은 모두 모였어요.");
             if (Gold < amount)
                 return Result(false, $"기부하려면 {amount}G가 필요해요.");
-            int reward = DonatedGold + amount >= Rules.DonationGold && DonatedPotatoes >= Rules.DonationItems ? Rules.ExpansionRewardGold : 0;
+            int reward = DonatedGold + amount >= ExpansionGoldRequired && DonatedPotatoes >= ExpansionItemsRequired ? Rules.ExpansionRewardGold : 0;
             if (!Inventory.TryExchange(ItemIds.Gold, amount, ItemIds.Gold, reward))
                 return Result(false, "기부 보상을 받을 소지품 공간이 부족합니다.");
             DonatedGold += amount;
             CheckDonation();
-            return Result(true, FarmUpgradePending ? "농장 확장 준비 완료! 시대 전환을 진행할 수 있어요." : $"마을에 {amount}G를 기부했어요. ({DonatedGold}/{Rules.DonationGold}G)");
+            return Result(true, FarmUpgradePending ? "농장 확장 준비 완료! 시대 전환을 진행할 수 있어요." : $"마을에 {amount}G를 기부했어요. ({DonatedGold}/{ExpansionGoldRequired}G)");
         }
 
         public bool TryDonatePotatoes()
         {
-            if (!FarmAvailable || FarmLevel >= Rules.ExpandedStage || FarmUpgradePending)
+            if (!ExpansionQuestActive)
                 return Result(false, "지금은 농장 확장을 위한 기부를 받지 않아요.");
-            int amount = Math.Min(Rules.DonationItemStep, Rules.DonationItems - DonatedPotatoes);
+            if (CanConfirmExpansion)
+                return ConfirmExpansion();
+            int amount = Math.Min(Rules.DonationItemStep, ExpansionItemsRequired - DonatedPotatoes);
             if (amount <= 0)
                 return Result(false, "필요한 물품은 모두 모였습니다.");
             if (Inventory.Count(Rules.DonationItemId) < amount)
                 return Result(false, "기부 물품이 부족합니다.");
-            int reward = DonatedGold >= Rules.DonationGold && DonatedPotatoes + amount >= Rules.DonationItems ? Rules.ExpansionRewardGold : 0;
+            int reward = DonatedGold >= ExpansionGoldRequired && DonatedPotatoes + amount >= ExpansionItemsRequired ? Rules.ExpansionRewardGold : 0;
             if (!Inventory.TryExchange(Rules.DonationItemId, amount, ItemIds.Gold, reward))
                 return Result(false, "기부 보상을 받을 소지품 공간이 부족합니다.");
             DonatedPotatoes += amount;
             CheckDonation();
-            return Result(true, FarmUpgradePending ? "농장 확장 준비 완료! 시대 전환을 진행할 수 있어요." : $"마을에 {ItemCatalog.Get(Rules.DonationItemId).Name} {amount}개를 기부했어요. ({DonatedPotatoes}/{Rules.DonationItems}개)");
+            return Result(true, FarmUpgradePending ? "농장 확장 준비 완료! 시대 전환을 진행할 수 있어요." : $"마을에 {ItemCatalog.Get(Rules.DonationItemId).Name} {amount}개를 기부했어요. ({DonatedPotatoes}/{ExpansionItemsRequired}개)");
+        }
+
+        private bool ConfirmExpansion()
+        {
+            if (Rules.ExpansionRewardGold > 0 && !Inventory.TryAdd(ItemIds.Gold, Rules.ExpansionRewardGold))
+                return Result(false, "기부 보상을 받을 소지품 공간이 부족합니다.");
+            CheckDonation();
+            return Result(true, "농장 확장 준비 완료! 시대 전환을 진행할 수 있어요.");
         }
 
         private void CheckDonation()
         {
-            FarmUpgradePending = DonatedGold >= Rules.DonationGold && DonatedPotatoes >= Rules.DonationItems;
+            FarmUpgradePending = DonatedGold >= ExpansionGoldRequired && DonatedPotatoes >= ExpansionItemsRequired;
             if (FarmUpgradePending)
             {
                 AP += Rules.ExpansionRewardAP;
@@ -572,6 +586,8 @@ namespace Workerborn
                 dexterity = Dexterity,
                 knowledge = Knowledge,
                 timberDelivered = TimberDelivered,
+                characterLimit = CharacterLimit,
+                requirementCharacters = RequirementCharacters,
                 lifetimeTimber = LifetimeTimber,
                 legend = Legend,
                 minute = Minute,
@@ -610,6 +626,8 @@ namespace Workerborn
         public static VillageState Restore(VillageSave save, VillageRules rules = null)
         {
             rules = rules ?? new VillageRules();
+            // An earlier era may have collected more than the current era requires.
+            int highestScale = save != null && save.characterLimit > 0 ? WorldCapacity.MaxCharacters : 1;
             if (save == null || save.schema < 1 || save.schema > CurrentSaveSchema ||
                 save.day < 1 || save.lifeDay < 1 || save.life < 1 || save.day > 1000000 || save.life > 1000000 || save.lifeDay > save.day ||
                 float.IsNaN(save.minute) || float.IsInfinity(save.minute) || save.minute < 0 || save.minute >= 1440 ||
@@ -619,8 +637,10 @@ namespace Workerborn
                 save.totalLevel < save.level || save.ap < 0 ||
                 (save.schema < 5 && (save.skillRank < 0 || save.skillRank > 8)) ||
                 save.career < 0 || save.career > 1000000 || save.lifetimeHarvests < 0 ||
-                save.donatedGold < 0 || save.donatedGold > Math.Max(RequiredDonationGold, rules.DonationGold) ||
-                save.donatedPotatoes < 0 || save.donatedPotatoes > Math.Max(RequiredDonationPotatoes, rules.DonationItems) ||
+                save.characterLimit < 0 || save.characterLimit > WorldCapacity.MaxCharacters ||
+                save.requirementCharacters < 0 || save.requirementCharacters > Math.Max(1, save.characterLimit) ||
+                save.donatedGold < 0 || save.donatedGold > WorldCapacity.ScaleRequirement(Math.Max(RequiredDonationGold, rules.DonationGold), highestScale) ||
+                save.donatedPotatoes < 0 || save.donatedPotatoes > WorldCapacity.ScaleRequirement(Math.Max(RequiredDonationPotatoes, rules.DonationItems), highestScale) ||
                 save.farmLevel < 1 || save.farmLevel > Math.Max(2, rules.ExpandedStage) ||
                 save.jobStatus < 0 || save.jobStatus > 3 || save.lastJobDay > save.day || save.lastJobDay < -1 ||
                 save.inventoryColumns != 8 || save.inventoryRows < 4 || save.inventoryRows > 16)
@@ -633,7 +653,8 @@ namespace Workerborn
                 save.era < 1 || save.era > 1000000 || save.health < 0 || save.health > 1000000 || save.attributePoints < 0 ||
                 save.strength < 0 || save.dexterity < 0 || save.knowledge < 0 ||
                 (long)save.attributePoints + save.strength + save.dexterity + save.knowledge > save.level - 1 ||
-                save.lifetimeTimber < 0 || save.timberDelivered < 0 || save.timberDelivered > (rules.Foundation?.TimberCount ?? 0)))
+                save.lifetimeTimber < 0 || save.timberDelivered < 0 ||
+                save.timberDelivered > WorldCapacity.ScaleRequirement(rules.Foundation?.TimberCount ?? 0, highestScale)))
                 throw new ArgumentException("Invalid life or era progress.");
             if (save.jobRewardItemCount < 0 || save.jobRewardItemCount > 10000 || (save.jobRewardItemCount > 0 && !ItemCatalog.Contains(save.jobRewardItemId)))
                 throw new ArgumentException("Invalid job item reward.");
@@ -667,6 +688,8 @@ namespace Workerborn
                 Knowledge = save.schema >= 6 ? save.knowledge : 0,
                 TimberDelivered = save.schema >= 6 ? save.timberDelivered :
                     (int)foundationStage >= (int)FarmFoundationStage.SelectingSite ? rules.Foundation?.TimberCount ?? 0 : 0,
+                CharacterLimit = save.characterLimit,
+                RequirementCharacters = Math.Max(1, save.requirementCharacters),
                 Minute = save.minute,
                 Energy = save.energy,
                 Level = save.level,

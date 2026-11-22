@@ -34,6 +34,11 @@ namespace Workerborn
         public bool CanSelectFarmSite => FoundationStage == FarmFoundationStage.SelectingSite || FoundationStage == FarmFoundationStage.ReadyToRebirth;
         public bool TimberContractActive => Rules.Foundation != null && FoundationStage == FarmFoundationStage.CollectingTimber;
         public bool ExpansionQuestActive => FarmAvailable && !FarmUpgradePending && FarmLevel < Rules.ExpandedStage;
+        public int TimberRequired => WorldCapacity.ScaleRequirement(Rules.Foundation?.TimberCount ?? 0, RequirementCharacters);
+        public int ExpansionGoldRequired => WorldCapacity.ScaleRequirement(Rules.DonationGold, RequirementCharacters);
+        public int ExpansionItemsRequired => WorldCapacity.ScaleRequirement(Rules.DonationItems, RequirementCharacters);
+        public bool CanConfirmTimberDelivery => TimberContractActive && TimberDelivered >= TimberRequired;
+        public bool CanConfirmExpansion => ExpansionQuestActive && DonatedGold >= ExpansionGoldRequired && DonatedPotatoes >= ExpansionItemsRequired;
 
         public void FinishGuideVisit()
         {
@@ -77,21 +82,23 @@ namespace Workerborn
             var quest = Rules.Foundation;
             if (quest == null || FoundationStage != FarmFoundationStage.CollectingTimber)
                 return Result(false, "진행 중인 목재 납품이 없어요.");
-            int amount = Math.Min(quest.TimberCount - TimberDelivered, Inventory.Count(quest.TimberItemId));
-            if (amount < 1)
+            int amount = Math.Min(Math.Max(0, TimberRequired - TimberDelivered), Inventory.Count(quest.TimberItemId));
+            if (amount == 0 && !CanConfirmTimberDelivery)
                 return Result(false, "납품할 목재가 없어요.");
-            int reward = TimberDelivered + amount == quest.TimberCount ? quest.RewardGold : 0;
+            bool complete = TimberDelivered + amount >= TimberRequired;
+            int reward = complete ? quest.RewardGold : 0;
             var updated = Inventory.Copy();
-            updated.TryRemove(quest.TimberItemId, amount);
-            if (TimberDelivered + amount == quest.TimberCount)
+            if (amount > 0)
+                updated.TryRemove(quest.TimberItemId, amount);
+            if (complete)
                 RemoveDocument(updated, quest.DocumentItemId);
             if (reward > 0 && !updated.TryAdd(ItemIds.Gold, reward))
                 return Result(false, "목재를 납품하고 보상을 받을 소지품 공간이 부족합니다.");
 
             Inventory.ReplaceWith(updated);
             TimberDelivered += amount;
-            if (TimberDelivered < quest.TimberCount)
-                return Result(true, $"목재 {amount}개를 납품했어요. ({TimberDelivered}/{quest.TimberCount})");
+            if (!complete)
+                return Result(true, $"목재 {amount}개를 납품했어요. ({TimberDelivered}/{TimberRequired})");
 
             FoundationStage = FarmFoundationStage.SelectingSite;
             AP += quest.RewardAP;

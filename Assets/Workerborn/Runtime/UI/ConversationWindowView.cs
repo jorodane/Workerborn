@@ -176,14 +176,15 @@ namespace Workerborn
                     var quest = r.Foundation;
                     if (quest == null)
                         break;
-                    text = prose + $"\n\n누적 납품  {s.TimberDelivered:N0} / {quest.TimberCount:N0}";
+                    text = prose + $"\n\n누적 납품  {s.TimberDelivered:N0} / {s.TimberRequired:N0}";
                     if (s.FoundationStage <= FarmFoundationStage.CollectingTimber && s.Inventory.Count(quest.DocumentItemId) == 0)
                         Action("계약서를 받는다", () => Game.PerformWorld(CampaignAction.AcceptFoundation));
                     if (s.FoundationStage == FarmFoundationStage.CollectingTimber)
                     {
                         int owned = s.Inventory.Count(quest.TimberItemId);
                         text += $"  ·  소지 목재 {owned:N0}";
-                        Action("목재를 납품한다", () => Game.PerformWorld(CampaignAction.DeliverTimber), owned > 0);
+                        Action(s.CanConfirmTimberDelivery ? "납품 완료 확인" : "목재를 납품한다",
+                            () => Game.PerformWorld(CampaignAction.DeliverTimber), s.CanConfirmTimberDelivery || owned > 0);
                     }
                     if (s.CanSelectFarmSite)
                         text = s.CanAdvanceEra ? $"{Game.FarmSiteName}에 농장을 준비할게. 기억의 우물에서 시대를 넘길 수 있어." : "목재는 잘 받았어. 농장 후보지의 팻말을 살펴봐 줘.";
@@ -219,10 +220,16 @@ namespace Workerborn
                     Action(s.IntroClaimed ? "완료" : "보상을 받는다", () => Game.Perform(s.TryClaimIntroQuest), !s.IntroClaimed && s.Career >= r.IntroRequiredJobs);
                     break;
                 case DialogueAction.Contribution:
-                    text = r.ExpansionDescription + $"\n\n자금 {s.DonatedGold}/{r.DonationGold} Gold\n{ItemCatalog.Get(r.DonationItemId).Name} {s.DonatedPotatoes}/{r.DonationItems}";
-                    bool accepts = s.ExpansionQuestActive;
-                    Action($"{r.DonationGoldStep} Gold 기부", () => Game.PerformWorld(CampaignAction.DonateGold), accepts);
-                    Action("물품 기부", () => Game.PerformWorld(CampaignAction.DonateItems), accepts);
+                    text = r.ExpansionDescription + $"\n\n자금 {s.DonatedGold:N0}/{s.ExpansionGoldRequired:N0} Gold\n{ItemCatalog.Get(r.DonationItemId).Name} {s.DonatedPotatoes:N0}/{s.ExpansionItemsRequired:N0}";
+                    if (s.CanConfirmExpansion)
+                    {
+                        Action("확장 준비 확인", () => Game.PerformWorld(CampaignAction.DonateGold));
+                        break;
+                    }
+                    Action($"{r.DonationGoldStep} Gold 기부", () => Game.PerformWorld(CampaignAction.DonateGold),
+                        s.ExpansionQuestActive && s.DonatedGold < s.ExpansionGoldRequired);
+                    Action("물품 기부", () => Game.PerformWorld(CampaignAction.DonateItems),
+                        s.ExpansionQuestActive && s.DonatedPotatoes < s.ExpansionItemsRequired);
                     break;
                 case DialogueAction.Rest:
                     text = Game.IsOnline ? prose + $"\n\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복" : prose + $"\n\n기상  {r.WakeMinute / 60:00}:{r.WakeMinute % 60:00}\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복";

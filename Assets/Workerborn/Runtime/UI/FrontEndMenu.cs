@@ -66,11 +66,11 @@ namespace Workerborn
             Show(current == multiplayerPanel ? startPanel : multiplayerPanel);
         }
 
-        private void SelectProfile(GameObject returnTo, bool needsWorld, Action<LocalWorld, PortableCharacter> begin, bool showOldSteamWorld = false)
+        private void SelectProfile(GameObject returnTo, bool needsWorld, Action<LocalWorld, PortableCharacter> begin, bool hosting = false)
         {
             previous = returnTo;
             Show(setup.gameObject);
-            setup.Open(directory, needsWorld ? directory.AvailableWorlds(showOldSteamWorld ? session.LegacyFriendWorld() : null) : null, begin);
+            setup.Open(directory, needsWorld ? directory.AvailableWorlds(hosting ? session.LegacyFriendWorld() : null) : null, begin, hosting);
         }
 
         private void Connect()

@@ -68,7 +68,7 @@ namespace Workerborn
                 return;
             }
             int request = ++roomRequest;
-            created.Set(SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypeFriendsOnly, 12), (value, failed) =>
+            created.Set(SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypeFriendsOnly, WorldCapacity.MaxConnections), (value, failed) =>
             {
                 bool joined = !failed && value.m_eResult == EResult.k_EResultOK;
                 if (request != roomRequest)

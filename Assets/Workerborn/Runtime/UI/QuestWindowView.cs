@@ -27,10 +27,10 @@ namespace Workerborn
                 expansion.gameObject.SetActive(s.TimberContractActive);
                 if (s.TimberContractActive)
                 {
-                    int amount = s.TimberDelivered;
                     var document = Game.Settings.FindItem(r.Foundation.DocumentItemId);
-                    expansion.Bind(document?.DisplayName ?? r.Foundation.Title, $"{amount}/{r.Foundation.TimberCount}", document?.Icon,
-                        (float)amount / r.Foundation.TimberCount, () => Hud.OpenQuestDetail(VillageQuestPage.TimberContract));
+                    string status = s.CanConfirmTimberDelivery ? "요구량 충족" : $"{s.TimberDelivered:N0}/{s.TimberRequired:N0}";
+                    expansion.Bind(document?.DisplayName ?? r.Foundation.Title, status, document?.Icon,
+                        Progress(s.TimberDelivered, s.TimberRequired), () => Hud.OpenQuestDetail(VillageQuestPage.TimberContract));
                 }
             }
             else
@@ -41,8 +41,8 @@ namespace Workerborn
                         (float)s.Career / r.IntroRequiredJobs, () => Hud.OpenQuestDetail(false));
                 expansion.gameObject.SetActive(s.ExpansionQuestActive);
                 if (s.ExpansionQuestActive)
-                    expansion.Bind(r.ExpansionTitle, "진행 중", null,
-                        ((float)s.DonatedGold / Mathf.Max(1, r.DonationGold) + (float)s.DonatedPotatoes / Mathf.Max(1, r.DonationItems)) * .5f,
+                    expansion.Bind(r.ExpansionTitle, s.CanConfirmExpansion ? "요구량 충족" : "진행 중", null,
+                        (Progress(s.DonatedGold, s.ExpansionGoldRequired) + Progress(s.DonatedPotatoes, s.ExpansionItemsRequired)) * .5f,
                         () => Hud.OpenQuestDetail(true));
             }
             var player = Game.LegendPlayerId;
@@ -68,5 +68,7 @@ namespace Workerborn
                     () => Hud.OpenQuestDetail(VillageQuestPage.FarmJob));
             }
         }
+
+        private static float Progress(int amount, int required) => required <= 0 ? 1f : Mathf.Clamp01((float)amount / required);
     }
 }

@@ -13,7 +13,7 @@ namespace Workerborn
     {
         AcceptFoundation, DeliverTimber, SelectFarmSite, DonateGold, DonateItems,
         Rebirth, VoteForEra, AnnounceEra, ParticipateInEra, CancelAnnouncement,
-        RecordLegend, ProveLegend
+        RecordLegend, ProveLegend, SetCharacterLimit
     }
 
     [Serializable]
@@ -54,6 +54,9 @@ namespace Workerborn
         public bool optedIn;
         public bool canAnnounce;
         public double deadline;
+        public int characterLimit;
+        public int createdCharacters;
+        public int requirementCharacters;
     }
 
     internal sealed class VillageCampaign
@@ -67,19 +70,29 @@ namespace Workerborn
         private double deadline;
         private readonly float spawnX, spawnZ;
         public VillageWorldRecord World { get; private set; }
+        public int CharacterLimit => World.characterLimit == 0 ? WorldCapacity.MaxCharacters : World.characterLimit;
+        public int CreatedCharacters => profiles.Count;
+        public bool HasFreeCharacterSlot => CreatedCharacters < CharacterLimit;
 
         public VillageCampaign(VillageRules rules, IReadOnlyDictionary<string, string> sites,
-            float spawnX, float spawnZ, CampaignRecord saved = null)
+            float spawnX, float spawnZ, CampaignRecord saved = null, int initialCharacterLimit = 0)
         {
+            if (initialCharacterLimit != 0 && !WorldCapacity.IsValid(initialCharacterLimit))
+                throw new ArgumentOutOfRangeException(nameof(initialCharacterLimit));
             this.rules = rules;
             this.sites = sites;
             this.spawnX = spawnX;
             this.spawnZ = spawnZ;
             World = saved?.world ?? new VillageState(rules).ExportWorld();
             deadline = saved?.deadline ?? 0;
-            if (saved != null)
+            if (saved == null)
             {
-                if (saved.world == null || saved.profiles == null || saved.profiles.Length > 256 ||
+                World.characterLimit = initialCharacterLimit;
+                World.requirementCharacters = Math.Max(1, initialCharacterLimit);
+            }
+            else
+            {
+                if (saved.world == null || saved.profiles == null || saved.profiles.Length > CharacterLimit ||
                     double.IsNaN(deadline) || double.IsInfinity(deadline) || deadline < 0)
                     throw new ArgumentException("Invalid campaign save.");
                 var sample = new VillageState(rules).Export();
@@ -101,11 +114,11 @@ namespace Workerborn
         public bool Connect(string identity, string name, out CampaignProfile profile, CharacterLook look = default)
         {
             profile = null;
-            if (connected.Count >= 12 || connected.Contains(identity))
+            if (connected.Count >= WorldCapacity.MaxConnections || connected.Contains(identity))
                 return false;
             if (!profiles.TryGetValue(identity, out profile))
             {
-                if (profiles.Count >= 256)
+                if (!HasFreeCharacterSlot)
                     return false;
                 var state = new VillageState(rules);
                 state.BeginInWorld(World);
@@ -160,6 +173,26 @@ namespace Workerborn
         public SessionAvatar[] Avatars() => avatars.Values.ToArray();
         public bool CanAdvance => World.foundationStage == (int)FarmFoundationStage.ReadyToRebirth || World.expansionReady;
 
+        public bool TrySetCharacterLimit(int limit, out string message)
+        {
+            if (!WorldCapacity.IsValid(limit))
+            {
+                message = $"캐릭터 정원은 1명부터 {WorldCapacity.MaxCharacters}명까지 설정할 수 있어요.";
+                return false;
+            }
+            if (limit < CreatedCharacters)
+            {
+                message = $"이미 생성된 캐릭터 {CreatedCharacters}명보다 정원을 줄일 수 없어요.";
+                return false;
+            }
+
+            // Slots open immediately. Raising the requirements waits for the next era.
+            World.characterLimit = limit;
+            World.requirementCharacters = Math.Min(World.requirementCharacters, limit);
+            message = $"월드 캐릭터 정원을 {limit}명으로 설정했어요.";
+            return true;
+        }
+
         public CampaignStatus Status(string identity, bool canAnnounce) => new CampaignStatus
         {
             connected = connected.Count,
@@ -167,7 +200,10 @@ namespace Workerborn
             voted = votes.Contains(identity),
             optedIn = profiles[identity].optedIn,
             canAnnounce = canAnnounce,
-            deadline = deadline
+            deadline = deadline,
+            characterLimit = CharacterLimit,
+            createdCharacters = CreatedCharacters,
+            requirementCharacters = World.requirementCharacters
         };
 
         public bool Checkpoint(string identity, VillageSave save)
@@ -351,6 +387,8 @@ namespace Workerborn
             save.donatedGold = World.donatedGold;
             save.donatedPotatoes = World.donatedItems;
             save.farmUpgradePending = World.expansionReady;
+            save.characterLimit = World.characterLimit;
+            save.requirementCharacters = World.requirementCharacters;
             save.legend = World.legend;
             if (save.jobStatus == (int)JobStatus.Active && (save.lastJobDay != World.day || World.minute >= rules.JobEnd))
                 save.jobStatus = (int)JobStatus.Failed;

@@ -4,6 +4,18 @@ namespace Workerborn
 {
     public enum LifeAttribute { Strength, Dexterity, Knowledge }
 
+    internal static class WorldCapacity
+    {
+        public const int MaxCharacters = 256;
+        public const int MaxConnections = 12;
+        public const int DefaultNewWorld = 4;
+
+        public static bool IsValid(int limit) => limit >= 1 && limit <= MaxCharacters;
+
+        public static int ScaleRequirement(int amount, int characters) =>
+            (int)Math.Min(int.MaxValue, (long)Math.Max(0, amount) * characters);
+    }
+
     [Serializable]
     public sealed class VillageWorldRecord
     {
@@ -17,6 +29,8 @@ namespace Workerborn
         public int donatedGold;
         public int donatedItems;
         public bool expansionReady;
+        public int characterLimit;
+        public int requirementCharacters = 1;
         public WoodcuttingLegend legend = new WoodcuttingLegend();
 
         public double Clock => (day - 1) * 1440d + minute;
@@ -41,6 +55,8 @@ namespace Workerborn
         private double lifeStartedAt;
 
         public int Era { get; private set; } = 1;
+        public int CharacterLimit { get; private set; }
+        public int RequirementCharacters { get; private set; } = 1;
         public double WorldMinute => (Day - 1) * 1440d + Minute;
         public double LifeMinutes => Math.Max(0, WorldMinute - lifeStartedAt);
         public double RebirthMinutesLeft => Math.Max(0, Rules.RebirthDays * 1440d - LifeMinutes);
@@ -88,6 +104,7 @@ namespace Workerborn
                 FarmUpgradePending = false;
             }
             Era++;
+            RequirementCharacters = Math.Max(1, CharacterLimit);
             if (reincarnate)
                 RebirthPersonalLife();
             return Result(true, $"{Era}시대가 시작됐어요.");
@@ -127,16 +144,20 @@ namespace Workerborn
             donatedGold = DonatedGold,
             donatedItems = DonatedPotatoes,
             expansionReady = FarmUpgradePending,
+            characterLimit = CharacterLimit,
+            requirementCharacters = RequirementCharacters,
             legend = Legend
         };
 
         internal void ApplyWorld(VillageWorldRecord world)
         {
             int previousDay = Day;
+            int requirementCharacters = Math.Max(1, world.requirementCharacters);
             bool changed = Era != world.era || Day != world.day || FarmLevel != world.farmLevel ||
                 (int)FoundationStage != world.foundationStage || FarmSiteId != world.farmSiteId ||
                 TimberDelivered != world.timberDelivered || DonatedGold != world.donatedGold ||
                 DonatedPotatoes != world.donatedItems || FarmUpgradePending != world.expansionReady ||
+                CharacterLimit != world.characterLimit || RequirementCharacters != requirementCharacters ||
                 Legend.founders.Length != world.legend.founders.Length || Legend.recognized.Length != world.legend.recognized.Length;
             Era = world.era;
             Day = world.day;
@@ -149,6 +170,8 @@ namespace Workerborn
             DonatedGold = world.donatedGold;
             DonatedPotatoes = world.donatedItems;
             FarmUpgradePending = world.expansionReady;
+            CharacterLimit = world.characterLimit;
+            RequirementCharacters = requirementCharacters;
             Legend = world.legend;
             if (FoundationStage >= FarmFoundationStage.SelectingSite && changed)
                 RemoveDocument(Inventory, Rules.Foundation?.DocumentItemId);

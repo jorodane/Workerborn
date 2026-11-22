@@ -37,12 +37,15 @@ namespace Workerborn
     {
         public const string LegacySolo = "legacy-solo";
         public string id, name;
+        public int initialCharacterLimit;
         public bool FromLegacySolo => id == LegacySolo;
         public bool FromSteam => id != null && id.StartsWith("steam-", StringComparison.Ordinal);
         public static LocalWorld New() => new LocalWorld { id = Guid.NewGuid().ToString("N"), name = "솔바람 마을" };
 
         internal static string LegacyFriendId(ulong account) => "steam-" + account;
         internal static string Folder => Path.Combine(Application.persistentDataPath, "worlds");
+
+        public bool HasSave => File.Exists(FilePath) || File.Exists(FilePath + ".bak");
 
         public string FilePath
         {

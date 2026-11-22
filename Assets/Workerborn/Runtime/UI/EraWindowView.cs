@@ -16,6 +16,11 @@ namespace Workerborn
         [SerializeField] private Button announce;
         [SerializeField] private Button cancel;
         [SerializeField] private TMP_InputField days;
+        [SerializeField] private TMP_Text roster;
+        [SerializeField] private GameObject characterLimitControls;
+        [SerializeField] private TMP_InputField characterLimit;
+        [SerializeField] private Button applyCharacterLimit;
+        private int lastCharacterLimit;
 
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
@@ -30,6 +35,13 @@ namespace Workerborn
                     Hud.ShowToast("예고 기간을 인게임 1일부터 365일까지 입력해 주세요.");
             });
             cancel.onClick.AddListener(() => Game.PerformWorld(CampaignAction.CancelAnnouncement));
+            applyCharacterLimit.onClick.AddListener(() =>
+            {
+                if (int.TryParse(characterLimit.text, out int limit) && WorldCapacity.IsValid(limit))
+                    Game.PerformWorld(CampaignAction.SetCharacterLimit, value: limit);
+                else
+                    Hud.ShowToast($"캐릭터 정원을 1명부터 {WorldCapacity.MaxCharacters}명까지 입력해 주세요.");
+            });
         }
 
         private float nextRefresh;
@@ -62,6 +74,19 @@ namespace Workerborn
             announce.interactable = ready;
             cancel.gameObject.SetActive(operatorControls);
             cancel.interactable = announced;
+            characterLimitControls.SetActive(operatorControls);
+            if (status != null)
+            {
+                roster.text = $"생성된 캐릭터 {status.createdCharacters}/{status.characterLimit}명  ·  동시 접속 {status.connected}/{WorldCapacity.MaxConnections}명\n" +
+                    $"현재 시대 요구량 기준 {status.requirementCharacters}명";
+                if (!characterLimit.isFocused && lastCharacterLimit != status.characterLimit)
+                {
+                    lastCharacterLimit = status.characterLimit;
+                    characterLimit.SetTextWithoutNotify(lastCharacterLimit.ToString());
+                }
+            }
+            else
+                roster.text = "";
             if (announced)
             {
                 var date = TimeSpan.FromMinutes(Math.Max(0, Math.Ceiling(status.deadline - s.WorldMinute)));

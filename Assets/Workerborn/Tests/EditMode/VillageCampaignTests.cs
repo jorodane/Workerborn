@@ -51,6 +51,152 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void CharacterSlotsArePersistentAndIndependentOfTheSimultaneousConnectionLimit()
+        {
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 10, 22, initialCharacterLimit: 13);
+            for (int i = 0; i < 12; i++)
+                Assert.That(campaign.Connect($"player-{i}", "일꾼", out _), Is.True);
+            Assert.That(campaign.Connect("player-12", "일꾼", out _), Is.False);
+            Assert.That(campaign.CreatedCharacters, Is.EqualTo(12));
+
+            campaign.Disconnect("player-0");
+            Assert.That(campaign.Connect("player-12", "일꾼", out _), Is.True);
+            campaign.Disconnect("player-1");
+            Assert.That(campaign.Connect("player-13", "일꾼", out _), Is.False);
+            Assert.That(campaign.Connect("player-0", "일꾼", out _), Is.True);
+
+            var restored = new VillageCampaign(rules, Sites, 10, 22, campaign.Export());
+            Assert.That(restored.Connect("player-0", "일꾼", out _), Is.True);
+            Assert.That(restored.Connect("player-13", "일꾼", out _), Is.False);
+            var status = restored.Status("player-0", false);
+            Assert.That(status.connected, Is.EqualTo(1));
+            Assert.That(status.characterLimit, Is.EqualTo(13));
+            Assert.That(status.createdCharacters, Is.EqualTo(13));
+            Assert.That(status.requirementCharacters, Is.EqualTo(13));
+        }
+
+        [Test]
+        public void RaisingCharacterLimitOpensSlotsNowAndChangesTheNextEraRequirements()
+        {
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 10, 22, initialCharacterLimit: 1);
+            Assert.That(campaign.Connect("a", "하나", out _), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out _), Is.False);
+            Assert.That(campaign.TrySetCharacterLimit(3, out _), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out _), Is.True);
+
+            campaign = new VillageCampaign(rules, Sites, 10, 22, campaign.Export(), initialCharacterLimit: 4);
+            Assert.That(campaign.Connect("a", "하나", out var player), Is.True);
+            Assert.That(campaign.CharacterLimit, Is.EqualTo(3));
+            Assert.That(VillageState.Restore(player.character, rules).TimberRequired, Is.EqualTo(6));
+            Assert.That(campaign.Perform("a", CampaignAction.AcceptFoundation, null, 1, true, out _), Is.True);
+            StockResources(campaign, rules, ItemIds.Timber, 6);
+            Assert.That(campaign.Perform("a", CampaignAction.DeliverTimber, null, 1, true, out _), Is.True);
+            Assert.That(campaign.Perform("a", CampaignAction.SelectFarmSite, "east", 1, true, out _), Is.True);
+            Assert.That(campaign.Perform("a", CampaignAction.VoteForEra, null, 1, true, out _), Is.True);
+            Assert.That(campaign.Tick(0), Is.True);
+            Assert.That(campaign.World.era, Is.EqualTo(2));
+            Assert.That(campaign.World.requirementCharacters, Is.EqualTo(3));
+            var state = VillageState.Restore(campaign.Profile("a").character, rules);
+            Assert.That(state.ExpansionGoldRequired, Is.EqualTo(3 * rules.DonationGold));
+            Assert.That(state.ExpansionItemsRequired, Is.EqualTo(3 * rules.DonationItems));
+        }
+
+        [Test]
+        public void ReducingCharacterLimitPreservesOverTargetTimberAndExistingProfiles()
+        {
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 10, 22, initialCharacterLimit: 4);
+            Assert.That(campaign.Connect("a", "하나", out var player), Is.True);
+            Assert.That(VillageState.Restore(player.character, rules).TimberRequired, Is.EqualTo(24));
+            Assert.That(campaign.Connect("b", "둘", out _), Is.True);
+            campaign.Disconnect("b");
+            Assert.That(campaign.Perform("a", CampaignAction.AcceptFoundation, null, 1, true, out _), Is.True);
+            StockResources(campaign, rules, ItemIds.Timber, 14);
+            Assert.That(campaign.Perform("a", CampaignAction.DeliverTimber, null, 1, true, out _), Is.True);
+
+            Assert.That(campaign.TrySetCharacterLimit(0, out _), Is.False);
+            Assert.That(campaign.TrySetCharacterLimit(WorldCapacity.MaxCharacters + 1, out _), Is.False);
+            Assert.That(campaign.TrySetCharacterLimit(1, out _), Is.False);
+            Assert.That(campaign.TrySetCharacterLimit(2, out _), Is.True);
+            Assert.That(campaign.World.timberDelivered, Is.EqualTo(14));
+            Assert.That(campaign.World.foundationStage, Is.EqualTo((int)FarmFoundationStage.CollectingTimber));
+
+            campaign = new VillageCampaign(rules, Sites, 10, 22, campaign.Export());
+            Assert.That(campaign.Connect("a", "하나", out player), Is.True);
+            Assert.That(campaign.HasIdentity("b"), Is.True);
+            var state = VillageState.Restore(player.character, rules);
+            Assert.That(state.TimberRequired, Is.EqualTo(12));
+            Assert.That(state.CanConfirmTimberDelivery, Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.Timber), Is.Zero);
+            Assert.That(campaign.Perform("a", CampaignAction.DeliverTimber, null, 1, true, out _), Is.True);
+            state = VillageState.Restore(campaign.Profile("a").character, rules);
+            Assert.That(state.TimberDelivered, Is.EqualTo(14));
+            Assert.That(state.FoundationStage, Is.EqualTo(FarmFoundationStage.SelectingSite));
+            Assert.That(state.Inventory.Count(ItemIds.TimberContract), Is.Zero);
+            Assert.That(state.AP, Is.EqualTo(rules.Foundation.RewardAP + (state.Level - 1) * rules.APPerLevel));
+            Assert.That(campaign.Perform("a", CampaignAction.DeliverTimber, null, 1, true, out _), Is.False);
+        }
+
+        [Test]
+        public void ReducingCharacterLimitPreservesTheFarmAndBothExpansionContributions()
+        {
+            var rules = Rules();
+            rules.DonationGold = 20;
+            rules.DonationGoldStep = 30;
+            rules.DonationItems = 3;
+            rules.DonationItemStep = 6;
+            rules.ExpansionRewardGold = 7;
+            var campaign = new VillageCampaign(rules, Sites, 10, 22, initialCharacterLimit: 3);
+            Assert.That(campaign.Connect("a", "하나", out _), Is.True);
+            Assert.That(campaign.Perform("a", CampaignAction.AcceptFoundation, null, 1, true, out _), Is.True);
+            StockResources(campaign, rules, ItemIds.Timber, 18);
+            Assert.That(campaign.Perform("a", CampaignAction.DeliverTimber, null, 1, true, out _), Is.True);
+            Assert.That(campaign.Perform("a", CampaignAction.SelectFarmSite, "east", 1, true, out _), Is.True);
+            Assert.That(campaign.Perform("a", CampaignAction.VoteForEra, null, 1, true, out _), Is.True);
+            Assert.That(campaign.Tick(0), Is.True);
+            StockResources(campaign, rules, ItemIds.Gold, 30);
+            StockResources(campaign, rules, ItemIds.Potato, 6);
+            Assert.That(campaign.Perform("a", CampaignAction.DonateGold, null, 1, true, out _), Is.True);
+            Assert.That(campaign.Perform("a", CampaignAction.DonateItems, null, 1, true, out _), Is.True);
+            Assert.That(campaign.World.expansionReady, Is.False);
+
+            Assert.That(campaign.TrySetCharacterLimit(1, out _), Is.True);
+            campaign = new VillageCampaign(rules, Sites, 10, 22, campaign.Export());
+            Assert.That(campaign.Connect("a", "하나", out var player), Is.True);
+            var state = VillageState.Restore(player.character, rules);
+            Assert.That(state.Era, Is.EqualTo(2));
+            Assert.That(state.FarmSiteId, Is.EqualTo("east"));
+            Assert.That(state.FarmLevel, Is.EqualTo(1));
+            Assert.That(state.CanConfirmExpansion, Is.True);
+            Assert.That(state.FarmUpgradePending, Is.False);
+            Assert.That(state.Gold, Is.Zero);
+            Assert.That(campaign.Perform("a", CampaignAction.DonateGold, null, 1, true, out _), Is.True);
+            state = VillageState.Restore(campaign.Profile("a").character, rules);
+            Assert.That(state.DonatedGold, Is.EqualTo(30));
+            Assert.That(state.DonatedPotatoes, Is.EqualTo(6));
+            Assert.That(state.FarmUpgradePending, Is.True);
+            Assert.That(state.FarmLevel, Is.EqualTo(1));
+            Assert.That(state.Gold, Is.EqualTo(7));
+        }
+
+        [Test]
+        public void SavesWithoutACharacterLimitKeepTheirExistingQuestBalance()
+        {
+            var campaign = ReadyCampaign(out var rules);
+            var record = campaign.Export();
+            record.world.characterLimit = 0;
+            record.world.requirementCharacters = 0;
+            var restored = new VillageCampaign(rules, Sites, 10, 22, record);
+            Assert.That(restored.Connect("a", "하나", out var player), Is.True);
+            Assert.That(restored.CharacterLimit, Is.EqualTo(WorldCapacity.MaxCharacters));
+            var state = VillageState.Restore(player.character, rules);
+            Assert.That(state.TimberRequired, Is.EqualTo(6));
+            Assert.That(state.CanAdvanceEra, Is.True);
+        }
+
+        [Test]
         public void PersonalRebirthUsesExactLifeAgeAndPreservesPartialDeliveries()
         {
             var rules = Rules();
@@ -256,6 +402,13 @@ namespace Workerborn.Tests
         }
 
         private static readonly Dictionary<string, string> Sites = new Dictionary<string, string> { ["east"] = "동쪽 밭터" };
+
+        private static void StockResources(VillageCampaign campaign, VillageRules rules, string item, int amount)
+        {
+            var player = VillageState.Restore(campaign.Profile("a").character, rules);
+            Assert.That(player.Inventory.TryAdd(item, amount), Is.True);
+            Assert.That(campaign.Checkpoint("a", player.Export()), Is.True);
+        }
 
         private static VillageCampaign ReadyCampaign(out VillageRules rules)
         {

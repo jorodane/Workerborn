@@ -34,7 +34,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 3;
+        public const int ProtocolVersion = 4;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -287,12 +287,19 @@ namespace Workerborn
                     if (!IPAddress.TryParse(bind, out var ip) || ip.AddressFamily != AddressFamily.InterNetwork ||
                         !int.TryParse(portText, out int port) || port < 1 || port > 65535)
                         throw new ArgumentException("Use an IPv4 -bind and a -port between 1 and 65535.");
+                    string limitText = Option(args, "-character-limit");
+                    int characterLimit = 0;
+                    if (Array.IndexOf(args, "-character-limit") >= 0 &&
+                        (!int.TryParse(limitText, out characterLimit) || !WorldCapacity.IsValid(characterLimit)))
+                        throw new ArgumentException($"Use -character-limit between 1 and {WorldCapacity.MaxCharacters}.");
                     string path = Option(args, "-world") ?? Path.Combine(Application.persistentDataPath, "worlds", "dedicated.json");
-                    OpenCampaign(path, rules, sites, spawn);
+                    bool created = OpenCampaign(path, rules, sites, spawn, initialCharacterLimit: characterLimit, requireCharacterLimit: true);
                     listener = new TcpListener(ip, port);
                     listener.Start(16);
+                    if (created && !SaveWorld())
+                        throw new IOException("The new world could not be saved.");
                     _ = Task.Run(ReadConsole);
-                    Debug.Log($"Workerborn dedicated server listening on {ip}:{port}. World: {savePath}");
+                    Debug.Log($"Workerborn dedicated server listening on {ip}:{port}. World: {savePath}. Characters: {authority.CreatedCharacters}/{authority.CharacterLimit}.");
                 }
                 else if (selectedWorld != null && SelectedCharacter != null)
                 {
@@ -301,11 +308,17 @@ namespace Workerborn
                     CampaignRecord seed = null;
                     if (selectedWorld.FromLegacySolo && !File.Exists(path) && !File.Exists(path + ".bak"))
                         seed = ReadLegacySolo(rules);
-                    OpenCampaign(path, rules, sites, spawn, seed);
+                    OpenCampaign(path, rules, sites, spawn, seed, Online ? selectedWorld.initialCharacterLimit : 0,
+                        requireCharacterLimit: Online && seed == null);
                     if (selectedWorld.FromSteam && Online)
                         authority.AdoptLegacyIdentity("steam:" + steam.User, localIdentity);
                     if (!authority.Connect(localIdentity, joinName, out var profile, SelectedCharacter.look))
-                        throw new InvalidOperationException("Local character profile unavailable.");
+                    {
+                        QueueExit(JoinFailure(localIdentity));
+                        return;
+                    }
+                    if (Online && !SaveWorld())
+                        throw new IOException("The hosted world could not be saved.");
                     CommitInitial(profile, Online ? authority.Status(localIdentity, true) : null);
                 }
             }
@@ -323,8 +336,8 @@ namespace Workerborn
             }
         }
 
-        private void OpenCampaign(string path, VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn,
-            CampaignRecord seed = null)
+        private bool OpenCampaign(string path, VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn,
+            CampaignRecord seed = null, int initialCharacterLimit = 0, bool requireCharacterLimit = false)
         {
             savePath = Path.GetFullPath(path);
             Directory.CreateDirectory(Path.GetDirectoryName(savePath));
@@ -344,7 +357,7 @@ namespace Workerborn
                     if (candidate != savePath && File.Exists(savePath))
                         File.Move(savePath, savePath + ".corrupt-" + DateTime.UtcNow.Ticks);
                     nextSave = Time.unscaledTime + SaveInterval;
-                    return;
+                    return false;
                 }
                 catch (Exception e) when (e is IOException || e is ArgumentException)
                 {
@@ -353,8 +366,11 @@ namespace Workerborn
             }
             if (File.Exists(savePath) || File.Exists(savePath + ".bak"))
                 throw new InvalidDataException("Both world records are unreadable.");
-            authority = new VillageCampaign(rules, sites, spawn.x, spawn.z, seed);
+            if (requireCharacterLimit && initialCharacterLimit == 0)
+                throw new ArgumentException($"Choose -character-limit 1 to {WorldCapacity.MaxCharacters} when creating a server world.");
+            authority = new VillageCampaign(rules, sites, spawn.x, spawn.z, seed, initialCharacterLimit);
             nextSave = Time.unscaledTime + SaveInterval;
+            return true;
         }
 
         private CampaignRecord ReadLegacySolo(VillageRules rules)
@@ -658,7 +674,7 @@ namespace Workerborn
                 var connection = connections.Find(candidate => candidate.Steam == sender);
                 if (connection == null)
                 {
-                    if (packet.type != SessionMessage.Hello || connections.Count >= 12)
+                    if (packet.type != SessionMessage.Hello || connections.Count >= WorldCapacity.MaxConnections)
                         return;
                     connection = new Connection { Steam = sender, LastSeen = Time.unscaledTime };
                     connections.Add(connection);
@@ -763,7 +779,7 @@ namespace Workerborn
                 }
                 if (!authority.Connect(identity, name, out _, appearance.look))
                 {
-                    Send(connection, new SessionPacket { type = SessionMessage.Error, message = "방이 가득 찼거나 이 캐릭터가 이미 접속 중이에요." });
+                    Send(connection, new SessionPacket { type = SessionMessage.Error, message = JoinFailure(identity) });
                     return;
                 }
                 connection.Identity = identity;
@@ -778,8 +794,20 @@ namespace Workerborn
             });
         }
 
+        private string JoinFailure(string identity) => !authority.HasIdentity(identity) && !authority.HasFreeCharacterSlot
+            ? $"월드 캐릭터 정원 {authority.CharacterLimit}명이 찼어요. 이 월드에서 만들었던 캐릭터로 입장해 주세요."
+            : "방이 가득 찼거나 이 캐릭터가 이미 접속 중이에요.";
+
         private void CampaignCommand(string identity, SessionPacket packet, Connection connection)
         {
+            if (packet.action == CampaignAction.SetCharacterLimit)
+            {
+                string feedback = "월드 캐릭터 정원은 호스트만 변경할 수 있어요.";
+                if (connection == null)
+                    TrySaveCharacterLimit(packet.value, out feedback);
+                SendProfile(identity, connection, feedback, packet.request, includeCharacter: false, transition: false);
+                return;
+            }
             string message = "시대 정보가 변경됐어요. 다시 시도해 주세요.";
             bool success = authority.Checkpoint(identity, packet.character) &&
                 authority.Perform(identity, packet.action, packet.argument, packet.value, connection == null, out message);
@@ -921,8 +949,30 @@ namespace Workerborn
                 case "announce" when words.Length == 2 && int.TryParse(words[1], out int days):
                     authority.Announce(CampaignAction.AnnounceEra, days, out string announced);
                     Debug.Log(announced); SaveWorld(); break;
-                default: Debug.Log("Workerborn server commands: announce <days>, cancel, save, stop"); break;
+                case "character-limit" when words.Length == 1:
+                    Debug.Log($"Characters: {authority.CreatedCharacters}/{authority.CharacterLimit}. Current quest scale: {authority.World.requirementCharacters}.");
+                    break;
+                case "character-limit" when words.Length == 2 && int.TryParse(words[1], out int limit):
+                    TrySaveCharacterLimit(limit, out string limitMessage);
+                    Debug.Log(limitMessage);
+                    break;
+                default: Debug.Log("Workerborn server commands: character-limit [count], announce <days>, cancel, save, stop"); break;
             }
+        }
+
+        private bool TrySaveCharacterLimit(int limit, out string message)
+        {
+            int previousLimit = authority.World.characterLimit;
+            int previousRequirements = authority.World.requirementCharacters;
+            if (!authority.TrySetCharacterLimit(limit, out message))
+                return false;
+            if (SaveWorld())
+                return true;
+
+            authority.World.characterLimit = previousLimit;
+            authority.World.requirementCharacters = previousRequirements;
+            message = "캐릭터 정원 변경을 저장하지 못했어요.";
+            return false;
         }
 
         private bool SaveWorld()
