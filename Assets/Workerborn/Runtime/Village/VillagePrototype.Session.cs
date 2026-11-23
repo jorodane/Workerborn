@@ -57,7 +57,7 @@ namespace Workerborn
             }
             farmSites = mapRoot.GetComponentsInChildren<VillageFarmSite>(true);
             npcs.AddRange(mapRoot.GetComponentsInChildren<VillageInteractable>(true));
-            Session.InitializeAuthority(CreateVillageRules(), AuthoredSites(), spawnPoint.position);
+            Session.InitializeAuthority(CreateVillageRules(), AuthoredSites(), spawnPoint.position, rebirthZone);
             foreach (var root in gameObject.scene.GetRootGameObjects())
                 root.SetActive(false);
         }
@@ -73,6 +73,13 @@ namespace Workerborn
 
         public bool PerformWorld(CampaignAction action, string argument = null, int value = 1)
         {
+            bool incarnate = action == CampaignAction.Incarnate;
+            bool eraChoice = IsOnline && action is (CampaignAction.VoteForEra or CampaignAction.AnnounceEra or
+                CampaignAction.ParticipateInEra or CampaignAction.CancelAnnouncement);
+            if (incarnate && (!InRebirthZone || !hud.IsSpeakingWith(rebirthZone.Guide)))
+                return false;
+            if (State.AwaitingIncarnation && !incarnate && !eraChoice)
+                return false;
             if (IsOnline)
             {
                 bool submitted = Session.Submit(action, argument, value);
@@ -80,14 +87,14 @@ namespace Workerborn
                     worker.Cancel();
                 return submitted;
             }
-            if (action == CampaignAction.Rebirth)
+            if (incarnate || action == CampaignAction.Rebirth)
             {
-                if (!State.TryRebirth())
+                if (!(incarnate ? State.TryIncarnate(value) : State.TryRebirth()))
                 {
                     hud.ShowToast(State.LastMessage);
                     return false;
                 }
-                FinishTransition(reborn: true, eraChanged: false);
+                FinishTransition(reborn: !incarnate, eraChanged: false);
                 hud.ShowToast(State.LastMessage);
                 SaveGame(false);
                 return true;
@@ -148,9 +155,10 @@ namespace Workerborn
                 return;
             int era = State.Era;
             int life = State.Life;
+            bool wasAwaitingIncarnation = State.AwaitingIncarnation;
             int level = State.Level;
             int day = State.Day;
-            if (save != null && (!transition || save.life != life))
+            if (save != null && (!transition || save.life != life || save.awaitingIncarnation != wasAwaitingIncarnation))
             {
                 State = VillageState.Restore(save, State.Rules);
                 equipmentVersion = -1;
@@ -158,7 +166,7 @@ namespace Workerborn
             State.ApplyWorld(world);
             bool reborn = life != State.Life;
             bool eraChanged = era != State.Era;
-            if (reborn || eraChanged)
+            if (reborn || eraChanged || State.AwaitingIncarnation != wasAwaitingIncarnation)
             {
                 FinishTransition(reborn, eraChanged);
                 SaveGame(false);

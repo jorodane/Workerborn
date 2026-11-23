@@ -70,7 +70,7 @@ def validate(path):
 
 count=0
 for path in [*(CONTENT/'Prefabs').rglob('*.prefab'),*(CONTENT/'Data').rglob('*.asset')]:count+=validate(path)
-for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc','LoggingTree','VillagePlotSign','RebirthGate']:assert subclass(child,'WorldInteractable')
+for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc','LoggingTree','VillagePlotSign']:assert subclass(child,'WorldInteractable')
 assert subclass('FishingWater','HarvestableCrop')
 for name in ['Mira','Noah','Lena','Player']:assert (CONTENT/'Prefabs/Characters'/(name+'.prefab')).is_file()
 for name in ['Board','Shrine','Monster','ForestRabbit']:assert (CONTENT/'Prefabs/Interaction'/(name+'.prefab')).is_file()

@@ -27,6 +27,7 @@ namespace Workerborn
         private bool confirmingRebirth;
         private bool confirmingEra;
         private bool trading;
+        private enum LookPart { Body, Hair, Face, Outfit }
         private string presentedText;
         private float lineStarted;
         private int characterCount;
@@ -57,7 +58,14 @@ namespace Workerborn
             if (requestedTopic.HasValue && npc.IsTopicAvailable(Game, requestedTopic.Value))
                 topic = requestedTopic.Value;
             InventoryWindowView.Clear(keywords);
-            var topics = npc.Definition != null && npc.Definition.Dialogue != null ? npc.Definition.Dialogue.Topics : null;
+            if (npc.Role == VillageRole.Guide)
+            {
+                LookOption("체형", LookPart.Body);
+                LookOption("머리", LookPart.Hair);
+                LookOption("얼굴", LookPart.Face);
+                LookOption("기본 의상", LookPart.Outfit);
+            }
+            var topics = npc.Role == VillageRole.Guide ? null : npc.Definition?.Dialogue?.Topics;
             if (topics != null)
                 foreach (var entry in topics)
                 {
@@ -146,6 +154,23 @@ namespace Workerborn
             Instantiate(dialogueChoice, actions).Bind(text, callback, enabled);
         }
 
+        private void LookOption(string label, LookPart part)
+        {
+            Instantiate(dialogueChoice, keywords).Bind(label, () =>
+            {
+                var look = Game.IncarnationLook;
+                switch (part)
+                {
+                    case LookPart.Body: look.body = 1 - look.body; break;
+                    case LookPart.Hair: look.hair = look.hair % CharacterLook.HairCount + 1; break;
+                    case LookPart.Face: look.face = look.face % CharacterLook.FaceCount + 1; break;
+                    case LookPart.Outfit: look.outfit = look.outfit % CharacterLook.OutfitCount + 1; break;
+                }
+                Game.PreviewIncarnationLook(look);
+                Refresh();
+            });
+        }
+
         public override void Refresh()
         {
             if (npc == null)
@@ -163,10 +188,11 @@ namespace Workerborn
             var s = Game.State;
             var r = s.Rules;
             InventoryWindowView.Clear(actions);
-            if (npc.Role == VillageRole.Guide && topic != DialogueAction.Rebirth)
+            if (npc.Role == VillageRole.Guide)
             {
-                Action("마을로 내려가기", Game.LeaveRebirthZone);
-                ShowLine(prose);
+                var look = Game.IncarnationLook;
+                Action("환생하기", Game.ConfirmIncarnation, s.AwaitingIncarnation);
+                ShowLine($"{prose}\n\n{s.Life}번째 생 · 레벨 1\n체형 {look.body + 1}   머리 {look.hair}   얼굴 {look.face}   기본 의상 {look.outfit}");
                 return;
             }
             string text = prose;
@@ -246,7 +272,7 @@ namespace Workerborn
                             Action("다음 시대로 간다", Game.AdvanceEra);
                         }
                         else
-                            Action("환생한다", Game.Rebirth);
+                            Action("다음 생을 준비한다", Game.Rebirth);
                         Action("돌아간다", () =>
                         {
                             confirmingRebirth = confirmingEra = false;
@@ -264,8 +290,6 @@ namespace Workerborn
                             Action("공동 환생", Game.AdvanceEra);
                         else
                             Action("시대 전환", () => { confirmingEra = true; Refresh(); }, s.CanAdvanceEra);
-                        if (npc.Role == VillageRole.Shrine && Game.RebirthArea != null)
-                            Action("구름 정원 가기", Game.VisitRebirthZone);
                     }
                     break;
                 case DialogueAction.Legend:

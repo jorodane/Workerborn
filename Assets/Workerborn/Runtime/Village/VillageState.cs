@@ -96,7 +96,9 @@ namespace Workerborn
         public GroundDropSave[] drops = Array.Empty<GroundDropSave>();
         public float playerX;
         public float playerZ = -4.4f;
-        public bool inRebirthZone;
+        public bool awaitingIncarnation;
+        public bool hasLifeLook;
+        public CharacterLook lifeLook;
         public EquipmentEntrySave[] equipment = Array.Empty<EquipmentEntrySave>();
     }
 
@@ -232,6 +234,15 @@ namespace Workerborn
             if (paused)
                 return false;
             Minute += seconds * Rules.MinutesPerSecond;
+            if (AwaitingIncarnation)
+            {
+                int elapsedDays = (int)(Minute / 1440f);
+                Day += elapsedDays;
+                Minute %= 1440f;
+                if (elapsedDays > 0)
+                    Version++;
+                return false;
+            }
             if (Job == JobStatus.Active && Minute >= Rules.JobEnd)
             {
                 ExpireJob();
@@ -538,6 +549,8 @@ namespace Workerborn
 
         internal bool TrySleep(bool paidRoom, bool sharedClock)
         {
+            if (AwaitingIncarnation)
+                return false;
             if (paidRoom && Gold < Rules.RoomPrice)
                 return Result(false, "숙박비가 부족합니다.");
             if (paidRoom && Rules.RoomPrice > 0)
@@ -582,6 +595,9 @@ namespace Workerborn
             return new VillageSave
             {
                 schema = CurrentSaveSchema,
+                awaitingIncarnation = AwaitingIncarnation,
+                hasLifeLook = LifeLook.HasValue,
+                lifeLook = LifeLook.GetValueOrDefault(),
                 equipment = worn.ToArray(),
                 day = Day,
                 lifeDay = LifeDay,
@@ -688,6 +704,8 @@ namespace Workerborn
                 throw new ArgumentException("Invalid equipment.");
             var state = new VillageState(rules)
             {
+                AwaitingIncarnation = save.schema >= 8 && save.awaitingIncarnation,
+                LifeLook = save.schema >= 8 && save.hasLifeLook ? save.lifeLook.Validated() : (CharacterLook?)null,
                 Day = save.day,
                 LifeDay = save.lifeDay,
                 Life = save.life,
@@ -750,6 +768,9 @@ namespace Workerborn
             }
             if (save.bagExpanded != state.BagExpanded || state.BagExpanded && inventory.Rows < BagInventoryRows)
                 throw new ArgumentException("Invalid bag equipment.");
+
+            if (state.AwaitingIncarnation && (state.HasVillageProgress || save.gold != 0 || (save.drops?.Length ?? 0) > 0))
+                throw new ArgumentException("An incarnation waiting on the clouds cannot carry possessions or progress from the village.");
 
             if (state.Job == JobStatus.Active && state.Minute >= rules.JobEnd)
                 state.ExpireJob();

@@ -36,7 +36,7 @@ namespace Workerborn
                     : transform.position + Vector3.up * ((Appearance?.Height ?? 1.7f) + .21f);
             }
         }
-        private CharacterLook CurrentLook => customLook ?? Appearance.DefaultLook;
+        internal CharacterLook CurrentLook => customLook ?? Appearance.DefaultLook;
 
         internal void ApplyProfileLook(CharacterLook look)
         {

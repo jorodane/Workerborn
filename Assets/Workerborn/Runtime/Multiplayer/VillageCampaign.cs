@@ -15,7 +15,7 @@ namespace Workerborn
     {
         AcceptFoundation, DeliverTimber, SelectFarmSite, DonateGold, DonateItems,
         Rebirth, VoteForEra, AnnounceEra, ParticipateInEra, CancelAnnouncement,
-        RecordLegend, ProveLegend, SetCharacterLimit, BuildFacility
+        RecordLegend, ProveLegend, SetCharacterLimit, BuildFacility, Incarnate
     }
 
     [Serializable]
@@ -76,12 +76,20 @@ namespace Workerborn
         private readonly Dictionary<string, SessionAvatar> avatars = new Dictionary<string, SessionAvatar>();
         private double deadline;
         private readonly float spawnX, spawnZ;
+        private Func<float, float, bool> isCloudPosition;
+        private SessionAvatar cloudSpawn;
         public string WorldId { get; }
         public VillageWorldRecord World { get; private set; }
         public int CharacterLimit => World.characterLimit == 0 ? WorldCapacity.MaxCharacters : World.characterLimit;
         public int CreatedCharacters => profiles.Count;
         public bool HasFreeCharacterSlot => CreatedCharacters < CharacterLimit;
         public IEnumerable<CampaignProfile> Profiles => profiles.Values;
+
+        internal void ConfigureCloudArea(Func<float, float, bool> contains, SessionAvatar spawn)
+        {
+            isCloudPosition = contains;
+            cloudSpawn = spawn;
+        }
 
         public VillageCampaign(VillageRules rules, IReadOnlyDictionary<string, string> sites,
             float spawnX, float spawnZ, CampaignRecord saved = null, int initialCharacterLimit = 0)
@@ -131,7 +139,7 @@ namespace Workerborn
             {
                 if (!HasFreeCharacterSlot)
                     return false;
-                var state = new VillageState(rules);
+                var state = VillageState.BeforeFirstLife(rules);
                 state.BeginInWorld(World);
                 profile = new CampaignProfile
                 {
@@ -153,7 +161,9 @@ namespace Workerborn
                 profile.portableId = portableId;
             ApplyWorld(profile.character);
             connected.Add(identity);
-            avatars.Add(identity, new SessionAvatar { id = profile.id, name = name, look = look.Validated(), x = profile.character.playerX, z = profile.character.playerZ });
+            var avatar = new SessionAvatar { id = profile.id, name = name, look = look.Validated() };
+            SetAvatarStart(profile.character, avatar);
+            avatars.Add(identity, avatar);
             return true;
         }
 
@@ -296,10 +306,13 @@ namespace Workerborn
             var profile = profiles[identity];
             if (save == null || save.schema != VillageState.CurrentSaveSchema ||
                 save.era != World.era || save.life != profile.character.life ||
+                save.awaitingIncarnation != profile.character.awaitingIncarnation ||
                 double.IsNaN(save.lifeStartedAt) || Math.Abs(save.lifeStartedAt - profile.character.lifeStartedAt) > .001 ||
-                !FiniteCoordinate(save.playerX) || !FiniteCoordinate(save.playerZ))
+                !FiniteCoordinate(save.playerX) || !FiniteCoordinate(save.playerZ) || isCloudPosition?.Invoke(save.playerX, save.playerZ) == true)
                 return false;
             save.lifeStartedAt = profile.character.lifeStartedAt;
+            save.hasLifeLook = profile.character.hasLifeLook;
+            save.lifeLook = profile.character.lifeLook;
             ApplyWorld(save);
             try
             {
@@ -314,6 +327,8 @@ namespace Workerborn
         {
             if (pose == null || !FiniteCoordinate(pose.x) || !FiniteCoordinate(pose.y) ||
                 !FiniteCoordinate(pose.z) || !FiniteCoordinate(pose.yaw) || pose.motion < 0 || pose.motion > (int)WorkerMotion.SeatSit)
+                return;
+            if (isCloudPosition != null && isCloudPosition(pose.x, pose.z) != profiles[identity].character.awaitingIncarnation)
                 return;
             var target = avatars[identity];
             target.x = pose.x;
@@ -358,6 +373,11 @@ namespace Workerborn
 
             ApplyWorld(profile.character);
             var state = VillageState.Restore(profile.character, rules);
+            if (state.AwaitingIncarnation && action != CampaignAction.Incarnate)
+            {
+                message = "운명의 인도자에게서 환생을 마쳐 주세요.";
+                return false;
+            }
             bool success = action switch
             {
                 CampaignAction.AcceptFoundation => state.TryAcceptFoundation(),
@@ -366,6 +386,7 @@ namespace Workerborn
                 CampaignAction.DonateGold => state.TryDonateGold(),
                 CampaignAction.DonateItems => state.TryDonatePotatoes(),
                 CampaignAction.Rebirth => state.TryRebirth(),
+                CampaignAction.Incarnate => state.TryIncarnate(value),
                 CampaignAction.RecordLegend => state.TryRecordLegend(profile.id, profile.name),
                 CampaignAction.ProveLegend => state.TryProveLegend(profile.id),
                 CampaignAction.BuildFacility => state.TryInstallFacility(argument, value),
@@ -375,7 +396,7 @@ namespace Workerborn
             if (!success)
                 return false;
             World = state.ExportWorld();
-            SaveCharacter(profile, state, action == CampaignAction.Rebirth);
+            SaveCharacter(profile, state, action is CampaignAction.Rebirth or CampaignAction.Incarnate);
             return true;
         }
 
@@ -438,7 +459,6 @@ namespace Workerborn
             profile.character = state.Export();
             profile.character.playerX = previous.playerX;
             profile.character.playerZ = previous.playerZ;
-            profile.character.inRebirthZone = !teleport && previous.inRebirthZone;
             profile.character.cropStates = teleport ? Array.Empty<CropStateSave>() : previous.cropStates;
             profile.character.animalStates = teleport ? Array.Empty<AnimalStateSave>() : previous.animalStates;
             profile.character.collectedPickupIds = teleport && previous.life != state.Life ? Array.Empty<string>() : previous.collectedPickupIds;
@@ -447,11 +467,20 @@ namespace Workerborn
             {
                 SpawnAtStart(profile);
                 if (avatars.TryGetValue(profile.identity, out var avatar))
-                {
-                    avatar.x = spawnX;
-                    avatar.z = spawnZ;
-                }
+                    SetAvatarStart(profile.character, avatar);
             }
+        }
+
+        private void SetAvatarStart(VillageSave character, SessionAvatar avatar)
+        {
+            var origin = character.awaitingIncarnation ? cloudSpawn : null;
+            avatar.x = origin?.x ?? character.playerX;
+            avatar.y = origin?.y ?? 0f;
+            avatar.z = origin?.z ?? character.playerZ;
+            avatar.yaw = origin?.yaw ?? 0f;
+            avatar.motion = (int)WorkerMotion.Idle;
+            if (character.hasLifeLook)
+                avatar.look = character.lifeLook.Validated();
         }
 
         private void SpawnAtStart(CampaignProfile profile)
@@ -466,7 +495,7 @@ namespace Workerborn
             save.era = World.era;
             save.day = World.day;
             save.minute = World.minute;
-            save.lifeDay = Math.Max(1, World.day - (int)(save.lifeStartedAt / 1440d));
+            save.lifeDay = save.awaitingIncarnation ? 1 : Math.Max(1, World.day - (int)(save.lifeStartedAt / 1440d));
             save.farmLevel = World.farmLevel;
             save.foundationStage = World.foundationStage;
             save.timberDelivered = World.timberDelivered;

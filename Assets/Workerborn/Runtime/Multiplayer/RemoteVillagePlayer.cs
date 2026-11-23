@@ -12,6 +12,8 @@ namespace Workerborn
         private Vector3 destination;
         private Quaternion yaw;
         private bool hasPose;
+        private Transform modularModel;
+        private int lookSelection;
 
         internal void Bind(CharacterDefinition appearance, VillageHud display, string name, CharacterLook look)
         {
@@ -20,6 +22,11 @@ namespace Workerborn
             if (visual != null && appearance != null && appearance.BasePrefab != null)
             {
                 var model = CharacterAssembler.Build(appearance, visual, look);
+                if (appearance.UsesP09)
+                {
+                    modularModel = model.transform;
+                    lookSelection = look.ToSelection();
+                }
                 animationDriver?.Initialize(model.GetComponentInChildren<Animator>(), appearance.Idle, appearance.Run, appearance.Work, appearance.Walk);
             }
             label = hud.CreatePlayerOverhead(name);
@@ -31,6 +38,11 @@ namespace Workerborn
 
         internal void SetPose(SessionAvatar avatar, float surfaceY)
         {
+            if (modularModel != null && lookSelection != avatar.look.ToSelection())
+            {
+                lookSelection = avatar.look.ToSelection();
+                P09Wardrobe.Apply(modularModel, avatar.look.Validated());
+            }
             float height = Mathf.Abs(avatar.y - surfaceY) < 3f ? avatar.y : surfaceY;
             destination = new Vector3(avatar.x, height, avatar.z);
             yaw = Quaternion.Euler(0, avatar.yaw, 0);

@@ -36,7 +36,6 @@ namespace Workerborn
             if (game.RebirthArea != null)
             {
                 AddMarker(game.RebirthArea.Guide);
-                AddMarker(game.RebirthArea.Exit);
             }
             jobMarker.SetAsLastSibling();
         }

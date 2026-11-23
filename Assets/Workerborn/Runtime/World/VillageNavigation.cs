@@ -10,8 +10,10 @@ namespace Workerborn
         private BoxCollider ground;
         [SerializeField]
         private Terrain terrain;
+        [SerializeField] private MeshCollider groundMesh;
         public Terrain GroundTerrain => terrain;
         internal BoxCollider GroundBox => ground;
+        internal MeshCollider GroundMesh => groundMesh;
 
         [SerializeField]
         private Transform obstacleRoot;
@@ -22,14 +24,14 @@ namespace Workerborn
         private NavMeshData generated;
         private NavMeshDataInstance instance;
 
-        public bool IsGround(Collider hit) => hit != null && (hit == ground ||
+        public bool IsGround(Collider hit) => hit != null && (hit == ground || hit == groundMesh ||
             (terrain != null && hit is TerrainCollider && hit.gameObject == terrain.gameObject));
 
         public NavMeshData BuildData()
         {
-            if (ground == null && terrain == null)
+            if (ground == null && terrain == null && (groundMesh == null || groundMesh.sharedMesh == null))
             {
-                Debug.LogError("Assign the authored Terrain or ground collider to VillageNavigation.", this);
+                Debug.LogError("Assign a Terrain, BoxCollider, or readable ground mesh to VillageNavigation.", this);
                 return null;
             }
 
@@ -39,6 +41,12 @@ namespace Workerborn
             {
                 sources.Add(new NavMeshBuildSource { shape = NavMeshBuildSourceShape.Terrain, sourceObject = terrain.terrainData, transform = terrain.transform.localToWorldMatrix, area = 0 });
                 bounds = new Bounds(terrain.transform.position + terrain.terrainData.size * .5f, terrain.terrainData.size);
+            }
+            else if (groundMesh != null && groundMesh.sharedMesh != null)
+            {
+                sources.Add(new NavMeshBuildSource { shape = NavMeshBuildSourceShape.Mesh, sourceObject = groundMesh.sharedMesh,
+                    transform = groundMesh.transform.localToWorldMatrix, area = 0 });
+                bounds = groundMesh.bounds;
             }
             else
             {

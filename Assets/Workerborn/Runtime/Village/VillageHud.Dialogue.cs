@@ -8,11 +8,11 @@ namespace Workerborn
         private readonly Dictionary<string, bool> dialogueWindowStates = new Dictionary<string, bool>();
         private WindowTransition[] backdropTransitions = System.Array.Empty<WindowTransition>();
         private bool dialogueClosing;
-        private bool finishGuideOnClose;
+        internal bool IsSpeakingWith(VillageInteractable target) => target != null && dialogueTarget == target;
 
         public void OpenDialogue(VillageInteractable target, DialogueAction? topic = null)
         {
-            if (target == null)
+            if (target == null || game.State.AwaitingIncarnation && target != game.RebirthArea?.Guide)
                 return;
             CloseDialogue();
             CloseWorldContext();
@@ -44,7 +44,6 @@ namespace Workerborn
                     FinishDialogueClose();
                 return;
             }
-            finishGuideOnClose = dialogueTarget.Role == VillageRole.Guide;
             dialogueTarget = null;
             if (IsShopOpen)
             {
@@ -96,17 +95,12 @@ namespace Workerborn
             RestoreDialogueWindows();
             SetDialoguePresentation(false);
             game.ShowNpcPortrait(null);
-            if (finishGuideOnClose)
-            {
-                finishGuideOnClose = false;
-                game.FinishGuideVisit();
-            }
         }
 
         private void SetDialoguePresentation(bool active)
         {
             if (normalHud != null)
-                normalHud.SetActive(!active);
+                normalHud.SetActive(!active && !game.State.AwaitingIncarnation);
             chat?.SetDialogueMode(active);
             if (dialogueBackdrop == null)
                 return;
@@ -132,7 +126,7 @@ namespace Workerborn
         {
             foreach (var entry in dialogueWindowStates)
             {
-                if (!views.TryGetValue(entry.Key, out var view) || view.IsOpen == entry.Value)
+                if (!CanShowInCurrentLife(entry.Key) || !views.TryGetValue(entry.Key, out var view) || view.IsOpen == entry.Value)
                     continue;
                 if (entry.Value)
                 {

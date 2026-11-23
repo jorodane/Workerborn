@@ -13219,7 +13219,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100001, guid: d502f47ac78651a9a057f87a79332c21, type: 3}
       propertyPath: m_Name
-      value: Cloud garden
+      value: Cloud bank
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

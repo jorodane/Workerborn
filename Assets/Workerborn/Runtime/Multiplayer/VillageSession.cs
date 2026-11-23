@@ -36,7 +36,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 10;
+        public const int ProtocolVersion = 11;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -291,7 +291,18 @@ namespace Workerborn
             SceneManager.LoadScene(VillageScene);
         }
 
-        public void InitializeAuthority(VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn)
+        private void ConfigureCloudArea(RebirthZone zone)
+        {
+            if (zone == null || zone.Floor == null || zone.Spawn == null)
+                return;
+            Bounds area = zone.Area;
+            Transform spawn = zone.Spawn;
+            Vector3 position = spawn.position;
+            authority.ConfigureCloudArea((x, z) => area.Contains(new Vector3(x, area.center.y, z)),
+                new SessionAvatar { x = position.x, y = position.y, z = position.z, yaw = spawn.eulerAngles.y });
+        }
+
+        public void InitializeAuthority(VillageRules rules, IReadOnlyDictionary<string, string> sites, Vector3 spawn, RebirthZone cloudArea)
         {
             try
             {
@@ -316,6 +327,7 @@ namespace Workerborn
                         admin = new DedicatedAdminPipe(pipeId, console);
                     }
                     OpenCampaign(path, rules, sites, spawn, initialCharacterLimit: characterLimit, requireCharacterLimit: true);
+                    ConfigureCloudArea(cloudArea);
                     listener = new TcpListener(ip, port);
                     listener.Start(16);
                     if (!SaveWorld())
@@ -333,6 +345,7 @@ namespace Workerborn
                         seed = ReadLegacySolo(rules);
                     OpenCampaign(path, rules, sites, spawn, seed, Online ? selectedWorld.initialCharacterLimit : 0,
                         requireCharacterLimit: Online && seed == null);
+                    ConfigureCloudArea(cloudArea);
                     if (selectedWorld.FromSteam && Online)
                         authority.AdoptLegacyIdentity("steam:" + steam.User, localIdentity);
                     if (!authority.Connect(localIdentity, joinName, out var profile, SelectedCharacter.look))

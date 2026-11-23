@@ -158,17 +158,16 @@ namespace Workerborn
             if (farm != null)
                 originalFarmPosition = farm.position;
             var rules = CreateVillageRules();
-            State = new VillageState(rules);
+            State = IsAppearanceTrial ? new VillageState(rules) : VillageState.BeforeFirstLife(rules);
             string notice = null;
             usesSelectedWorld = !IsAppearanceTrial && Session?.HasLocalWorld == true;
-            reloadingSavedGame = Session != null && Session.TakeSoloReload(out restoredWorld, out notice);
-            if (reloadingSavedGame)
+            if (Session != null && Session.TakeSoloReload(out restoredWorld, out notice))
                 State = VillageState.Restore(restoredWorld, rules);
             else if (IsOnline || usesSelectedWorld)
             {
                 if (IsOnline)
                     MarkOnline();
-                Session.InitializeAuthority(rules, AuthoredSites(), spawnPoint.position);
+                Session.InitializeAuthority(rules, AuthoredSites(), spawnPoint.position, rebirthZone);
                 restoredWorld = Session.InitialCharacter;
                 if (restoredWorld != null)
                     State = VillageState.Restore(restoredWorld, rules);
@@ -178,6 +177,8 @@ namespace Workerborn
                 State = savedState;
                 restoredWorld = savedWorld;
             }
+            if (!IsAppearanceTrial && State.LifeLook.HasValue)
+                player.ApplyProfileLook(State.LifeLook.Value);
 
             foreach (var crop in allCrops)
             {
@@ -225,6 +226,7 @@ namespace Workerborn
                 minimapCamera.enabled = true;
             }
             hud.Initialize(this, settings.InterfaceFont);
+            hud.SetIncarnationPresentation();
             targeting?.Initialize(this, hud.TargetLink);
             worldCamera.GetComponent<CameraVisibility>()?.Initialize(player.transform);
             cameraRig.Initialize(worker.transform, this);
@@ -271,8 +273,8 @@ namespace Workerborn
 
         private void Start()
         {
-            if (initialized && !IsAppearanceTrial && (!reloadingSavedGame || restoredWorld?.inRebirthZone == true))
-                VisitRebirthZone();
+            if (initialized && State.AwaitingIncarnation)
+                EnterClouds();
         }
 
         internal static void BindCharacter(CharacterActor actor, bool idleOnly)
@@ -353,6 +355,8 @@ namespace Workerborn
 
         public bool CanHarvest(HarvestableCrop target)
         {
+            if (State.AwaitingIncarnation)
+                return false;
             var work = target.Definition;
             if (work.RequiredTool != null && !State.HasTool(work.RequiredTool.Id))
             {
@@ -486,7 +490,7 @@ namespace Workerborn
 
         public bool TryCollectPickup(GroundPickup item)
         {
-            if (item == null || !item.CanCollect || !worker.IsInPickupRange(item))
+            if (State.AwaitingIncarnation || item == null || !item.CanCollect || !worker.IsInPickupRange(item))
                 return false;
             string id = item.ItemId;
             int quantity = item.Quantity;
@@ -512,6 +516,8 @@ namespace Workerborn
 
         public bool Perform(Func<bool> operation)
         {
+            if (State.AwaitingIncarnation)
+                return false;
             if (AwaitingWorldCommand)
                 return false;
             int level = State.Level;
@@ -536,7 +542,7 @@ namespace Workerborn
 
         internal void Sleep(bool paidRoom, VillageInteractable innkeeper)
         {
-            if (AwaitingWorldCommand)
+            if (AwaitingWorldCommand || State.AwaitingIncarnation)
                 return;
             if (!State.TrySleep(paidRoom, IsOnline))
             {
@@ -583,6 +589,8 @@ namespace Workerborn
                 hud.ToggleWindow("era");
                 return;
             }
+            if (State.AwaitingIncarnation)
+                return;
             if (!State.TryAdvanceEra())
             {
                 hud.ShowToast(State.LastMessage);
@@ -595,13 +603,13 @@ namespace Workerborn
 
         private void FinishTransition(bool reborn, bool eraChanged)
         {
-            Vector3 positionBeforeTransition = worker.StandingPosition;
             hud.CancelItemDrag();
             worker.Cancel();
             effects?.Clear();
             hud.ClearFloatingText();
             if (reborn)
             {
+                worker.ResetLifeActivity();
                 for (int i = pickups.Count - 1; i >= 0; i--)
                     if (pickups[i] != null)
                         pickups[i].Despawn();
@@ -625,16 +633,18 @@ namespace Workerborn
                 agent.enabled = true;
             }
             ResetDailyResources();
-            if (reborn)
-                InRebirthZone = false;
-            Vector3 destination = InRebirthZone ? positionBeforeTransition : spawnPoint.position;
-            var spawn = SurfacePosition(destination.x, destination.z);
-            worker.ResetWorker(NavMesh.SamplePosition(spawn, out var point, 2f, NavMesh.AllAreas) ? point.position : spawn);
-            lighting?.SetDate(State.Day, State.Minute);
             hud.CloseDialogue();
+            if (State.AwaitingIncarnation)
+            {
+                if (!InRebirthZone)
+                    EnterClouds();
+            }
+            else if (InRebirthZone)
+                EnterVillage();
+            else if (eraChanged)
+                Travel(spawnPoint.position, toClouds: false);
+            lighting?.SetDate(State.Day, State.Minute);
             hud.RefreshWindows();
-            if (reborn)
-                VisitRebirthZone();
         }
 
         public void WalkTo(VillageRole role)
@@ -671,7 +681,7 @@ namespace Workerborn
         {
             var point = new Vector3(x, 0, z);
             if (rebirthZone?.Contains(x, z) == true)
-                point.y = rebirthZone.Area.max.y;
+                point.y = rebirthZone.SurfaceHeight(x, z);
             else if (GroundTerrain != null)
                 point.y = GroundTerrain.SampleHeight(point) + GroundTerrain.transform.position.y;
             return point;
@@ -775,7 +785,7 @@ namespace Workerborn
             return success;
         }
 
-        public bool CanReloadSavedGame => initialized && !IsOnline && !IsAppearanceTrial && Session != null &&
+        public bool CanReloadSavedGame => initialized && !State.AwaitingIncarnation && !IsOnline && !IsAppearanceTrial && Session != null &&
             (usesSelectedWorld ? Session.HasLocalSave : loadSavedGame && VillageSaveStore.HasSave);
 
         public void ReloadSavedGame()
@@ -792,10 +802,11 @@ namespace Workerborn
         internal VillageSave CaptureSave()
         {
             var save = State.Export();
-            Vector3 position = InRebirthZone ? villageReturnPosition : worker.StandingPosition;
+            Vector3 position = State.AwaitingIncarnation ? spawnPoint.position : worker.StandingPosition;
             save.playerX = position.x;
             save.playerZ = position.z;
-            save.inRebirthZone = InRebirthZone;
+            if (State.AwaitingIncarnation)
+                return save;
             save.cropStates = new CropStateSave[allCrops.Count];
             for (int i = 0; i < allCrops.Count; i++)
                 save.cropStates[i] = new CropStateSave
@@ -830,7 +841,10 @@ namespace Workerborn
                 player.ShowEquipment(State.Equipment, settings);
             }
 
+            int day = State.Day;
             bool rested = IsOnline ? State.RecoverInSharedWorld() : State.AdvanceTime(Time.deltaTime, hud.HasModal);
+            if (State.AwaitingIncarnation && State.Day != day)
+                ResetDailyResources();
             if (rested)
             {
                 BeginDay(resetResources: !IsOnline);

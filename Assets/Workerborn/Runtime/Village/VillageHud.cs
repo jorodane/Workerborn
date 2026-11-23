@@ -349,6 +349,8 @@ namespace Workerborn
 
         private VillageWindowView OpenWindow(string id, bool temporaryInDialogue)
         {
+            if (!CanShowInCurrentLife(id))
+                return null;
             bool opening;
             if (!views.TryGetValue(id, out var view))
             {
@@ -384,6 +386,18 @@ namespace Workerborn
             if (id == "tooltip")
                 view.transform.SetAsLastSibling();
             return view;
+        }
+
+        private bool CanShowInCurrentLife(string id) => game == null || !game.State.AwaitingIncarnation ||
+            id is "system" or "settings" or "conversation" or "worldcontext" or "serveradmin" ||
+            (id == "era" && game.IsOnline);
+
+        internal void SetIncarnationPresentation()
+        {
+            foreach (var view in views.Values)
+                if (!CanShowInCurrentLife(view.Id))
+                    HideWindow(view.Id, animate: false);
+            SetDialoguePresentation(HasModal);
         }
 
         private void FocusWindow(VillageWindowView view)

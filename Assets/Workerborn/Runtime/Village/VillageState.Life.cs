@@ -39,17 +39,19 @@ namespace Workerborn
 
     public sealed partial class VillageState
     {
-        public const int CurrentSaveSchema = 7;
+        public const int CurrentSaveSchema = 8;
         public const int LevelLimit = 200;
         private double lifeStartedAt;
+        public bool AwaitingIncarnation { get; private set; }
+        public CharacterLook? LifeLook { get; private set; }
 
         public int Era { get; private set; } = 1;
         public int CharacterLimit { get; private set; }
         public int RequirementCharacters { get; private set; } = 1;
         public double WorldMinute => (Day - 1) * 1440d + Minute;
-        public double LifeMinutes => Math.Max(0, WorldMinute - lifeStartedAt);
+        public double LifeMinutes => AwaitingIncarnation ? 0 : Math.Max(0, WorldMinute - lifeStartedAt);
         public double RebirthMinutesLeft => Math.Max(0, Rules.RebirthDays * 1440d - LifeMinutes);
-        public bool CanRebirth => RebirthMinutesLeft <= 0;
+        public bool CanRebirth => !AwaitingIncarnation && RebirthMinutesLeft <= 0;
         public bool CanAdvanceEra => FoundationStage == FarmFoundationStage.ReadyToRebirth || FarmUpgradePending;
         public int Health { get; private set; }
         public int HealthLimit => 100 + (Level - 1) * Rules.HealthPerLevel;
@@ -75,6 +77,8 @@ namespace Workerborn
 
         public bool TryRebirth()
         {
+            if (AwaitingIncarnation)
+                return Result(false, "운명의 인도자에게서 환생을 마쳐 주세요.");
             if (!CanRebirth)
                 return Result(false, $"일반 환생까지 인게임 {Math.Ceiling(RebirthMinutesLeft / 60d):N0}시간 남았어요.");
             RebirthPersonalLife();
@@ -101,7 +105,10 @@ namespace Workerborn
 
         internal void RebirthPersonalLife()
         {
+            if (AwaitingIncarnation)
+                return;
             Life++;
+            AwaitingIncarnation = true;
             lifeStartedAt = WorldMinute;
             LifeDay = 1;
             Level = 1;
@@ -118,8 +125,28 @@ namespace Workerborn
             JobRewardItemId = null;
             JobRewardItemCount = 0;
             LastRestWasCollapse = false;
-            Result(true, $"{Life}번째 생이 시작됐어요.");
+            Result(true, "운명의 인도자와 다음 생을 준비하세요.");
         }
+
+        internal static VillageState BeforeFirstLife(VillageRules rules) => new VillageState(rules) { AwaitingIncarnation = true };
+
+        internal bool TryIncarnate(int selection)
+        {
+            if (!AwaitingIncarnation || HasVillageProgress || !CharacterLook.TryFromSelection(selection, out var look))
+                return Result(false, "운명의 인도자에게서 다시 환생을 준비해 주세요.");
+            LifeLook = look;
+            AwaitingIncarnation = false;
+            lifeStartedAt = WorldMinute;
+            LifeDay = 1;
+            Health = HealthLimit;
+            Energy = StaminaLimit;
+            LastGuideLife = Life;
+            return Result(true, $"{Life}번째 생이 시작됐어요.");
+        }
+
+        private bool HasVillageProgress => Level != 1 || Experience != 0 || LifeDay != 1 || AttributePoints != 0 ||
+            Strength != 0 || Dexterity != 0 || Knowledge != 0 || Job != JobStatus.None ||
+            Inventory.Entries.Count != 0 || equipment.Count != 0;
 
         public VillageWorldRecord ExportWorld() => new VillageWorldRecord
         {
@@ -152,7 +179,7 @@ namespace Workerborn
             Era = world.era;
             Day = world.day;
             Minute = world.minute;
-            LifeDay = Math.Max(1, Day - (int)(lifeStartedAt / 1440d));
+            LifeDay = AwaitingIncarnation ? 1 : Math.Max(1, Day - (int)(lifeStartedAt / 1440d));
             FarmLevel = world.farmLevel;
             FoundationStage = (FarmFoundationStage)world.foundationStage;
             TimberDelivered = world.timberDelivered;
@@ -182,7 +209,7 @@ namespace Workerborn
 
         internal bool RecoverInSharedWorld()
         {
-            if (Health > 0 && Energy > 0)
+            if (AwaitingIncarnation || (Health > 0 && Energy > 0))
                 return false;
             Health = HealthLimit;
             Energy = Math.Min(StaminaLimit, Rules.CollapseEnergy);

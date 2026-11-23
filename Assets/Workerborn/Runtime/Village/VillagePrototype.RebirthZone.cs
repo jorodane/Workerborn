@@ -8,10 +8,9 @@ namespace Workerborn
         [Header("Rebirth map")]
         [SerializeField] private RebirthZone rebirthZone;
 
-        private Vector3 villageReturnPosition;
         private Vector3 villageMinimapPosition;
         private float villageMinimapSize;
-        private bool reloadingSavedGame;
+        internal CharacterLook IncarnationLook { get; private set; }
 
         public bool InRebirthZone { get; private set; }
         internal RebirthZone RebirthArea => rebirthZone;
@@ -26,41 +25,60 @@ namespace Workerborn
             return ground != null && ground.Raycast(ray, out hit, 300f);
         }
 
-        public void VisitRebirthZone()
+        private void EnterClouds()
         {
-            if (!initialized || InRebirthZone || rebirthZone == null || rebirthZone.Spawn == null)
+            if (!State.AwaitingIncarnation)
                 return;
-            Vector3 returnPosition = worker.StandingPosition;
-            if (Travel(rebirthZone.Spawn.position, toRebirthZone: true))
+            equipmentVersion = -1;
+            player.ShowEquipment(State.Equipment, settings);
+            IncarnationLook = player.CurrentLook.Validated();
+            if (rebirthZone != null && rebirthZone.Spawn != null && Travel(rebirthZone.Spawn.position, toClouds: true))
             {
-                villageReturnPosition = returnPosition;
                 SaveGame(false);
-            }
-        }
-
-        public void LeaveRebirthZone()
-        {
-            if (!InRebirthZone)
                 return;
-            if (Travel(villageReturnPosition, toRebirthZone: false) || Travel(spawnPoint.position, toRebirthZone: false))
-                SaveGame(false);
+            }
+            Debug.LogError("The rebirth area needs a walkable cloud surface and an arrival point.", this);
         }
 
-        private bool Travel(Vector3 destination, bool toRebirthZone)
+        private void EnterVillage()
         {
+            if (State.AwaitingIncarnation)
+                return;
+            player.ApplyProfileLook(State.LifeLook ?? IncarnationLook);
+            if (!Travel(spawnPoint.position, toClouds: false))
+                Debug.LogError("The village arrival point must be on walkable ground.", this);
+        }
+
+        internal void PreviewIncarnationLook(CharacterLook look)
+        {
+            if (!InRebirthZone || !State.AwaitingIncarnation || !hud.IsSpeakingWith(rebirthZone.Guide))
+                return;
+            IncarnationLook = look.Validated();
+            player.ApplyProfileLook(IncarnationLook);
+        }
+
+        internal void ConfirmIncarnation() => PerformWorld(CampaignAction.Incarnate, value: IncarnationLook.ToSelection());
+
+        private bool Travel(Vector3 destination, bool toClouds)
+        {
+            if (State.AwaitingIncarnation != toClouds)
+                return false;
             Vector3 surface = SurfacePosition(destination.x, destination.z);
             if (!NavMesh.SamplePosition(surface, out var landing, 2f, NavMesh.AllAreas) || !worker.WarpTo(landing.position))
                 return false;
-            InRebirthZone = toRebirthZone;
-            if (toRebirthZone)
+            InRebirthZone = toClouds;
+            if (toClouds)
                 worker.transform.rotation = rebirthZone.Spawn.rotation;
             hud.CloseDialogue();
             hud.CloseWorldContext();
             hud.CancelItemDrag();
             hud.HideItemTooltip();
+            hud.SetIncarnationPresentation();
             targeting?.RefreshStaticGeometry();
             cameraRig.SnapToTarget();
             UpdateRegionMap();
+            lighting?.SetCloudView(toClouds ? rebirthZone.DaySky : null);
+            lighting?.SetDate(State.Day, State.Minute);
             return true;
         }
 
@@ -81,12 +99,5 @@ namespace Workerborn
             }
         }
 
-        public void FinishGuideVisit()
-        {
-            if (!State.NeedsGuide)
-                return;
-            State.FinishGuideVisit();
-            SaveGame(false);
-        }
     }
 }

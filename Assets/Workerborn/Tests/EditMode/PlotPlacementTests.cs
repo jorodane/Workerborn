@@ -67,6 +67,8 @@ namespace Workerborn.Tests
             var campaign = new VillageCampaign(rules, sites, 0, 0);
             Assert.That(campaign.Connect("a", "일꾼", out var a), Is.True);
             Assert.That(campaign.Connect("b", "친구", out var b), Is.True);
+            Assert.That(campaign.Perform("a", CampaignAction.Incarnate, null, 0, false, out _), Is.True);
+            Assert.That(campaign.Perform("b", CampaignAction.Incarnate, null, 0, false, out _), Is.True);
             var stale = VillageState.Restore(b.character, rules).Export();
 
             Assert.That(campaign.Perform("a", CampaignAction.BuildFacility, "commons", Square, false, out _), Is.True);

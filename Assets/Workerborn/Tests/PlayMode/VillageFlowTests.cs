@@ -34,9 +34,6 @@ namespace Workerborn.Tests
             Assert.That(game.Worker, Is.Not.Null);
             Assert.That(game.Crops.Count, Is.EqualTo(12));
             Assert.That(game.Interactables.Count, Is.EqualTo(5));
-            Assert.That(game.InRebirthZone, Is.True);
-            Assert.That(game.Hud.HasModal, Is.False);
-            game.LeaveRebirthZone();
             Assert.That(game.InRebirthZone, Is.False);
         }
 
@@ -58,27 +55,46 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator RebirthMapHasWalkableGroundAndAnExitToTheVillage()
+        public IEnumerator FirstLifeWaitsOnWalkableCloudsUntilTheGuideConfirmsIncarnation()
         {
-            Vector3 returnPoint = game.Worker.transform.position;
-            game.VisitRebirthZone();
+            var waiting = VillageState.BeforeFirstLife(game.State.Rules);
+            waiting.AdvanceTime((1439.2f - waiting.Minute) / waiting.Rules.MinutesPerSecond);
+            Assert.That(VillageSaveStore.TrySave(waiting.Export(), out _), Is.True);
+            yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
+            yield return null;
+            game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
             Assert.That(game.InRebirthZone, Is.True);
-            Assert.That(game.CaptureSave().inRebirthZone, Is.True);
+            Assert.That(game.CaptureSave().awaitingIncarnation, Is.True);
+            Assert.That(game.State.Level, Is.EqualTo(1));
+            Assert.That(game.State.Inventory.Entries, Is.Empty);
+            Assert.That(game.Hud.OpenWindow("inventory"), Is.Null);
+            Assert.That(game.PerformWorld(CampaignAction.Incarnate), Is.False);
             var agent = game.Worker.GetComponent<NavMeshAgent>();
             Assert.That(agent.isOnNavMesh, Is.True);
-            Vector3 destination = game.Worker.transform.position + Vector3.right * 2f;
+            yield return Until(() => game.State.Day > waiting.Day, 3f);
+            Assert.That(game.InRebirthZone, Is.True);
+            Vector3 target = game.Worker.transform.position + Vector3.right * 2f;
+            Vector3 destination = game.SurfacePosition(target.x, target.z);
             game.Worker.CommandMove(destination);
             yield return Until(() => Vector3.Distance(game.Worker.transform.position, destination) < .2f, 4f);
 
-            game.RebirthArea.Exit.RequestInteraction(game.Worker);
-            yield return Until(() => !game.InRebirthZone, 6f);
-            Assert.That(Vector3.Distance(game.Worker.transform.position, returnPoint), Is.LessThan(.25f));
+            var guide = game.RebirthArea.Guide;
+            game.Hud.OpenDialogue(guide);
+            game.Hud.CloseDialogue();
+            Assert.That(game.InRebirthZone, Is.True);
+            game.Hud.OpenDialogue(guide);
+            var look = new CharacterLook { body = 1, hair = 7, face = 2, outfit = 4 };
+            game.PreviewIncarnationLook(look);
+            game.ConfirmIncarnation();
+            Assert.That(game.InRebirthZone, Is.False);
+            Assert.That(game.State.LifeMinutes, Is.EqualTo(0).Within(.02));
+            Assert.That(game.State.LifeLook, Is.EqualTo(look));
+            Assert.That(game.State.Inventory.Entries, Is.Empty);
         }
 
         [UnityTest]
         public IEnumerator SittingUsesASeatOnlyFromItsFrontAndRestoresTheWalkablePosition()
         {
-            game.VisitRebirthZone();
             Vector3 ground = game.Worker.transform.position;
             game.Worker.ToggleSit();
             Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Sitting));
@@ -86,7 +102,7 @@ namespace Workerborn.Tests
             game.Worker.ToggleSit();
             Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
 
-            var seat = game.RebirthArea.GetComponentInChildren<SeatSlot>();
+            var seat = UnityEngine.Object.FindFirstObjectByType<SeatSlot>();
             Vector3 front = seat.Position + seat.Facing * Vector3.forward * .85f;
             Assert.That(seat.Covers(front), Is.True);
             Assert.That(seat.Covers(seat.Position - seat.Facing * Vector3.forward * .5f), Is.False);

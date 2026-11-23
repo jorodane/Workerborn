@@ -32,6 +32,7 @@ namespace Workerborn.Tests
             var first = new VillageCampaign(rules, Sites, 10, 22);
             Assert.That(first.Connect(identity, "첫 이름", out var profile, look), Is.True);
             Assert.That(first.Avatars()[0].look.hair, Is.EqualTo(7));
+            Assert.That(first.Perform(identity, CampaignAction.Incarnate, null, look.ToSelection(), false, out _), Is.True);
             var player = VillageState.Restore(profile.character, rules);
             player.Inventory.TryAdd(ItemIds.Bread, 3);
             var world = player.ExportWorld();
@@ -48,6 +49,7 @@ namespace Workerborn.Tests
             var fresh = new VillageCampaign(rules, Sites, 10, 22);
             Assert.That(fresh.WorldId, Is.Not.EqualTo(first.WorldId));
             Assert.That(fresh.Connect(identity, "새 이름", out var newcomer, look), Is.True);
+            Assert.That(newcomer.character.awaitingIncarnation, Is.True);
             Assert.That(fresh.World.Clock, Is.LessThan(loaded.World.Clock));
             Assert.That(VillageState.Restore(newcomer.character, rules).Inventory.Count(ItemIds.Bread), Is.Zero);
         }
@@ -92,6 +94,7 @@ namespace Workerborn.Tests
             Assert.That(campaign.Connect("a", "하나", out var player), Is.True);
             Assert.That(campaign.CharacterLimit, Is.EqualTo(3));
             Assert.That(VillageState.Restore(player.character, rules).TimberRequired, Is.EqualTo(6));
+            Incarnate(campaign, "a");
             Assert.That(campaign.Perform("a", CampaignAction.AcceptFoundation, null, 1, true, out _), Is.True);
             StockResources(campaign, rules, ItemIds.Timber, 6);
             Assert.That(campaign.Perform("a", CampaignAction.DeliverTimber, null, 1, true, out _), Is.True);
@@ -114,6 +117,7 @@ namespace Workerborn.Tests
             Assert.That(VillageState.Restore(player.character, rules).TimberRequired, Is.EqualTo(24));
             Assert.That(campaign.Connect("b", "둘", out _), Is.True);
             campaign.Disconnect("b");
+            Incarnate(campaign, "a");
             Assert.That(campaign.Perform("a", CampaignAction.AcceptFoundation, null, 1, true, out _), Is.True);
             StockResources(campaign, rules, ItemIds.Timber, 14);
             Assert.That(campaign.Perform("a", CampaignAction.DeliverTimber, null, 1, true, out _), Is.True);
@@ -152,12 +156,14 @@ namespace Workerborn.Tests
             rules.ExpansionRewardGold = 7;
             var campaign = new VillageCampaign(rules, Sites, 10, 22, initialCharacterLimit: 3);
             Assert.That(campaign.Connect("a", "하나", out _), Is.True);
+            Incarnate(campaign, "a");
             Assert.That(campaign.Perform("a", CampaignAction.AcceptFoundation, null, 1, true, out _), Is.True);
             StockResources(campaign, rules, ItemIds.Timber, 18);
             Assert.That(campaign.Perform("a", CampaignAction.DeliverTimber, null, 1, true, out _), Is.True);
             Assert.That(campaign.Perform("a", CampaignAction.SelectFarmSite, "east", 1, true, out _), Is.True);
             Assert.That(campaign.Perform("a", CampaignAction.VoteForEra, null, 1, true, out _), Is.True);
             Assert.That(campaign.Tick(0), Is.True);
+            Incarnate(campaign, "a");
             StockResources(campaign, rules, ItemIds.Gold, 30);
             StockResources(campaign, rules, ItemIds.Potato, 6);
             Assert.That(campaign.Perform("a", CampaignAction.DonateGold, null, 1, true, out _), Is.True);
@@ -328,6 +334,8 @@ namespace Workerborn.Tests
             Assert.That(player.Era, Is.EqualTo(1));
             Assert.That(player.TimberDelivered, Is.EqualTo(4));
             Assert.That(player.Inventory.Entries, Is.Empty);
+            Assert.That(player.AwaitingIncarnation, Is.True);
+            Assert.That(player.TryIncarnate(0), Is.True);
             Assert.That(player.TryAcceptFoundation(), Is.True);
             player.Inventory.TryAdd(ItemIds.Timber, 4);
             Assert.That(player.TryDeliverTimber(), Is.True);
@@ -374,6 +382,7 @@ namespace Workerborn.Tests
             var campaign = ReadyCampaign(out var rules);
             Assert.That(campaign.Connect("b", "둘", out _), Is.True);
             Assert.That(campaign.Connect("c", "셋", out _), Is.True);
+            Incarnate(campaign, "b");
             GiveItem(campaign, rules, "c");
             campaign.Disconnect("c");
             Assert.That(campaign.Perform("a", CampaignAction.VoteForEra, null, 1, true, out _), Is.True);
@@ -516,6 +525,60 @@ namespace Workerborn.Tests
 
         private static readonly Dictionary<string, string> Sites = new Dictionary<string, string> { ["east"] = "동쪽 밭터" };
 
+        [Test]
+        public void WaitingForIncarnationSurvivesDaysAndRejectsVillageProgress()
+        {
+            var rules = Rules();
+            bool OnClouds(float x, float z) => x is >= 90 and <= 110 && z is >= 90 and <= 110;
+            var cloudSpawn = new SessionAvatar { x = 100, y = 30, z = 100 };
+            var campaign = new VillageCampaign(rules, Sites, 10, 22);
+            campaign.ConfigureCloudArea(OnClouds, cloudSpawn);
+            Assert.That(campaign.Connect("a", "일꾼", out var profile), Is.True);
+            Assert.That(campaign.Avatars()[0].x, Is.EqualTo(100));
+            campaign.Move("a", new SessionAvatar { x = 10, z = 22 });
+            Assert.That(campaign.Avatars()[0].x, Is.EqualTo(100));
+            var waiting = VillageState.Restore(profile.character, rules);
+            Assert.That(waiting.AdvanceTime(1440f * 2f / rules.MinutesPerSecond), Is.False);
+            Assert.That(waiting.Day, Is.EqualTo(3));
+            Assert.That(waiting.LifeMinutes, Is.Zero);
+            Assert.That(waiting.LifeDay, Is.EqualTo(1));
+            Assert.That(waiting.TrySleep(false), Is.False);
+            Assert.That(waiting.TryRebirth(), Is.False);
+            Assert.That(campaign.Perform("a", CampaignAction.AcceptFoundation, null, 1, false, out _), Is.False);
+            var injectedLevel = waiting.Export();
+            injectedLevel.level = 2;
+            injectedLevel.totalLevel = 2;
+            Assert.That(campaign.Checkpoint("a", injectedLevel), Is.False);
+            var bypass = waiting.Export();
+            bypass.awaitingIncarnation = false;
+            Assert.That(campaign.Checkpoint("a", bypass), Is.False);
+            Assert.That(waiting.Inventory.TryAdd(ItemIds.Gold, 1), Is.True);
+            Assert.That(campaign.Checkpoint("a", waiting.Export()), Is.False);
+
+            campaign.Tick(1440f * 2f / rules.MinutesPerSecond);
+            campaign = new VillageCampaign(rules, Sites, 10, 22, campaign.Export());
+            campaign.ConfigureCloudArea(OnClouds, cloudSpawn);
+            Assert.That(campaign.Connect("a", "일꾼", out profile), Is.True);
+            Assert.That(profile.character.awaitingIncarnation, Is.True);
+            Assert.That(profile.character.lifeDay, Is.EqualTo(1));
+            Assert.That(campaign.Avatars()[0].x, Is.EqualTo(100));
+            var look = new CharacterLook { body = 1, hair = 13, outfit = 12, face = 3 };
+            Assert.That(campaign.Perform("a", CampaignAction.Incarnate, null, -1, false, out _), Is.False);
+            Assert.That(campaign.Perform("a", CampaignAction.Incarnate, null, look.ToSelection(), false, out _), Is.True);
+            var born = VillageState.Restore(profile.character, rules);
+            Assert.That(born.AwaitingIncarnation, Is.False);
+            Assert.That(born.Level, Is.EqualTo(1));
+            Assert.That(born.LifeMinutes, Is.Zero);
+            Assert.That(born.Inventory.Entries, Is.Empty);
+            Assert.That(born.LifeLook, Is.EqualTo(look));
+            Assert.That(campaign.Avatars()[0].x, Is.EqualTo(10));
+            campaign.Move("a", new SessionAvatar { x = 100, y = 30, z = 100 });
+            Assert.That(campaign.Avatars()[0].x, Is.EqualTo(10));
+        }
+
+        private static void Incarnate(VillageCampaign campaign, string identity) =>
+            Assert.That(campaign.Perform(identity, CampaignAction.Incarnate, null, 0, false, out _), Is.True);
+
         private static void StockResources(VillageCampaign campaign, VillageRules rules, string item, int amount)
         {
             var player = VillageState.Restore(campaign.Profile("a").character, rules);
@@ -528,6 +591,7 @@ namespace Workerborn.Tests
             rules = Rules();
             var campaign = new VillageCampaign(rules, Sites, 10, 22);
             Assert.That(campaign.Connect("a", "하나", out _), Is.True);
+            Incarnate(campaign, "a");
             Assert.That(campaign.Perform("a", CampaignAction.AcceptFoundation, null, 1, true, out _), Is.True);
             var inventory = VillageState.Restore(campaign.Profile("a").character, rules);
             inventory.Inventory.TryAdd(ItemIds.Timber, 6);
@@ -539,6 +603,8 @@ namespace Workerborn.Tests
 
         private static void GiveItem(VillageCampaign campaign, VillageRules rules, string identity)
         {
+            if (campaign.Profile(identity).character.awaitingIncarnation)
+                Incarnate(campaign, identity);
             var state = VillageState.Restore(campaign.Profile(identity).character, rules);
             Assert.That(state.Inventory.TryAdd(ItemIds.Bread, 1), Is.True);
             var checkpoint = state.Export();

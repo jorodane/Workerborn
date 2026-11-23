@@ -54,7 +54,7 @@ namespace Workerborn
         private float nextCollect;
         private int consecutiveCollections;
         public bool AcceptsInteractionCommands => village == null || !village.ControlsBlocked;
-        public bool AcceptsGroundItemCommands => village == null || village.Hud.AllowsGroundItems;
+        public bool AcceptsGroundItemCommands => village == null || village.Hud.AllowsGroundItems && !village.State.AwaitingIncarnation;
         public PointerTargeting Targeting => village != null ? village.Targeting : null;
         internal VillagePrototype Village => village;
         public bool IsWalking => Action == WorkerAction.Moving && WorkerbornInput.Held("Gameplay/Walk");
@@ -628,6 +628,13 @@ namespace Workerborn
 
         public void ResetWorker(Vector3 spawn)
         {
+            ResetLifeActivity();
+            agent.Warp(spawn);
+            transform.rotation = Quaternion.identity;
+        }
+
+        internal void ResetLifeActivity()
+        {
             Cancel();
             ResetCollectHold();
             inventory.Clear();
@@ -637,8 +644,6 @@ namespace Workerborn
             HoveredCrop = null;
             HoveredPickup = null;
             HoveredInteraction = null;
-            agent.Warp(spawn);
-            transform.rotation = Quaternion.identity;
         }
 
         public bool WarpTo(Vector3 position)

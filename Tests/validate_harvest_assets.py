@@ -149,10 +149,15 @@ controller=behaviours(scene,'Village/VillagePrototype.cs');assert len(controller
 for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','rebirthZone']:
     assert controller[0][field]['fileID'],f'Missing binding: {field}'
 zone=behaviours(scene,'World/RebirthZone.cs')[0]
-assert all(zone[field]['fileID'] for field in ('navigation','spawn','guide','exit'))
+assert all(zone[field]['fileID'] for field in ('navigation','spawn','guide','daySky'))
 assert zone['navigation']!=controller[0]['navigation']
-assert len(behaviours(scene,'World/RebirthGate.cs'))==1
-assert len(behaviours(scene,'World/SeatSlot.cs')) >= 8
+cloud_navigation=next(d['MonoBehaviour'] for d in scene if d['_id']==zone['navigation']['fileID'])
+assert cloud_navigation['groundMesh']['fileID'] and not cloud_navigation['ground']['fileID']
+cloud_collider=next(d['MeshCollider'] for d in scene if d['_id']==cloud_navigation['groundMesh']['fileID'])
+cloud_filter=next(d['MeshFilter'] for d in scene if d.get('MeshFilter',{}).get('m_GameObject')==cloud_collider['m_GameObject'])
+assert cloud_collider['m_Mesh']==cloud_filter['m_Mesh']
+assert resolve(cloud_collider['m_Mesh']).stem=='CloudBank'
+assert len(behaviours(scene,'World/SeatSlot.cs')) >= 4
 lighting=behaviours(scene,'World/VillageLighting.cs')[0]
 assert lighting['sun']['fileID'] and lighting['nightIntensity']>.6
 assert len(lighting['lanterns'])>=4 and all(lamp['fileID'] for lamp in lighting['lanterns'])
