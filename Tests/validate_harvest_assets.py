@@ -241,7 +241,11 @@ renderer=next(d['MeshRenderer'] for d in pond if d.get('MeshRenderer',{}).get('m
 assert surface['m_Convex']==0 and surface['m_Mesh']==plane['m_Mesh']
 water_material=next(d['Material'] for d in docs(resolve(renderer['m_Materials'][0])) if 'Material' in d)
 water_properties={k:v for field in water_material['m_SavedProperties']['m_Floats'] for k,v in field.items()}
-assert water_properties['_WaveAmplitude']==water_properties['_WaterClearness']==0 and water_material['m_CustomRenderQueue']==2000
+assert water_properties['_WaveAmplitude']==water_properties['_WaterClearness']==0
+# Flat Kit water samples the scene after URP copies opaque color. Its shader writes full coverage.
+assert water_material['m_CustomRenderQueue']==3000
+assert water_material['stringTagMap']['RenderType']=='Transparent' and water_properties['_ZWrite']==0
+assert water_material['stringTagMap']['WorkerbornSelectionCoverage']=='Opaque'
 fisher=behaviours(scene,'HarvestWorker.cs')[0]
 assert resolve(fisher['fishingBobberPrefab']).stem=='FishingBobber'
 for item in itemdefs:

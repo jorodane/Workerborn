@@ -612,7 +612,9 @@ namespace Workerborn
 
                 Texture texture = material.HasProperty(property) ? material.GetTexture(property) : null;
                 float cutoff = SelectionCutoff(material);
-                if (material.renderQueue >= 3000 && cutoff == 0f)
+                // A fully covered surface can render after opaque geometry to read camera textures.
+                if (material.renderQueue >= (int)RenderQueue.Transparent && cutoff == 0f &&
+                    material.GetTag("WorkerbornSelectionCoverage", false) != "Opaque")
                 {
                     if (idColor == Vector4.zero || texture == null)
                         continue;

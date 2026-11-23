@@ -731,6 +731,33 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator PondWaterCanBePickedInTheTransparentPass()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+                Assert.Ignore("Picking the rendered water requires a graphics device.");
+            Assert.That(game.PerformWorld(CampaignAction.BuildFacility, "east_pond", 4), Is.True);
+            var water = UnityEngine.Object.FindFirstObjectByType<FishingWater>();
+            var surface = water.GetComponentInChildren<MeshCollider>();
+            var center = surface.transform.TransformPoint(surface.sharedMesh.bounds.center);
+            var camera = game.WorldCamera;
+            var mouse = InputSystem.AddDevice<Mouse>();
+            game.CameraRig.enabled = false;
+            try
+            {
+                camera.transform.SetPositionAndRotation(center + Vector3.up * 6f,
+                    Quaternion.LookRotation(Vector3.down, Vector3.forward));
+                Vector2 pixel = camera.WorldToScreenPoint(center);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel });
+                yield return Until(() => game.Targeting.CurrentTarget == water, 3f);
+            }
+            finally
+            {
+                game.CameraRig.enabled = true;
+                InputSystem.RemoveDevice(mouse);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator CastingAtTheWaterWalksToTheNearBankAndKeepsTheClickedPoint()
         {
             Assert.That(game.PerformWorld(CampaignAction.BuildFacility, "east_pond", 4), Is.True);
