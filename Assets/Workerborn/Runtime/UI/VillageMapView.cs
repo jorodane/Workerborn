@@ -16,14 +16,17 @@ namespace Workerborn
         [SerializeField] private RectTransform jobMarker;
         [SerializeField] private GameObject jobPin;
         [SerializeField] private RectTransform jobArrow;
+        [SerializeField] private TMP_Text areaName;
         [SerializeField] private Sprite npcIcon;
         [SerializeField] private Sprite plotIcon;
-        [SerializeField] private Sprite facilityIcon;
+        [SerializeField] private bool showPlaceNames = true;
         private VillagePrototype game;
+        private string villageName;
         private readonly Dictionary<VillageInteractable, Marker> npcs = new Dictionary<VillageInteractable, Marker>();
         private readonly Dictionary<VillagePlot, Marker> plots = new Dictionary<VillagePlot, Marker>();
         private Marker farm;
         private Vector2 imageSize, imagePadding;
+        private Rect area;
         private PartTimeScheduleRowView jobSource;
         private Transform jobLocation;
 
@@ -47,16 +50,20 @@ namespace Workerborn
             var mapClick = GetComponent<VillageMapClick>();
             mapClick.Game = game;
             mapClick.Map = this;
+            villageName = areaName.text;
             var image = map.rectTransform;
             image.anchorMin = image.anchorMax = image.pivot = Vector2.one * .5f;
             image.anchoredPosition = Vector2.zero;
             foreach (var npc in game.Interactables)
                 if (npc != null)
                     npcs.Add(npc, AddMarker(npc.DisplayName, npcIcon));
+            var guide = game.RebirthArea?.Guide;
+            if (guide != null)
+                npcs.Add(guide, AddMarker(guide.DisplayName, npcIcon));
             foreach (var plot in game.BuildPlots)
                 plots.Add(plot, AddMarker(plot.DisplayName, plotIcon));
-            if (game.FarmMapAnchor != null)
-                farm = AddMarker("농장", facilityIcon);
+            if (showPlaceNames && game.FarmMapAnchor != null)
+                farm = AddMarker("농장", null);
             if (game.MapRegion != null)
                 FitImage();
             jobMarker.SetAsLastSibling();
@@ -71,8 +78,11 @@ namespace Workerborn
             icon.rectTransform.anchorMin = icon.rectTransform.anchorMax = Vector2.zero;
             icon.rectTransform.sizeDelta = Vector2.one * Mathf.Clamp(npcMarker.fontSize, 7f, 12f);
             icon.sprite = sprite;
+            icon.enabled = sprite != null;
             icon.preserveAspect = true;
             icon.raycastTarget = false;
+            if (!showPlaceNames)
+                return new Marker(icon, null);
             var label = Instantiate(npcMarker, icon.transform);
             label.text = title;
             label.color = new Color(.20f, .16f, .10f);
@@ -87,7 +97,10 @@ namespace Workerborn
         private void FitImage()
         {
             Vector2 available = ((RectTransform)transform).rect.size;
-            Vector2 size = game.MapRegion.WorldBounds.size;
+            area = game.MapBounds;
+            Vector2 size = area.size;
+            if (size.x <= 0f || size.y <= 0f)
+                return;
             imageSize = size * Mathf.Min(available.x / size.x, available.y / size.y);
             imagePadding = (available - imageSize) * .5f;
             if (map.rectTransform.sizeDelta != imageSize)
@@ -98,7 +111,7 @@ namespace Workerborn
         {
             point = default;
             var image = map.rectTransform;
-            if (game == null || game.InRebirthZone || game.MapRegion == null ||
+            if (game == null || area.width <= 0f || area.height <= 0f ||
                 !RectTransformUtility.ScreenPointToLocalPointInRectangle(image, screenPoint, eventCamera, out var local) ||
                 !image.rect.Contains(local))
                 return false;
@@ -108,10 +121,14 @@ namespace Workerborn
 
         private void LateUpdate()
         {
-            if (game == null || game.MapRegion == null || game.InRebirthZone)
+            if (game == null)
                 return;
             FitImage();
-            map.texture = game.MapRegion.TerrainImage(game.GroundTerrain);
+            if (area.width <= 0f || area.height <= 0f)
+                return;
+            areaName.text = game.InRebirthZone ? game.RebirthArea.MapName : villageName;
+            map.texture = game.InRebirthZone ? null : game.MapRegion.TerrainImage(game.GroundTerrain, game);
+            map.enabled = map.texture != null;
             Place(player, game.Worker.transform.position);
             foreach (var pair in npcs)
                 if (pair.Key != null && pair.Key.isActiveAndEnabled && game.SharesMap(pair.Key.transform.position))
@@ -128,8 +145,9 @@ namespace Workerborn
                     continue;
                 }
                 var facility = plot.InstalledFacility;
-                marker.Label.text = facility != null ? facility.Title : plot.DisplayName;
-                marker.Icon.sprite = facility != null ? facilityIcon : plotIcon;
+                marker.Icon.enabled = facility == null;
+                if (marker.Label != null)
+                    marker.Label.text = facility != null ? facility.Title : plot.DisplayName;
                 Place(marker.Icon.rectTransform, plot.transform.position);
             }
             if (farm.Icon != null)
@@ -167,7 +185,7 @@ namespace Workerborn
             if (!visible)
                 return;
 
-            Vector2 point = game.MapRegion.WorldToMap(jobLocation.position);
+            Vector2 point = VillageMapRegion.WorldToMap(area, jobLocation.position);
             Vector2 center = imageSize * .5f;
             Vector2 offset = Vector2.Scale(point, imageSize) - center;
             Vector2 edge = Vector2.Max(Vector2.one, center - jobMarker.sizeDelta * .5f - Vector2.one * 3f);
@@ -182,7 +200,7 @@ namespace Workerborn
 
         private void Place(RectTransform marker, Vector3 position)
         {
-            Vector2 point = game.MapRegion.WorldToMap(position);
+            Vector2 point = VillageMapRegion.WorldToMap(area, position);
             bool inside = point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1;
             marker.gameObject.SetActive(inside);
             if (inside)

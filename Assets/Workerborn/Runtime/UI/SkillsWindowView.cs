@@ -23,7 +23,7 @@ namespace Workerborn
             foreach (var skill in SkillProgression.All)
                 rows.Add(skill, Instantiate(hud.Library.ListRow, skillRows));
             use.onClick.AddListener(() => game.UseGatheringSkill(selected));
-            advance.onClick.AddListener(() => game.Perform(() => game.State.TryUpgradeSkill(selected)));
+            advance.onClick.AddListener(() => game.UpgradeSkill(selected));
         }
 
         public override void Refresh()
@@ -49,6 +49,7 @@ namespace Workerborn
             advanceText.text = maxed ? "최고 랭크" : $"승급  AP {cost}";
             advance.interactable = !maxed && state.AP >= cost;
             use.gameObject.SetActive(SkillProgression.IsGathering(selected));
+            use.interactable = !state.AwaitingIncarnation;
             details.text = Describe(state, selected);
         }
 

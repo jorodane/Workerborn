@@ -219,6 +219,8 @@ MonoBehaviour:
   visual:
     fileID: 100092
   useImportedMeshColliders: 0
+  mapFootprintSize: {x: 2.88, y: 2.48}
+  mapFootprintCenter: {x: 0, y: 0}
 --- !u!1 &100096
 GameObject:
   m_ObjectHideFlags: 0

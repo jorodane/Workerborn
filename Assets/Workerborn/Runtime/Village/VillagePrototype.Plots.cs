@@ -53,8 +53,12 @@ namespace Workerborn
                 geometryChanged |= plot.Render(this, facility, out bool obstaclesChanged);
                 navigationChanged |= obstaclesChanged;
             }
-            if (initialized && geometryChanged)
-                targeting?.RefreshStaticGeometry();
+            if (geometryChanged)
+            {
+                mapRegion?.Invalidate();
+                if (initialized)
+                    targeting?.RefreshStaticGeometry();
+            }
             return navigationChanged;
         }
 

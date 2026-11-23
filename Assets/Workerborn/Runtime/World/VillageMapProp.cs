@@ -11,6 +11,21 @@ namespace Workerborn
         private Transform visual;
         [SerializeField, Tooltip("Use the model importer's exact mesh colliders for a directly imported FBX visual.")]
         private bool useImportedMeshColliders;
+        [SerializeField, Tooltip("Local X/Z dimensions of the building floor drawn on the map.")]
+        private Vector2 mapFootprintSize;
+        [SerializeField, Tooltip("Local X/Z offset of the building floor.")]
+        private Vector2 mapFootprintCenter;
+
+        internal bool TryGetMapFootprint(out VillageMapFootprint footprint)
+        {
+            footprint = default;
+            if (!isActiveAndEnabled || mapFootprintSize.x <= 0f || mapFootprintSize.y <= 0f)
+                return false;
+            footprint = new VillageMapFootprint(transform, new Vector3(mapFootprintCenter.x, 0f, mapFootprintCenter.y),
+                mapFootprintSize, VillageMapSurface.Building);
+            return true;
+        }
+
         public Renderer[] OcclusionRenderers { get; private set; }
         private void Awake()
         {

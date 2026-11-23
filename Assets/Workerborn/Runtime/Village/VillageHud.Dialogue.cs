@@ -100,7 +100,7 @@ namespace Workerborn
         private void SetDialoguePresentation(bool active)
         {
             if (normalHud != null)
-                normalHud.SetActive(!active && !game.State.AwaitingIncarnation);
+                normalHud.SetActive(!active);
             chat?.SetDialogueMode(active);
             if (dialogueBackdrop == null)
                 return;

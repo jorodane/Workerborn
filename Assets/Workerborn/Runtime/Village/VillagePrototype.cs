@@ -506,10 +506,12 @@ namespace Workerborn
             return true;
         }
 
-        public bool Perform(Func<bool> operation)
+        public bool Perform(Func<bool> operation) => !State.AwaitingIncarnation && ApplyLocalAction(operation);
+
+        internal bool UpgradeSkill(SkillId skill) => ApplyLocalAction(() => State.TryUpgradeSkill(skill));
+
+        private bool ApplyLocalAction(Func<bool> operation)
         {
-            if (State.AwaitingIncarnation)
-                return false;
             if (AwaitingWorldCommand)
                 return false;
             int level = State.Level;
@@ -651,6 +653,8 @@ namespace Workerborn
 
         internal void UseGatheringSkill(SkillId skill)
         {
+            if (State.AwaitingIncarnation || hud.WorldActionsLocked)
+                return;
             HarvestableCrop nearest = null;
             float distance = float.MaxValue;
             foreach (var crop in allCrops)
@@ -682,15 +686,47 @@ namespace Workerborn
         internal bool TryMapGround(Vector2 mapPoint, out RaycastHit hit)
         {
             hit = default;
-            if (InRebirthZone || mapRegion == null)
+            Rect area = MapBounds;
+            if (area.width <= 0f || area.height <= 0f)
                 return false;
-            Collider ground = GroundTerrain != null ? GroundTerrain.GetComponent<TerrainCollider>() : navigation.GroundBox;
+            Collider ground = InRebirthZone ? rebirthZone.Floor :
+                GroundTerrain != null ? GroundTerrain.GetComponent<TerrainCollider>() : navigation.GroundBox;
             if (ground == null)
                 return false;
-            Vector2 point = mapRegion.MapToWorld(mapPoint);
+            Vector2 point = area.min + Vector2.Scale(mapPoint, area.size);
             Bounds bounds = ground.bounds;
             var ray = new Ray(new Vector3(point.x, bounds.max.y + 1f, point.y), Vector3.down);
             return ground.Raycast(ray, out hit, bounds.size.y + 2f);
+        }
+
+        internal Rect MapBounds
+        {
+            get
+            {
+                if (!InRebirthZone)
+                    return mapRegion != null ? mapRegion.WorldBounds : default;
+                Bounds clouds = rebirthZone.Area;
+                return new Rect(clouds.min.x, clouds.min.z, clouds.size.x, clouds.size.z);
+            }
+        }
+
+        internal void CollectMapFootprints(List<VillageMapFootprint> footprints)
+        {
+            foreach (var plot in BuildPlots)
+            {
+                if (plot == null || !plot.isActiveAndEnabled || plot.InstalledFacility == null)
+                    continue;
+                var facility = plot.InstalledFacility;
+                if (facility.MapSurface == VillageMapSurface.None)
+                    continue;
+                PlotFootprint area = facility.FillsPlot ? plot.Footprint : facility.Footprint;
+                footprints.Add(new VillageMapFootprint(plot.transform, Vector3.zero,
+                    new Vector2(area.Width, area.Depth) * VillagePlot.CellSide, facility.MapSurface));
+            }
+
+            foreach (var prop in mapRoot.GetComponentsInChildren<VillageMapProp>())
+                if (prop.TryGetMapFootprint(out var footprint))
+                    footprints.Add(footprint);
         }
 
         private void RestoreWorldObjects()

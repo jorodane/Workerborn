@@ -152,12 +152,19 @@ map_region=next(d['MonoBehaviour'] for d in scene if d['_id']==controller[0]['ma
 assert map_region in behaviours(scene,'World/VillageMapRegion.cs')
 assert map_region['width']>0 and map_region['depth']>0
 assert 'Minimap camera' not in {go['m_Name'] for go in gos.values()}
+map_tints=[]
 for prefab in ('VillageHUD', 'MapWindow'):
     ui=docs(CONTENT/f'Prefabs/UI/{prefab}.prefab')
     view=behaviours(ui,'UI/VillageMapView.cs')[0]
-    assert all(resolve(view[field]).suffix=='.png' for field in ('npcIcon','plotIcon','facilityIcon'))
+    assert all(resolve(view[field]).suffix=='.png' for field in ('npcIcon','plotIcon'))
     image=next(d['MonoBehaviour'] for d in ui if d['_id']==view['map']['fileID'])
     assert not image['m_Texture']['fileID']
+    map_tints.append(image['m_Color'])
+assert map_tints[0]==map_tints[1]=={'r':1,'g':1,'b':1,'a':1}
+for prefab in ('Cottage','Farmhouse','Forge','Generalstore','Inn','Market','Workshop'):
+    building=docs(CONTENT/f'Prefabs/World/{prefab}.prefab')
+    marker=behaviours(building,'World/VillageMapProp.cs')[0]
+    assert all(0<marker['mapFootprintSize'][axis] for axis in ('x','y'))
 zone=behaviours(scene,'World/RebirthZone.cs')[0]
 assert all(zone[field]['fileID'] for field in ('navigation','spawn','guide'))
 assert zone['navigation']!=controller[0]['navigation']

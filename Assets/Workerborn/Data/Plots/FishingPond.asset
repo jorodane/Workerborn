@@ -20,3 +20,4 @@ MonoBehaviour:
   prefab: {fileID: 100001, guid: 046e204efadc59c4888a6b0f52991296, type: 3}
   fieldCrop: {fileID: 0}
   plantsPerCell: {x: 2, y: 2}
+  mapSurface: 4

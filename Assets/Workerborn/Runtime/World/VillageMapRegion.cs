@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Workerborn
@@ -20,10 +21,12 @@ namespace Workerborn
         [SerializeField] private LayerColor[] layerColors = Array.Empty<LayerColor>();
 
         private const int Resolution = 384;
-        private static readonly Color Paper = new Color(.79f, .73f, .60f);
-        private static readonly Color Unpainted = new Color(.68f, .71f, .53f);
+        private static readonly Color Paper = new Color(.89f, .82f, .67f);
+        private static readonly Color Unpainted = new Color(.70f, .73f, .54f);
+        private readonly List<VillageMapFootprint> footprints = new List<VillageMapFootprint>();
         private Texture2D image;
         private TerrainData source;
+        private VillagePrototype drawnVillage;
         private Vector3 sourceOrigin, sourceSize;
         private Rect drawnArea;
         private bool dirty = true;
@@ -38,9 +41,10 @@ namespace Workerborn
             }
         }
 
-        internal Vector2 WorldToMap(Vector3 position)
+        internal Vector2 WorldToMap(Vector3 position) => WorldToMap(WorldBounds, position);
+
+        internal static Vector2 WorldToMap(Rect bounds, Vector3 position)
         {
-            Rect bounds = WorldBounds;
             return new Vector2((position.x - bounds.xMin) / bounds.width, (position.z - bounds.yMin) / bounds.height);
         }
 
@@ -50,7 +54,7 @@ namespace Workerborn
             return bounds.min + Vector2.Scale(point, bounds.size);
         }
 
-        internal Texture2D TerrainImage(Terrain terrain)
+        internal Texture2D TerrainImage(Terrain terrain, VillagePrototype village = null)
         {
             if (!isActiveAndEnabled || terrain == null || terrain.terrainData == null)
                 return null;
@@ -58,19 +62,20 @@ namespace Workerborn
             Vector3 origin = terrain.GetPosition();
             Vector3 size = data.size;
             Rect area = WorldBounds;
-            if (dirty || source != data || sourceOrigin != origin || sourceSize != size || drawnArea != area)
+            if (dirty || source != data || sourceOrigin != origin || sourceSize != size || drawnArea != area || drawnVillage != village)
             {
-                Redraw(data, new Rect(origin.x, origin.z, size.x, size.z), area);
+                Redraw(data, new Rect(origin.x, origin.z, size.x, size.z), area, village);
                 source = data;
                 sourceOrigin = origin;
                 sourceSize = size;
                 drawnArea = area;
+                drawnVillage = village;
                 dirty = false;
             }
             return image;
         }
 
-        private void Redraw(TerrainData data, Rect terrain, Rect area)
+        private void Redraw(TerrainData data, Rect terrain, Rect area, VillagePrototype village)
         {
             float longestSide = Mathf.Max(area.width, area.height);
             int columns = Mathf.Max(1, Mathf.RoundToInt(Resolution * area.width / longestSide));
@@ -101,6 +106,11 @@ namespace Workerborn
                 var covered = new RectInt(firstX, firstZ, lastX - firstX, lastZ - firstZ);
                 PaintTerrain(data, covered, start, step, new Vector2(stepX, stepZ), pixels, columns);
             }
+            footprints.Clear();
+            if (village != null)
+                village.CollectMapFootprints(footprints);
+            foreach (var footprint in footprints)
+                footprint.Paint(pixels, columns, rows, area);
             image.SetPixels32(pixels);
             image.Apply(false);
         }
@@ -118,7 +128,7 @@ namespace Workerborn
             int paintWidth = Mathf.Clamp(Mathf.CeilToInt(paintEnd.x), paintX, data.alphamapWidth - 1) - paintX + 1;
             int paintDepth = Mathf.Clamp(Mathf.CeilToInt(paintEnd.y), paintZ, data.alphamapHeight - 1) - paintZ + 1;
             var layers = data.terrainLayers ?? Array.Empty<TerrainLayer>();
-            var paint = layers.Length > 0 ? data.GetAlphamaps(paintX, paintZ, paintWidth, paintDepth) : null;
+            var paint = layers.Length > 0 ? ReadPaint(data, new RectInt(paintX, paintZ, paintWidth, paintDepth), layers.Length) : null;
             var colors = Array.ConvertAll(layers, ColorFor);
             for (int z = 0; z < covered.height; z++)
             {
@@ -133,11 +143,39 @@ namespace Workerborn
                     Color color = paint == null ? Unpainted : BlendLayers(paint, colors, alphaX, alphaZ);
                     float slopeX = (heights[z, east] - heights[z, west]) / worldStep.x;
                     float slopeZ = (heights[north, x] - heights[south, x]) / worldStep.y;
-                    color *= 1f + Mathf.Clamp((slopeZ - slopeX) * .12f, -.19f, .12f);
+                    float shade = Mathf.Clamp((slopeZ - slopeX) * .18f, -.24f, .12f);
+                    float elevation = heights[z, x];
+                    bool contour = Mathf.FloorToInt(elevation / 2f) != Mathf.FloorToInt(heights[north, x] / 2f) ||
+                        Mathf.FloorToInt(elevation / 2f) != Mathf.FloorToInt(heights[z, east] / 2f);
+                    color *= 1f + shade - (contour ? .075f : 0f);
                     color.a = 1f;
                     pixels[(covered.y + z) * stride + covered.x + x] = color;
                 }
             }
+        }
+
+        private static float[,,] ReadPaint(TerrainData data, RectInt sample, int layerCount)
+        {
+            var textures = data.alphamapTextures;
+            int count = (layerCount + 3) / 4;
+            if (textures.Length < count)
+                return data.GetAlphamaps(sample.x, sample.y, sample.width, sample.height);
+            for (int i = 0; i < count; i++)
+                if (textures[i] == null || !textures[i].isReadable)
+                    return data.GetAlphamaps(sample.x, sample.y, sample.width, sample.height);
+
+            var weights = new float[sample.height, sample.width, layerCount];
+            for (int i = 0; i < count; i++)
+            {
+                var pixels = textures[i].GetPixels(sample.x, sample.y, sample.width, sample.height);
+                int firstLayer = i * 4;
+                int channels = Mathf.Min(4, layerCount - firstLayer);
+                for (int z = 0; z < sample.height; z++)
+                    for (int x = 0; x < sample.width; x++)
+                        for (int channel = 0; channel < channels; channel++)
+                            weights[z, x, firstLayer + channel] = pixels[z * sample.width + x][channel];
+            }
+            return weights;
         }
 
         private Color ColorFor(TerrainLayer layer)

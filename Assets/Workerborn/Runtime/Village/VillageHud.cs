@@ -389,7 +389,8 @@ namespace Workerborn
         }
 
         private bool CanShowInCurrentLife(string id) => game == null || !game.State.AwaitingIncarnation ||
-            id is "system" or "settings" or "conversation" or "worldcontext" or "serveradmin" ||
+            id is "system" or "settings" or "character" or "inventory" or "skills" or "quests" or "questdetail" or
+                "map" or "conversation" or "worldcontext" or "serveradmin" ||
             (id == "era" && game.IsOnline);
 
         internal void SetIncarnationPresentation()

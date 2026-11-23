@@ -59,7 +59,9 @@ namespace Workerborn.Tests
         {
             var waiting = VillageState.BeforeFirstLife(game.State.Rules);
             waiting.AdvanceTime((1439.2f - waiting.Minute) / waiting.Rules.MinutesPerSecond);
-            Assert.That(VillageSaveStore.TrySave(waiting.Export(), out _), Is.True);
+            var save = waiting.Export();
+            save.ap = waiting.NextSkillCostFor(SkillId.Harvesting);
+            Assert.That(VillageSaveStore.TrySave(save, out _), Is.True);
             yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
             yield return null;
             game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
@@ -67,7 +69,15 @@ namespace Workerborn.Tests
             Assert.That(game.CaptureSave().awaitingIncarnation, Is.True);
             Assert.That(game.State.Level, Is.EqualTo(1));
             Assert.That(game.State.Inventory.Entries, Is.Empty);
-            Assert.That(game.Hud.OpenWindow("inventory"), Is.Null);
+            Assert.That(game.Hud.transform.Find("Normal HUD").gameObject.activeInHierarchy, Is.True);
+            Assert.That(game.Hud.OpenWindow("inventory"), Is.Not.Null);
+            var skills = game.Hud.OpenWindow("skills");
+            var advance = skills.GetComponentsInChildren<Button>().Single(button => button.name == "Advance");
+            Assert.That(advance.interactable, Is.True);
+            advance.onClick.Invoke();
+            Assert.That(game.State.RankOf(SkillId.Harvesting), Is.EqualTo(1));
+            Assert.That(game.State.AP, Is.Zero);
+            Assert.That(game.Perform(() => game.State.Inventory.TryAdd(ItemIds.Potato, 1)), Is.False);
             Assert.That(game.PerformWorld(CampaignAction.Incarnate), Is.False);
             var agent = game.Worker.GetComponent<NavMeshAgent>();
             Assert.That(agent.isOnNavMesh, Is.True);
@@ -90,6 +100,7 @@ namespace Workerborn.Tests
             Assert.That(game.State.LifeMinutes, Is.EqualTo(0).Within(.02));
             Assert.That(game.State.LifeLook, Is.EqualTo(look));
             Assert.That(game.State.Inventory.Entries, Is.Empty);
+            Assert.That(game.State.RankOf(SkillId.Harvesting), Is.EqualTo(1));
         }
 
         [UnityTest]
@@ -1239,6 +1250,7 @@ namespace Workerborn.Tests
             var fullImage = window.GetComponentInChildren<VillageMapView>().GetComponentInChildren<RawImage>();
             Assert.That(miniImage.texture, Is.TypeOf<Texture2D>());
             Assert.That(fullImage.texture, Is.SameAs(miniImage.texture));
+            Assert.That(fullImage.color, Is.EqualTo(miniImage.color));
             Assert.That(miniImage.rectTransform.rect.width / miniImage.rectTransform.rect.height,
                 Is.EqualTo(region.WorldBounds.width / region.WorldBounds.height).Within(.001f));
             var point = new Vector2(.35f, .66f);
@@ -1247,6 +1259,16 @@ namespace Workerborn.Tests
             Assert.That(hit.point.x, Is.EqualTo(location.x).Within(.01f));
             Assert.That(hit.point.z, Is.EqualTo(location.y).Within(.01f));
             Assert.That(Vector2.Distance(region.WorldToMap(hit.point), point), Is.LessThan(.001f));
+
+            var footprints = new System.Collections.Generic.List<VillageMapFootprint>();
+            game.CollectMapFootprints(footprints);
+            Assert.That(footprints, Is.Not.Empty);
+            Vector2 housePoint = region.WorldToMap(footprints[0].WorldCenter);
+            var villageTexture = (Texture2D)miniImage.texture;
+            int houseX = (int)(housePoint.x * villageTexture.width);
+            int houseZ = (int)(housePoint.y * villageTexture.height);
+            Color filled = villageTexture.GetPixel(houseX, houseZ);
+            Assert.That(region.TerrainImage(game.GroundTerrain).GetPixel(houseX, houseZ), Is.Not.EqualTo(filled));
 
             // Use its own TerrainData so the authored scene can never be edited by this test.
             Rect bounds = region.WorldBounds;
