@@ -26,9 +26,6 @@ namespace Workerborn
         private float[] lanternIntensities;
         private Vector3 sunAngles;
         private float previousNight = -1f;
-        private Material villageSky;
-        private CameraClearFlags villageClearFlags;
-        private bool villageFog, showingClouds;
 
         private void Awake()
         {
@@ -53,41 +50,8 @@ namespace Workerborn
 
         public string WeatherName(int day) => weather != null ? weather.NameForDay(day) : "";
 
-        internal void SetCloudView(Material sky)
-        {
-            bool onClouds = sky != null;
-            if (showingClouds == onClouds)
-                return;
-            showingClouds = onClouds;
-            previousNight = -1f;
-            if (onClouds)
-            {
-                villageSky = RenderSettings.skybox;
-                villageFog = RenderSettings.fog;
-                if (worldCamera != null)
-                {
-                    villageClearFlags = worldCamera.clearFlags;
-                    worldCamera.clearFlags = CameraClearFlags.Skybox;
-                }
-                weather?.Suspend(true);
-                RenderSettings.skybox = sky;
-                RenderSettings.fog = false;
-                SetTime(660f);
-            }
-            else
-            {
-                RenderSettings.skybox = villageSky;
-                RenderSettings.fog = villageFog;
-                if (worldCamera != null)
-                    worldCamera.clearFlags = villageClearFlags;
-                weather?.Suspend(false);
-            }
-        }
-
         public void SetDate(int day, float minute)
         {
-            if (showingClouds)
-                return;
             weather?.SetDate(day, minute);
             SetTime(minute);
         }

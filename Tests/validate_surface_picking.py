@@ -13,14 +13,9 @@ for path in sorted((ROOT / 'Assets/Workerborn/Prefabs/World').glob('*.prefab')):
     by_go = {v['m_GameObject']['fileID']: k for k, v in transforms.items()}
     gos = {d['_id']: d['GameObject'] for d in ds if 'GameObject' in d}
     proxy = next((k for k, t in transforms.items() if gos[t['m_GameObject']['fileID']]['m_Name'] == 'Pointer geometry'), None)
-    if path.stem == 'RebirthZone':
-        ground = next(d['MeshCollider'] for d in ds if 'MeshCollider' in d
-                      and GUIDS.get(d['MeshCollider']['m_Mesh'].get('guid'), Path()).stem == 'CloudBank')
-        assert any(f['m_GameObject'] == ground['m_GameObject'] and f['m_Mesh'] == ground['m_Mesh']
-                   for d in ds if (f := d.get('MeshFilter')))
-        continue
     if proxy is None:
-        assert path.stem == 'ForestTerrain' or (path.stem == 'VillageWeather' and all(go['m_Layer'] == 12 for go in gos.values())), path
+        assert path.stem in {'ForestTerrain', 'RebirthZone'} or (
+            path.stem == 'VillageWeather' and all(go['m_Layer'] == 12 for go in gos.values())), path
         continue
     matrices = {}
     def matrix(identifier):

@@ -77,8 +77,6 @@ namespace Workerborn
             targeting?.RefreshStaticGeometry();
             cameraRig.SnapToTarget();
             UpdateRegionMap();
-            lighting?.SetCloudView(toClouds ? rebirthZone.DaySky : null);
-            lighting?.SetDate(State.Day, State.Minute);
             return true;
         }
 

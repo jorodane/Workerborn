@@ -22,13 +22,6 @@ namespace Workerborn
 
         private int appliedDay;
 
-        internal void Suspend(bool suspended)
-        {
-            if (sphere != null)
-                sphere.gameObject.SetActive(!suspended);
-            appliedDay = 0;
-        }
-
         public WeatherProfile ProfileForDay(int day)
         {
             if (forecast == null)

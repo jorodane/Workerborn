@@ -681,7 +681,7 @@ namespace Workerborn
         {
             var point = new Vector3(x, 0, z);
             if (rebirthZone?.Contains(x, z) == true)
-                point.y = rebirthZone.SurfaceHeight(x, z);
+                point.y = rebirthZone.Area.max.y;
             else if (GroundTerrain != null)
                 point.y = GroundTerrain.SampleHeight(point) + GroundTerrain.transform.position.y;
             return point;

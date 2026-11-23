@@ -149,14 +149,22 @@ controller=behaviours(scene,'Village/VillagePrototype.cs');assert len(controller
 for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','rebirthZone']:
     assert controller[0][field]['fileID'],f'Missing binding: {field}'
 zone=behaviours(scene,'World/RebirthZone.cs')[0]
-assert all(zone[field]['fileID'] for field in ('navigation','spawn','guide','daySky'))
+assert all(zone[field]['fileID'] for field in ('navigation','spawn','guide'))
 assert zone['navigation']!=controller[0]['navigation']
 cloud_navigation=next(d['MonoBehaviour'] for d in scene if d['_id']==zone['navigation']['fileID'])
-assert cloud_navigation['groundMesh']['fileID'] and not cloud_navigation['ground']['fileID']
-cloud_collider=next(d['MeshCollider'] for d in scene if d['_id']==cloud_navigation['groundMesh']['fileID'])
-cloud_filter=next(d['MeshFilter'] for d in scene if d.get('MeshFilter',{}).get('m_GameObject')==cloud_collider['m_GameObject'])
-assert cloud_collider['m_Mesh']==cloud_filter['m_Mesh']
-assert resolve(cloud_collider['m_Mesh']).stem=='CloudBank'
+cloud_collider=next(d['BoxCollider'] for d in scene if d['_id']==cloud_navigation['ground']['fileID'])
+assert cloud_collider['m_Enabled'] and not cloud_collider['m_IsTrigger']
+cloud_zone=docs(CONTENT/'Prefabs/World/RebirthZone.prefab')
+assert not any('MeshRenderer' in d or 'MeshFilter' in d for d in cloud_zone)
+cloud_instances=[d['PrefabInstance'] for d in cloud_zone if 'PrefabInstance' in d
+                 and resolve(d['PrefabInstance']['m_SourcePrefab']).stem!='FateGuide']
+assert cloud_instances
+vendor_clouds=ROOT/'Assets/Synty/PolygonNature/Prefabs/Props'
+for instance in cloud_instances:
+    source=resolve(instance['m_SourcePrefab'])
+    assert source.parent==vendor_clouds and source.stem.startswith('SM_Prop_Cloud_')
+    assert not any(m['propertyPath'].startswith(('m_Materials','m_Mesh'))
+                   for m in instance['m_Modification']['m_Modifications'])
 assert len(behaviours(scene,'World/SeatSlot.cs')) >= 4
 lighting=behaviours(scene,'World/VillageLighting.cs')[0]
 assert lighting['sun']['fileID'] and lighting['nightIntensity']>.6
