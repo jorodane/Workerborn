@@ -16,8 +16,10 @@ namespace Workerborn
         [SerializeField] private RectTransform jobMarker;
         [SerializeField] private GameObject jobPin;
         [SerializeField] private RectTransform jobArrow;
+        [SerializeField] private TMP_Text areaName;
         private VillagePrototype game;
-        private readonly Dictionary<VillageInteractable, TMP_Text> markers = new Dictionary<VillageInteractable, TMP_Text>();
+        private string villageName;
+        private readonly Dictionary<WorldInteractable, TMP_Text> markers = new Dictionary<WorldInteractable, TMP_Text>();
         private PartTimeScheduleRowView jobSource;
         private Transform jobLocation;
         public void Bind(VillagePrototype owner)
@@ -27,24 +29,39 @@ namespace Workerborn
             game = owner;
             map.texture = game.MinimapTexture;
             GetComponent<VillageMapClick>().Game = game;
+            if (areaName != null)
+                villageName = areaName.text;
             foreach (var npc in game.Interactables)
+                AddMarker(npc);
+            if (game.RebirthArea != null)
             {
-                var label = Instantiate(npcMarker, transform);
-                label.text = npc.DisplayName;
-                label.gameObject.SetActive(true);
-                markers.Add(npc, label);
+                AddMarker(game.RebirthArea.Guide);
+                AddMarker(game.RebirthArea.Exit);
             }
             jobMarker.SetAsLastSibling();
+        }
+
+        private void AddMarker(WorldInteractable target)
+        {
+            if (target == null || markers.ContainsKey(target))
+                return;
+            var label = Instantiate(npcMarker, transform);
+            label.text = target.DisplayName;
+            markers.Add(target, label);
         }
 
         private void LateUpdate()
         {
             if (game == null || game.MinimapCamera == null)
                 return;
+            if (areaName != null)
+                areaName.text = game.InRebirthZone ? game.RebirthArea.MapName : villageName;
             Place(player, game.Worker.transform.position);
             foreach (var pair in markers)
-                if (pair.Key != null)
+                if (pair.Key != null && pair.Key.isActiveAndEnabled && game.SharesMap(pair.Key.transform.position))
                     Place(pair.Value.rectTransform, pair.Key.transform.position);
+                else
+                    pair.Value.gameObject.SetActive(false);
             PlaceJobMarker();
         }
 
@@ -66,7 +83,7 @@ namespace Workerborn
 
         private void PlaceJobMarker()
         {
-            bool visible = jobLocation != null && game != null && game.MinimapCamera != null;
+            bool visible = jobLocation != null && game != null && game.MinimapCamera != null && game.SharesMap(jobLocation.position);
             jobMarker.gameObject.SetActive(visible);
             if (!visible)
                 return;

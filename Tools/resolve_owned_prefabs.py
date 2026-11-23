@@ -22,6 +22,11 @@ def expand(path, include_vendor_geometry=False):
             if instance is None:continue
             candidate=GUIDS.get(instance['m_SourcePrefab']['guid'])
             if candidate is not None and (candidate.is_relative_to(ROOT/'Assets/Workerborn/Prefabs') or include_vendor_geometry and candidate.suffix=='.prefab'):
+                if not candidate.is_relative_to(ROOT/'Assets/Workerborn/Prefabs') and not any(
+                    body(record).get('m_Father',{}).get('fileID')==0 and 'm_GameObject' in body(record)
+                    for record in documents(candidate) if 'Transform' in record or 'RectTransform' in record
+                ):
+                    continue  # A vendor variant with an inherited root remains an opaque import.
                 chosen=d;source=candidate;break
         if chosen is None:return result
         original=documents(source);instance_id=chosen['_id'];guid=chosen['PrefabInstance']['m_SourcePrefab']['guid']

@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 100002}
+  - component: {fileID: 801179001}
   m_Layer: 0
   m_Name: PlotSquare
   m_TagString: Untagged
@@ -485,3 +486,18 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 100101, guid: c468f94cc96056d6a1579f71c25d225a, type: 3}
   m_PrefabInstance: {fileID: 100021}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &801179001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 848a562e47485917afa0148c0b3ac910, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  facility: {fileID: 11400000, guid: de59a94ecdf952458a2af79468c785fa, type: 2}
+  draftWidth: 1
+  draftDepth: 1

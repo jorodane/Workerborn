@@ -64,7 +64,7 @@ namespace Workerborn
             background.raycastTarget = inspect != null;
         }
 
-        internal void ShowHeldIcon()
+        internal void ShowIconOnly()
         {
             Passive();
             background.enabled = false;

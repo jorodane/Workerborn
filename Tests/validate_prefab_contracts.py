@@ -44,7 +44,8 @@ def validate(path):
             # All UI view object references must be authored; runtime only binds data/listeners.
             optional_chrome=(name=='WorldContextView' and field in {'closeButton','dragHandle','minimizeButton','windowBody'}
                              or name=='ConversationWindowView' and field in {'closeButton','dragHandle','minimizeButton'}
-                             or name=='ItemTooltipView' and mono.get('windowId')=='tooltip' and field in {'closeButton','dragHandle','minimizeButton'})
+                             or name=='ItemTooltipView' and mono.get('windowId')=='tooltip' and field in {'closeButton','dragHandle','minimizeButton'}
+                             or name=='PartTimeScheduleView' and mono.get('upcomingRows',0)>0 and field in {'dateLabel','previousDay','nextDay'})
             if (name.endswith('View') or name=='FrontEndMenu') and not optional_chrome and type in {'TMP_Text','TMP_InputField','Image','Button','Slider','RawImage','RectTransform','CanvasGroup','ScrollRect','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget','UiActionView'}:
                 assert value and value.get('fileID'),f'{path.name}: missing {name}.{field}'
             if not isinstance(value,dict) or not value.get('fileID'):continue
@@ -69,7 +70,7 @@ def validate(path):
 
 count=0
 for path in [*(CONTENT/'Prefabs').rglob('*.prefab'),*(CONTENT/'Data').rglob('*.asset')]:count+=validate(path)
-for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc','LoggingTree','VillagePlotSign']:assert subclass(child,'WorldInteractable')
+for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc','LoggingTree','VillagePlotSign','RebirthGate']:assert subclass(child,'WorldInteractable')
 assert subclass('FishingWater','HarvestableCrop')
 for name in ['Mira','Noah','Lena','Player']:assert (CONTENT/'Prefabs/Characters'/(name+'.prefab')).is_file()
 for name in ['Board','Shrine','Monster','ForestRabbit']:assert (CONTENT/'Prefabs/Interaction'/(name+'.prefab')).is_file()

@@ -11,6 +11,7 @@ namespace Workerborn
         [SerializeField]
         private Terrain terrain;
         public Terrain GroundTerrain => terrain;
+        internal BoxCollider GroundBox => ground;
 
         [SerializeField]
         private Transform obstacleRoot;

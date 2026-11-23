@@ -480,7 +480,7 @@ namespace Workerborn
             targetIds.Clear();
             foreach (var item in WorldInteractable.Active)
             {
-                if (item == null || item.gameObject.scene != game.gameObject.scene)
+                if (item == null || item.gameObject.scene != game.gameObject.scene || !game.SharesMap(item.transform.position))
                     continue;
                 int id = item == selected ? 1 : 0;
                 if (!forOutline && item.CanInteract)

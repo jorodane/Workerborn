@@ -34,6 +34,10 @@ namespace Workerborn.Tests
             Assert.That(game.Worker, Is.Not.Null);
             Assert.That(game.Crops.Count, Is.EqualTo(12));
             Assert.That(game.Interactables.Count, Is.EqualTo(5));
+            Assert.That(game.InRebirthZone, Is.True);
+            Assert.That(game.Hud.HasModal, Is.False);
+            game.LeaveRebirthZone();
+            Assert.That(game.InRebirthZone, Is.False);
         }
 
         [UnityTearDown]
@@ -51,6 +55,50 @@ namespace Workerborn.Tests
             VillageSaveStore.DirectoryOverride = null;
             if (Directory.Exists(saveDirectory))
                 Directory.Delete(saveDirectory, true);
+        }
+
+        [UnityTest]
+        public IEnumerator RebirthMapHasWalkableGroundAndAnExitToTheVillage()
+        {
+            Vector3 returnPoint = game.Worker.transform.position;
+            game.VisitRebirthZone();
+            Assert.That(game.InRebirthZone, Is.True);
+            Assert.That(game.CaptureSave().inRebirthZone, Is.True);
+            var agent = game.Worker.GetComponent<NavMeshAgent>();
+            Assert.That(agent.isOnNavMesh, Is.True);
+            Vector3 destination = game.Worker.transform.position + Vector3.right * 2f;
+            game.Worker.CommandMove(destination);
+            yield return Until(() => Vector3.Distance(game.Worker.transform.position, destination) < .2f, 4f);
+
+            game.RebirthArea.Exit.RequestInteraction(game.Worker);
+            yield return Until(() => !game.InRebirthZone, 6f);
+            Assert.That(Vector3.Distance(game.Worker.transform.position, returnPoint), Is.LessThan(.25f));
+        }
+
+        [UnityTest]
+        public IEnumerator SittingUsesASeatOnlyFromItsFrontAndRestoresTheWalkablePosition()
+        {
+            game.VisitRebirthZone();
+            Vector3 ground = game.Worker.transform.position;
+            game.Worker.ToggleSit();
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Sitting));
+            Assert.That(game.Worker.transform.position, Is.EqualTo(ground));
+            game.Worker.ToggleSit();
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
+
+            var seat = game.RebirthArea.GetComponentInChildren<SeatSlot>();
+            Vector3 front = seat.Position + seat.Facing * Vector3.forward * .85f;
+            Assert.That(seat.Covers(front), Is.True);
+            Assert.That(seat.Covers(seat.Position - seat.Facing * Vector3.forward * .5f), Is.False);
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(front.x, front.z), out var standing, .35f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(standing.position), Is.True);
+            game.Worker.ToggleSit();
+            yield return null;
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Sitting));
+            Assert.That(Vector3.Distance(game.Worker.transform.position, seat.Position), Is.LessThan(.01f));
+            Assert.That(Quaternion.Angle(game.Worker.transform.rotation, seat.Facing), Is.LessThan(.1f));
+            game.Worker.ToggleSit();
+            Assert.That(Vector3.Distance(game.Worker.transform.position, standing.position), Is.LessThan(.02f));
         }
 
         [UnityTest]
@@ -178,6 +226,7 @@ namespace Workerborn.Tests
             int ap = game.State.AP;
             game.Hud.CloseDialogue();
             game.Rebirth();
+            Assert.That(game.InRebirthZone, Is.True);
             Assert.That(game.State.Life, Is.EqualTo(2));
             Assert.That(game.State.Level, Is.EqualTo(1));
             Assert.That(game.State.Gold, Is.Zero);
@@ -1184,8 +1233,22 @@ namespace Workerborn.Tests
             var map = game.Hud.OpenWindow("map");
             Assert.That(map.GetComponentInChildren<VillageClockView>(), Is.Not.Null);
             var hours = map.GetComponentsInChildren<TMP_Text>().Where(label => label.name == "Job hours").ToArray();
-            Assert.That(hours.Any(label => label.text.StartsWith("오늘 ")), Is.True);
-            Assert.That(hours.Any(label => label.text.StartsWith("내일 ")), Is.True);
+            Assert.That(hours.Length, Is.EqualTo(1));
+            var schedule = map.GetComponentInChildren<PartTimeScheduleView>();
+            var date = schedule.transform.Find("Schedule date").GetComponent<TMP_Text>();
+            var previousDay = schedule.transform.Find("Previous schedule day").GetComponent<Button>();
+            var nextDay = schedule.transform.Find("Next schedule day").GetComponent<Button>();
+            Assert.That(date.text, Is.EqualTo(VillageClockView.DateLabel(game.State.Day)));
+            Assert.That(previousDay.interactable, Is.False);
+            for (int day = 1; day <= 7; day++)
+            {
+                nextDay.onClick.Invoke();
+                Assert.That(date.text, Is.EqualTo(VillageClockView.DateLabel(game.State.Day + day)));
+            }
+            Assert.That(nextDay.interactable, Is.False);
+            for (int day = 1; day <= 7; day++)
+                previousDay.onClick.Invoke();
+            Assert.That(previousDay.interactable, Is.False);
             var fullRow = map.GetComponentInChildren<PartTimeScheduleRowView>();
             var fullMarker = map.GetComponentInChildren<VillageMapView>().transform.Find("Job location");
             var workplace = game.FindInteraction(VillageRole.Farmer).transform;
@@ -1208,8 +1271,8 @@ namespace Workerborn.Tests
             var state = game.State;
             state.AdvanceTime((state.Rules.JobEnd - state.Minute + 10) / state.Rules.MinutesPerSecond);
             yield return null;
-            Assert.That(miniRow.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Job hours").text,
-                Does.StartWith("내일 "));
+            Assert.That(miniRow.gameObject.activeInHierarchy, Is.False);
+            Assert.That(miniSchedule.transform.Find("Empty schedule").GetComponent<TMP_Text>().text, Is.EqualTo("오늘 일정 종료"));
             Assert.That(fullRow.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Job status").text,
                 Is.EqualTo("마감"));
         }

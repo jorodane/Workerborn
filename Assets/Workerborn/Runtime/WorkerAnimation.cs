@@ -7,13 +7,15 @@ namespace Workerborn
     public sealed class WorkerAnimation : MonoBehaviour
     {
         private const int Work = 2;
-        private const int WorkBegin = 4;
-        private const int WorkFinish = 5;
+        private const int WorkBegin = 6;
+        private const int WorkFinish = 7;
+        [SerializeField] private AnimationClip groundSit;
+        [SerializeField] private AnimationClip seatSit;
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
-        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[6];
-        private readonly float[] lengths = new float[6];
-        private readonly float[] weights = new float[6];
+        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[8];
+        private readonly float[] lengths = new float[8];
+        private readonly float[] weights = new float[8];
         private AnimationClip fallbackWork;
         private int workInput = Work;
         private float workDuration, beginDuration, finishDuration;
@@ -46,6 +48,8 @@ namespace Workerborn
                 move,
                 fallbackWork,
                 walk,
+                groundSit != null ? groundSit : idle,
+                seatSit != null ? seatSit : idle,
                 idle,
                 idle
             };
@@ -152,12 +156,12 @@ namespace Workerborn
 
         public void SetAction(int action)
         {
-            int next = Mathf.Clamp(action, 0, 3);
+            int next = Mathf.Clamp(action, 0, (int)WorkerMotion.SeatSit);
             if (next == target)
                 return;
             if (graph.IsValid())
             {
-                if (next == Work && !timedWork)
+                if ((next == Work && !timedWork) || next >= (int)WorkerMotion.GroundSit)
                     clips[next].SetTime(0d);
                 else if ((next == 1 || next == 3) && (target == 1 || target == 3))
                     clips[next].SetTime(clips[target].GetTime() % lengths[target] / lengths[target] * lengths[next]);

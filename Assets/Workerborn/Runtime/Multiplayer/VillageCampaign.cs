@@ -4,10 +4,12 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Workerborn.EditModeTests")]
+[assembly: InternalsVisibleTo("Workerborn.PlayModeTests")]
 
 namespace Workerborn
 {
     public enum SessionKind { SteamFriends = 1, Dedicated = 2 }
+    internal enum WorkerMotion { Idle, Run, Work, Walk, GroundSit, SeatSit }
 
     public enum CampaignAction
     {
@@ -311,7 +313,7 @@ namespace Workerborn
         public void Move(string identity, SessionAvatar pose)
         {
             if (pose == null || !FiniteCoordinate(pose.x) || !FiniteCoordinate(pose.y) ||
-                !FiniteCoordinate(pose.z) || !FiniteCoordinate(pose.yaw) || pose.motion < 0 || pose.motion > 3)
+                !FiniteCoordinate(pose.z) || !FiniteCoordinate(pose.yaw) || pose.motion < 0 || pose.motion > (int)WorkerMotion.SeatSit)
                 return;
             var target = avatars[identity];
             target.x = pose.x;
@@ -436,6 +438,7 @@ namespace Workerborn
             profile.character = state.Export();
             profile.character.playerX = previous.playerX;
             profile.character.playerZ = previous.playerZ;
+            profile.character.inRebirthZone = !teleport && previous.inRebirthZone;
             profile.character.cropStates = teleport ? Array.Empty<CropStateSave>() : previous.cropStates;
             profile.character.animalStates = teleport ? Array.Empty<AnimalStateSave>() : previous.animalStates;
             profile.character.collectedPickupIds = teleport && previous.life != state.Life ? Array.Empty<string>() : previous.collectedPickupIds;

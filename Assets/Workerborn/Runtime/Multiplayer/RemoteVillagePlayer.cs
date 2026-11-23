@@ -26,6 +26,8 @@ namespace Workerborn
         }
 
         internal void Say(string message) => label?.Say(message);
+        internal bool OccupiesSeat(Vector3 position) => hasPose && animationDriver != null &&
+            animationDriver.CurrentAction == (int)WorkerMotion.SeatSit && (position - destination).sqrMagnitude < .04f;
 
         internal void SetPose(SessionAvatar avatar, float surfaceY)
         {

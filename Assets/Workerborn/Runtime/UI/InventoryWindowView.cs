@@ -46,7 +46,7 @@ namespace Workerborn
             base.Bind(game, hud);
             equippedItems = new UiItemView[equipment.Length];
             foreach (var slot in equipment)
-                slot.Hud = hud;
+                slot.Bind(hud);
             itemLayer.GetComponent<InventoryGridPointer>().Hud = hud;
         }
 
@@ -72,7 +72,9 @@ namespace Workerborn
             for (int i = 0; i < equipment.Length; i++)
             {
                 var visual = equippedItems[i];
-                if (!Game.State.Equipment.TryGetValue(equipment[i].Slot, out var id))
+                bool occupied = Game.State.Equipment.TryGetValue(equipment[i].Slot, out var id);
+                equipment[i].ShowOccupied(occupied);
+                if (!occupied)
                 {
                     if (visual != null)
                         visual.gameObject.SetActive(false);
@@ -82,15 +84,13 @@ namespace Workerborn
                 if (visual == null)
                 {
                     visual = Instantiate(Hud.Library.Item, equipmentIcons[i]);
-                    visual.Passive();
-                    visual.Rect.anchorMin = visual.Rect.anchorMax = visual.Rect.pivot = Vector2.one * .5f;
-                    visual.Rect.anchoredPosition = Vector2.zero;
+                    visual.ShowIconOnly();
+                    visual.Rect.anchorMin = Vector2.zero;
+                    visual.Rect.anchorMax = Vector2.one;
+                    visual.Rect.offsetMin = Vector2.zero;
+                    visual.Rect.offsetMax = Vector2.zero;
                     equippedItems[i] = visual;
                 }
-                var spec = ItemCatalog.Get(id);
-                Vector2 footprint = Vector2.Max(Vector2.one, Vector2.Scale(new Vector2(spec.Width, spec.Height), CellSize) - Vector2.one * 2f);
-                Vector2 slotSize = equipmentIcons[i].rect.size;
-                visual.Rect.sizeDelta = footprint * Mathf.Min(1f, Mathf.Min(slotSize.x / footprint.x, slotSize.y / footprint.y));
                 visual.Display(Game.Settings.FindItem(id), id, 1);
                 visual.gameObject.SetActive(true);
             }

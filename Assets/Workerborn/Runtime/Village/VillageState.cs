@@ -96,6 +96,7 @@ namespace Workerborn
         public GroundDropSave[] drops = Array.Empty<GroundDropSave>();
         public float playerX;
         public float playerZ = -4.4f;
+        public bool inRebirthZone;
         public EquipmentEntrySave[] equipment = Array.Empty<EquipmentEntrySave>();
     }
 

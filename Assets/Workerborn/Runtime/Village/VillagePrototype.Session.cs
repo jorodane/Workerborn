@@ -115,6 +115,14 @@ namespace Workerborn
                 yaw = pose.eulerAngles.y, motion = player.GetComponent<WorkerAnimation>().CurrentAction };
         }
 
+        internal bool SeatInUse(Vector3 position)
+        {
+            foreach (var peer in peers.Values)
+                if (peer != null && peer.OccupiesSeat(position))
+                    return true;
+            return false;
+        }
+
         internal void ApplySharedWorld(VillageWorldRecord world, SessionAvatar[] avatars)
         {
             if (!initialized || world?.legend == null || world.era < State.Era)

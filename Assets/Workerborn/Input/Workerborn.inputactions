@@ -87,6 +87,15 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "Sit",
+                    "type": "Button",
+                    "id": "060c5855-68f3-568c-a007-048aeb16cb49",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Map",
                     "type": "Button",
                     "id": "a5ba84e5-6cb5-5859-aec4-6e2b6a011be9",
@@ -266,11 +275,22 @@
                 {
                     "name": "",
                     "id": "2e32afc2-f56c-532a-9451-f333dc91c785",
-                    "path": "<Keyboard>/c",
+                    "path": "<Keyboard>/o",
                     "interactions": "",
                     "processors": "",
                     "groups": "Keyboard&Mouse",
                     "action": "Character",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "afde6955-9aec-5a40-a8a6-7efc08439846",
+                    "path": "<Keyboard>/c",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "Sit",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

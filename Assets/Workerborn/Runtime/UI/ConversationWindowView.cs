@@ -151,10 +151,10 @@ namespace Workerborn
             if (npc == null)
                 return;
             speaker.text = npc.DisplayName;
-            leaveLabel.text = trading ? "거래 종료" : npc.Role == VillageRole.Guide ? "마을로 내려간다" : "대화 종료";
+            leaveLabel.text = trading ? "거래 종료" : "대화 종료";
             var dialogue = npc.Definition?.Dialogue;
             string prose = dialogue != null ? dialogue.TextFor(trading ? DialogueAction.Shop : topic) : "";
-            if (trading || npc.Role == VillageRole.Guide)
+            if (trading)
             {
                 ShowLine(prose);
                 return;
@@ -163,6 +163,12 @@ namespace Workerborn
             var s = Game.State;
             var r = s.Rules;
             InventoryWindowView.Clear(actions);
+            if (npc.Role == VillageRole.Guide && topic != DialogueAction.Rebirth)
+            {
+                Action("마을로 내려가기", Game.LeaveRebirthZone);
+                ShowLine(prose);
+                return;
+            }
             string text = prose;
             switch (topic)
             {
@@ -258,6 +264,8 @@ namespace Workerborn
                             Action("공동 환생", Game.AdvanceEra);
                         else
                             Action("시대 전환", () => { confirmingEra = true; Refresh(); }, s.CanAdvanceEra);
+                        if (npc.Role == VillageRole.Shrine && Game.RebirthArea != null)
+                            Action("구름 정원 가기", Game.VisitRebirthZone);
                     }
                     break;
                 case DialogueAction.Legend:

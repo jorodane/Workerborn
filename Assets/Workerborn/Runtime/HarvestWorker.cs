@@ -11,7 +11,8 @@ namespace Workerborn
         Idle,
         Moving,
         Harvesting,
-        Attacking
+        Attacking,
+        Sitting
     }
 
     [RequireComponent(typeof(NavMeshAgent))]
@@ -49,6 +50,7 @@ namespace Workerborn
         private VillagePrototype village;
         private int collectedCount;
         private bool manualMoving;
+        private bool onSeat;
         private float nextCollect;
         private int consecutiveCollections;
         public bool AcceptsInteractionCommands => village == null || !village.ControlsBlocked;
@@ -57,6 +59,7 @@ namespace Workerborn
         internal VillagePrototype Village => village;
         public bool IsWalking => Action == WorkerAction.Moving && WorkerbornInput.Held("Gameplay/Walk");
         public bool HasPendingDrop => pendingDrop != null;
+        internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
         public WorkerAction Action { get; private set; }
         public HarvestableCrop HoveredCrop { get; private set; }
         public GroundPickup HoveredPickup { get; private set; }
@@ -89,6 +92,8 @@ namespace Workerborn
             ReadInput();
             if (village != null && village.Hud.WorldActionsLocked && Action != WorkerAction.Idle)
                 Cancel();
+            if (AcceptsInteractionCommands && WorkerbornInput.Pressed("Gameplay/Sit"))
+                ToggleSit();
             agent.speed = IsWalking ? walkSpeed : runSpeed;
             bool movingByKeys = UpdateManualMovement();
             UpdateNearbyCollection();
@@ -98,8 +103,49 @@ namespace Workerborn
                 UpdateHarvest();
             else if (Action == WorkerAction.Attacking)
                 UpdateAttack();
-            animationDriver?.SetAction(Action == WorkerAction.Moving ? (IsWalking ? 3 : 1) :
-                Action == WorkerAction.Harvesting || Action == WorkerAction.Attacking ? 2 : 0);
+            var motion = Action switch
+            {
+                WorkerAction.Moving => IsWalking ? WorkerMotion.Walk : WorkerMotion.Run,
+                WorkerAction.Harvesting or WorkerAction.Attacking => WorkerMotion.Work,
+                WorkerAction.Sitting => onSeat ? WorkerMotion.SeatSit : WorkerMotion.GroundSit,
+                _ => WorkerMotion.Idle
+            };
+            animationDriver?.SetAction((int)motion);
+        }
+
+        internal void ToggleSit()
+        {
+            if (!AcceptsInteractionCommands || agent == null || !agent.isOnNavMesh)
+                return;
+            if (Action == WorkerAction.Sitting)
+            {
+                Cancel();
+                return;
+            }
+            if (Action == WorkerAction.Harvesting || Action == WorkerAction.Attacking)
+                return;
+
+            Cancel();
+            SeatSlot nearest = null;
+            float bestDistance = float.PositiveInfinity;
+            foreach (var seat in FindObjectsByType<SeatSlot>(FindObjectsSortMode.None))
+            {
+                if (!seat.isActiveAndEnabled || !seat.Covers(transform.position) || village?.SeatInUse(seat.Position) == true)
+                    continue;
+                float distance = (seat.Position - transform.position).sqrMagnitude;
+                if (distance < bestDistance)
+                {
+                    nearest = seat;
+                    bestDistance = distance;
+                }
+            }
+            onSeat = nearest != null;
+            if (onSeat)
+            {
+                agent.updatePosition = false;
+                transform.SetPositionAndRotation(nearest.Position, nearest.Facing);
+            }
+            Action = WorkerAction.Sitting;
         }
 
         private bool UpdateManualMovement()
@@ -370,6 +416,8 @@ namespace Workerborn
         {
             if (agent == null || !agent.isOnNavMesh)
                 return false;
+            if (Action == WorkerAction.Sitting)
+                Cancel();
             Vector3 direction = transform.position - target;
             direction.y = 0f;
             if (direction.sqrMagnitude < 0.01f)
@@ -546,6 +594,13 @@ namespace Workerborn
 
         private void ClearInteractionTargets()
         {
+            if (onSeat && agent != null)
+            {
+                if (agent.isOnNavMesh)
+                    transform.position = agent.nextPosition;
+                agent.updatePosition = true;
+                onSeat = false;
+            }
             manualMoving = false;
             if (cropTarget != null)
                 cropTarget.Cancel(this);
@@ -586,10 +641,10 @@ namespace Workerborn
             transform.rotation = Quaternion.identity;
         }
 
-        public void WarpTo(Vector3 position)
+        public bool WarpTo(Vector3 position)
         {
             Cancel();
-            agent.Warp(position);
+            return agent.Warp(position);
         }
 
         private void OnDisable()

@@ -109,13 +109,27 @@ namespace Workerborn
             return village.SurfacePosition(position.x, position.z) + Vector3.up * .025f;
         }
 
-        private void OnDrawGizmosSelected()
+        private void OnDrawGizmos()
         {
-            Gizmos.matrix = transform.localToWorldMatrix;
+            if (!Application.isPlaying)
+                DrawGrid(transform, Footprint, ground == PlotGround.Fishing ? new Color(.25f, .65f, 1f) : Color.cyan);
+        }
+
+        internal static void DrawGrid(Transform origin, PlotFootprint footprint, Color outline)
+        {
+            if (!footprint.IsValid)
+                return;
+            int width = footprint.Width;
+            int depth = footprint.Depth;
+            Matrix4x4 oldMatrix = Gizmos.matrix;
+            Color oldColor = Gizmos.color;
+            Gizmos.matrix = origin.localToWorldMatrix;
             float halfWidth = width * CellSide * .5f;
             float halfDepth = depth * CellSide * .5f;
-            const float top = .05f;
-            Gizmos.color = ground == PlotGround.Fishing ? new Color(.25f, .65f, 1f) : Color.cyan;
+            const float top = .09f;
+            Gizmos.color = new Color(outline.r, outline.g, outline.b, .12f);
+            Gizmos.DrawCube(Vector3.up * top, new Vector3(halfWidth * 2f, .01f, halfDepth * 2f));
+            Gizmos.color = outline;
             for (int column = 0; column <= width; column++)
             {
                 float x = column * CellSide - halfWidth;
@@ -132,7 +146,8 @@ namespace Workerborn
             Gizmos.DrawLine(Vector3.up * top, front);
             Gizmos.DrawLine(front, front + new Vector3(-.32f, 0f, -.36f));
             Gizmos.DrawLine(front, front + new Vector3(.32f, 0f, -.36f));
-            Gizmos.matrix = Matrix4x4.identity;
+            Gizmos.matrix = oldMatrix;
+            Gizmos.color = oldColor;
         }
     }
 }

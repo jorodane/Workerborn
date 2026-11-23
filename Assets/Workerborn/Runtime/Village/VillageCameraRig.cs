@@ -27,7 +27,6 @@ namespace Workerborn
         [SerializeField, Range(0.05f, 0.5f)]
         private float zoomSensitivity = 0.18f;
         private Transform target;
-        private Transform viewOverride;
         private VillagePrototype game;
         private Camera cameraComponent;
         private Vector3 focus;
@@ -42,9 +41,8 @@ namespace Workerborn
         public bool RightClickThisFrame { get; private set; }
         public float Distance => distance;
 
-        public void SetViewOverride(Transform pose)
+        internal void SnapToTarget()
         {
-            viewOverride = pose;
             rightPressed = middlePressed = false;
             if (target != null)
                 UpdatePose();
@@ -129,18 +127,13 @@ namespace Workerborn
 
         private void UpdatePose()
         {
-            if (viewOverride != null)
-            {
-                transform.SetPositionAndRotation(viewOverride.position, viewOverride.rotation);
-                return;
-            }
             focus = target.position + Vector3.up * pivotHeight;
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
             Vector3 direction = rotation * Vector3.back;
             Vector3 position = focus + direction * distance;
             float floor = target.position.y + .2f;
-            if (game != null && game.GroundTerrain != null)
-                floor = game.GroundTerrain.SampleHeight(position) + game.GroundTerrain.transform.position.y + cameraComponent.nearClipPlane + .2f;
+            if (game != null && !game.InRebirthZone && game.GroundTerrain != null)
+                floor = game.SurfacePosition(position.x, position.z).y + cameraComponent.nearClipPlane + .2f;
             position.y = Mathf.Max(position.y, floor);
             if (target.TryGetComponent<CapsuleCollider>(out var capsule) &&
                 CameraVisibility.Contains(capsule, position, cameraComponent.nearClipPlane + .18f))

@@ -13,6 +13,7 @@ namespace Workerborn
         private int shownDay, shownMinute = -1;
 
         internal static string TimeLabel(int minute) => $"{minute / 60:00}:{minute % 60:00}";
+        internal static string DateLabel(int day) => $"{day}일 · {Weekdays[(day - 1) % Weekdays.Length]}";
 
         internal void Bind(VillagePrototype owner)
         {
@@ -36,7 +37,7 @@ namespace Workerborn
             if (shownDay != state.Day)
             {
                 shownDay = state.Day;
-                dateText.text = $"{shownDay}일 · {Weekdays[(shownDay - 1) % Weekdays.Length]}";
+                dateText.text = DateLabel(shownDay);
                 weatherText.text = game.WeatherName;
             }
         }

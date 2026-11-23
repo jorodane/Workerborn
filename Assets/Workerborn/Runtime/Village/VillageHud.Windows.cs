@@ -245,7 +245,7 @@ namespace Workerborn
             dragGhost.pivot = new Vector2(0, 1);
             dragGhost.sizeDelta = new Vector2(item.Spec.Width * CellX, item.Spec.Height * CellY);
             visual.Display(game.Settings.FindItem(item.ItemId), item.ItemId, item.Quantity);
-            visual.ShowHeldIcon();
+            visual.ShowIconOnly();
         }
 
         public void MoveItemDrag(Vector2 screen)

@@ -56,7 +56,8 @@ namespace Workerborn
 
             foreach (var target in WorldInteractable.Active)
             {
-                if (target == null || !target.CanInteract || !target.ShowNameByDefault && !alt || names.ContainsKey(target))
+                if (target == null || !target.CanInteract || !game.SharesMap(target.transform.position) ||
+                    !target.ShowNameByDefault && !alt || names.ContainsKey(target))
                     continue;
                 WorldNameplateView view;
                 if (target is GroundPickup pickup)
@@ -79,7 +80,7 @@ namespace Workerborn
             foreach (var pair in names)
             {
                 var screen = game.WorldCamera.WorldToScreenPoint(pair.Key.NamePosition);
-                bool onScreen = pair.Key.CanInteract && (alt || pair.Key.ShowNameByDefault) &&
+                bool onScreen = pair.Key.CanInteract && game.SharesMap(pair.Key.transform.position) && (alt || pair.Key.ShowNameByDefault) &&
                     screen.z > game.WorldCamera.nearClipPlane && screen.x >= 0 && screen.x <= Screen.width && screen.y >= 0 && screen.y <= Screen.height;
                 if (!onScreen)
                 {

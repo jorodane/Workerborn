@@ -146,8 +146,13 @@ for id,go in gos.items():
     for c in go['m_Component']: assert c['component']['fileID'] in ids,f'Missing component in {go["m_Name"]}'
 
 controller=behaviours(scene,'Village/VillagePrototype.cs');assert len(controller)==1
-for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','guideStage','fateGuide','guideCameraPose']:
+for field in ['targeting','npcPortrait','npcPortraitTexture','settings','mapRoot','navigation','player','worker','worldCamera','cameraRig','hud','minimapCamera','minimapTexture','spawnPoint','restPoint','droppedItems','potato','lighting','effects','farm','rebirthZone']:
     assert controller[0][field]['fileID'],f'Missing binding: {field}'
+zone=behaviours(scene,'World/RebirthZone.cs')[0]
+assert all(zone[field]['fileID'] for field in ('navigation','spawn','guide','exit'))
+assert zone['navigation']!=controller[0]['navigation']
+assert len(behaviours(scene,'World/RebirthGate.cs'))==1
+assert len(behaviours(scene,'World/SeatSlot.cs')) >= 8
 lighting=behaviours(scene,'World/VillageLighting.cs')[0]
 assert lighting['sun']['fileID'] and lighting['nightIntensity']>.6
 assert len(lighting['lanterns'])>=4 and all(lamp['fileID'] for lamp in lighting['lanterns'])
@@ -230,6 +235,9 @@ facilities=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['plotFaciliti
 assert {f['id']:(f['width'],f['depth'],f['ground']) for f in facilities}=={
     'potato_field':(1,1,0),'shop':(1,2,0),'inn':(1,2,0),'square':(2,2,0),'fishing_pond':(1,2,1)}
 assert [f['id'] for f in facilities if f['fieldCrop']['fileID']]==['potato_field']
+for facility in facilities:
+    preview=behaviours(docs(resolve(facility['prefab'])),'World/PlotFacilityPreview.cs')[0]
+    assert docs(resolve(preview['facility']))[0]['MonoBehaviour']['id']==facility['id']
 pond=expand(resolve(next(f for f in facilities if f['id']=='fishing_pond')['prefab']))
 water=behaviours(pond,'World/FishingWater.cs')[0]
 fishing=docs(resolve(water['definition']))[0]['MonoBehaviour']
@@ -279,7 +287,9 @@ actions=json.loads(actions_path.read_text());maps={m['name']:m for m in actions[
 assert set(maps)=={'Gameplay','Camera','UI'}
 allids=[a['id']for m in maps.values()for a in m['actions']]+[b['id']for m in maps.values()for b in m['bindings']]
 assert len(allids)==len(set(allids))
-required={'Gameplay':{'Interact':'<Mouse>/leftButton','Target':'<Keyboard>/leftCtrl','Names':'<Keyboard>/leftAlt','Walk':'<Keyboard>/leftShift'},'Camera':{'OrbitMiddle':'<Mouse>/middleButton','OrbitRight':'<Mouse>/rightButton','Zoom':'<Mouse>/scroll/y'}}
+required={'Gameplay':{'Interact':'<Mouse>/leftButton','Target':'<Keyboard>/leftCtrl','Names':'<Keyboard>/leftAlt','Walk':'<Keyboard>/leftShift',
+                      'Sit':'<Keyboard>/c','Character':'<Keyboard>/o'},
+          'Camera':{'OrbitMiddle':'<Mouse>/middleButton','OrbitRight':'<Mouse>/rightButton','Zoom':'<Mouse>/scroll/y'}}
 for mapname,bindings in required.items():
     for name,binding in bindings.items():assert any(b['action']==name and b['path']==binding for b in maps[mapname]['bindings'])
 assert len(behaviours(scene,'Interaction/WorkerbornInput.cs'))==1

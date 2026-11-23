@@ -77,6 +77,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3d73b1346c5858d1945638c27438ce91, type: 3}
   m_Name: ''
   m_EditorClassIdentifier: ''
+  groundSit: {fileID: 3094330708855449807, guid: 99b0420829b9c8e4fa745e88563277ef, type: 3}
+  seatSit: {fileID: 3094330708855449807, guid: fb20771c14d3a614d9cb9a8bfd52d6b3, type: 3}
 --- !u!114 &100006
 MonoBehaviour:
   m_ObjectHideFlags: 0

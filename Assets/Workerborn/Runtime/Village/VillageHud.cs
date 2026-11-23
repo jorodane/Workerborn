@@ -335,7 +335,8 @@ namespace Workerborn
         private void PlaceWorld(RectTransform rect, Vector3 position)
         {
             Vector3 screen = game.WorldCamera.WorldToScreenPoint(position);
-            bool visible = screen.z > 0f && screen.x > -30f && screen.x < Screen.width + 30f && screen.y > 0f && screen.y < Screen.height;
+            bool visible = screen.z > 0f && screen.z <= game.WorldCamera.farClipPlane &&
+                screen.x > -30f && screen.x < Screen.width + 30f && screen.y > 0f && screen.y < Screen.height;
             rect.gameObject.SetActive(visible);
             if (!visible)
                 return;

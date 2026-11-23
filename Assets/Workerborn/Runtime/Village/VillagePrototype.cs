@@ -55,12 +55,9 @@ namespace Workerborn
         private RenderTexture npcPortraitTexture;
         [Header("Farm foundation")]
         [SerializeField] private Transform farm;
-        [SerializeField] private GameObject guideStage;
-        [SerializeField] private VillageInteractable fateGuide;
-        [SerializeField] private Transform guideCameraPose;
         public PointerTargeting Targeting => targeting;
         public Terrain GroundTerrain => navigation != null ? navigation.GroundTerrain : null;
-        public bool IsGround(Collider hit) => navigation != null && navigation.IsGround(hit);
+        public bool IsGround(Collider hit) => InRebirthZone ? rebirthZone.IsGround(hit) : navigation != null && navigation.IsGround(hit);
         public RenderTexture NpcPortraitTexture => npcPortraitTexture;
 
         public void ShowNpcPortrait(CharacterActor actor)
@@ -80,7 +77,6 @@ namespace Workerborn
         private Action<Vector3> playLanding;
         private VillageFarmSite[] farmSites;
         private Vector3 originalFarmPosition;
-        private bool restoreCameraVisibility;
         private VillageWorldStage[] stages;
         private VillageSave restoredWorld;
         private float nextSave;
@@ -165,7 +161,8 @@ namespace Workerborn
             State = new VillageState(rules);
             string notice = null;
             usesSelectedWorld = !IsAppearanceTrial && Session?.HasLocalWorld == true;
-            if (Session != null && Session.TakeSoloReload(out restoredWorld, out notice))
+            reloadingSavedGame = Session != null && Session.TakeSoloReload(out restoredWorld, out notice);
+            if (reloadingSavedGame)
                 State = VillageState.Restore(restoredWorld, rules);
             else if (IsOnline || usesSelectedWorld)
             {
@@ -195,6 +192,7 @@ namespace Workerborn
                 plot.Bind(this);
             bool plotBlocksNavigation = RenderPlots();
             navigation.Activate(useBakedData: !plotBlocksNavigation && State.FarmAvailable && string.IsNullOrEmpty(State.FarmSiteId));
+            rebirthZone?.Initialize();
             var agent = worker.GetComponent<NavMeshAgent>();
             agent.enabled = true;
             if (NavMesh.SamplePosition(SurfacePosition(spawnPoint.position.x, spawnPoint.position.z), out var initialPosition, 2f, NavMesh.AllAreas))
@@ -221,6 +219,8 @@ namespace Workerborn
                 }
             if (minimapCamera != null && minimapTexture != null)
             {
+                villageMinimapPosition = minimapCamera.transform.position;
+                villageMinimapSize = minimapCamera.orthographicSize;
                 minimapCamera.targetTexture = minimapTexture;
                 minimapCamera.enabled = true;
             }
@@ -271,35 +271,8 @@ namespace Workerborn
 
         private void Start()
         {
-            if (initialized)
-                OpenGuideIfNeeded();
-        }
-
-        private void OpenGuideIfNeeded()
-        {
-            if (!State.NeedsGuide || guideStage == null || fateGuide == null || guideCameraPose == null)
-                return;
-            guideStage.SetActive(true);
-            var actor = fateGuide.GetComponent<CharacterActor>();
-            if (actor != null)
-                BindCharacter(actor, true);
-            var visibility = worldCamera.GetComponent<CameraVisibility>();
-            restoreCameraVisibility = visibility != null && visibility.enabled;
-            if (restoreCameraVisibility)
-                visibility.enabled = false;
-            cameraRig.SetViewOverride(guideCameraPose);
-            hud.OpenDialogue(fateGuide);
-        }
-
-        public void FinishGuideVisit()
-        {
-            cameraRig.SetViewOverride(null);
-            if (guideStage != null)
-                guideStage.SetActive(false);
-            if (restoreCameraVisibility && worldCamera.TryGetComponent<CameraVisibility>(out var visibility))
-                visibility.enabled = true;
-            State.FinishGuideVisit();
-            SaveGame(false);
+            if (initialized && !IsAppearanceTrial && (!reloadingSavedGame || restoredWorld?.inRebirthZone == true))
+                VisitRebirthZone();
         }
 
         internal static void BindCharacter(CharacterActor actor, bool idleOnly)
@@ -622,6 +595,7 @@ namespace Workerborn
 
         private void FinishTransition(bool reborn, bool eraChanged)
         {
+            Vector3 positionBeforeTransition = worker.StandingPosition;
             hud.CancelItemDrag();
             worker.Cancel();
             effects?.Clear();
@@ -651,13 +625,16 @@ namespace Workerborn
                 agent.enabled = true;
             }
             ResetDailyResources();
-            var spawn = SurfacePosition(spawnPoint.position.x, spawnPoint.position.z);
+            if (reborn)
+                InRebirthZone = false;
+            Vector3 destination = InRebirthZone ? positionBeforeTransition : spawnPoint.position;
+            var spawn = SurfacePosition(destination.x, destination.z);
             worker.ResetWorker(NavMesh.SamplePosition(spawn, out var point, 2f, NavMesh.AllAreas) ? point.position : spawn);
             lighting?.SetDate(State.Day, State.Minute);
             hud.CloseDialogue();
             hud.RefreshWindows();
             if (reborn)
-                OpenGuideIfNeeded();
+                VisitRebirthZone();
         }
 
         public void WalkTo(VillageRole role)
@@ -693,7 +670,9 @@ namespace Workerborn
         internal Vector3 SurfacePosition(float x, float z)
         {
             var point = new Vector3(x, 0, z);
-            if (GroundTerrain != null)
+            if (rebirthZone?.Contains(x, z) == true)
+                point.y = rebirthZone.Area.max.y;
+            else if (GroundTerrain != null)
                 point.y = GroundTerrain.SampleHeight(point) + GroundTerrain.transform.position.y;
             return point;
         }
@@ -813,8 +792,10 @@ namespace Workerborn
         internal VillageSave CaptureSave()
         {
             var save = State.Export();
-            save.playerX = worker.transform.position.x;
-            save.playerZ = worker.transform.position.z;
+            Vector3 position = InRebirthZone ? villageReturnPosition : worker.StandingPosition;
+            save.playerX = position.x;
+            save.playerZ = position.z;
+            save.inRebirthZone = InRebirthZone;
             save.cropStates = new CropStateSave[allCrops.Count];
             for (int i = 0; i < allCrops.Count; i++)
                 save.cropStates[i] = new CropStateSave
