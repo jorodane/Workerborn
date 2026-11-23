@@ -16,7 +16,7 @@ namespace Workerborn
         private int quantity = 1;
         [SerializeField, Min(.01f)]
         private float flightSeconds = .48f;
-        private Vector3 origin, landing, visualOrigin;
+        private Vector3 origin, landing;
         private float age;
         private bool collected, initialized, respawnable;
         private Vector3 authoredPosition;
@@ -80,7 +80,6 @@ namespace Workerborn
             collected = false;
             definition = crop;
             visual = model;
-            visualOrigin = visual != null ? visual.localPosition : Vector3.zero;
             origin = start;
             landing = end;
             age = settled ? flightSeconds : 0f;
@@ -89,19 +88,12 @@ namespace Workerborn
 
         private void Update()
         {
-            if (!initialized)
+            if (!IsInFlight)
                 return;
-            bool inFlight = age < flightSeconds;
-            age += Time.deltaTime;
-            float t = Mathf.Clamp01(age / flightSeconds);
-            if (inFlight)
-                transform.position = t < 1f ? Vector3.Lerp(origin, landing, t) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * 1.25f) : landing;
-            if (visual != null)
-            {
-                visual.localPosition = visualOrigin + Vector3.up * (t < 1f ? 0f : .04f + Mathf.Sin(age * 3f) * .035f);
-                visual.Rotate(Vector3.up, Time.deltaTime * 28f, Space.World);
-            }
-            if (inFlight && t >= 1f)
+            age = Mathf.Min(age + Time.deltaTime, flightSeconds);
+            float t = age / flightSeconds;
+            transform.position = t < 1f ? Vector3.Lerp(origin, landing, t) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * 1.25f) : landing;
+            if (t >= 1f)
                 Landed?.Invoke(landing);
         }
 

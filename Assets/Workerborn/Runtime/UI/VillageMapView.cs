@@ -51,6 +51,7 @@ namespace Workerborn
             mapClick.Game = game;
             mapClick.Map = this;
             villageName = areaName.text;
+            map.uvRect = new Rect(0f, 0f, 1f, 1f);
             var image = map.rectTransform;
             image.anchorMin = image.anchorMax = image.pivot = Vector2.one * .5f;
             image.anchoredPosition = Vector2.zero;
@@ -127,7 +128,7 @@ namespace Workerborn
             if (area.width <= 0f || area.height <= 0f)
                 return;
             areaName.text = game.InRebirthZone ? game.RebirthArea.MapName : villageName;
-            map.texture = game.InRebirthZone ? null : game.MapRegion.TerrainImage(game.GroundTerrain, game);
+            map.texture = game.InRebirthZone || game.MapRegion == null ? null : game.MapRegion.TerrainImage(game.GroundTerrain, game);
             map.enabled = map.texture != null;
             Place(player, game.Worker.transform.position);
             foreach (var pair in npcs)

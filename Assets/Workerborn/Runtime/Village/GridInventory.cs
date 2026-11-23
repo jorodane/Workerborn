@@ -212,6 +212,28 @@ namespace Workerborn
             return entry != null && CanPlace(entry, x, y, out _);
         }
 
+        internal bool CanPlacePurchase(ItemSpec spec, int x, int y) => CanPlacePurchase(spec, x, y, out _);
+
+        private bool CanPlacePurchase(ItemSpec spec, int x, int y, out InventoryEntry target)
+        {
+            target = entries.Find(item => item.X == x && item.Y == y);
+            return target != null ? target.ItemId == spec.Id && target.Quantity < spec.MaxStack : Fits(entries, spec, x, y);
+        }
+
+        internal int PlacePurchase(InventoryEntry purchase, int x, int y)
+        {
+            var spec = purchase.Spec;
+            if (!CanPlacePurchase(spec, x, y, out var target))
+                return 0;
+            int amount = Math.Min(purchase.Quantity, spec.MaxStack - (target?.Quantity ?? 0));
+            if (target != null)
+                target.Quantity += amount;
+            else
+                entries.Add(new InventoryEntry { Id = nextId++, ItemId = spec.Id, Quantity = amount, X = x, Y = y });
+            Version++;
+            return amount;
+        }
+
         private bool CanPlace(InventoryEntry entry, int x, int y, out InventoryEntry target)
         {
             target = null;

@@ -22,11 +22,14 @@ namespace Workerborn
         private InventoryItemDrag pointer;
         private VillageHud tooltipHud;
         private string tooltipItem;
+        private int tooltipQuantity;
+        private QuantityAction? tradeTooltip;
         public RectTransform Rect => (RectTransform)transform;
 
         public void Display(ItemDefinition definition, string itemId, int quantity)
         {
             tooltipItem = itemId;
+            tooltipQuantity = quantity;
             icon.sprite = definition != null ? definition.Icon : null;
             icon.enabled = icon.sprite != null;
             fallback.text = icon.enabled ? "" : ItemCatalog.Get(itemId).Name;
@@ -36,6 +39,7 @@ namespace Workerborn
         public void Inventory(VillageHud hud, int id)
         {
             tooltipHud = hud;
+            tradeTooltip = QuantityAction.Sell;
             pointer.enabled = true;
             pointer.Hud = hud;
             pointer.EntryId = id;
@@ -46,6 +50,7 @@ namespace Workerborn
         public void Shop(VillageHud hud, Action action)
         {
             tooltipHud = hud;
+            tradeTooltip = QuantityAction.Buy;
             pointer.enabled = false;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(() => action());
@@ -56,6 +61,7 @@ namespace Workerborn
         public void Passive(VillageHud inspect = null)
         {
             tooltipHud = inspect;
+            tradeTooltip = null;
             pointer.enabled = false;
             button.onClick.RemoveAllListeners();
             foreach (var graphic in GetComponentsInChildren<Graphic>(true))
@@ -64,14 +70,18 @@ namespace Workerborn
             background.raycastTarget = inspect != null;
         }
 
-        internal void ShowIconOnly()
+        internal void SetTradeTooltip(QuantityAction? action) => tradeTooltip = action;
+
+        internal void ShowIconOnly(bool showQuantity = false)
         {
             Passive();
             background.enabled = false;
-            count.enabled = false;
+            count.enabled = showQuantity;
         }
 
-        public void OnPointerEnter(PointerEventData data) => tooltipHud?.ShowItemTooltip(tooltipItem, data.position);
+        public void OnPointerEnter(PointerEventData data) =>
+            tooltipHud?.ShowItemTooltip(tooltipItem, data.position, tradeTooltip == QuantityAction.Sell ? tooltipQuantity : 0,
+                shopListing: tradeTooltip == QuantityAction.Buy);
         public void OnPointerExit(PointerEventData data) => tooltipHud?.HideItemTooltip();
         private void OnDisable() => tooltipHud?.HideItemTooltip();
     }

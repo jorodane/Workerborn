@@ -53,16 +53,8 @@ namespace Workerborn
                 string id = definition.Id;
                 item.Shop(Hud, () =>
                 {
-                    if (Hud.TradeQuantityOpen)
-                        return;
-                    var screen = WorkerbornInput.Point;
-                    if (Hud.IsHoldingItem)
-                    {
-                        Hud.SellHeldItem(screen);
-                        return;
-                    }
                     description.text = definition.DisplayName + "  ·  " + definition.ToSpec().Price + " Gold";
-                    Hud.OpenPurchaseQuantity(id, screen);
+                    Hud.ClickShopItem(id, WorkerbornInput.Point);
                 });
             }
         }

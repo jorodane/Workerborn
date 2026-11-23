@@ -323,6 +323,61 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void CursorPurchaseSurvivesReloadAndPlacesOnlyWhatFitsInTheChosenCell()
+        {
+            var state = Funded();
+            var bag = state.Inventory;
+            var bread = ItemCatalog.Get(ItemIds.Bread);
+            Assert.That(bag.TryAdd(bread.Id, bread.MaxStack - 1), Is.True);
+            Assert.That(bag.TryAdd(ItemIds.Potato, (bag.Columns * bag.Rows - 2) * ItemCatalog.Get(ItemIds.Potato).MaxStack), Is.True);
+            int gold = state.Gold;
+            Assert.That(state.TryBuy(ItemIds.FishingRod), Is.False);
+            Assert.That(state.Gold, Is.EqualTo(gold));
+
+            int amount = bread.MaxStack + 2;
+            Assert.That(state.TryBuyForPlacement(bread.Id, amount), Is.True);
+            Assert.That(state.TryBuyForPlacement(bread.Id, 1), Is.False);
+            Assert.That(state.Gold, Is.EqualTo(gold - amount * bread.Price));
+            Assert.That(bag.Count(bread.Id), Is.EqualTo(bread.MaxStack - 1));
+
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.PendingPurchase.Quantity, Is.EqualTo(amount));
+            Assert.That(state.TryStowPurchase(), Is.False);
+            Assert.That(state.TryPlacePurchase(0, 0), Is.False);
+            bag = state.Inventory;
+            var existing = bag.Entries[1];
+            Assert.That(state.TryPlacePurchase(existing.X, existing.Y), Is.True);
+            Assert.That(existing.Quantity, Is.EqualTo(bread.MaxStack));
+            Assert.That(state.PendingPurchase.Quantity, Is.EqualTo(amount - 1));
+            var potato = bag.Entries[2];
+            Assert.That(bag.TryRemoveAt(potato.Id, potato.Quantity), Is.True);
+            Assert.That(state.TryPlacePurchase(potato.X, potato.Y), Is.True);
+            Assert.That(bag.Count(bread.Id), Is.EqualTo(bread.MaxStack * 2));
+            Assert.That(state.PendingPurchase.Quantity, Is.EqualTo(1));
+            Assert.That(state.TrySellStack(0, 1), Is.True);
+            Assert.That(state.PendingPurchase, Is.Null);
+        }
+
+        [Test]
+        public void CursorPurchaseCanBeEquippedAndCannotFollowAPlayerIntoRebirth()
+        {
+            var state = Funded();
+            Assert.That(state.TryBuyForPlacement(ItemIds.FishingRod, 1), Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.FishingRod), Is.Zero);
+            Assert.That(state.TryEquip(0), Is.True);
+            Assert.That(state.PendingPurchase, Is.Null);
+            Assert.That(state.Equipment[EquipmentSlot.MainHand], Is.EqualTo(ItemIds.FishingRod));
+
+            Assert.That(state.TryBuyForPlacement(ItemIds.Bread, 2), Is.True);
+            state.RebirthPersonalLife();
+            Assert.That(state.PendingPurchase, Is.Null);
+            Assert.That(state.Export().pendingPurchase, Is.Null);
+            var save = state.Export();
+            save.pendingPurchase = new PendingPurchaseSave { itemId = ItemIds.Bread, quantity = 2 };
+            Assert.Throws<ArgumentException>(() => VillageState.Restore(save));
+        }
+
+        [Test]
         public void BuyingABagExpandsTheGridAndCannotBeRepeated()
         {
             var state = Funded();

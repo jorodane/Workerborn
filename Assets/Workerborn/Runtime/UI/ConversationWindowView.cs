@@ -1,92 +1,69 @@
+using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Workerborn
 {
-    public sealed class ConversationWindowView : VillageWindowView
+    public sealed class ConversationWindowView : VillageWindowView, IPointerClickHandler
     {
-        [SerializeField]
-        private TMP_Text speaker;
-        [SerializeField]
-        private TMP_Text body;
-        [SerializeField] private ScrollRect dialogueScroll;
-        [SerializeField]
-        private RectTransform keywords;
-        [SerializeField]
-        private RectTransform actions;
-        [SerializeField]
-        private Button leave;
+        [SerializeField] private TMP_Text speaker;
+        [SerializeField] private TMP_Text body;
+        [SerializeField] private RectTransform textArea;
+        [SerializeField] private GridLayoutGroup choices;
+        [SerializeField] private Button leave;
         [SerializeField] private TMP_Text leaveLabel;
         [SerializeField] private UiActionView dialogueChoice;
-        [SerializeField]
-        private RawImage portrait;
+        [SerializeField] private RawImage portrait;
+        [SerializeField] private GameObject jobInfo;
+        [SerializeField] private TMP_Text jobTitle;
+        [SerializeField] private TMP_Text jobDetails;
         [SerializeField, Min(1f)] private float charactersPerSecond = 70f;
+
+        private readonly List<UiActionView> replies = new List<UiActionView>();
         private VillageInteractable npc;
-        private DialogueAction topic;
-        private bool confirmingRebirth;
-        private bool confirmingEra;
-        private bool trading;
+        private DialogueAction openingTopic, topic;
+        private bool confirmingRebirth, confirmingEra, trading;
         private enum LookPart { Body, Hair, Face, Outfit }
-        private string presentedText;
-        private float lineStarted;
-        private int characterCount;
+        private UiActionView nextPage;
+        private int replyCount;
+        private string presentedText, followUp;
+        private Vector2 measuredTextSize;
+        private float measuredChoiceWidth, lineStarted;
+        private int page, pageCount, pageStart, pageEnd;
+        private int advancedFrame = -1;
+        private bool jobWasOpen;
+
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
             leave.onClick.AddListener(() => hud.CloseDialogue(animate: true));
+            DisableButtonSelection(leave);
+            nextPage = Instantiate(dialogueChoice, choices.transform);
+            nextPage.Bind("다음", () => TryAdvancePage());
+            DisableButtonSelection(nextPage.GetComponent<Button>());
             portrait.texture = game.NpcPortraitTexture;
+            body.overflowMode = TextOverflowModes.Page;
         }
 
         public void Open(VillageInteractable target, DialogueAction? requestedTopic = null)
         {
             npc = target;
-            presentedText = null;
+            presentedText = followUp = null;
             trading = false;
-            keywords.gameObject.SetActive(true);
-            actions.gameObject.SetActive(true);
             confirmingRebirth = confirmingEra = false;
+            advancedFrame = -1;
             bool beforeFarm = !Game.State.FarmAvailable;
-            topic = npc.Role switch
+            openingTopic = npc.Role switch
             {
-                VillageRole.Farmer => beforeFarm ? DialogueAction.Foundation : DialogueAction.Job,
+                VillageRole.Farmer when beforeFarm => DialogueAction.Foundation,
                 VillageRole.NoticeBoard => DialogueAction.Job,
-                VillageRole.Shrine => DialogueAction.Rebirth,
-                VillageRole.Guide when !beforeFarm => DialogueAction.GuideAfter,
+                VillageRole.Guide when Game.State.Life > 1 => DialogueAction.GuideAfter,
                 _ => DialogueAction.Greeting
             };
-            if (requestedTopic.HasValue && npc.IsTopicAvailable(Game, requestedTopic.Value))
-                topic = requestedTopic.Value;
-            InventoryWindowView.Clear(keywords);
-            if (npc.Role == VillageRole.Guide)
-            {
-                LookOption("체형", LookPart.Body);
-                LookOption("머리", LookPart.Hair);
-                LookOption("얼굴", LookPart.Face);
-                LookOption("기본 의상", LookPart.Outfit);
-            }
-            var topics = npc.Role == VillageRole.Guide ? null : npc.Definition?.Dialogue?.Topics;
-            if (topics != null)
-                foreach (var entry in topics)
-                {
-                    if (string.IsNullOrWhiteSpace(entry.keyword) || !npc.IsTopicAvailable(Game, entry.action))
-                        continue;
-                    var selected = entry.action;
-                    var button = Instantiate(dialogueChoice, keywords);
-                    button.Bind(entry.keyword, () =>
-                    {
-                        if (selected == DialogueAction.Shop)
-                        {
-                            Hud.OpenShop(npc);
-                            return;
-                        }
-                        Hud.SelectDialogueTopic(selected);
-                    });
-                }
-
-            if (npc.Role == VillageRole.Shrine)
-                Instantiate(dialogueChoice, keywords).Bind("전설의 나무꾼", () => Hud.SelectDialogueTopic(DialogueAction.Legend));
-
+            topic = requestedTopic.HasValue && npc.IsTopicAvailable(Game, requestedTopic.Value) ? requestedTopic.Value : openingTopic;
             var actor = npc.GetComponent<CharacterActor>();
             Game.ShowNpcPortrait(actor);
             portrait.gameObject.SetActive(actor != null);
@@ -95,6 +72,12 @@ namespace Workerborn
 
         internal void SelectTopic(DialogueAction next)
         {
+            if (next == DialogueAction.Shop)
+            {
+                Hud.OpenShop(npc);
+                return;
+            }
+            presentedText = followUp = null;
             topic = next;
             confirmingRebirth = confirmingEra = false;
             Refresh();
@@ -105,58 +88,134 @@ namespace Workerborn
             if (trading)
                 return;
             trading = true;
-            keywords.gameObject.SetActive(false);
-            actions.gameObject.SetActive(false);
+            presentedText = followUp = null;
             Refresh();
         }
 
-        private void ShowLine(string text)
+        public void OnPointerClick(PointerEventData eventData)
         {
-            text ??= string.Empty;
-            if (presentedText == text)
-                return;
-            presentedText = text;
-            body.text = text;
-            ResizeText();
-            body.maxVisibleCharacters = int.MaxValue;
-            body.ForceMeshUpdate();
-            characterCount = body.textInfo.characterCount;
-            body.maxVisibleCharacters = 0;
-            lineStarted = Time.unscaledTime;
-            dialogueScroll.StopMovement();
-            dialogueScroll.verticalNormalizedPosition = 1f;
+            if (eventData.button == PointerEventData.InputButton.Left)
+                TryAdvancePage();
+        }
+
+        internal bool TryAdvancePage(bool pagingOnly = false)
+        {
+            if (npc == null || !IsOpen || Hud.HasQuantityPrompt || (pagingOnly && pageCount < 2))
+                return false;
+            if (advancedFrame == Time.frameCount)
+                return true;
+            if (body.maxVisibleCharacters < pageEnd)
+                body.maxVisibleCharacters = pageEnd;
+            else if (page < pageCount)
+            {
+                page++;
+                MeasurePage(restart: true);
+                ShowPageChoices();
+            }
+            else
+                return false;
+            advancedFrame = Time.frameCount;
+            return true;
         }
 
         private void Update()
         {
-            if (body.maxVisibleCharacters >= characterCount)
+            if (npc == null || !IsOpen)
                 return;
-            int visible = Mathf.Min(characterCount, Mathf.FloorToInt((Time.unscaledTime - lineStarted) * charactersPerSecond));
-            if (visible != body.maxVisibleCharacters)
-                body.maxVisibleCharacters = visible;
+            if (measuredChoiceWidth != ((RectTransform)choices.transform).rect.width)
+                ShowLine(presentedText);
+            if (jobInfo.activeSelf && jobWasOpen != Game.State.JobWindowOpen)
+                Refresh();
+            if (body.maxVisibleCharacters >= pageEnd)
+                return;
+            body.maxVisibleCharacters = Mathf.Min(pageEnd,
+                pageStart + Mathf.FloorToInt((Time.unscaledTime - lineStarted) * charactersPerSecond));
         }
 
-        private void OnRectTransformDimensionsChange()
+        private void ShowLine(string text)
         {
-            if (npc != null)
-                ResizeText();
+            ArrangeChoices();
+            bool newLine = presentedText != text;
+            if (newLine)
+            {
+                presentedText = text;
+                body.text = text;
+                page = 1;
+            }
+            if (newLine || body.rectTransform.rect.size != measuredTextSize)
+                MeasurePage(restart: newLine);
+            ShowPageChoices();
         }
 
-        private void ResizeText()
+        private void MeasurePage(bool restart)
         {
-            var content = dialogueScroll.content;
-            float height = body.GetPreferredValues(body.text, Mathf.Max(1, body.rectTransform.rect.width), Mathf.Infinity).y + 8f;
-            content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(dialogueScroll.viewport.rect.height, height));
+            measuredTextSize = body.rectTransform.rect.size;
+            int visible = body.maxVisibleCharacters;
+            body.maxVisibleCharacters = int.MaxValue;
+            body.ForceMeshUpdate();
+            var info = body.textInfo;
+            pageCount = Mathf.Max(1, info.pageCount);
+            page = Mathf.Clamp(page, 1, pageCount);
+            body.pageToDisplay = page;
+            if (info.pageCount > 0 && info.characterCount > 0)
+            {
+                var range = info.pageInfo[page - 1];
+                pageStart = Mathf.Clamp(range.firstCharacterIndex, 0, info.characterCount);
+                pageEnd = Mathf.Clamp(range.lastCharacterIndex + 1, pageStart, info.characterCount);
+            }
+            else
+                pageStart = pageEnd = 0;
+            body.maxVisibleCharacters = restart ? pageStart : Mathf.Clamp(visible, pageStart, pageEnd);
+            lineStarted = Time.unscaledTime - (body.maxVisibleCharacters - pageStart) / charactersPerSecond;
         }
 
-        private void Action(string text, System.Action callback, bool enabled = true)
+        private void ArrangeChoices()
         {
-            Instantiate(dialogueChoice, actions).Bind(text, callback, enabled);
+            var row = (RectTransform)choices.transform;
+            measuredChoiceWidth = row.rect.width;
+            float spacing = choices.spacing.x;
+            int count = replyCount + 1;
+            int columns = Mathf.Clamp(Mathf.FloorToInt((measuredChoiceWidth + spacing) / (136f + spacing)), 1, count);
+            float width = (measuredChoiceWidth - (columns - 1) * spacing) / columns;
+            choices.constraintCount = columns;
+            choices.cellSize = new Vector2(Mathf.Clamp(width, 1f, 164f), 30f);
+            int rows = Mathf.CeilToInt((float)count / columns);
+            float height = rows * choices.cellSize.y + (rows - 1) * choices.spacing.y;
+            row.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            var lower = textArea.offsetMin;
+            lower.y = height + 8f;
+            textArea.offsetMin = lower;
+        }
+
+        private void ShowPageChoices()
+        {
+            bool more = page < pageCount;
+            nextPage.gameObject.SetActive(more);
+            for (int i = 0; i < replies.Count; i++)
+                replies[i].gameObject.SetActive(!more && i < replyCount);
+        }
+
+        private void Reply(string text, Action callback, bool enabled = true)
+        {
+            if (replyCount == replies.Count)
+            {
+                var view = Instantiate(dialogueChoice, choices.transform);
+                DisableButtonSelection(view.GetComponent<Button>());
+                replies.Add(view);
+            }
+            replies[replyCount++].Bind(text, callback, enabled);
+        }
+
+        private static void DisableButtonSelection(Button button)
+        {
+            var navigation = button.navigation;
+            navigation.mode = Navigation.Mode.None;
+            button.navigation = navigation;
         }
 
         private void LookOption(string label, LookPart part)
         {
-            Instantiate(dialogueChoice, keywords).Bind(label, () =>
+            Reply(label, () =>
             {
                 var look = Game.IncarnationLook;
                 switch (part)
@@ -175,136 +234,169 @@ namespace Workerborn
         {
             if (npc == null)
                 return;
+            replyCount = 0;
             speaker.text = npc.DisplayName;
             leaveLabel.text = trading ? "거래 종료" : "대화 종료";
-            var dialogue = npc.Definition?.Dialogue;
-            string prose = dialogue != null ? dialogue.TextFor(trading ? DialogueAction.Shop : topic) : "";
+            string prose = npc.Definition?.Dialogue?.TextFor(trading ? DialogueAction.Shop : topic) ?? string.Empty;
+            var state = Game.State;
+            jobInfo.SetActive(!trading && topic == DialogueAction.Job && state.FarmAvailable);
+
             if (trading)
             {
                 ShowLine(prose);
                 return;
             }
 
-            var s = Game.State;
-            var r = s.Rules;
-            InventoryWindowView.Clear(actions);
             if (npc.Role == VillageRole.Guide)
             {
+                LookOption("체형", LookPart.Body);
+                LookOption("머리", LookPart.Hair);
+                LookOption("얼굴", LookPart.Face);
+                LookOption("기본 의상", LookPart.Outfit);
+                Reply("환생하기", Game.ConfirmIncarnation, state.AwaitingIncarnation);
                 var look = Game.IncarnationLook;
-                Action("환생하기", Game.ConfirmIncarnation, s.AwaitingIncarnation);
-                ShowLine($"{prose}\n\n{s.Life}번째 생 · 레벨 1\n체형 {look.body + 1}   머리 {look.hair}   얼굴 {look.face}   기본 의상 {look.outfit}");
+                ShowLine($"{prose}\n\n{state.Life}번째 생 · 레벨 1\n체형 {look.body + 1}   머리 {look.hair}   얼굴 {look.face}   기본 의상 {look.outfit}");
                 return;
             }
-            string text = prose;
+
+            string response = topic == DialogueAction.Greeting ? Greeting(prose) : TopicResponse(state, prose);
+            if (topic != openingTopic)
+                Reply("다른 이야기를 한다", () => SelectTopic(openingTopic));
+            ShowLine(followUp ?? response);
+        }
+
+        private string Greeting(string prose)
+        {
+            var topics = npc.Definition?.Dialogue?.Topics;
+            if (topics != null)
+                foreach (var entry in topics)
+                {
+                    var next = entry.action;
+                    if (next == DialogueAction.Greeting || string.IsNullOrWhiteSpace(entry.keyword) || !npc.IsTopicAvailable(Game, next))
+                        continue;
+                    Reply(entry.keyword, () => SelectTopic(next));
+                }
+            if (npc.Role == VillageRole.Shrine)
+                Reply("전설의 나무꾼", () => SelectTopic(DialogueAction.Legend));
+            return prose;
+        }
+
+        private string TopicResponse(VillageState s, string prose)
+        {
+            var r = s.Rules;
             switch (topic)
             {
                 case DialogueAction.Foundation:
                     var quest = r.Foundation;
                     if (quest == null)
-                        break;
-                    text = prose + $"\n\n누적 납품  {s.TimberDelivered:N0} / {s.TimberRequired:N0}";
-                    if (s.FoundationStage <= FarmFoundationStage.CollectingTimber && s.Inventory.Count(quest.DocumentItemId) == 0)
-                        Action("계약서를 받는다", () => Game.PerformWorld(CampaignAction.AcceptFoundation));
-                    if (s.FoundationStage == FarmFoundationStage.CollectingTimber)
-                    {
-                        int owned = s.Inventory.Count(quest.TimberItemId);
-                        text += $"  ·  소지 목재 {owned:N0}";
-                        Action(s.CanConfirmTimberDelivery ? "납품 완료 확인" : "목재를 납품한다",
-                            () => Game.PerformWorld(CampaignAction.DeliverTimber), s.CanConfirmTimberDelivery || owned > 0);
-                    }
+                        return prose;
                     if (s.CanSelectFarmSite)
-                        text = s.CanAdvanceEra ? $"{Game.FarmSiteName}에 농장을 준비할게. 기억의 우물에서 시대를 넘길 수 있어." : "목재는 잘 받았어. 농장 후보지의 팻말을 살펴봐 줘.";
-                    break;
+                        return s.CanAdvanceEra ? $"{Game.FarmSiteName}에 농장을 준비할게. 기억의 우물에서 시대를 넘길 수 있어." : "목재는 잘 받았어. 농장 후보지의 팻말을 살펴봐 줘.";
+                    if (s.FoundationStage <= FarmFoundationStage.CollectingTimber && s.Inventory.Count(quest.DocumentItemId) == 0)
+                        Reply("계약서를 받는다", () => Game.PerformWorld(CampaignAction.AcceptFoundation));
+                    int owned = s.Inventory.Count(quest.TimberItemId);
+                    if (s.FoundationStage == FarmFoundationStage.CollectingTimber)
+                        Reply(s.CanConfirmTimberDelivery ? "납품 완료를 확인한다" : "목재를 납품한다",
+                            () => Game.PerformWorld(CampaignAction.DeliverTimber), s.CanConfirmTimberDelivery || owned > 0);
+                    return $"{prose}\n\n누적 납품  {s.TimberDelivered:N0}/{s.TimberRequired:N0}  ·  소지 목재 {owned:N0}";
                 case DialogueAction.Job:
-                    if (!s.FarmAvailable)
-                    {
-                        text = "농장이 완공되면 여기에서 일자리를 안내합니다.";
-                        break;
-                    }
-                    text = prose + $"\n\n{r.JobStart / 60:00}:{r.JobStart % 60:00} ~ {r.JobEnd / 60:00}:{r.JobEnd % 60:00}\n";
-                    if (s.Job == JobStatus.Active)
-                    {
-                        text += $"{ItemCatalog.Get(r.JobItemId).Name}  {s.Inventory.Count(r.JobItemId)}/{s.JobRequirement}\n보수  {s.JobReward} Gold  ·  경험치 {s.JobExperience}";
-                        if (s.JobRewardItemCount > 0)
-                            text += $"\n{ItemCatalog.Get(s.JobRewardItemId).Name} ×{s.JobRewardItemCount}";
-                        if (npc.Role != VillageRole.NoticeBoard)
-                            Action("보고한다", () => Game.Perform(s.TryDeliverJob), s.JobWindowOpen && s.Inventory.Count(r.JobItemId) >= s.JobRequirement);
-                    }
-                    else
-                    {
-                        var item = ItemCatalog.Get(r.JobItemId);
-                        text += $"{item.Name} {s.OfferedJobRequirement}개\n납품 보수 {s.OfferedJobReward} Gold  ·  일반 판매 {item.Price * s.OfferedJobRequirement} Gold";
-                        if (s.OfferedJobTier.RewardItemCount > 0)
-                            text += $"\n{ItemCatalog.Get(s.OfferedJobTier.RewardItemId).Name} ×{s.OfferedJobTier.RewardItemCount}";
-                        if (npc.Role != VillageRole.NoticeBoard)
-                            Action(s.LastJobDay == s.Day ? "오늘의 일 마감" : "계약서를 받는다", () => Game.Perform(s.TryAcceptJob), s.LastJobDay != s.Day && s.JobWindowOpen);
-                    }
-
-                    break;
+                    return JobResponse(s, prose);
                 case DialogueAction.IntroQuest:
-                    text = r.IntroDescription + $"\n\n보상  {r.IntroGold} Gold  ·  AP {r.IntroAP}";
-                    Action(s.IntroClaimed ? "완료" : "보상을 받는다", () => Game.Perform(s.TryClaimIntroQuest), !s.IntroClaimed && s.Career >= r.IntroRequiredJobs);
-                    break;
+                    if (!s.IntroClaimed && s.Career >= r.IntroRequiredJobs)
+                        Reply("보상을 받는다", () => Respond(() => Game.Perform(s.TryClaimIntroQuest), "고생했어. 다음에 또 함께 일하자."));
+                    return s.IntroClaimed ? prose : $"{prose}\n\n{r.IntroDescription}\n보상  {r.IntroGold} Gold  ·  AP {r.IntroAP}";
                 case DialogueAction.Contribution:
-                    text = r.ExpansionDescription + $"\n\n자금 {s.DonatedGold:N0}/{s.ExpansionGoldRequired:N0} Gold\n{ItemCatalog.Get(r.DonationItemId).Name} {s.DonatedPotatoes:N0}/{s.ExpansionItemsRequired:N0}";
                     if (s.CanConfirmExpansion)
-                    {
-                        Action("확장 준비 확인", () => Game.PerformWorld(CampaignAction.DonateGold));
-                        break;
-                    }
-                    Action($"{r.DonationGoldStep} Gold 기부", () => Game.PerformWorld(CampaignAction.DonateGold),
-                        s.ExpansionQuestActive && s.DonatedGold < s.ExpansionGoldRequired);
-                    Action("물품 기부", () => Game.PerformWorld(CampaignAction.DonateItems),
-                        s.ExpansionQuestActive && s.DonatedPotatoes < s.ExpansionItemsRequired);
-                    break;
-                case DialogueAction.Rest:
-                    text = Game.IsOnline ? prose + $"\n\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복" : prose + $"\n\n기상  {r.WakeMinute / 60:00}:{r.WakeMinute % 60:00}\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복";
-                    Action("무료 잠자리", () => Game.Sleep(false, npc));
-                    Action("객실을 빌린다", () => Game.Sleep(true, npc), s.Gold >= r.RoomPrice);
-                    break;
-                case DialogueAction.Rebirth:
-                    if (confirmingRebirth || confirmingEra)
-                    {
-                        text = (confirmingEra ? "시대 전환" : "일반 환생") + $"\n이번 생의 레벨·능력치·소지품·장비·골드가 초기화됩니다.\n\n스킬 랭크·AP {s.AP}·아르바이트 경력 {s.Career}회는 유지됩니다.";
-                        if (confirmingEra)
-                        {
-                            text += $"\n\n마을이 {s.Era + 1}시대로 넘어갑니다.";
-                            Action("다음 시대로 간다", Game.AdvanceEra);
-                        }
-                        else
-                            Action("다음 생을 준비한다", Game.Rebirth);
-                        Action("돌아간다", () =>
-                        {
-                            confirmingRebirth = confirmingEra = false;
-                            Refresh();
-                        });
-                    }
+                        Reply("확장 준비를 확인한다", () => Game.PerformWorld(CampaignAction.DonateGold));
                     else
                     {
-                        text = $"현재 {s.Era}시대\n" + (s.CanRebirth
-                            ? "일반 환생 가능"
-                            : $"일반 환생까지 인게임 {System.Math.Ceiling(s.RebirthMinutesLeft / 60d):N0}시간") +
-                            (s.CanAdvanceEra ? "\n시대 퀘스트를 완료했습니다." : "\n시대 퀘스트가 진행 중입니다.");
-                        Action("일반 환생", () => { confirmingRebirth = true; Refresh(); }, s.CanRebirth);
-                        if (Game.IsOnline)
-                            Action("공동 환생", Game.AdvanceEra);
-                        else
-                            Action("시대 전환", () => { confirmingEra = true; Refresh(); }, s.CanAdvanceEra);
+                        if (s.ExpansionQuestActive && s.DonatedGold < s.ExpansionGoldRequired)
+                            Reply($"{r.DonationGoldStep} Gold 기부", () => Game.PerformWorld(CampaignAction.DonateGold));
+                        if (s.ExpansionQuestActive && s.DonatedPotatoes < s.ExpansionItemsRequired)
+                            Reply("물품을 기부한다", () => Game.PerformWorld(CampaignAction.DonateItems));
                     }
-                    break;
+                    return $"{prose}\n\n{r.ExpansionDescription}\n자금 {s.DonatedGold:N0}/{s.ExpansionGoldRequired:N0} Gold\n" +
+                        $"{ItemCatalog.Get(r.DonationItemId).Name} {s.DonatedPotatoes:N0}/{s.ExpansionItemsRequired:N0}";
+                case DialogueAction.Rest:
+                    Reply("무료 잠자리에서 쉰다", () => Game.Sleep(false, npc));
+                    Reply("객실을 빌린다", () => Game.Sleep(true, npc), s.Gold >= r.RoomPrice);
+                    string wake = Game.IsOnline ? "" : $"\n기상  {VillageClockView.TimeLabel(r.WakeMinute)}";
+                    return $"{prose}{wake}\n\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복";
+                case DialogueAction.Rebirth:
+                    return RebirthResponse(s, prose);
                 case DialogueAction.Legend:
-                    var founders = s.Legend.founders;
-                    var recent = System.Array.ConvertAll(founders, founder => founder.name);
-                    int capacity = s.LegendPlacesAvailable;
-                    text = $"벌목 업적  {s.LifetimeTimber:N0}/{r.LegendFoundingTimber:N0}\n" +
-                        $"목재 {r.LegendTrialTimber:N0}개를 가져오면 시련을 마칠 수 있어요. 남은 인정 인원 {capacity}명.";
-                    if (recent.Length > 0)
-                        text += "\n기록된 나무꾼  " + string.Join(", ", System.Linq.Enumerable.Take(recent, 6));
-                    Action("전설을 기록한다", () => Game.PerformWorld(CampaignAction.RecordLegend), s.CanRecordLegend(Game.LegendPlayerId));
-                    Action("시련을 마친다", () => Game.PerformWorld(CampaignAction.ProveLegend), s.CanProveLegend(Game.LegendPlayerId));
-                    break;
+                    var recent = Array.ConvertAll(s.Legend.founders, founder => founder.name);
+                    string names = recent.Length > 0 ? "\n기록된 나무꾼  " + string.Join(", ", recent, 0, Math.Min(recent.Length, 6)) : "";
+                    Reply("전설을 기록한다", () => Game.PerformWorld(CampaignAction.RecordLegend), s.CanRecordLegend(Game.LegendPlayerId));
+                    Reply("시련을 마친다", () => Game.PerformWorld(CampaignAction.ProveLegend), s.CanProveLegend(Game.LegendPlayerId));
+                    return $"벌목 업적  {s.LifetimeTimber:N0}/{r.LegendFoundingTimber:N0}\n" +
+                        $"목재 {r.LegendTrialTimber:N0}개를 가져오면 시련을 마칠 수 있어요. 남은 인정 인원 {s.LegendPlacesAvailable}명." + names;
+                default:
+                    return prose;
             }
-            ShowLine(text);
+        }
+
+        private string JobResponse(VillageState s, string prose)
+        {
+            if (!s.FarmAvailable)
+                return "농장이 완공되면 여기에서 일자리를 안내합니다.";
+            var r = s.Rules;
+            bool active = s.Job == JobStatus.Active;
+            bool workedToday = s.LastJobDay == s.Day;
+            bool closed = workedToday && !active || s.Minute >= r.JobEnd;
+            jobWasOpen = s.JobWindowOpen;
+            jobTitle.text = r.JobTitle;
+            string status = active ? "진행 중" : closed ? "마감" : jobWasOpen ? "접수 중" : "접수 전";
+            string progress = active ? $"{s.Inventory.Count(r.JobItemId):N0}/{s.JobRequirement:N0}" : $"{s.OfferedJobRequirement:N0}개";
+            int gold = active ? s.JobReward : s.OfferedJobReward;
+            int experience = active ? s.JobExperience : s.OfferedJobExperience;
+            string rewardId = active ? s.JobRewardItemId : s.OfferedJobTier.RewardItemId;
+            int rewardCount = active ? s.JobRewardItemCount : s.OfferedJobTier.RewardItemCount;
+            string reward = rewardCount > 0 ? $"\n{ItemCatalog.Get(rewardId).Name} ×{rewardCount:N0}" : "";
+            jobDetails.text = $"{VillageClockView.TimeLabel(r.JobStart)}–{VillageClockView.TimeLabel(r.JobEnd)}  ·  {status}\n" +
+                $"{ItemCatalog.Get(r.JobItemId).Name}  {progress}\n보수  {gold:N0} Gold  ·  경험치 {experience:N0}{reward}";
+
+            if (npc.Role == VillageRole.NoticeBoard)
+                return prose;
+            if (active)
+                Reply("납품한다", () => Respond(() => Game.Perform(s.TryDeliverJob), "잘 받았어. 오늘 일은 여기까지야. 고마워."),
+                    jobWasOpen && s.Inventory.Count(r.JobItemId) >= s.JobRequirement);
+            else if (!closed && jobWasOpen)
+                Reply("일을 맡는다", () => Respond(() => Game.Perform(s.TryAcceptJob), "계약서를 챙겨 가. 해 지기 전에 다시 와 줘."));
+            return closed ? "오늘 일은 마감했어. 내일 다시 들러 줘." : prose;
+        }
+
+        private string RebirthResponse(VillageState s, string prose)
+        {
+            if (confirmingRebirth || confirmingEra)
+            {
+                string text = (confirmingEra ? "시대 전환" : "일반 환생") + "\n이번 생의 레벨·능력치·소지품·장비·골드가 초기화됩니다." +
+                    $"\n\n스킬 랭크·AP {s.AP}·아르바이트 경력 {s.Career}회는 유지됩니다.";
+                if (confirmingEra)
+                    Reply("다음 시대로 간다", Game.AdvanceEra);
+                else
+                    Reply("다음 생을 준비한다", Game.Rebirth);
+                Reply("돌아간다", () => SelectTopic(DialogueAction.Rebirth));
+                return confirmingEra ? text + $"\n\n마을이 {s.Era + 1}시대로 넘어갑니다." : text;
+            }
+
+            Reply("일반 환생", () => { confirmingRebirth = true; Refresh(); }, s.CanRebirth);
+            if (Game.IsOnline)
+                Reply("공동 환생", Game.AdvanceEra);
+            else
+                Reply("시대 전환", () => { confirmingEra = true; Refresh(); }, s.CanAdvanceEra);
+            return $"{prose}\n\n현재 {s.Era}시대\n" + (s.CanRebirth
+                ? "일반 환생 가능"
+                : $"일반 환생까지 인게임 {Math.Ceiling(s.RebirthMinutesLeft / 60d):N0}시간") +
+                (s.CanAdvanceEra ? "\n시대 퀘스트를 완료했습니다." : "\n시대 퀘스트가 진행 중입니다.");
+        }
+
+        private void Respond(Func<bool> operation, string response)
+        {
+            if (!operation() || !IsOpen || !Hud.IsSpeakingWith(npc))
+                return;
+            followUp = response;
+            Refresh();
         }
     }
 }

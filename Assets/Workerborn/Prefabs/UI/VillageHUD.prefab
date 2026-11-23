@@ -3235,6 +3235,7 @@ MonoBehaviour:
       m_Calls: []
   m_Texture: {fileID: 0}
   m_UVRect:
+    serializedVersion: 2
     x: 0
     y: 0
     width: 1

@@ -1041,6 +1041,7 @@ namespace Workerborn.Tests
             {
                 Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 3), Is.True);
                 Assert.That(game.State.Inventory.TryAdd(ItemIds.Bread, 2), Is.True);
+                Assert.That(game.State.Inventory.TryAdd(ItemIds.LegendAxe, 1), Is.True);
                 var potato = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
                 var bread = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Bread);
                 game.Hud.OpenShop(game.FindInteraction(VillageRole.Merchant));
@@ -1053,12 +1054,8 @@ namespace Workerborn.Tests
                 var potatoCell = inventory.ItemLayer.GetComponentsInChildren<InventoryItemDrag>().Single(cell => cell.EntryId == potato.Id);
                 Vector2 ScreenCenter(RectTransform rect) => RectTransformUtility.WorldToScreenPoint(null, rect.TransformPoint(rect.rect.center));
                 Vector2 saleClick = ScreenCenter((RectTransform)potatoCell.transform);
-                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
-                yield return null;
-                potatoCell.OnPointerClick(new PointerEventData(EventSystem.current)
-                {
-                    position = saleClick, button = PointerEventData.InputButton.Left
-                });
+                game.Hud.BeginItemDrag(potato.Id, saleClick);
+                game.Hud.SellHeldItem(saleClick);
                 Assert.That(game.Hud.IsHoldingItem, Is.False);
                 var prompt = UnityEngine.Object.FindFirstObjectByType<QuantityWindowView>();
                 Assert.That(prompt, Is.Not.Null);
@@ -1075,9 +1072,30 @@ namespace Workerborn.Tests
                 Assert.That(game.State.Inventory.Count(ItemIds.Bread), Is.EqualTo(2));
                 Assert.That(game.Hud.HasQuantityPrompt, Is.False);
                 Assert.That(inventoryInput.blocksRaycasts, Is.True);
+                yield return null;
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
+                yield return null;
+                game.Hud.ClickInventoryItem(potato.Id, saleClick);
+                Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.Zero);
+                Assert.That(game.Hud.HasQuantityPrompt, Is.False);
+                var legend = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.LegendAxe);
+                game.Hud.ClickInventoryItem(legend.Id, saleClick);
+                Assert.That(game.State.Inventory.Count(ItemIds.LegendAxe), Is.EqualTo(1));
+                Assert.That(FindButton(prompt, "판매 확인"), Is.Not.Null);
+                game.Hud.CloseWindow("quantity");
+
+                var axe = ItemCatalog.Get(ItemIds.Axe);
+                Assert.That(game.State.Inventory.TryAdd(ItemIds.Gold, axe.Price * 3), Is.True);
+                yield return null;
                 stock = shop.GetComponentInChildren<UiItemView>().GetComponent<Button>();
                 Assert.That(stock.IsInteractable(), Is.True);
 
+                stock.onClick.Invoke();
+                Assert.That(game.State.Inventory.Count(ItemIds.Axe), Is.EqualTo(1));
+                Assert.That(game.Hud.IsHoldingItem, Is.False);
+                Assert.That(game.Hud.HasQuantityPrompt, Is.False);
+                yield return null;
+                stock = shop.GetComponentInChildren<UiItemView>().GetComponent<Button>();
                 Vector2 buyClick = ScreenCenter((RectTransform)stock.transform);
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState());
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = buyClick });
@@ -1086,10 +1104,64 @@ namespace Workerborn.Tests
                 Assert.That(game.Hud.HasQuantityPrompt, Is.True);
                 VerifyPopupPosition(prompt.Rect, buyClick);
                 Assert.That(inventoryInput.blocksRaycasts, Is.False);
+                FindButton(prompt, "구입").onClick.Invoke();
+                Assert.That(game.Hud.IsHoldingItem, Is.True);
+                Assert.That(game.State.Inventory.Count(ItemIds.Axe), Is.EqualTo(1));
+                Assert.That(game.State.PendingPurchase.ItemId, Is.EqualTo(ItemIds.Axe));
+                game.Hud.ClickEquipment(EquipmentSlot.MainHand, buyClick);
+                Assert.That(game.State.Equipment[EquipmentSlot.MainHand], Is.EqualTo(ItemIds.Axe));
+                Assert.That(game.Hud.IsHoldingItem, Is.False);
             }
             finally
             {
                 InputSystem.RemoveDevice(mouse);
+                InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator DialoguePagesAcceptInputAndJobDetailsStayAboveTheConversation()
+        {
+            var merchant = game.FindInteraction(VillageRole.Merchant);
+            var greeting = merchant.Definition.Dialogue.Topics.Single(topic => topic.action == DialogueAction.Greeting);
+            string original = greeting.text;
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            try
+            {
+                greeting.text = string.Join("\n", Enumerable.Range(1, 30).Select(line => $"대화 {line}"));
+                game.Hud.OpenDialogue(merchant);
+                var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+                yield return null;
+                var body = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
+                Assert.That(body.textInfo.pageCount, Is.GreaterThan(1));
+                Assert.That(body.pageToDisplay, Is.EqualTo(1));
+                Assert.That(FindButton(dialogue, "다음"), Is.Not.Null);
+                Assert.That(dialogue.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "거래하기"), Is.False);
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Space));
+                yield return null;
+                Assert.That(body.maxVisibleCharacters, Is.GreaterThanOrEqualTo(body.textInfo.pageInfo[0].lastCharacterIndex + 1));
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Enter));
+                yield return null;
+                Assert.That(body.pageToDisplay, Is.EqualTo(2));
+                Assert.That(game.Hud.IsChatTyping, Is.False);
+
+                game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Farmer));
+                FindButton(dialogue, "아르바이트를 묻는다").onClick.Invoke();
+                yield return null;
+                var card = (RectTransform)dialogue.transform.Find("Opening content/Part-time job information");
+                Assert.That(card.gameObject.activeInHierarchy, Is.True);
+                Assert.That(card.anchoredPosition.y, Is.GreaterThan(0f));
+                Assert.That(body.text, Does.Not.Contain("Gold"));
+                var details = card.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Job details");
+                Assert.That(details.text, Does.Contain("Gold").And.Contain("접수 중"));
+                FindButton(dialogue, "일을 맡는다").onClick.Invoke();
+                Assert.That(game.State.Job, Is.EqualTo(JobStatus.Active));
+                Assert.That(body.text, Does.Contain("계약서를 챙겨 가"));
+            }
+            finally
+            {
+                greeting.text = original;
                 InputSystem.RemoveDevice(keyboard);
             }
         }
@@ -1251,6 +1323,8 @@ namespace Workerborn.Tests
             Assert.That(miniImage.texture, Is.TypeOf<Texture2D>());
             Assert.That(fullImage.texture, Is.SameAs(miniImage.texture));
             Assert.That(fullImage.color, Is.EqualTo(miniImage.color));
+            Assert.That(miniImage.uvRect, Is.EqualTo(new Rect(0f, 0f, 1f, 1f)));
+            Assert.That(fullImage.uvRect, Is.EqualTo(miniImage.uvRect));
             Assert.That(miniImage.rectTransform.rect.width / miniImage.rectTransform.rect.height,
                 Is.EqualTo(region.WorldBounds.width / region.WorldBounds.height).Within(.001f));
             var point = new Vector2(.35f, .66f);
@@ -1498,40 +1572,69 @@ namespace Workerborn.Tests
             root.GetComponentsInChildren<Button>().Single(button => button.GetComponentInChildren<TMP_Text>()?.text == label);
 
         [UnityTest]
-        public IEnumerator InventoryDropWaitsForArrivalAndShiftChangesTheGait()
+        public IEnumerator ShiftSelectsWalkingWhenTheMapIsClicked()
         {
             var keyboard = InputSystem.AddDevice<Keyboard>();
             try
             {
-                Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 3), Is.True);
-                var stack = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
                 Vector3 destination = NearbyDestination();
-                int before = game.GroundItemCount;
+                var map = game.Hud.OpenWindow("map").GetComponentInChildren<VillageMapView>();
+                yield return null;
+                var image = map.GetComponentInChildren<RawImage>().rectTransform;
+                var point = Rect.NormalizedToPoint(image.rect, game.MapRegion.WorldToMap(destination));
+                var click = new PointerEventData(EventSystem.current)
+                {
+                    position = RectTransformUtility.WorldToScreenPoint(null, image.TransformPoint(point)),
+                    button = PointerEventData.InputButton.Left
+                };
+                var mapClick = map.GetComponent<VillageMapClick>();
+                mapClick.OnPointerClick(click);
+                yield return null;
+                Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+                Assert.That(game.Worker.IsWalking, Is.False);
+
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftShift));
                 yield return null;
-
-                Assert.That(game.Worker.CommandDrop(stack.Id, destination), Is.True);
-                yield return Until(() => game.Worker.IsWalking, 1f);
+                Assert.That(game.Worker.IsWalking, Is.False);
+                mapClick.OnPointerClick(click);
                 yield return null;
-                Assert.That(game.Worker.GetComponent<WorkerAnimation>().CurrentAction, Is.EqualTo(3));
-                Assert.That(game.State.Inventory.Find(stack.Id).Quantity, Is.EqualTo(3));
-                Assert.That(game.GroundItemCount, Is.EqualTo(before));
-                game.Worker.Cancel();
-                Assert.That(game.Worker.HasPendingDrop, Is.False);
-                Assert.That(game.State.Inventory.Find(stack.Id).Quantity, Is.EqualTo(3));
+                Assert.That(game.Worker.IsWalking, Is.True);
 
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState());
-                Assert.That(game.Worker.CommandDrop(stack.Id, destination), Is.True);
-                yield return Until(() => game.GroundItemCount == before + 1, 5f);
-                var drop = UnityEngine.Object.FindObjectsByType<GroundPickup>(FindObjectsSortMode.None)
-                    .Single(i => i.ItemId == ItemIds.Potato && i.Quantity == 3);
-                Assert.That(game.State.Inventory.Find(stack.Id), Is.Null);
-                Assert.That(Vector2.Distance(new Vector2(drop.LandingPosition.x, drop.LandingPosition.z), new Vector2(destination.x, destination.z)), Is.LessThan(.01f));
+                yield return null;
+                Assert.That(game.Worker.IsWalking, Is.True);
+                Assert.That(game.Worker.GetComponent<WorkerAnimation>().CurrentAction, Is.EqualTo(3));
+                mapClick.OnPointerClick(click);
+                Assert.That(game.Worker.IsWalking, Is.False);
             }
             finally
             {
                 InputSystem.RemoveDevice(keyboard);
             }
+        }
+
+        [UnityTest]
+        public IEnumerator InventoryDropWaitsForArrival()
+        {
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 3), Is.True);
+            var stack = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
+            Vector3 destination = NearbyDestination();
+            int before = game.GroundItemCount;
+            Assert.That(game.Worker.CommandDrop(stack.Id, destination), Is.True);
+            yield return null;
+            Assert.That(game.State.Inventory.Find(stack.Id).Quantity, Is.EqualTo(3));
+            Assert.That(game.GroundItemCount, Is.EqualTo(before));
+            game.Worker.Cancel();
+            Assert.That(game.Worker.HasPendingDrop, Is.False);
+            Assert.That(game.State.Inventory.Find(stack.Id).Quantity, Is.EqualTo(3));
+
+            Assert.That(game.Worker.CommandDrop(stack.Id, destination), Is.True);
+            yield return Until(() => game.GroundItemCount == before + 1, 5f);
+            var drop = UnityEngine.Object.FindObjectsByType<GroundPickup>(FindObjectsSortMode.None)
+                .Single(i => i.ItemId == ItemIds.Potato && i.Quantity == 3);
+            Assert.That(game.State.Inventory.Find(stack.Id), Is.Null);
+            Assert.That(Vector2.Distance(new Vector2(drop.LandingPosition.x, drop.LandingPosition.z),
+                new Vector2(destination.x, destination.z)), Is.LessThan(.01f));
         }
 
         [UnityTest]

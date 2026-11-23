@@ -235,7 +235,7 @@ namespace Workerborn
                 target.RequestInteraction(game.Worker, game.WorldCamera.ScreenPointToRay(cursor));
             else if (!game.ControlsBlocked && !overUi && !control && (HasMask || maskMaterial == null) &&
                 TryWorldHit(cursor, out var hit) && game.IsGround(hit.collider))
-                game.Worker.CommandMove(hit.point);
+                game.Worker.CommandMove(hit.point, WorkerbornInput.Held("Gameplay/Walk"));
         }
 
         private WorldInteractable SnapshotTarget(int id) => snapshot != null && id > 0 && id < snapshot.Length ? snapshot[id].Target : null;

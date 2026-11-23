@@ -29,6 +29,7 @@ namespace Workerborn
         private int entryId;
         private int quantity;
         private bool updating;
+        private bool confirmQuickSale;
         internal bool IsTrade => action != QuantityAction.Split;
 
         public override void Bind(VillagePrototype game, VillageHud hud)
@@ -60,7 +61,7 @@ namespace Workerborn
         {
             get
             {
-                var entry = Game.State.Inventory.Find(entryId);
+                var entry = Game.State.CarriedItem(entryId);
                 return entry != null && entry.ItemId == id ? entry : null;
             }
         }
@@ -73,12 +74,13 @@ namespace Workerborn
             _ => 0
         };
 
-        internal void Open(string itemId, QuantityAction operation, int stackId = 0)
+        internal void Open(string itemId, QuantityAction operation, int stackId = 0, bool warnBeforeSale = false)
         {
             id = itemId;
             action = operation;
             entryId = stackId;
-            SetQuantity(1);
+            confirmQuickSale = warnBeforeSale;
+            SetQuantity(confirmQuickSale ? Maximum : 1);
         }
 
         public override void Refresh()
@@ -116,13 +118,14 @@ namespace Workerborn
             foreach (var button in amountButtons)
                 button.gameObject.SetActive(showAmount);
             item.Display(Game.Settings.FindItem(id), id, quantity);
-            title.text = spec.Name;
+            item.SetTradeTooltip(action is QuantityAction.Buy or QuantityAction.Sell ? action : null);
+            title.text = confirmQuickSale ? $"{spec.Name} · 즉시 판매 확인" : spec.Name;
             total.text = action == QuantityAction.Split
                 ? $"원래 묶음에 {((Stack?.Quantity ?? 0) - quantity):N0}개 남음"
                 : $"{(action == QuantityAction.Sell ? "받는 금액" : "가격")}  {(long)spec.Price * quantity:N0} Gold";
             confirmText.text = action switch
             {
-                QuantityAction.Sell => "판매",
+                QuantityAction.Sell => confirmQuickSale ? "판매 확인" : "판매",
                 QuantityAction.Split => "나누기",
                 _ => "구입"
             };
@@ -143,10 +146,14 @@ namespace Workerborn
             {
                 QuantityAction.Sell => Stack != null && Game.State.TrySellStack(entryId, quantity),
                 QuantityAction.Split => Stack != null && Game.State.TrySplitStack(entryId, quantity),
-                _ => Game.State.TryBuy(id, quantity)
+                _ => Game.State.TryBuyForPlacement(id, quantity)
             });
             if (success)
+            {
                 Hud.CloseWindow(Id);
+                if (action == QuantityAction.Buy || action == QuantityAction.Sell && entryId == 0)
+                    Hud.ShowHeldItem(WorkerbornInput.Point);
+            }
         }
     }
 }

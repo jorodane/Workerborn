@@ -31,9 +31,7 @@ namespace Workerborn
             if (draggedEntry != 0 && game.State.Inventory.Find(draggedEntry) == null)
             {
                 draggedEntry = 0;
-                if (dragGhost != null)
-                    Destroy(dragGhost.gameObject);
-                dragGhost = null;
+                ClearHeldVisual();
             }
 
             InventoryWindowView.Clear(inventoryGrid);
@@ -56,14 +54,14 @@ namespace Workerborn
             HideItemTooltip();
             CloseItemContext();
             bool control = WorkerbornInput.Held("Gameplay/Target");
-            if (IsShopOpen && control)
-            {
-                OpenSaleQuantity(id, screen);
-                return;
-            }
             if (IsHoldingItem)
             {
                 EndItemDrag(screen);
+                return;
+            }
+            if (IsShopOpen && control)
+            {
+                OpenSaleQuantity(id, screen, quick: true);
                 return;
             }
 
@@ -93,22 +91,20 @@ namespace Workerborn
                 return;
             if (game.State.TryGetDocumentPage(item.ItemId, out var page))
                 OpenQuestDetail(page);
-            else if (WorldActionsLocked)
-                return;
-            else if (item.ItemId == ItemIds.Bread)
-                game.Perform(game.State.TryEatBread);
-            else if (item.Spec.EquipmentSlot != EquipmentSlot.None)
+            else if ((!WorldActionsLocked || IsShopOpen) && item.Spec.EquipmentSlot != EquipmentSlot.None)
                 game.Perform(() => game.State.TryEquip(item.Id));
+            else if (!WorldActionsLocked && item.ItemId == ItemIds.Bread)
+                game.Perform(game.State.TryEatBread);
             CloseItemContext();
         }
 
         public void ClickEquipment(EquipmentSlot slot, Vector2 screen)
         {
-            if (WorldActionsLocked)
+            if (HasQuantityPrompt || WorldActionsLocked && !IsShopOpen)
                 return;
             if (IsHoldingItem)
             {
-                var item = game.State.Inventory.Find(draggedEntry);
+                var item = game.State.CarriedItem(draggedEntry);
                 if (item == null || item.Spec.EquipmentSlot != slot)
                 {
                     ShowToast("해당 위치에 장착할 수 없습니다.");
@@ -162,12 +158,20 @@ namespace Workerborn
                 view.gameObject.SetActive(false);
         }
 
-        public void ShowItemTooltip(string id, Vector2 screen)
+        public void ShowItemTooltip(string id, Vector2 screen, int quantity = 0, bool shopListing = false)
         {
             if (IsHoldingItem || string.IsNullOrEmpty(id))
                 return;
             var view = OpenWindow("tooltip") as ItemTooltipView;
-            view?.Show(ItemCatalog.Get(id));
+            var spec = ItemCatalog.Get(id);
+            string trade = null;
+            if (shopListing)
+                trade = $"구매가  개당 {spec.Price:N0} Gold";
+            else if (IsShopOpen && quantity > 0)
+                trade = game.State.CanSell(id)
+                    ? $"판매가  개당 {spec.Price:N0} Gold\n묶음 판매가  {(long)spec.Price * quantity:N0} Gold"
+                    : "판매할 수 없는 물건";
+            view?.Show(spec, trade: trade);
             if (view != null)
                 ShowAt(view, screen + new Vector2(16, -12));
         }
@@ -175,7 +179,7 @@ namespace Workerborn
         internal void ShowEquipmentTooltip(EquipmentSlot slot, Vector2 screen)
         {
             if (game.State.Equipment.TryGetValue(slot, out string item))
-                ShowItemTooltip(item, screen);
+                ShowItemTooltip(item, screen, quantity: 1);
         }
 
         internal void InspectGroundItem(string id, int quantity)
@@ -214,6 +218,8 @@ namespace Workerborn
         {
             if (TradeQuantityOpen)
                 return;
+            if (game.State.PendingPurchase != null)
+                return;
             CancelItemDrag();
             var item = game.State.Inventory.Find(id);
             if (item == null || inventoryGrid == null)
@@ -222,16 +228,15 @@ namespace Workerborn
             releaseHeldOnMouseUp = releaseOnMouseUp;
             draggedEntry = id;
             selectedEntry = id;
-            RebuildHeldVisual();
+            ShowHeldItem(screen);
             RefreshInventoryItems();
             MoveItemDrag(screen);
         }
 
-        private void RebuildHeldVisual()
+        internal void ShowHeldItem(Vector2 screen)
         {
-            if (dragGhost != null)
-                Destroy(dragGhost.gameObject);
-            var item = game.State.Inventory.Find(draggedEntry);
+            ClearHeldVisual();
+            var item = game.State.CarriedItem(draggedEntry);
             if (item == null)
             {
                 draggedEntry = 0;
@@ -245,7 +250,8 @@ namespace Workerborn
             dragGhost.pivot = new Vector2(0, 1);
             dragGhost.sizeDelta = new Vector2(item.Spec.Width * CellX, item.Spec.Height * CellY);
             visual.Display(game.Settings.FindItem(item.ItemId), item.ItemId, item.Quantity);
-            visual.ShowIconOnly();
+            visual.ShowIconOnly(showQuantity: draggedEntry == 0);
+            MoveItemDrag(screen);
         }
 
         public void MoveItemDrag(Vector2 screen)
@@ -256,8 +262,10 @@ namespace Workerborn
             dragGhost.anchoredPosition = local - CanvasRect.rect.center;
             if (views.TryGetValue("inventory", out var window) && window is InventoryWindowView view)
             {
-                var entry = game.State.Inventory.Find(draggedEntry);
-                if (entry != null && TryInventoryCell(screen, view, out var cell) && game.State.Inventory.CanPlaceHeld(draggedEntry, cell.x, cell.y))
+                var entry = game.State.CarriedItem(draggedEntry);
+                var inventory = game.State.Inventory;
+                if (entry != null && TryInventoryCell(screen, view, out var cell) &&
+                    (draggedEntry == 0 ? inventory.CanPlacePurchase(entry.Spec, cell.x, cell.y) : inventory.CanPlaceHeld(draggedEntry, cell.x, cell.y)))
                     view.ShowPlacement(cell.x, cell.y, entry.Spec.Width, entry.Spec.Height);
                 else
                     view.ShowPlacement(0, 0, 0, 0);
@@ -266,17 +274,16 @@ namespace Workerborn
 
         public void EndItemDrag(Vector2 screen)
         {
-            if (!IsHoldingItem || !views.TryGetValue("inventory", out var window) || !(window is InventoryWindowView view)
+            if (HasQuantityPrompt || !IsHoldingItem || !views.TryGetValue("inventory", out var window) || !(window is InventoryWindowView view)
                 || !TryInventoryCell(screen, view, out var cell))
                 return;
-            bool success = game.State.Inventory.TryPlaceHeld(draggedEntry, cell.x, cell.y, out int next);
+            int next = 0;
+            bool success = draggedEntry == 0 ? game.State.TryPlacePurchase(cell.x, cell.y) :
+                game.State.Inventory.TryPlaceHeld(draggedEntry, cell.x, cell.y, out next);
             if (!success)
                 return;
             draggedEntry = next;
-            if (next == 0)
-                CancelItemDrag();
-            else
-                RebuildHeldVisual();
+            ShowHeldItem(screen);
             RefreshInventoryItems();
             MoveItemDrag(screen);
             game.SaveGame(false);
@@ -302,14 +309,14 @@ namespace Workerborn
 
         public void DropHeldOnGround(Vector2 screen)
         {
-            if (!IsHoldingItem || releaseHeldOnMouseUp || game.Targeting == null)
+            if (HasQuantityPrompt || !IsHoldingItem || releaseHeldOnMouseUp || game.Targeting == null)
                 return;
             if (!game.Targeting.TryDropPoint(screen, out var ground))
             {
                 ShowToast("아이템을 놓을 바닥을 선택해 주세요.");
                 return;
             }
-            if (game.Worker.CommandDrop(draggedEntry, ground))
+            if (game.Worker.CommandDrop(draggedEntry, ground) && (draggedEntry != 0 || game.State.PendingPurchase == null))
                 CancelItemDrag();
         }
 
@@ -334,22 +341,36 @@ namespace Workerborn
 
         public void CancelItemDrag()
         {
-            bool wasHolding = draggedEntry != 0;
+            bool wasHolding = IsHoldingItem;
+            if (game?.State.PendingPurchase != null)
+            {
+                if (game.AwaitingWorldCommand || !game.State.TryStowPurchase())
+                {
+                    ShowToast("들고 있는 물건을 넣을 공간이 부족합니다.");
+                    return;
+                }
+                game.SaveGame(false);
+            }
+
+            ClearHeldVisual();
+            draggedEntry = 0;
+            releaseHeldOnMouseUp = false;
+            HideItemTooltip();
+            CloseItemContext();
+            if (wasHolding && InventoryOpen)
+                RefreshInventoryItems();
+        }
+
+        private void ClearHeldVisual()
+        {
             if (dragGhost != null)
             {
                 dragGhost.gameObject.SetActive(false);
                 Destroy(dragGhost.gameObject);
             }
-
             dragGhost = null;
-            draggedEntry = 0;
-            releaseHeldOnMouseUp = false;
             if (views.TryGetValue("inventory", out var window) && window is InventoryWindowView view)
                 view.ShowPlacement(0, 0, 0, 0);
-            HideItemTooltip();
-            CloseItemContext();
-            if (wasHolding && InventoryOpen)
-                RefreshInventoryItems();
         }
     }
 }

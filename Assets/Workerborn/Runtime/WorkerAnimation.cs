@@ -9,15 +9,23 @@ namespace Workerborn
         private const int Work = 2;
         private const int WorkBegin = 6;
         private const int WorkFinish = 7;
+        private const int SitBegin = 8;
+        private const int SitFinish = 9;
+        private const double SitSpeed = .85d;
         [SerializeField] private AnimationClip groundSit;
+        [SerializeField] private AnimationClip groundSitBegin;
+        [SerializeField] private AnimationClip groundSitFinish;
         [SerializeField] private AnimationClip seatSit;
+        [SerializeField] private AnimationClip seatSitBegin;
+        [SerializeField] private AnimationClip seatSitFinish;
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
-        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[8];
-        private readonly float[] lengths = new float[8];
-        private readonly float[] weights = new float[8];
+        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[10];
+        private readonly float[] lengths = new float[10];
+        private readonly float[] weights = new float[10];
         private AnimationClip fallbackWork;
         private int workInput = Work;
+        private int sitInput = -1;
         private float workDuration, beginDuration, finishDuration;
         private float loopCycles;
         private bool timedWork;
@@ -33,6 +41,7 @@ namespace Workerborn
             fallbackWork = work != null ? work : idle;
             timedWork = false;
             workInput = Work;
+            sitInput = -1;
             target = 0;
             animator.runtimeAnimatorController = null;
             animator.applyRootMotion = false;
@@ -51,6 +60,8 @@ namespace Workerborn
                 groundSit != null ? groundSit : idle,
                 seatSit != null ? seatSit : idle,
                 idle,
+                idle,
+                idle,
                 idle
             };
             for (int i = 0; i < source.Length; i++)
@@ -65,7 +76,7 @@ namespace Workerborn
 
         public int CurrentAction => target;
         public double ActionTime => graph.IsValid() ? clips[Input].GetTime() : 0d;
-        private int Input => target == Work ? workInput : target;
+        private int Input => sitInput >= 0 ? sitInput : target == Work ? workInput : target;
 
         private void BindClip(int input, AnimationClip clip, bool sampled = false)
         {
@@ -161,6 +172,11 @@ namespace Workerborn
                 return;
             if (graph.IsValid())
             {
+                sitInput = -1;
+                if (next == (int)WorkerMotion.GroundSit || next == (int)WorkerMotion.SeatSit)
+                    PlaySitTransition(SitBegin, next == (int)WorkerMotion.SeatSit ? seatSitBegin : groundSitBegin);
+                else if (next == (int)WorkerMotion.Idle && target >= (int)WorkerMotion.GroundSit)
+                    PlaySitTransition(SitFinish, target == (int)WorkerMotion.SeatSit ? seatSitFinish : groundSitFinish);
                 if ((next == Work && !timedWork) || next >= (int)WorkerMotion.GroundSit)
                     clips[next].SetTime(0d);
                 else if ((next == 1 || next == 3) && (target == 1 || target == 3))
@@ -169,10 +185,26 @@ namespace Workerborn
             target = next;
         }
 
+        private void PlaySitTransition(int input, AnimationClip clip)
+        {
+            if (clip == null)
+                return;
+            BindClip(input, clip);
+            clips[input].SetTime(0);
+            clips[input].SetSpeed(SitSpeed);
+            sitInput = input;
+        }
+
         private void Update()
         {
             if (!graph.IsValid())
                 return;
+            if (sitInput >= 0 && clips[sitInput].GetTime() >= lengths[sitInput])
+            {
+                if (sitInput == SitBegin)
+                    clips[target].SetTime(0);
+                sitInput = -1;
+            }
             float total = 0f;
             int activeInput = Input;
             for (int i = 0; i < clips.Length; i++)

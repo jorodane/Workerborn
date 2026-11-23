@@ -14,7 +14,7 @@ namespace Workerborn
                 return;
             if (Map.TryGetMapPoint(eventData.position, eventData.pressEventCamera, out var point) &&
                 Game.TryMapGround(point, out var hit))
-                Game.Worker.CommandMove(hit.point);
+                Game.Worker.CommandMove(hit.point, WorkerbornInput.Held("Gameplay/Walk"));
         }
     }
 }

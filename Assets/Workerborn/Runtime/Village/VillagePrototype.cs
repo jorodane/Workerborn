@@ -462,14 +462,14 @@ namespace Workerborn
 
         internal bool PlaceInventoryDrop(InventoryEntry request, Vector3 destination)
         {
-            var entry = State.Inventory.Find(request.Id);
+            var entry = State.CarriedItem(request.Id);
             if (entry == null || entry.ItemId != request.ItemId || entry.Quantity != request.Quantity)
             {
                 hud.ShowToast("아이템 수량이 바뀌었습니다. 다시 놓아 주세요.");
                 return false;
             }
             var prefab = DropPrefabFor(entry);
-            if (prefab == null || !State.Inventory.TryRemoveAt(entry.Id, entry.Quantity))
+            if (prefab == null || !State.TryRemoveCarriedItem(entry.Id, entry.Quantity))
                 return false;
 
             var end = SurfacePosition(destination.x, destination.z) + Vector3.up * .08f;

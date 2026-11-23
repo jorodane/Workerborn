@@ -39,6 +39,13 @@ namespace Workerborn
     }
 
     [Serializable]
+    public sealed class PendingPurchaseSave
+    {
+        public string itemId;
+        public int quantity;
+    }
+
+    [Serializable]
     public sealed class VillageSave
     {
         public int schema = 1;
@@ -89,6 +96,7 @@ namespace Workerborn
         public int inventoryColumns = VillageState.LegacyInventoryColumns;
         public int inventoryRows = VillageState.BaseInventoryRows;
         public InventoryEntrySave[] inventory = Array.Empty<InventoryEntrySave>();
+        public PendingPurchaseSave pendingPurchase;
         public int[] cropRemaining = Array.Empty<int>();
         public CropStateSave[] cropStates = Array.Empty<CropStateSave>();
         public AnimalStateSave[] animalStates = Array.Empty<AnimalStateSave>();
@@ -145,6 +153,7 @@ namespace Workerborn
         public bool BagExpanded => equipment.ContainsKey(EquipmentSlot.Bag);
         public bool LastRestWasCollapse { get; private set; }
         public GridInventory Inventory { get; private set; } = new GridInventory(InventoryColumns, BaseInventoryRows);
+        internal InventoryEntry PendingPurchase { get; private set; }
 
         private readonly Dictionary<EquipmentSlot, string> equipment = new Dictionary<EquipmentSlot, string>();
         public IReadOnlyDictionary<EquipmentSlot, string> Equipment => equipment;
@@ -191,11 +200,11 @@ namespace Workerborn
 
         public bool TryEquip(int entryId)
         {
-            var item = Inventory.Find(entryId);
+            var item = CarriedItem(entryId);
             if (item == null || item.Spec.EquipmentSlot == EquipmentSlot.None)
                 return Result(false, "장착할 수 없는 아이템입니다.");
             var copy = Inventory.Copy();
-            if (!copy.TryRemoveAt(entryId, 1))
+            if (entryId != 0 && !copy.TryRemoveAt(entryId, 1))
                 return false;
             var slot = item.Spec.EquipmentSlot;
             if (equipment.TryGetValue(slot, out string previous) && !copy.TryAdd(previous, 1))
@@ -204,6 +213,8 @@ namespace Workerborn
                 copy.ExpandRows(BagInventoryRows);
             Inventory.ReplaceWith(copy);
             equipment[slot] = item.ItemId;
+            if (entryId == 0)
+                RemovePurchaseQuantity(1);
             return Result(true, item.Spec.Name + " 장착");
         }
 
@@ -395,30 +406,54 @@ namespace Workerborn
         public bool TryBuy(string itemId) => TryBuy(itemId, 1);
         public int MaximumBuyQuantity(string itemId)
         {
-            if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || itemId == ItemIds.LegendAxe || TryGetDocumentPage(itemId, out _) ||
-                itemId == ItemIds.Hoe && (HasHoe || Inventory.Count(ItemIds.Hoe) > 0) ||
-                itemId == ItemIds.Bag && (BagExpanded || Inventory.Count(ItemIds.Bag) > 0))
+            if (!IsPurchasable(itemId) || AlreadyOwnsUniquePurchase(itemId))
                 return 0;
             var spec = ItemCatalog.Get(itemId);
-            int limit = spec.EquipmentSlot == EquipmentSlot.None && spec.MaxStack > 1 ? 999 : 1;
+            int limit = PurchaseLimit(spec);
             return spec.Price > 0 ? Math.Min(limit, Gold / spec.Price) : limit;
         }
 
-        public bool TryBuy(string itemId, int quantity)
+        private bool IsPurchasable(string itemId) => ItemCatalog.Contains(itemId) && itemId != ItemIds.Gold &&
+            itemId != ItemIds.LegendAxe && !TryGetDocumentPage(itemId, out _);
+
+        private bool AlreadyOwnsUniquePurchase(string itemId) => itemId switch
         {
+            ItemIds.Hoe => HasHoe || Inventory.Count(ItemIds.Hoe) > 0 || PendingPurchase?.ItemId == itemId,
+            ItemIds.Bag => BagExpanded || Inventory.Count(ItemIds.Bag) > 0 || PendingPurchase?.ItemId == itemId,
+            _ => false
+        };
+
+        private static int PurchaseLimit(ItemSpec spec) => spec.EquipmentSlot == EquipmentSlot.None && spec.MaxStack > 1 ? 999 : 1;
+
+        public bool TryBuy(string itemId, int quantity) => TryBuy(itemId, quantity, placeOnCursor: false);
+
+        internal bool TryBuyForPlacement(string itemId, int quantity) => TryBuy(itemId, quantity, placeOnCursor: true);
+
+        private bool TryBuy(string itemId, int quantity, bool placeOnCursor)
+        {
+            if (placeOnCursor && (PendingPurchase != null || AwaitingIncarnation))
+                return Result(false, "손에 든 물건을 먼저 놓아 주세요.");
             if (quantity < 1 || quantity > 999)
                 return Result(false, "구입할 수 없는 수량입니다.");
-            if (!ItemCatalog.Contains(itemId) || itemId == ItemIds.Gold || itemId == ItemIds.LegendAxe || TryGetDocumentPage(itemId, out _))
+            if (!IsPurchasable(itemId))
                 return Result(false, "판매하지 않는 물건입니다.");
             var spec = ItemCatalog.Get(itemId);
-            if (quantity > 1 && (spec.EquipmentSlot != EquipmentSlot.None || spec.MaxStack == 1))
+            if (quantity > PurchaseLimit(spec))
                 return Result(false, "이 물건은 한 개씩 구입할 수 있어요.");
-            if (itemId == ItemIds.Hoe && (HasHoe || Inventory.Count(ItemIds.Hoe) > 0))
+            if (itemId == ItemIds.Hoe && AlreadyOwnsUniquePurchase(itemId))
                 return Result(false, "이미 같은 도구를 가지고 있습니다.");
-            if (itemId == ItemIds.Bag && (BagExpanded || Inventory.Count(ItemIds.Bag) > 0))
+            if (itemId == ItemIds.Bag && AlreadyOwnsUniquePurchase(itemId))
                 return Result(false, "이미 여행 가방을 가지고 있어요.");
             if ((long)Gold < (long)spec.Price * quantity)
                 return Result(false, "골드가 부족해요.");
+            int cost = spec.Price * quantity;
+            if (placeOnCursor)
+            {
+                if (cost > 0 && !Inventory.TryRemove(ItemIds.Gold, cost))
+                    return Result(false, "골드가 부족해요.");
+                PendingPurchase = new InventoryEntry { ItemId = itemId, Quantity = quantity };
+                return Result(true, $"{spec.Name} {quantity}개 구입! {cost}G를 지불했어요.");
+            }
             if (itemId == ItemIds.Bag)
             {
                 if (spec.Price > 0 && !Inventory.TryRemove(ItemIds.Gold, spec.Price))
@@ -428,9 +463,37 @@ namespace Workerborn
                     Inventory.ExpandRows(BagInventoryRows);
                 return Result(true, $"{spec.Name} 구입 및 장착. {spec.Price}G를 지불했어요.");
             }
-            if (!Inventory.TryExchange(ItemIds.Gold, checked(spec.Price * quantity), itemId, quantity))
+            if (!Inventory.TryExchange(ItemIds.Gold, cost, itemId, quantity))
                 return Result(false, "골드나 소지품 공간이 부족합니다.");
-            return Result(true, $"{spec.Name} {quantity}개 구입! {spec.Price * quantity}G를 지불했어요.");
+            return Result(true, $"{spec.Name} {quantity}개 구입! {cost}G를 지불했어요.");
+        }
+
+        // A fresh purchase has no source cell. Zero is reserved for this carried stack.
+        internal InventoryEntry CarriedItem(int entryId) => entryId == 0 ? PendingPurchase : Inventory.Find(entryId);
+
+        internal bool TryPlacePurchase(int x, int y)
+        {
+            if (PendingPurchase == null)
+                return false;
+            int placed = Inventory.PlacePurchase(PendingPurchase, x, y);
+            return placed > 0 && RemovePurchaseQuantity(placed);
+        }
+
+        internal bool TryStowPurchase() => PendingPurchase != null &&
+            Inventory.TryAdd(PendingPurchase.ItemId, PendingPurchase.Quantity) && RemovePurchaseQuantity(PendingPurchase.Quantity);
+
+        internal bool TryRemoveCarriedItem(int entryId, int quantity) => entryId == 0
+            ? RemovePurchaseQuantity(quantity) : Inventory.TryRemoveAt(entryId, quantity);
+
+        private bool RemovePurchaseQuantity(int amount)
+        {
+            if (PendingPurchase == null || amount < 1 || amount > PendingPurchase.Quantity)
+                return false;
+            PendingPurchase.Quantity -= amount;
+            if (PendingPurchase.Quantity == 0)
+                PendingPurchase = null;
+            Version++;
+            return true;
         }
 
         public bool TrySellItems(string itemId, int quantity)
@@ -443,12 +506,12 @@ namespace Workerborn
             return Result(true, $"{ItemCatalog.Get(itemId).Name} {quantity}개 판매 · {total} Gold");
         }
 
-        private bool CanSell(string itemId) => ItemCatalog.Contains(itemId) && itemId != ItemIds.Gold &&
+        internal bool CanSell(string itemId) => ItemCatalog.Contains(itemId) && itemId != ItemIds.Gold &&
             itemId != ItemIds.Bag && !TryGetDocumentPage(itemId, out _);
 
         public int MaximumSellQuantity(int entryId)
         {
-            var entry = Inventory.Find(entryId);
+            var entry = CarriedItem(entryId);
             if (entry == null || !CanSell(entry.ItemId))
                 return 0;
             return entry.Spec.Price > 0 ? Math.Min(entry.Quantity, int.MaxValue / entry.Spec.Price) : entry.Quantity;
@@ -458,11 +521,16 @@ namespace Workerborn
         {
             if (quantity < 1 || quantity > MaximumSellQuantity(entryId))
                 return Result(false, "판매할 수 없는 수량입니다.");
-            var entry = Inventory.Find(entryId);
+            var entry = CarriedItem(entryId);
             var spec = entry.Spec;
             int total = spec.Price * quantity;
-            if (!Inventory.TryExchangeAt(entryId, quantity, ItemIds.Gold, total))
+            bool received = entryId == 0
+                ? total == 0 || Inventory.TryAdd(ItemIds.Gold, total)
+                : Inventory.TryExchangeAt(entryId, quantity, ItemIds.Gold, total);
+            if (!received)
                 return Result(false, "골드를 받을 소지품 공간이 부족합니다.");
+            if (entryId == 0)
+                RemovePurchaseQuantity(quantity);
             return Result(true, $"{spec.Name} {quantity}개 판매 · {total:N0} Gold");
         }
 
@@ -644,7 +712,9 @@ namespace Workerborn
                 bagExpanded = BagExpanded,
                 inventoryColumns = Inventory.Columns,
                 inventoryRows = Inventory.Rows,
-                inventory = Inventory.Export()
+                inventory = Inventory.Export(),
+                pendingPurchase = PendingPurchase == null ? null :
+                    new PendingPurchaseSave { itemId = PendingPurchase.ItemId, quantity = PendingPurchase.Quantity }
             };
         }
 
@@ -768,6 +838,14 @@ namespace Workerborn
             }
             if (save.bagExpanded != state.BagExpanded || state.BagExpanded && inventory.Rows < BagInventoryRows)
                 throw new ArgumentException("Invalid bag equipment.");
+
+            if (save.pendingPurchase is PendingPurchaseSave purchase)
+            {
+                if (!state.IsPurchasable(purchase.itemId) || purchase.quantity < 1 ||
+                    purchase.quantity > PurchaseLimit(ItemCatalog.Get(purchase.itemId)))
+                    throw new ArgumentException("Invalid pending purchase.");
+                state.PendingPurchase = new InventoryEntry { ItemId = purchase.itemId, Quantity = purchase.quantity };
+            }
 
             if (state.AwaitingIncarnation && (state.HasVillageProgress || save.gold != 0 || (save.drops?.Length ?? 0) > 0))
                 throw new ArgumentException("An incarnation waiting on the clouds cannot carry possessions or progress from the village.");

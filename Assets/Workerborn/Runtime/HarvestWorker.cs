@@ -49,6 +49,7 @@ namespace Workerborn
         private Vector3 dropPoint;
         private VillagePrototype village;
         private int collectedCount;
+        private bool walkPath;
         private bool manualMoving;
         private bool onSeat;
         private float nextCollect;
@@ -57,7 +58,7 @@ namespace Workerborn
         public bool AcceptsGroundItemCommands => village == null || village.Hud.AllowsGroundItems && !village.State.AwaitingIncarnation;
         public PointerTargeting Targeting => village != null ? village.Targeting : null;
         internal VillagePrototype Village => village;
-        public bool IsWalking => Action == WorkerAction.Moving && WorkerbornInput.Held("Gameplay/Walk");
+        public bool IsWalking => Action == WorkerAction.Moving && walkPath;
         public bool HasPendingDrop => pendingDrop != null;
         internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
         public WorkerAction Action { get; private set; }
@@ -94,7 +95,6 @@ namespace Workerborn
                 Cancel();
             if (AcceptsInteractionCommands && WorkerbornInput.Pressed("Gameplay/Sit"))
                 ToggleSit();
-            agent.speed = IsWalking ? walkSpeed : runSpeed;
             bool movingByKeys = UpdateManualMovement();
             UpdateNearbyCollection();
             if (!movingByKeys && Action == WorkerAction.Moving)
@@ -170,8 +170,7 @@ namespace Workerborn
             right.Normalize();
             Vector3 forward = Vector3.Cross(right, Vector3.up);
             Vector3 direction = Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
-            float speed = IsWalking ? walkSpeed : runSpeed;
-            agent.Move(direction * (speed * Time.deltaTime));
+            agent.Move(direction * (runSpeed * Time.deltaTime));
             Face(transform.position + direction);
             return true;
         }
@@ -256,7 +255,7 @@ namespace Workerborn
             if (target != null)
                 target.RequestInteraction(this);
             else
-                CommandMove(hit.point);
+                CommandMove(hit.point, WorkerbornInput.Held("Gameplay/Walk"));
         }
 
         public void CommandHarvest(HarvestableCrop crop)
@@ -323,11 +322,11 @@ namespace Workerborn
             return true;
         }
 
-        public void CommandMove(Vector3 destination)
+        public void CommandMove(Vector3 destination, bool walk = false)
         {
             if (village != null && village.ControlsBlocked)
                 return;
-            if (NavigateNear(destination, 0f))
+            if (NavigateNear(destination, 0f, walk))
                 village?.ShowClick(destination);
         }
 
@@ -393,7 +392,7 @@ namespace Workerborn
         {
             if (village == null || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
                 return false;
-            var entry = village.State.Inventory.Find(entryId);
+            var entry = village.State.CarriedItem(entryId);
             if (village.DropPrefabFor(entry) == null)
                 return false;
             bool inReach = InReach(destination, pickupDistance);
@@ -412,7 +411,7 @@ namespace Workerborn
             return true;
         }
 
-        private bool NavigateNear(Vector3 target, float offset)
+        private bool NavigateNear(Vector3 target, float offset, bool walk = false)
         {
             if (agent == null || !agent.isOnNavMesh)
                 return false;
@@ -429,15 +428,17 @@ namespace Workerborn
                 return false;
 
             var path = new NavMeshPath();
-            return agent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete && FollowPath(path);
+            return agent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete && FollowPath(path, walk);
         }
 
-        private bool FollowPath(NavMeshPath path)
+        private bool FollowPath(NavMeshPath path, bool walk = false)
         {
             if (!agent.SetPath(path))
                 return false;
 
             ClearInteractionTargets();
+            walkPath = walk;
+            agent.speed = walk ? walkSpeed : runSpeed;
             agent.isStopped = false;
             Action = WorkerAction.Moving;
             return true;
@@ -602,6 +603,7 @@ namespace Workerborn
                 onSeat = false;
             }
             manualMoving = false;
+            walkPath = false;
             if (cropTarget != null)
                 cropTarget.Cancel(this);
             cropTarget = null;

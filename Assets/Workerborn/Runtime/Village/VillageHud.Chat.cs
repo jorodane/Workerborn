@@ -47,7 +47,7 @@ namespace Workerborn
             if (chat == null || !WorkerbornInput.Pressed("Gameplay/Chat"))
                 return false;
             var selected = EventSystem.current?.currentSelectedGameObject;
-            if (!HasModal && selected != null && selected.GetComponent<TMP_InputField>() != null)
+            if (selected != null && selected.GetComponent<TMP_InputField>() is { isFocused: true })
                 return false;
             chat.OpenInput();
             return true;

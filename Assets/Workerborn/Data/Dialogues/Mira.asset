@@ -23,13 +23,13 @@ MonoBehaviour:
   - keyword: 일상
     action: 0
     text: 올해는 땅이 좋아. 감자도 잘 여물었어.
-  - keyword: 아르바이트
+  - keyword: 아르바이트를 묻는다
     action: 1
     text: 밭에서 캐 온 감자를 모아 주겠어? 해 지기 전에 부탁해.
-  - keyword: 첫 일자리
+  - keyword: 첫 일자리 보상은요?
     action: 2
     text: 함께 일해 줘서 고마워.
-  - keyword: 마을 농장
+  - keyword: 농장 확장을 묻는다
     action: 3
     text: 모두가 조금씩 힘을 보태면 농장을 넓힐 수 있어.
   - keyword: 농장 건설

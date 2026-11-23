@@ -62,7 +62,7 @@ class UIBuilder(Scene):
         return n,button,text
     def raw(self,name,parent,size,pos=(0,0),tint=(1,1,1,1)):
         n=self.ui(name,parent,size,pos)
-        i=self.graphic(n,UI['RawImage'],m_Material=ref(),m_Color=color(*tint),m_RaycastTarget=0,m_RaycastPadding=vec(0,0,0,0),m_Maskable=1,m_OnCullStateChanged=dict(m_PersistentCalls=dict(m_Calls=[])),m_Texture=ref(),m_UVRect=Flow(x=0,y=0,width=1,height=1))
+        i=self.graphic(n,UI['RawImage'],m_Material=ref(),m_Color=color(*tint),m_RaycastTarget=0,m_RaycastPadding=vec(0,0,0,0),m_Maskable=1,m_OnCullStateChanged=dict(m_PersistentCalls=dict(m_Calls=[])),m_Texture=ref(),m_UVRect=Flow(serializedVersion=2,x=0,y=0,width=1,height=1))
         return n,i
     def layout(self,n,horizontal=False,spacing=4):
         self.script_ui(n,'HorizontalLayoutGroup' if horizontal else 'VerticalLayoutGroup',m_Padding=dict(m_Left=0,m_Right=0,m_Top=0,m_Bottom=0),m_ChildAlignment=0,m_Spacing=spacing,m_ChildForceExpandWidth=1,m_ChildForceExpandHeight=0,m_ChildControlWidth=1,m_ChildControlHeight=1,m_ChildScaleWidth=0,m_ChildScaleHeight=0,m_ReverseArrangement=0)

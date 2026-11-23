@@ -71,9 +71,10 @@ namespace Workerborn
                 return;
             Vector2 position = WorkerbornInput.Point;
             bool blocked = game != null && game.ControlsBlocked;
+            bool canOrbit = !blocked || game.Hud?.HasModal == true && !game.AwaitingWorldCommand;
             var ui = game?.Targeting?.UiAt(position);
             bool overUi = ui != null && ui.GetComponentInParent<WorldNameplateView>() == null;
-            if (WorkerbornInput.Pressed("Camera/OrbitRight") && (!blocked || game?.Hud.AllowsGroundItems == true) && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitRight") && (canOrbit || game?.Hud.AllowsGroundItems == true) && !overUi)
             {
                 rightPressed = true;
                 rightDragged = false;
@@ -81,7 +82,7 @@ namespace Workerborn
                 pressPoint = position;
             }
 
-            if (WorkerbornInput.Pressed("Camera/OrbitMiddle") && !blocked && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitMiddle") && canOrbit && !overUi)
                 middlePressed = true;
             if (WorkerbornInput.Released("Camera/OrbitMiddle"))
                 middlePressed = false;
@@ -90,7 +91,7 @@ namespace Workerborn
             {
                 if (rightPressed && (position - pressPoint).sqrMagnitude > 25f)
                     rightDragged = true;
-                if ((rightDragged || middlePressed) && !blocked)
+                if ((rightDragged || middlePressed) && canOrbit)
                 {
                     Vector2 delta = WorkerbornInput.Look;
                     yaw += delta.x * orbitSensitivity;

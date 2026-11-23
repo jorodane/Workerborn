@@ -23,6 +23,8 @@ namespace Workerborn
         private int maxStack = 20;
         [SerializeField, Min(0)]
         private int price;
+        [SerializeField, Tooltip("Ask for confirmation before selling this stack with Ctrl-click.")]
+        private bool confirmQuickSale;
         [SerializeField]
         private EquipmentSlot equipmentSlot;
         [SerializeField]
@@ -34,6 +36,7 @@ namespace Workerborn
         public string DisplayName => displayName;
         public string Description => description;
         public Sprite Icon => icon;
+        public bool ConfirmQuickSale => confirmQuickSale;
         public GameObject WorldPrefab => worldPrefab;
         public EquipmentSlot EquipmentSlot => equipmentSlot;
         public CharacterPartDefinition EquipmentPart => equipmentPart;

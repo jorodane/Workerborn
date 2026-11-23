@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using TMPro;
+using UnityEngine.EventSystems;
 
 namespace Workerborn
 {
@@ -27,11 +29,18 @@ namespace Workerborn
                 OpenShop(target);
         }
 
-        internal void SelectDialogueTopic(DialogueAction topic)
+        private bool HandleDialoguePageInput()
         {
-            CloseQuantity();
-            if (views.TryGetValue("conversation", out var panel) && panel is ConversationWindowView dialogue)
-                dialogue.SelectTopic(topic);
+            if (!HasModal || IsChatTyping || HasQuantityPrompt)
+                return false;
+            bool space = WorkerbornInput.Pressed("Gameplay/ContinueDialogue");
+            if (!space && !WorkerbornInput.Pressed("Gameplay/Chat"))
+                return false;
+            var selected = EventSystem.current?.currentSelectedGameObject;
+            if (selected != null && selected.GetComponent<TMP_InputField>() is { isFocused: true })
+                return false;
+            return views.TryGetValue("conversation", out var panel) &&
+                panel is ConversationWindowView dialogue && dialogue.TryAdvancePage(pagingOnly: !space);
         }
 
         public void CloseDialogue() => CloseDialogue(animate: false);

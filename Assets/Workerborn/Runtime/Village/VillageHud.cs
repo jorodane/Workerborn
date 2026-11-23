@@ -69,7 +69,7 @@ namespace Workerborn
         public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.IsOpen;
         internal bool TradeQuantityOpen => views.TryGetValue("quantity", out var quantity) &&
             quantity is QuantityWindowView { IsOpen: true, IsTrade: true };
-        public bool IsHoldingItem => draggedEntry != 0;
+        public bool IsHoldingItem => draggedEntry != 0 || game?.State.PendingPurchase != null;
         public bool InventoryOpen => views.TryGetValue("inventory", out var inventory) && inventory.IsOpen;
 
         private struct FloatingText
@@ -191,7 +191,8 @@ namespace Workerborn
                 if (hit != null)
                     FocusWindow(hit.GetComponentInParent<VillageWindowView>());
             }
-            if (HandleChatInput() || game.AwaitingWorldCommand || dialogueClosing)
+            if ((!game.AwaitingWorldCommand && HandleDialoguePageInput()) ||
+                HandleChatInput() || game.AwaitingWorldCommand || dialogueClosing)
                 return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
@@ -224,7 +225,7 @@ namespace Workerborn
                 if (WorkerbornInput.Pressed("Camera/OrbitRight"))
                 {
                     suppressRightContext = IsHoldingItem;
-                    if (IsHoldingItem)
+                    if (IsHoldingItem && !HasQuantityPrompt)
                         CancelItemDrag();
                 }
             }
@@ -235,6 +236,10 @@ namespace Workerborn
             if (game == null || game.Worker == null)
                 return;
             UpdateDialogueClose();
+            if (IsHoldingItem && dragGhost == null)
+                ShowHeldItem(WorkerbornInput.Point);
+            else if (!IsHoldingItem && dragGhost != null)
+                ClearHeldVisual();
             if (!game.AwaitingWorldCommand)
                 ReleaseDraggedItem();
             var state = game.State;
@@ -284,7 +289,7 @@ namespace Workerborn
 
         private void OnApplicationFocus(bool focused)
         {
-            if (!focused && IsHoldingItem)
+            if (!focused && draggedEntry != 0)
                 CancelItemDrag();
         }
 
@@ -544,9 +549,20 @@ namespace Workerborn
                 conversation.SetTrading();
         }
 
-        internal void OpenPurchaseQuantity(string id, Vector2 screen) => OpenQuantity(id, QuantityAction.Buy, screen: screen);
+        internal void ClickShopItem(string id, Vector2 screen)
+        {
+            if (!IsShopOpen || HasQuantityPrompt)
+                return;
+            if (IsHoldingItem)
+                SellHeldItem(screen);
+            else if (WorkerbornInput.Held("Gameplay/Target"))
+                game.Perform(() => game.State.TryBuy(id));
+            else
+                OpenQuantity(id, QuantityAction.Buy, screen: screen);
+        }
 
-        private void OpenQuantity(string id, QuantityAction action, int stackId = 0, Vector2? screen = null)
+        private void OpenQuantity(string id, QuantityAction action, int stackId = 0, Vector2? screen = null,
+            bool confirmQuickSale = false)
         {
             if (TradeQuantityOpen)
                 return;
@@ -555,7 +571,7 @@ namespace Workerborn
             bool wasOpen = HasQuantityPrompt;
             if (!(OpenWindow("quantity") is QuantityWindowView prompt))
                 return;
-            prompt.Open(id, action, stackId);
+            prompt.Open(id, action, stackId, confirmQuickSale);
             if (prompt.IsTrade)
             {
                 PlaceTradeQuantity(prompt.Rect, screen ?? WorkerbornInput.Point);
@@ -606,22 +622,31 @@ namespace Workerborn
             CloseWindow("quantity");
         }
 
-        public void SellHeldItem(Vector2 screen) => OpenSaleQuantity(draggedEntry, screen);
+        public void SellHeldItem(Vector2 screen)
+        {
+            if (IsHoldingItem)
+                OpenSaleQuantity(draggedEntry, screen);
+        }
 
-        private void OpenSaleQuantity(int entryId, Vector2 screen)
+        private void OpenSaleQuantity(int entryId, Vector2 screen, bool quick = false)
         {
             if (!IsShopOpen || TradeQuantityOpen)
                 return;
-            var item = game.State.Inventory.Find(entryId);
+            var item = game.State.CarriedItem(entryId);
             if (item == null)
                 return;
-            CancelItemDrag();
+            if (entryId != 0)
+                CancelItemDrag();
             if (game.State.MaximumSellQuantity(item.Id) == 0)
             {
                 ShowToast("이 물건은 판매할 수 없습니다.");
                 return;
             }
-            OpenQuantity(item.ItemId, QuantityAction.Sell, item.Id, screen);
+            bool warn = quick && game.Settings.FindItem(item.ItemId)?.ConfirmQuickSale == true;
+            if (quick && !warn)
+                game.Perform(() => game.State.TrySellStack(item.Id, item.Quantity));
+            else
+                OpenQuantity(item.ItemId, QuantityAction.Sell, item.Id, screen, warn);
         }
 
         private void ShowAt(VillageWindowView view, Vector2 screen)

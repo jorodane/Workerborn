@@ -78,7 +78,11 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   groundSit: {fileID: 3094330708855449807, guid: 99b0420829b9c8e4fa745e88563277ef, type: 3}
+  groundSitBegin: {fileID: 3094330708855449807, guid: 93f637b1ace6efd409cf0546eb8cde85, type: 3}
+  groundSitFinish: {fileID: 3094330708855449807, guid: b64140b43e4559b4194b522596f62db1, type: 3}
   seatSit: {fileID: 3094330708855449807, guid: fb20771c14d3a614d9cb9a8bfd52d6b3, type: 3}
+  seatSitBegin: {fileID: 3094330708855449807, guid: 1824d4618e2464b4192d6586093e312e, type: 3}
+  seatSitFinish: {fileID: 3094330708855449807, guid: f3c52eacd2163f3439014aef89728a61, type: 3}
 --- !u!114 &100006
 MonoBehaviour:
   m_ObjectHideFlags: 0
