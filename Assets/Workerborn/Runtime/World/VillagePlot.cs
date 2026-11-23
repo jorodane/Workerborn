@@ -20,7 +20,7 @@ namespace Workerborn
         [SerializeField] private GameObject cornerMarker;
 
         private GameObject contents;
-        private string renderedFacility;
+        internal PlotFacilityDefinition InstalledFacility { get; private set; }
         internal string Id => plotId;
         public string DisplayName => displayName;
         internal PlotFootprint Footprint => new PlotFootprint(width, depth, ground);
@@ -46,7 +46,7 @@ namespace Workerborn
         internal bool Render(VillagePrototype village, PlotFacilityDefinition facility, out bool navigationChanged)
         {
             navigationChanged = false;
-            if (renderedFacility == facility?.Id)
+            if (InstalledFacility?.Id == facility?.Id)
                 return false;
             if (contents != null)
             {
@@ -56,7 +56,7 @@ namespace Workerborn
                 contents.SetActive(false);
                 Destroy(contents);
             }
-            renderedFacility = facility?.Id;
+            InstalledFacility = facility;
             if (facility == null)
                 return true;
 

@@ -100,6 +100,8 @@ Scene 뷰의 Gizmos를 켜면 건설 부지의 5×5유닛 격자와 정면 방�
 
 마을은 `Terrains/TerrainMeadows.asset`을 연결한 Unity Terrain과 Scene의 스카이박스 위에 있습니다. Terrain 도구로 높이와 지형 페인팅을 편집할 수 있습니다. `VillageNavigation/Build Bounds`에서 마을의 길찾기 범위를 조절합니다. 현재 Scene에서 작동하는 범위가 바뀌면 농장 활성화와 선택 부지에 맞춰 길찾기 데이터를 계산합니다.
 
+`Prefabs/World/VillageMapRegion.prefab`을 씬에 배치해 지도 영역을 지정합니다. Transform의 X/Z가 영역의 중심이고 `Width`와 `Depth`가 사각형의 크기입니다. Gizmos를 켜면 씬 뷰에서 경계를 볼 수 있습니다. `VillagePrototype`의 `Map Region`에 연결한 영역을 미니맵과 M키 지도가 공유합니다. 지도 바탕은 마을 Terrain의 높이와 페인트를 반영하고 시설 이름과 위치는 현재 월드를 따라갑니다.
+
 건물·나무·바위의 클릭 판정은 각 월드 프리팹의 **Pointer geometry** 아래에 저장한 원본 메시 기반 MeshCollider를 사용합니다. 이 계층은 `PointerGeometry` 레이어(11)에 있으며 물리 충돌은 하지 않습니다. `VillageObstacle` 레이어(8)의 이동 제한 박스는 마우스 레이캐스트에서 제외하므로 지붕 주변의 빈 공간을 가로막지 않습니다. 원본 모델을 수정했다면 Prefab Mode에서 `VillageMapProp` 컴포넌트의 컨텍스트 메뉴 **Rebuild Pointer Geometry**로 클릭 메시를 다시 저장할 수 있습니다. 직접 FBX로 배치된 대장간은 ModelImporter의 메시 콜라이더를 사용합니다.
 
 재사용한 FlatKit 지형 재질은 Valley 데모의 어두운 틴트와 특정 높이용 그라데이션을 해제했습니다. 감자 잎·뿌리와 마을 식물은 원본 Shader Graph의 고유 이름으로 저장된 알베도·노멀 슬롯을 카툰 재질에 연결합니다. 잎은 알파 컷아웃과 양면 렌더링을 유지합니다.

@@ -1228,6 +1228,76 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator BothMapsUseTheRegionAndUpdateWhenItsTerrainChanges()
+        {
+            var region = game.MapRegion;
+            var miniMap = game.Hud.GetComponentInChildren<VillageMapView>();
+            var window = game.Hud.OpenWindow("map");
+            yield return null;
+
+            var miniImage = miniMap.GetComponentInChildren<RawImage>();
+            var fullImage = window.GetComponentInChildren<VillageMapView>().GetComponentInChildren<RawImage>();
+            Assert.That(miniImage.texture, Is.TypeOf<Texture2D>());
+            Assert.That(fullImage.texture, Is.SameAs(miniImage.texture));
+            Assert.That(miniImage.rectTransform.rect.width / miniImage.rectTransform.rect.height,
+                Is.EqualTo(region.WorldBounds.width / region.WorldBounds.height).Within(.001f));
+            var point = new Vector2(.35f, .66f);
+            Vector2 location = region.MapToWorld(point);
+            Assert.That(game.TryMapGround(point, out var hit), Is.True);
+            Assert.That(hit.point.x, Is.EqualTo(location.x).Within(.01f));
+            Assert.That(hit.point.z, Is.EqualTo(location.y).Within(.01f));
+            Assert.That(Vector2.Distance(region.WorldToMap(hit.point), point), Is.LessThan(.001f));
+
+            // Use its own TerrainData so the authored scene can never be edited by this test.
+            Rect bounds = region.WorldBounds;
+            var data = new TerrainData
+            {
+                heightmapResolution = 33,
+                alphamapResolution = 16,
+                size = new Vector3(bounds.width + 8f, 30f, bounds.height + 8f),
+                terrainLayers = game.GroundTerrain.terrainData.terrainLayers.Take(2).ToArray()
+            };
+            var sample = Terrain.CreateTerrainGameObject(data);
+            sample.transform.position = new Vector3(bounds.xMin - 4f, 0f, bounds.yMin - 4f);
+            try
+            {
+                var paint = new float[16, 16, 2];
+                for (int z = 0; z < 16; z++)
+                    for (int x = 0; x < 16; x++)
+                        paint[z, x, 0] = 1f;
+                data.SetAlphamaps(0, 0, paint);
+                var texture = region.TerrainImage(sample.GetComponent<Terrain>());
+                int column = texture.width / 2;
+                int row = texture.height / 2;
+                Color original = texture.GetPixel(column, row);
+
+                for (int z = 0; z < 16; z++)
+                    for (int x = 0; x < 16; x++)
+                    {
+                        paint[z, x, 0] = 0f;
+                        paint[z, x, 1] = 1f;
+                    }
+                data.SetAlphamaps(0, 0, paint);
+                Assert.That(region.TerrainImage(sample.GetComponent<Terrain>()), Is.SameAs(texture));
+                Color painted = texture.GetPixel(column, row);
+                Assert.That(painted, Is.Not.EqualTo(original));
+
+                var heights = new float[33, 33];
+                for (int z = 0; z < 33; z++)
+                    for (int x = 0; x < 33; x++)
+                        heights[z, x] = x / 32f;
+                data.SetHeights(0, 0, heights);
+                Assert.That(region.TerrainImage(sample.GetComponent<Terrain>()), Is.SameAs(texture));
+                Assert.That(texture.GetPixel(column, row), Is.Not.EqualTo(painted));
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(sample);
+                UnityEngine.Object.Destroy(data);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator JobSchedulesFollowTheClockAndHighlightTheWorkplaceOnEitherMap()
         {
             var miniMap = game.Hud.GetComponentInChildren<VillageMapView>();

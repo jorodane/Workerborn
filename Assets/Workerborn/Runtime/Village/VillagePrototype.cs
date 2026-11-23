@@ -26,9 +26,7 @@ namespace Workerborn
         [SerializeField]
         private VillageHud hud;
         [SerializeField]
-        private Camera minimapCamera;
-        [SerializeField]
-        private RenderTexture minimapTexture;
+        private VillageMapRegion mapRegion;
         [SerializeField]
         private Transform spawnPoint;
         [SerializeField]
@@ -92,8 +90,8 @@ namespace Workerborn
         public Camera WorldCamera => worldCamera;
         public VillageCameraRig CameraRig => cameraRig;
         public string WeatherName => lighting != null ? lighting.WeatherName(State.Day) : "";
-        public Camera MinimapCamera => minimapCamera;
-        public RenderTexture MinimapTexture => minimapTexture;
+        internal VillageMapRegion MapRegion => mapRegion;
+        internal Transform FarmMapAnchor => farm;
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
         internal int PrewarmGroundPickups => prewarmGroundPickups;
@@ -218,13 +216,6 @@ namespace Workerborn
                         authoredPickups.Add(item);
                     }
                 }
-            if (minimapCamera != null && minimapTexture != null)
-            {
-                villageMinimapPosition = minimapCamera.transform.position;
-                villageMinimapSize = minimapCamera.orthographicSize;
-                minimapCamera.targetTexture = minimapTexture;
-                minimapCamera.enabled = true;
-            }
             hud.Initialize(this, settings.InterfaceFont);
             hud.SetIncarnationPresentation();
             targeting?.Initialize(this, hud.TargetLink);
@@ -303,6 +294,7 @@ namespace Workerborn
                 plot.gameObject.SetActive(!State.FarmAvailable);
             foreach (var stage in stages)
                 stage.Apply(State.FarmLevel);
+            mapRegion?.Invalidate();
             crops.Clear();
             foreach (var crop in allCrops)
                 if (crop.gameObject.activeInHierarchy && crop.Definition != null && crop.Definition.ItemId == ItemIds.Potato)
@@ -685,6 +677,20 @@ namespace Workerborn
             else if (GroundTerrain != null)
                 point.y = GroundTerrain.SampleHeight(point) + GroundTerrain.transform.position.y;
             return point;
+        }
+
+        internal bool TryMapGround(Vector2 mapPoint, out RaycastHit hit)
+        {
+            hit = default;
+            if (InRebirthZone || mapRegion == null)
+                return false;
+            Collider ground = GroundTerrain != null ? GroundTerrain.GetComponent<TerrainCollider>() : navigation.GroundBox;
+            if (ground == null)
+                return false;
+            Vector2 point = mapRegion.MapToWorld(mapPoint);
+            Bounds bounds = ground.bounds;
+            var ray = new Ray(new Vector3(point.x, bounds.max.y + 1f, point.y), Vector3.down);
+            return ground.Raycast(ray, out hit, bounds.size.y + 2f);
         }
 
         private void RestoreWorldObjects()

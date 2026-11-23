@@ -235,8 +235,6 @@ controller_node=dict(go=controller['m_GameObject']['fileID'],g=by_id[controller[
 mask=BASE/'Materials/TargetMask.mat';template=copy.deepcopy(next(d['Material']for d in geo.documents(ROOT/BASE/'Materials/FarmSurface.mat')if'Material'in d));template.update(m_Name='Target silhouette mask',m_Shader=assetref(BASE/'Shaders/TargetMask.shader',4800000));write(mask,[(21,2100000,'Material',template,False)])
 targeting=b.script(controller_node,'Interaction/PointerTargeting.cs',maskMaterial=assetref(mask,2100000),maskWidth=768,capturesPerSecond=30,highlightColor=color(1,.88,.36,1),link=ref())
 controller.update(targeting=ref(targeting),npcPortrait=ref(portrait),npcPortraitTexture=assetref(BASE/'UI/NpcPortrait.rendertexture',8400000))
-for d in scene:
-    if d.get('Camera',{}).get('m_TargetTexture',{}).get('guid')==guid(BASE/'UI/Minimap.rendertexture'):d['Camera']['m_CullingMask']['m_Bits']|=1<<10
 for c,i,k,v,st in b.docs:added.append(dict(_class=c,_id=i,**{k:v}))
 
 final=[d for d in scene if d['_id']not in removed]+added

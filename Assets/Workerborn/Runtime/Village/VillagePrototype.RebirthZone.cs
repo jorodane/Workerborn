@@ -8,22 +8,11 @@ namespace Workerborn
         [Header("Rebirth map")]
         [SerializeField] private RebirthZone rebirthZone;
 
-        private Vector3 villageMinimapPosition;
-        private float villageMinimapSize;
         internal CharacterLook IncarnationLook { get; private set; }
 
         public bool InRebirthZone { get; private set; }
         internal RebirthZone RebirthArea => rebirthZone;
         internal bool SharesMap(Vector3 position) => InRebirthZone == (rebirthZone?.Contains(position.x, position.z) == true);
-
-        internal bool TryMapGround(Ray ray, out RaycastHit hit)
-        {
-            Collider ground = InRebirthZone ? rebirthZone.Floor : navigation.GroundBox;
-            if (!InRebirthZone && GroundTerrain != null)
-                ground = GroundTerrain.GetComponent<TerrainCollider>();
-            hit = default;
-            return ground != null && ground.Raycast(ray, out hit, 300f);
-        }
 
         private void EnterClouds()
         {
@@ -76,26 +65,7 @@ namespace Workerborn
             hud.SetIncarnationPresentation();
             targeting?.RefreshStaticGeometry();
             cameraRig.SnapToTarget();
-            UpdateRegionMap();
             return true;
         }
-
-        private void UpdateRegionMap()
-        {
-            if (minimapCamera == null)
-                return;
-            if (InRebirthZone)
-            {
-                Bounds area = rebirthZone.Area;
-                minimapCamera.transform.position = area.center + Vector3.up * 32f;
-                minimapCamera.orthographicSize = Mathf.Max(area.extents.x, area.extents.z) + 2f;
-            }
-            else
-            {
-                minimapCamera.transform.position = villageMinimapPosition;
-                minimapCamera.orthographicSize = villageMinimapSize;
-            }
-        }
-
     }
 }

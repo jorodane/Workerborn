@@ -7,6 +7,7 @@ namespace Workerborn
     public sealed partial class VillagePrototype
     {
         private readonly Dictionary<string, VillagePlot> buildPlots = new Dictionary<string, VillagePlot>();
+        internal IEnumerable<VillagePlot> BuildPlots => buildPlots.Values;
 
         private VillageRules CreateVillageRules()
         {

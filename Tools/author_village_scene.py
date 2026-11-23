@@ -108,7 +108,7 @@ for name,rgb in [('Grass',(0.43,0.55,0.33)),('Path',(0.68,0.59,0.43)),('Soil',(0
     source=(ROOT/BASE/'Materials/FarmSurface.mat').read_text().replace('m_Name: FarmSurface','m_Name: '+name)
     source=source.replace('_BaseColor: {r: 1, g: 1, b: 1, a: 1}',f'_BaseColor: {{r: {rgb[0]}, g: {rgb[1]}, b: {rgb[2]}, a: 1}}')
     rel=BASE/'Materials'/(name+'.mat');(ROOT/rel).write_text(source);materials[name]=assetref(rel)
-for name,w,h in [('Minimap',512,512),('Portrait',256,512)]:
+for name,w,h in [('Portrait',256,512)]:
     fields=dict(m_ObjectHideFlags=0,m_CorrespondingSourceObject=ref(),m_PrefabInstance=ref(),m_PrefabAsset=ref(),m_Name=name,m_ImageContentsHash=Flow(serializedVersion=2,Hash='00000000000000000000000000000000'),m_IsAlphaChannelOptional=0,serializedVersion=6,m_Width=w,m_Height=h,m_AntiAliasing=1,m_MipCount=-1,m_DepthStencilFormat=92,m_ColorFormat=8,m_MipMap=0,m_GenerateMips=0,m_SRGB=1,m_UseDynamicScale=0,m_BindMS=0,m_EnableCompatibleFormat=1,m_TextureSettings=dict(serializedVersion=2,m_FilterMode=1,m_Aniso=0,m_MipBias=0,m_WrapU=1,m_WrapV=1,m_WrapW=1),m_Dimension=2,m_VolumeDepth=1)
     write(BASE/'UI'/(name+'.rendertexture'),[(84,8400000,'RenderTexture',fields,False)])
 
@@ -246,7 +246,21 @@ actor=s.script(player,'Characters/CharacterActor.cs',appearance=ref(),npc=ref(),
 s.script(player,'WorkerAnimation.cs');worker=s.script(player,'HarvestWorker.cs')
 s.component(player,195,'NavMeshAgent',dict(m_Enabled=0,m_AgentTypeID=0,m_Radius=.32,m_Speed=3.7,m_Acceleration=20,avoidancePriority=50,m_AngularSpeed=540,m_StoppingDistance=.08,m_AutoTraverseOffMeshLink=1,m_AutoBraking=1,m_AutoRepath=1,m_Height=1.8,m_BaseOffset=0,m_WalkableMask=4294967295,m_ObstacleAvoidanceType=4))
 portrait=s.node('Equipment portrait camera',player,pos=(0,.85,3),rot=yaw(180));portraitCamera=s.camera(portrait,'Portrait',1,1.05,1<<9)
-mini=s.node('Minimap camera',pos=(-3,80,5),rot=(math.sqrt(.5),0,0,math.sqrt(.5)));miniCamera=s.camera(mini,'Minimap',1,28,(1<<0)|(1<<2)|(1<<9))
+map_prefab=BASE/'Prefabs/World/VillageMapRegion.prefab'
+_,map_root=geo.root_ids(ROOT/map_prefab)
+map_script=assetref(BASE/'Runtime/World/VillageMapRegion.cs')
+map_source=next(d['_id'] for d in geo.documents(ROOT/map_prefab) if d.get('MonoBehaviour',{}).get('m_Script')==map_script)
+map_instance=s.add(1001,'PrefabInstance',dict(m_ObjectHideFlags=0,serializedVersion=2,
+    m_Modification=dict(serializedVersion=3,m_TransformParent=ref(),m_Modifications=[
+        dict(target=assetref(map_prefab,map_root),propertyPath=f'm_LocalPosition.{axis}',value=value,objectReference=ref())
+        for axis,value in [('y','2'),('z','5')]],m_RemovedComponents=[],m_RemovedGameObjects=[],m_AddedGameObjects=[],m_AddedComponents=[]),
+    m_SourcePrefab=assetref(map_prefab,100100000)))
+map_transform=s.add(4,'Transform',dict(m_CorrespondingSourceObject=assetref(map_prefab,map_root),
+    m_PrefabInstance=ref(map_instance),m_PrefabAsset=ref()),strip=True)
+s.roots.append(ref(map_transform))
+map_region=s.add(114,'MonoBehaviour',dict(m_CorrespondingSourceObject=assetref(map_prefab,map_source),
+    m_PrefabInstance=ref(map_instance),m_PrefabAsset=ref(),m_GameObject=ref(),m_Enabled=1,m_EditorHideFlags=0,
+    m_Script=map_script,m_Name='',m_EditorClassIdentifier=''),strip=True)
 spawn=s.node('Player spawn',pos=(0,0,-4.4));rest=s.node('After rest',pos=(9,0,-1));drops=s.node('Dropped items')
 controller=s.node('Village session')
 nav=s.script(controller,'World/VillageNavigation.cs',ground=ref(groundCollider),obstacleRoot=ref(maproot['t']),bakedData=ref())
@@ -284,7 +298,7 @@ for index,(title,id) in enumerate(zip(['메뉴','캐릭터','스킬','소지품'
 events=s.node('EventSystem')
 uiscript(events,'76c392e42b5098c458856cdf6ecaaaa1',m_FirstSelected=ref(),m_sendNavigationEvents=1,m_DragThreshold=10)
 uiscript(events,'01614664b831546d2ae94a42149d80ac',m_SendPointerHoverToParent=1,m_MoveRepeatDelay=.5,m_MoveRepeatRate=.1,m_XRTrackingOrigin=ref(),m_ActionsAsset=ref(),m_DeselectOnBackgroundClick=1,m_PointerBehavior=0,m_CursorLockBehavior=0,m_ScrollDeltaPerTick=6)
-s.script(controller,'Village/VillagePrototype.cs',settings=settings,mapRoot=ref(maproot['t']),navigation=ref(nav),player=ref(actor),worker=ref(worker),worldCamera=ref(330585545),cameraRig=ref(rig),hud=ref(hud),minimapCamera=ref(miniCamera),minimapTexture=assetref(BASE/'UI/Minimap.rendertexture'),portraitCamera=ref(portraitCamera),portraitTexture=assetref(BASE/'UI/Portrait.rendertexture'),spawnPoint=ref(spawn['t']),restPoint=ref(rest['t']),droppedItems=ref(drops['t']),potato=assetref(BASE/'Data/Potato.asset'),sun=ref(410087040),lanterns=lamps,loadSavedGame=1)
+s.script(controller,'Village/VillagePrototype.cs',settings=settings,mapRoot=ref(maproot['t']),navigation=ref(nav),player=ref(actor),worker=ref(worker),worldCamera=ref(330585545),cameraRig=ref(rig),hud=ref(hud),mapRegion=ref(map_region),portraitCamera=ref(portraitCamera),portraitTexture=assetref(BASE/'UI/Portrait.rendertexture'),spawnPoint=ref(spawn['t']),restPoint=ref(rest['t']),droppedItems=ref(drops['t']),potato=assetref(BASE/'Data/Potato.asset'),sun=ref(410087040),lanterns=lamps,loadSavedGame=1)
 s.add(1660057539,'SceneRoots',dict(m_ObjectHideFlags=0,m_Roots=s.roots),9223372036854775807)
 write(BASE/'Scenes/VillagePrototype.unity',s.docs)
 
