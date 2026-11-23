@@ -5,8 +5,8 @@ namespace Workerborn
     [DisallowMultipleComponent]
     public sealed class VillagePlot : MonoBehaviour
     {
-        public const float CellArea = 40f;
-        public static float CellSide => Mathf.Sqrt(CellArea);
+        public const float CellSide = 5f;
+        public const float CellArea = CellSide * CellSide;
 
         [SerializeField, Tooltip("Unique, permanent ID of this plot in the world save.")]
         private string plotId;

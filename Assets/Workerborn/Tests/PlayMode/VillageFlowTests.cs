@@ -714,7 +714,7 @@ namespace Workerborn.Tests
                 Is.EquivalentTo(new[] { "감자밭", "상점", "여관", "광장" }));
             var field = options.Single(row => row.GetComponentsInChildren<TMP_Text>().First().text == "감자밭");
             field.GetComponent<Button>().onClick.Invoke();
-            Assert.That(VillagePlot.CellSide, Is.EqualTo(2f * Mathf.Sqrt(10f)).Within(.001f));
+            Assert.That(VillagePlot.CellSide, Is.EqualTo(5f));
             Assert.That(large.GetComponentsInChildren<HarvestableCrop>().Length, Is.EqualTo(64));
             Assert.That(game.Crops.Count, Is.EqualTo(76));
             Assert.That(game.State.Export().plotPlacements.Single().facilityId, Is.EqualTo("potato_field"));
@@ -737,8 +737,10 @@ namespace Workerborn.Tests
             var water = UnityEngine.Object.FindFirstObjectByType<FishingWater>();
             var pond = water.GetComponentInParent<VillagePlot>();
             var surface = water.GetComponentInChildren<MeshCollider>();
-            Vector3 clicked = surface.transform.TransformPoint(new Vector3(3.75f, 0f, -1.55f));
-            Vector3 farBank = pond.transform.TransformPoint(new Vector3(-4.3f, 0f, -2.2f));
+            Bounds mesh = surface.sharedMesh.bounds;
+            Vector3 aim = mesh.center + new Vector3(mesh.extents.x * .75f, 0f, -mesh.extents.z * .31f);
+            Vector3 clicked = surface.transform.TransformPoint(aim);
+            Vector3 farBank = surface.transform.TransformPoint(new Vector3(mesh.min.x, aim.y, aim.z)) - pond.transform.right * 1.3f;
             Assert.That(NavMesh.SamplePosition(farBank, out var standing, 1f, NavMesh.AllAreas), Is.True);
             game.Worker.WarpTo(standing.position);
             Physics.SyncTransforms();
@@ -753,7 +755,8 @@ namespace Workerborn.Tests
             water.CastFromPointer(game.Worker, ray);
             Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
             yield return Until(() => game.Worker.ActiveCrop == water, 12f);
-            Assert.That(pond.transform.InverseTransformPoint(game.Worker.transform.position).x, Is.GreaterThan(3f));
+            Vector3 nearEdge = surface.transform.TransformPoint(new Vector3(mesh.max.x, aim.y, aim.z));
+            Assert.That(Vector3.Dot(game.Worker.transform.position - nearEdge, pond.transform.right), Is.GreaterThan(0f));
 
             var floatInWater = UnityEngine.Object.FindFirstObjectByType<FishingBobber>();
             Assert.That(floatInWater, Is.Not.Null);
