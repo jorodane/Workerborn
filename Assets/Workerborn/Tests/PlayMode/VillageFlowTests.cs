@@ -842,11 +842,8 @@ namespace Workerborn.Tests
                 yield return null;
                 Assert.That(playerBox.color.a, Is.GreaterThan(0f));
                 Assert.That(playerBox.raycastTarget, Is.False);
-                Assert.That(playerName.LayoutSlot.ObjectY, Is.Not.Null);
                 Assert.That(playerBar.activeInHierarchy, Is.True);
                 Assert.That(rabbitBar.activeInHierarchy, Is.True);
-                Assert.That(playerName.LayoutSlot.Height, Is.GreaterThan(playerName.Rect.rect.height));
-                Assert.That(rabbitName.LayoutSlot.Height, Is.GreaterThan(rabbitName.Rect.rect.height));
 
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState());
                 yield return null;
@@ -863,47 +860,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator OverlappingPickupNamesOnlyMoveApartWhileAltIsHeld()
-        {
-            var first = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
-            var second = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
-            var keyboard = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
-            try
-            {
-                Vector3 at = game.Worker.transform.position + Vector3.right;
-                first.Initialize(game.Crops[0].Definition, at, at, true);
-                second.Initialize(game.Crops[0].Definition, at, at, true);
-                yield return null;
-                yield return null;
-                WorldNameplateView one = null, two = null;
-                foreach (var view in UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None))
-                {
-                    if (view.Target == first)
-                        one = view;
-                    if (view.Target == second)
-                        two = view;
-                }
-
-                Assert.That(one.Rect.anchoredPosition, Is.EqualTo(two.Rect.anchoredPosition));
-                UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.LeftAlt));
-                yield return null;
-                yield return null;
-                Assert.That(one.Rect.anchoredPosition.y, Is.GreaterThan(two.Rect.anchoredPosition.y));
-                UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState());
-                yield return null;
-                yield return null;
-                Assert.That(one.Rect.anchoredPosition, Is.EqualTo(two.Rect.anchoredPosition));
-            }
-            finally
-            {
-                UnityEngine.Object.Destroy(first.gameObject);
-                UnityEngine.Object.Destroy(second.gameObject);
-                UnityEngine.InputSystem.InputSystem.RemoveDevice(keyboard);
-            }
-        }
-
-        [UnityTest]
-        public IEnumerator AltKeepsEveryOnScreenPickupNameActiveInACrowd()
+        public IEnumerator CrowdedPickupNamesStayAtTheirProjectedPositionsWithAlt()
         {
             var keyboard = InputSystem.AddDevice<Keyboard>();
             var pile = new GroundPickup[12];
@@ -917,13 +874,19 @@ namespace Workerborn.Tests
                     pile[i].Initialize(game.Crops[0].Definition, position, position, true);
                 }
 
+                yield return null;
+                yield return null;
+                AssertPositions(false);
+
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftAlt));
                 yield return null;
                 yield return null;
-                var visibleNames = UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None)
-                    .Where(view => view.Target is GroundPickup pickup && pile.Contains(pickup)).ToArray();
-                Assert.That(visibleNames, Has.Length.EqualTo(pile.Length));
-                Assert.That(visibleNames.All(view => view.GetComponent<Image>().raycastTarget), Is.True);
+                AssertPositions(true);
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                yield return null;
+                yield return null;
+                AssertPositions(false);
             }
             finally
             {
@@ -931,6 +894,21 @@ namespace Workerborn.Tests
                     if (pickup != null)
                         UnityEngine.Object.Destroy(pickup.gameObject);
                 InputSystem.RemoveDevice(keyboard);
+            }
+
+            void AssertPositions(bool boxed)
+            {
+                var visibleNames = UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None)
+                    .Where(view => view.Target is GroundPickup pickup && pile.Contains(pickup)).ToArray();
+                Assert.That(visibleNames, Has.Length.EqualTo(pile.Length));
+                foreach (var name in visibleNames)
+                {
+                    var projected = (Vector2)game.WorldCamera.WorldToScreenPoint(name.Target.NamePosition);
+                    var center = name.Rect.TransformPoint(name.Rect.rect.center);
+                    var actual = RectTransformUtility.WorldToScreenPoint(null, center);
+                    Assert.That(Vector2.Distance(projected, actual), Is.LessThan(.1f));
+                    Assert.That(name.GetComponent<Image>().raycastTarget, Is.EqualTo(boxed));
+                }
             }
         }
 
@@ -2170,7 +2148,7 @@ namespace Workerborn.Tests
             var firstFilter = potato.GetComponentInChildren<MeshFilter>();
             Mesh firstMesh = firstFilter.sharedMesh;
             Assert.That(firstMesh, Is.Not.Null);
-            long firstOrder = potato.NameplateOrder;
+            long firstGeneration = potato.InteractionGeneration;
             yield return Until(() => FindPickupName(potato) != null, 2f);
             var oldName = FindPickupName(potato);
             int previousLandings = 0;
@@ -2182,7 +2160,7 @@ namespace Workerborn.Tests
             Assert.That(egg, Is.SameAs(potato));
             Assert.That(egg.Quantity, Is.EqualTo(1));
             Assert.That(egg.DisplayName, Is.EqualTo(game.Settings.FindItem(ItemIds.Egg).DisplayName));
-            Assert.That(egg.NameplateOrder, Is.GreaterThan(firstOrder));
+            Assert.That(egg.InteractionGeneration, Is.GreaterThan(firstGeneration));
             Assert.That(egg.IsInFlight, Is.True);
             Assert.That(egg.GetComponentInChildren<MeshFilter>(), Is.SameAs(firstFilter));
             Assert.That(firstFilter.sharedMesh, Is.Not.Null.And.Not.SameAs(firstMesh));

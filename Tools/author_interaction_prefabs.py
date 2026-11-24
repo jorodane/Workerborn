@@ -206,7 +206,7 @@ ui_go=find_go('Village UI');ui_t=transform_of(ui_go)
 ui_node=dict(go=ui_go,t=ui_t,g=by_id[ui_go]['GameObject'],tr=value(by_id[ui_t]))
 b=UIBuilder();b.n=nextid
 labels=b.ui('World item names',ui_node,(0,0),(0,0),(.5,.5),(.5,.5));labels['tr'].update(m_AnchorMin=vec(0,0),m_AnchorMax=vec(1,1))
-pickup_names=b.script(labels,'UI/PickupNames.cs',spacing=3,edgeMargin=8)
+pickup_names=b.script(labels,'UI/PickupNames.cs')
 link_data=manifest['TargetLink'];link_ids=b.native_instance(ui_node,Path(link_data['path']),[link_data['component']])
 link=link_ids[link_data['component']]
 # Make a real map view in the persistent HUD using authored RawImage and marker templates.

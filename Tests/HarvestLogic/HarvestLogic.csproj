@@ -22,7 +22,6 @@
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/FoundationTests.cs" Link="FoundationTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/PlotPlacementTests.cs" Link="PlotPlacementTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/EditableVillageTests.cs" Link="EditableVillageTests.cs" />
-    <Compile Include="../../Assets/Workerborn/Runtime/Interaction/NameplateLayout.cs" Link="NameplateLayout.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Interaction/TargetMaskGeometry.cs" Link="TargetMaskGeometry.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/InteractionPresentationTests.cs" Link="InteractionPresentationTests.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/SkillProgression.cs" Link="SkillProgression.cs" />

@@ -53,7 +53,7 @@ namespace Workerborn
         protected override void OnEnable()
         {
             if (returnToPool != null)
-                RenewNameplateOrder();
+                RenewInteractionGeneration();
             base.OnEnable();
         }
 

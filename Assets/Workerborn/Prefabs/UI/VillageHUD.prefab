@@ -4965,8 +4965,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b0c04d6651b55ecb86fe0d5ad57f9d97, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  spacing: 3
-  edgeMargin: 8
 --- !u!1 &832576578
 GameObject:
   m_ObjectHideFlags: 0

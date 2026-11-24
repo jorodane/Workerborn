@@ -31,19 +31,14 @@ namespace Workerborn
         private bool boxVisible, pointerInside, pointerDown;
         private PointerTargeting targeting;
         private WorldTargetReference target;
-        private float healthExtension;
         public WorldInteractable Target => target.Target;
         internal WorldInteractable Subject => target.Subject;
         public RectTransform Rect => (RectTransform)transform;
-        internal NameplateSlot LayoutSlot { get; } = new NameplateSlot();
-        internal Vector2 CenterOffset => Vector2.Scale(Rect.rect.center, Rect.localScale);
-        internal Vector2 LayoutDisplacement => new Vector2(LayoutSlot.PlacedX - LayoutSlot.X, LayoutSlot.PlacedY - LayoutSlot.Y);
 
         public void Bind(WorldInteractable target, PointerTargeting controller, string text = null)
         {
             this.target = new WorldTargetReference(target);
             targeting = controller;
-            LayoutSlot.Order = target.NameplateOrder;
             SetText(text ?? (target is GroundPickup { Quantity: > 1 } item
                 ? $"{item.DisplayName} ×{item.Quantity}" : target.DisplayName));
             if (target is MonsterInteractable { Combat: not null } monster)
@@ -53,37 +48,13 @@ namespace Workerborn
             SetBox(false);
         }
 
-        internal NameplateSlot PrepareLayout(Vector2 center, float? objectY, bool alt)
-        {
-            SetBox(alt);
-            var rect = Rect;
-            var size = Vector2.Scale(rect.rect.size, rect.localScale);
-            healthExtension = 0f;
-            if (alt && healthBar.gameObject.activeSelf)
-            {
-                var bar = (RectTransform)healthBar.transform;
-                float barBottom = bar.localPosition.y + bar.rect.yMin * bar.localScale.y;
-                healthExtension = Mathf.Max(0f, rect.rect.yMin - barBottom) * rect.localScale.y;
-                size.x = Mathf.Max(size.x, bar.rect.width * bar.localScale.x * rect.localScale.x);
-            }
-
-            var slot = LayoutSlot;
-            slot.X = center.x;
-            slot.Y = center.y - healthExtension * .5f;
-            slot.ObjectY = objectY;
-            slot.Width = size.x;
-            slot.Height = size.y + healthExtension;
-            return slot;
-        }
-
-        internal void ApplyLayout()
+        internal void PlaceAt(Vector2 center)
         {
             var rect = Rect;
-            var slot = LayoutSlot;
-            Vector2 centerOffset = CenterOffset;
+            Vector2 centerOffset = Vector2.Scale(rect.rect.center, rect.localScale);
             var position = rect.localPosition;
-            position.x = slot.PlacedX - centerOffset.x;
-            position.y = slot.PlacedY + healthExtension * .5f - centerOffset.y;
+            position.x = center.x - centerOffset.x;
+            position.y = center.y - centerOffset.y;
             if (rect.localPosition != position)
                 rect.localPosition = position;
             gameObject.SetActive(true);

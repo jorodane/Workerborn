@@ -27,13 +27,7 @@ namespace Workerborn
         private RectTransform Rect => (RectTransform)transform;
 
         internal WorldNameplateView Nameplate => playerName;
-        internal Vector2 NameCenter => (Vector2)(Rect.localPosition + playerName.Rect.localPosition) + playerName.CenterOffset;
-
-        internal void SetName(string name)
-        {
-            playerName.SetText(name);
-            playerName.LayoutSlot.Order = NameplateSlot.NextOrder();
-        }
+        internal void SetName(string name) => playerName.SetText(name);
 
         internal void Say(string message)
         {
@@ -143,7 +137,5 @@ namespace Workerborn
                 LayoutSpeech(now);
             Rect.localPosition = new Vector3(local.x, local.y, 0f);
         }
-
-        internal void ApplyNameLayout() => Rect.localPosition += (Vector3)playerName.LayoutDisplacement;
     }
 }

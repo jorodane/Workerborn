@@ -20,16 +20,16 @@ namespace Workerborn
     internal readonly struct WorldTargetReference
     {
         private readonly WorldInteractable target;
-        private readonly long order;
+        private readonly long generation;
 
         public WorldTargetReference(WorldInteractable target)
         {
             this.target = target;
-            order = target != null ? target.NameplateOrder : 0;
+            generation = target != null ? target.InteractionGeneration : 0;
         }
 
         public bool IsAssigned => !ReferenceEquals(target, null);
-        internal WorldInteractable Subject => target != null && target.NameplateOrder == order ? target : null;
+        internal WorldInteractable Subject => target != null && target.InteractionGeneration == generation ? target : null;
         public WorldInteractable Target => Subject is { CanInteract: true } current ? current : null;
     }
 
@@ -57,7 +57,7 @@ namespace Workerborn
         public virtual float InteractionDistance => Mathf.Max(.1f, interactionDistance > 0 ? interactionDistance : DefaultDistance);
         public virtual bool CanTarget => false;
         public virtual bool ShowNameByDefault => false;
-        public long NameplateOrder { get; private set; }
+        internal long InteractionGeneration { get; private set; }
         public virtual bool CanInteract => isActiveAndEnabled;
         public virtual string InteractionVerb => "살펴보기";
         public virtual string InteractionVerbFor(HarvestWorker worker) => InteractionVerb;
@@ -81,13 +81,13 @@ namespace Workerborn
 
         protected virtual void OnEnable()
         {
-            if (NameplateOrder == 0)
-                RenewNameplateOrder();
+            if (InteractionGeneration == 0)
+                RenewInteractionGeneration();
             if (!active.Contains(this))
                 active.Add(this);
         }
 
-        protected void RenewNameplateOrder() => NameplateOrder = NameplateSlot.NextOrder();
+        protected void RenewInteractionGeneration() => InteractionGeneration++;
 
         protected virtual void OnDisable() => active.Remove(this);
         public void RequestInteraction(HarvestWorker worker)
