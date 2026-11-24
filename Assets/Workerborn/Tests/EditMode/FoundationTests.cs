@@ -60,7 +60,7 @@ namespace Workerborn.Tests
             Assert.That(state.TryDeliverTimber(), Is.False);
             Assert.That(state.TryRebirth(), Is.False);
             Assert.That(state.TryChooseFarmSite("south", "남쪽 밭터"), Is.True);
-            Assert.That(state.TryUpgradeSkill(), Is.True);
+            Assert.That(state.TryUpgradeSkill(SkillId.Woodcutting), Is.True);
             state = VillageState.Restore(state.Export(), rules);
             Assert.That(state.CanRebirth, Is.False);
             Assert.That(state.CanAdvanceEra, Is.True);
@@ -71,7 +71,7 @@ namespace Workerborn.Tests
             Assert.That(state.FarmAvailable, Is.True);
             Assert.That(state.FarmSiteId, Is.EqualTo("south"));
             Assert.That(state.Level, Is.EqualTo(1));
-            Assert.That(state.SkillRank, Is.EqualTo(1));
+            Assert.That(state.RankOf(SkillId.Woodcutting), Is.EqualTo(1));
             Assert.That(state.Equipment, Is.Empty);
             Assert.That(state.Inventory.Entries, Is.Empty);
 

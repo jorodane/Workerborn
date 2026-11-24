@@ -304,6 +304,32 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void NewSkillsRequireLearningAndReadingASecondCopyDoesNotConsumeIt()
+        {
+            var save = new VillageState().Export();
+            save.ap = 5;
+            var state = VillageState.Restore(save);
+            Assert.That(SkillProgression.All.All(skill => !state.IsSkillLearned(skill)), Is.True);
+            Assert.That(state.TryUpgradeSkill(SkillId.Fishing), Is.False);
+            Assert.That(state.AP, Is.EqualTo(5));
+
+            Assert.That(state.Inventory.TryAdd(ItemIds.FishingBook, 1), Is.True);
+            int bookId = state.Inventory.Entries.Single().Id;
+            Assert.That(state.TryReadSkillBook(bookId), Is.True);
+            Assert.That(state.IsSkillLearned(SkillId.Fishing), Is.True);
+            Assert.That(state.RankOf(SkillId.Fishing), Is.Zero);
+            Assert.That(state.Inventory.Count(ItemIds.FishingBook), Is.Zero);
+
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.IsSkillLearned(SkillId.Fishing), Is.True);
+            Assert.That(state.TryUpgradeSkill(SkillId.Fishing), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.FishingBook, 1), Is.True);
+            Assert.That(state.TryReadSkillBook(state.Inventory.Entries.Single().Id), Is.False);
+            Assert.That(state.Inventory.Count(ItemIds.FishingBook), Is.EqualTo(1));
+            Assert.That(state.IsSkillLearned(SkillId.Harvesting), Is.False);
+        }
+
+        [Test]
         public void SkillUpgradeSpendsApAndIncreasesYield()
         {
             var state = Funded();

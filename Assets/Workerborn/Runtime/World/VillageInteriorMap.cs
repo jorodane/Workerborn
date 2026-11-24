@@ -9,11 +9,19 @@ namespace Workerborn
         [SerializeField] private VillageNavigation navigation;
         [SerializeField] private Transform arrival;
         [SerializeField] private VillageBuildingDoor exit;
+        [SerializeField] private VillageInteriorMap guestRoomPrefab;
+        [SerializeField] private Transform keeperPoint;
+        [SerializeField] private VillageBed bed;
         private Texture2D mapImage;
 
         internal VillageBuildingDoor Entrance { get; private set; }
+        internal VillageInteriorMap Lobby { get; private set; }
+        internal VillageInteriorMap GuestRoom { get; set; }
+        internal VillageInteriorMap GuestRoomPrefab => guestRoomPrefab;
+        internal Transform KeeperPoint => keeperPoint;
+        internal VillageBed Bed => bed;
         internal string Id { get; private set; }
-        internal string MapName => $"{Entrance.DisplayName} 내부";
+        internal string MapName => Lobby != null ? "내 여관방" : $"{Entrance.DisplayName} 내부";
         internal BoxCollider Floor => navigation != null ? navigation.GroundBox : null;
         internal Transform Arrival => arrival;
         internal VillageBuildingDoor Exit => exit;
@@ -21,10 +29,11 @@ namespace Workerborn
         internal Rect MapBounds => new Rect(Area.min.x, Area.min.z, Area.size.x, Area.size.z);
         internal bool IsConfigured => Floor != null && arrival != null && exit != null && exit.Approach != null;
 
-        internal void Bind(VillagePrototype game, VillageBuildingDoor entrance, string id)
+        internal void Bind(VillagePrototype game, VillageBuildingDoor entrance, string id, VillageInteriorMap lobby = null)
         {
             Id = id;
             Entrance = entrance;
+            Lobby = lobby;
             Area = Floor.bounds;
             navigation.Activate(useBakedData: false);
             exit.Bind(game, this);

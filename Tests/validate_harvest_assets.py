@@ -263,7 +263,8 @@ assert {skill['skill'] for skill in skills}==set(range(6))
 assert all(0<=row['fromRank']<=row['throughRank']<=100 for skill in skills for row in skill['rankEffects'])
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
 wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
-assert {i['id'] for i in itemdefs}=={'potato','bread','health_potion','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch','fishing_rod','pond_fish'} | set(wardrobe)
+primers={'woodcutting_primer':1,'carving_primer':2,'unarmed_combat_primer':3,'egg_gathering_primer':4,'fishing_primer':5}
+assert {i['id'] for i in itemdefs}=={'potato','bread','health_potion','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch','fishing_rod','pond_fish'} | set(wardrobe) | set(primers)
 assert all(i['icon']['fileID'] for i in itemdefs)
 potion = next(i for i in itemdefs if i['id'] == 'health_potion')
 assert potion['healthRestore'] > 0 and potion['maxStack'] > 1
@@ -275,6 +276,8 @@ assert resolve(potion_pickup['item']).stem == 'health_potion'
 assert any(resolve(row['PrefabInstance']['m_SourcePrefab']) == potion_model for row in potion_drop if 'PrefabInstance' in row)
 noah = docs(CONTENT / 'Data/NPCs/Noah.asset')[0]['MonoBehaviour']
 assert any(resolve(row).stem == 'health_potion' for row in noah['shopItems'])
+assert {item['id']: item['taughtSkill'] for item in itemdefs if item.get('teachesSkill')} == primers
+assert set(primers) <= {resolve(row).stem for row in noah['shopItems']}
 assert next(i for i in itemdefs if i['id']=='gold')['maxStack']==1000
 assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5
 assert next(i for i in itemdefs if i['id']=='small_bag')['equipmentSlot']==9

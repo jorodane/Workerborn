@@ -29,9 +29,11 @@ namespace Workerborn
         internal void PositionPlayerOverhead(PlayerOverheadView overhead, Vector3 position, Vector3 namePosition)
         {
             var canvas = (RectTransform)overhead.transform.parent;
-            bool visible = PickupNames.TryProject(game, canvas, position, namePosition, out var point);
+            bool visible = PickupNames.TryProject(game, canvas, position, namePosition, out var point, out float depth);
             overhead.Position(point, visible);
             overhead.Nameplate.SetBox(WorkerbornInput.Held("Gameplay/Names"));
+            if (visible && pickupNames != null && pickupNames.isActiveAndEnabled && canvas == pickupNames.transform)
+                pickupNames.IncludeDepth(overhead.transform, depth);
         }
 
         internal void ShowPlayerHealthUntil(float until) => playerHealthVisibleUntil = until;

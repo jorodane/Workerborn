@@ -33,7 +33,7 @@ namespace Workerborn
                         headBone = animator.GetBoneTransform(HumanBodyBones.Head);
                 }
                 return headBone != null ? headBone.position + Vector3.up * .32f
-                    : transform.position + Vector3.up * ((Appearance?.Height ?? 1.7f) + .21f);
+                    : (visualRoot != null ? visualRoot.position : transform.position) + Vector3.up * ((Appearance?.Height ?? 1.7f) + .21f);
             }
         }
         internal CharacterLook CurrentLook => customLook ?? Appearance.DefaultLook;
@@ -147,6 +147,8 @@ namespace Workerborn
 
         private void OnEnable()
         {
+            if (Application.isPlaying)
+                SuppressBodyCollision(gameObject);
             if (Appearance?.UsesP09 == true && visualRoot != null)
                 P09Wardrobe.Apply(visualRoot, CurrentLook);
             Appearance?.ToonPalette?.Apply(visualRoot);
@@ -155,6 +157,22 @@ namespace Workerborn
                 foreach (var child in visualRoot.GetComponentsInChildren<Transform>(true))
                     child.gameObject.layer = renderLayer;
             CharacterGarment.RefreshSkin(visualRoot);
+        }
+
+        internal static void SuppressBodyCollision(GameObject actor)
+        {
+            foreach (var body in actor.GetComponentsInChildren<Rigidbody>(true))
+            {
+                body.isKinematic = true;
+                body.useGravity = false;
+            }
+            foreach (var collider in actor.GetComponentsInChildren<Collider>(true))
+            {
+                if (collider is MeshCollider { convex: false })
+                    collider.enabled = false;
+                else
+                    collider.isTrigger = true;
+            }
         }
 
 #if UNITY_EDITOR

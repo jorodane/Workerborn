@@ -18,6 +18,8 @@ namespace Workerborn
         [SerializeField] private Image reminderIcon;
         [SerializeField] private Sprite reminderOn;
         [SerializeField] private Sprite reminderOff;
+        [SerializeField] private Button tracking;
+        [SerializeField] private Image trackingIcon;
         private VillageMapView map;
         private VillageJobSchedule schedule;
         private VillageJobSchedule.Entry job;
@@ -33,6 +35,7 @@ namespace Workerborn
                 schedule.ToggleReminder(job);
                 UpdateReminderIcon();
             });
+            tracking.onClick.AddListener(ToggleTracking);
         }
 
         internal void Show(VillageJobSchedule.Entry entry, string hours, string state, bool current)
@@ -48,6 +51,7 @@ namespace Workerborn
                     map.ShowJobLocation(this, Workplace);
             }
             UpdateReminderIcon();
+            UpdateTrackingIcon();
             UpdateColor();
         }
 
@@ -63,8 +67,7 @@ namespace Workerborn
         {
             if (eventData.button != PointerEventData.InputButton.Left)
                 return;
-            schedule.Pin(job);
-            UpdateColor();
+            ToggleTracking();
         }
 
         public void OnPointerExit(PointerEventData eventData) => ClearHover();
@@ -85,6 +88,21 @@ namespace Workerborn
             bool enabled = job?.Reminder == true;
             reminderIcon.sprite = enabled ? reminderOn : reminderOff;
             reminderIcon.color = enabled ? new Color(.64f, .87f, 1f) : new Color(.63f, .68f, .72f);
+        }
+
+        private void ToggleTracking()
+        {
+            schedule.TogglePin(job);
+            if (!schedule.IsPinned(job) && map != null)
+                map.ClearJobLocation(this);
+            UpdateTrackingIcon();
+            UpdateColor();
+        }
+
+        private void UpdateTrackingIcon()
+        {
+            tracking.interactable = Workplace != null;
+            trackingIcon.color = schedule.IsPinned(job) ? new Color(1f, .77f, .38f) : new Color(.63f, .68f, .72f);
         }
 
         private void UpdateColor() =>

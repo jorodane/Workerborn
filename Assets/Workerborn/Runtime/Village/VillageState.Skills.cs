@@ -7,11 +7,14 @@ namespace Workerborn
     {
         public SkillId skill;
         public int rank;
+        public bool learned;
     }
 
     public sealed partial class VillageState
     {
         private readonly int[] skillRanks = new int[SkillProgression.All.Count];
+        private readonly bool[] learnedSkills = new bool[SkillProgression.All.Count];
+        private const int LearnedSkillSaveSchema = 9;
 
         public int SkillRank => RankOf(SkillId.Harvesting);
         public int NextSkillCost => NextSkillCostFor(SkillId.Harvesting);
@@ -20,8 +23,10 @@ namespace Workerborn
         public int UnarmedDamageBonus { get; private set; }
 
         public int RankOf(SkillId skill) => skillRanks[(int)skill];
+        public bool IsSkillLearned(SkillId skill) => SkillProgression.IsDefined(skill) && learnedSkills[(int)skill];
         public int NextSkillCostFor(SkillId skill) => Rules.Skill(skill).UpgradeCost(RankOf(skill));
-        public int SkillBonus(SkillId skill, SkillEffect effect) => Rules.Skill(skill).BonusAt(RankOf(skill), effect);
+        public int SkillBonus(SkillId skill, SkillEffect effect) =>
+            IsSkillLearned(skill) ? Rules.Skill(skill).BonusAt(RankOf(skill), effect) : 0;
         public int YieldMultiplierFor(SkillId skill) => Math.Max(1, 1 + SkillBonus(skill, SkillEffect.YieldMultiplier));
 
         private void RefreshSkillStats()
@@ -52,6 +57,8 @@ namespace Workerborn
             if (!SkillProgression.IsDefined(skill))
                 return Result(false, "스킬을 찾을 수 없어요.");
             var profile = Rules.Skill(skill);
+            if (!IsSkillLearned(skill))
+                return Result(false, $"{profile.Name} 스킬을 먼저 배워 주세요.");
             int rank = RankOf(skill);
             if (rank >= SkillProgression.MaxRank)
                 return Result(false, $"{profile.Name} 최고 랭크에 도달했어요.");
@@ -65,16 +72,44 @@ namespace Workerborn
             return Result(true, $"{profile.Name} {SkillProgression.RankLabel(rank + 1)} 승급!");
         }
 
+        private bool LearnSkill(SkillId skill)
+        {
+            if (!SkillProgression.IsDefined(skill) || IsSkillLearned(skill))
+                return false;
+            learnedSkills[(int)skill] = true;
+            RefreshSkillStats();
+            Energy = Math.Min(Energy, StaminaLimit);
+            return true;
+        }
+
+        public bool TryReadSkillBook(int entryId)
+        {
+            if (AwaitingIncarnation)
+                return Result(false, "지금은 책을 읽을 수 없어요.");
+            var book = Inventory.Find(entryId);
+            if (!(book?.Spec.TaughtSkill is SkillId skill) || !SkillProgression.IsDefined(skill))
+                return Result(false, "읽을 스킬 책을 찾을 수 없어요.");
+            if (IsSkillLearned(skill))
+                return Result(false, "이미 배운 스킬이에요.");
+            if (!Inventory.TryRemoveAt(entryId, 1))
+                return false;
+            LearnSkill(skill);
+            return Result(true, $"{Rules.Skill(skill).Name} 스킬을 배웠어요.");
+        }
+
         private SkillRankSave[] ExportSkills()
         {
             var result = new SkillRankSave[skillRanks.Length];
             foreach (var skill in SkillProgression.All)
-                result[(int)skill] = new SkillRankSave { skill = skill, rank = RankOf(skill) };
+                result[(int)skill] = new SkillRankSave { skill = skill, rank = RankOf(skill), learned = IsSkillLearned(skill) };
             return result;
         }
 
         private void RestoreSkills(VillageSave save)
         {
+            // Older characters already had access to every practice-rank skill.
+            if (save.schema < LearnedSkillSaveSchema)
+                Array.Fill(learnedSkills, true);
             if (save.schema < 5)
             {
                 foreach (var skill in SkillProgression.All)
@@ -89,10 +124,13 @@ namespace Workerborn
             foreach (var entry in save.skillRanks)
             {
                 if (entry == null || !SkillProgression.IsDefined(entry.skill) || entry.rank < 0 ||
-                    entry.rank > SkillProgression.MaxRank || seen[(int)entry.skill])
+                    entry.rank > SkillProgression.MaxRank || seen[(int)entry.skill] ||
+                    save.schema >= LearnedSkillSaveSchema && entry.rank > 0 && !entry.learned)
                     throw new ArgumentException("Invalid saved skill rank.");
                 seen[(int)entry.skill] = true;
                 skillRanks[(int)entry.skill] = entry.rank;
+                if (save.schema >= LearnedSkillSaveSchema)
+                    learnedSkills[(int)entry.skill] = entry.learned;
             }
         }
     }

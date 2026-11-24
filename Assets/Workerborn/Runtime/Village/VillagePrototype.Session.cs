@@ -128,7 +128,8 @@ namespace Workerborn
         {
             var pose = worker.transform;
             return new SessionAvatar { x = pose.position.x, y = pose.position.y, z = pose.position.z,
-                yaw = pose.eulerAngles.y, motion = player.GetComponent<WorkerAnimation>().CurrentAction };
+                yaw = pose.eulerAngles.y, motion = player.GetComponent<WorkerAnimation>().CurrentAction,
+                jumpOffset = worker.VisualJumpOffset };
         }
 
         internal bool SeatInUse(Vector3 position)
@@ -224,6 +225,8 @@ namespace Workerborn
             foreach (var avatar in avatars)
             {
                 if (avatar == null || string.IsNullOrEmpty(avatar.id) || avatar.id == Session.LocalPlayerId)
+                    continue;
+                if (InteriorAt(avatar.x, avatar.z)?.Lobby != null)
                     continue;
                 currentPeers.Add(avatar.id);
                 if (!peers.TryGetValue(avatar.id, out var peer))

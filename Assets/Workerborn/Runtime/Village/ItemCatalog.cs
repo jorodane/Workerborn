@@ -28,6 +28,11 @@ namespace Workerborn
         public const string FarmContract = "farm_contract";
         public const string FishingRod = "fishing_rod";
         public const string Fish = "pond_fish";
+        public const string WoodcuttingBook = "woodcutting_primer";
+        public const string CarvingBook = "carving_primer";
+        public const string CombatBook = "unarmed_combat_primer";
+        public const string EggGatheringBook = "egg_gathering_primer";
+        public const string FishingBook = "fishing_primer";
     }
 
     public sealed class ItemSpec
@@ -41,13 +46,15 @@ namespace Workerborn
         public int Price { get; }
         public EquipmentSlot EquipmentSlot { get; }
         public int HealthRestore { get; }
+        public SkillId? TaughtSkill { get; }
         public ItemSpec(string id, string name, string description, int width, int height, int maxStack, int price,
-            EquipmentSlot equipmentSlot = EquipmentSlot.None, int healthRestore = 0)
+            EquipmentSlot equipmentSlot = EquipmentSlot.None, int healthRestore = 0, SkillId? taughtSkill = null)
         {
             Id = id; Name = name; Description = description;
             Width = width; Height = height; MaxStack = maxStack; Price = price;
             EquipmentSlot = equipmentSlot;
             HealthRestore = Math.Max(0, healthRestore);
+            TaughtSkill = taughtSkill;
         }
     }
 
@@ -68,7 +75,12 @@ namespace Workerborn
             new ItemSpec(ItemIds.TimberContract, "목재 납품 계약서", "클릭하면 농장 건설에 필요한 납품 내용을 펼칩니다.", 1, 1, 1, 0),
             new ItemSpec(ItemIds.FarmContract, "농장 아르바이트 계약서", "클릭하면 납품 시간, 요구량과 보수를 펼칩니다.", 1, 1, 1, 0),
             new ItemSpec(ItemIds.FishingRod, "나무 낚싯대", "주무기에 장착하면 낚시터에서 낚시할 수 있습니다.", 1, 3, 1, 12, EquipmentSlot.MainHand),
-            new ItemSpec(ItemIds.Fish, "연못 물고기", "연못에서 낚은 작은 물고기입니다.", 1, 1, 20, 5)
+            new ItemSpec(ItemIds.Fish, "연못 물고기", "연못에서 낚은 작은 물고기입니다.", 1, 1, 20, 5),
+            new ItemSpec(ItemIds.WoodcuttingBook, "벌목 입문서", "읽으면 벌목 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Woodcutting),
+            new ItemSpec(ItemIds.CarvingBook, "갈무리 입문서", "읽으면 갈무리 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Carving),
+            new ItemSpec(ItemIds.CombatBook, "맨손전투 입문서", "읽으면 맨손전투 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.UnarmedCombat),
+            new ItemSpec(ItemIds.EggGatheringBook, "달걀 채집 입문서", "읽으면 달걀 채집 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.EggGathering),
+            new ItemSpec(ItemIds.FishingBook, "낚시 입문서", "읽으면 낚시 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Fishing)
         };
         private static readonly Dictionary<string, ItemSpec> configured = new Dictionary<string, ItemSpec>();
 

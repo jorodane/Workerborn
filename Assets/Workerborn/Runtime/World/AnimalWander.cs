@@ -20,14 +20,23 @@ namespace Workerborn
         private Vector3 home;
         private float walkAfter;
         private float stopWalkingAt;
+        private float roamingSpeed, roamingStopDistance;
         private bool suspended;
+        private bool combatMoving;
 
         internal bool IsWalking { get; private set; }
+        internal Vector3 Home => home;
+        internal bool CombatMovementComplete => !combatMoving || !agent.isOnNavMesh ||
+            !agent.pathPending && (!agent.hasPath || agent.remainingDistance <= agent.stoppingDistance + .04f);
 
         private void Awake()
         {
             home = transform.position;
             agent = GetComponent<NavMeshAgent>();
+            roamingSpeed = agent.speed;
+            roamingStopDistance = agent.stoppingDistance;
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
+            CharacterActor.SuppressBodyCollision(gameObject);
             path = new NavMeshPath();
             animator = GetComponentInChildren<Animator>(true);
             if (animator != null)
@@ -35,7 +44,11 @@ namespace Workerborn
         }
 
         private void OnEnable() => Rest();
-        private void OnDisable() => StopWalking();
+        private void OnDisable()
+        {
+            StopCombatMovement();
+            StopWalking();
+        }
 
         internal void SetSuspended(bool value)
         {
@@ -45,13 +58,49 @@ namespace Workerborn
             if (value)
                 StopWalking();
             else
+            {
+                StopCombatMovement();
                 Rest();
+            }
         }
 
         internal void StopForDefeat()
         {
             SetSuspended(true);
+            StopCombatMovement();
             agent.enabled = false;
+        }
+
+        internal bool MoveForCombat(Vector3 destination, float speed, float stoppingDistance)
+        {
+            var filter = new NavMeshQueryFilter { agentTypeID = agent.agentTypeID, areaMask = agent.areaMask };
+            if (!suspended || !agent.enabled || !BindToNavigation(filter) ||
+                !NavMesh.SamplePosition(destination, out var goal, .8f, filter) ||
+                !agent.CalculatePath(goal.position, path) || path.status != NavMeshPathStatus.PathComplete || !agent.SetPath(path))
+                return false;
+
+            agent.speed = speed;
+            agent.stoppingDistance = stoppingDistance;
+            agent.isStopped = false;
+            if (!combatMoving)
+                Play(Walk);
+            combatMoving = true;
+            return true;
+        }
+
+        internal void StopCombatMovement()
+        {
+            if (!combatMoving)
+                return;
+            combatMoving = false;
+            agent.speed = roamingSpeed;
+            agent.stoppingDistance = roamingStopDistance;
+            if (agent.isOnNavMesh)
+            {
+                agent.isStopped = true;
+                agent.ResetPath();
+            }
+            Play(Idle);
         }
 
         private void Rest()

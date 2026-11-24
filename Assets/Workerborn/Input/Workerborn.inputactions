@@ -150,7 +150,7 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "ContinueDialogue",
+                    "name": "Jump",
                     "type": "Button",
                     "id": "c83dd3ea-5077-4f14-920c-2178b852cad5",
                     "expectedControlType": "Button",
@@ -532,7 +532,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "ContinueDialogue",
+                    "action": "Jump",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

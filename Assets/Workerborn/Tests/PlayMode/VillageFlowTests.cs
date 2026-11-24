@@ -61,6 +61,7 @@ namespace Workerborn.Tests
             waiting.AdvanceTime((1439.2f - waiting.Minute) / waiting.Rules.MinutesPerSecond);
             var save = waiting.Export();
             save.ap = waiting.NextSkillCostFor(SkillId.Harvesting);
+            save.skillRanks[(int)SkillId.Harvesting].learned = true;
             Assert.That(VillageSaveStore.TrySave(save, out _), Is.True);
             yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
             yield return null;
@@ -141,16 +142,38 @@ namespace Workerborn.Tests
 
             int nextChange = Enumerable.Range(game.State.Day + 1, 60)
                 .First(day => forecast.ProfileForDay(day) != startingProfile);
+            var inn = WorldInteractable.Active.OfType<VillageBuildingDoor>().Single(door => door.BuildingId == "inn");
+            Vector3 atDoor = inn.Approach.position;
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(atDoor.x, atDoor.z), out var at, .8f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(at.position), Is.True);
+            inn.RequestInteraction(game.Worker);
+            yield return Until(() => game.CurrentInterior == inn.Interior && !game.IsWorldTransitioning, 3f);
+            var keeper = game.FindInteraction(VillageRole.Innkeeper);
+            Assert.That(game.SharesMap(keeper.transform.position), Is.True);
+            keeper.RequestInteraction(game.Worker);
+            yield return Until(() => game.Hud.IsSpeakingWith(keeper), 4f);
+            var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+            FindButton(dialogue, "쉬었다 가도 될까요?").onClick.Invoke();
+            FindButton(dialogue, "내 방으로 들어간다").onClick.Invoke();
+            yield return Until(() => game.CurrentInterior?.Lobby == inn.Interior && !game.IsWorldTransitioning, 3f);
+            var room = game.CurrentInterior;
+            Assert.That(game.CaptureSave().interior.id, Is.EqualTo(room.Id));
+            Assert.That(NavMesh.SamplePosition(room.Bed.Approach.position, out var bedside, .35f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(bedside.position), Is.True);
+
             var fade = game.Hud.transform.Find("World transition").GetComponent<CanvasGroup>();
             for (int day = game.State.Day + 1; day <= nextChange; day++)
             {
                 game.Sleep(false);
                 Assert.That(game.State.Day, Is.EqualTo(day - 1));
                 Assert.That(game.ControlsBlocked, Is.True);
+                Assert.That(Vector3.Dot(game.PlayerActor.VisualRoot.up, Vector3.up), Is.EqualTo(0f).Within(.01f));
                 yield return Until(() => game.State.Day == day, 3f);
                 Assert.That(fade.alpha, Is.EqualTo(1f));
                 yield return Until(() => !game.IsWorldTransitioning, 3f);
                 Assert.That(fade.gameObject.activeSelf, Is.False);
+                Assert.That(game.CurrentInterior, Is.SameAs(room));
+                Assert.That(game.Worker.InReach(room.Bed.Approach.position, .9f), Is.True);
             }
 
             var expected = forecast.ProfileForDay(nextChange);
@@ -202,6 +225,27 @@ namespace Workerborn.Tests
             finally
             {
                 game.Worker.Message -= Capture;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator SpaceLiftsOnlyThePlayerVisual()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            try
+            {
+                Vector3 standing = game.Worker.transform.position;
+                var visual = game.PlayerActor.VisualRoot;
+                Vector3 original = visual.localPosition;
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Space));
+                yield return Until(() => visual.localPosition.y > original.y + .1f, 1f);
+                Assert.That(Vector3.Distance(game.Worker.transform.position, standing), Is.LessThan(.002f));
+                Assert.That(Vector3.Distance(game.Worker.GetComponent<NavMeshAgent>().nextPosition, standing), Is.LessThan(.002f));
+                yield return Until(() => visual.localPosition == original, 1f);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(keyboard);
             }
         }
 
@@ -266,6 +310,33 @@ namespace Workerborn.Tests
             Assert.That(rabbit.gameObject.activeSelf, Is.True);
             Assert.That(rabbit.GetComponentsInChildren<Collider>(true).Any(collider => collider.enabled), Is.True);
             Assert.That(rabbit.Health, Is.EqualTo(rabbit.Combat.Health));
+        }
+
+        [UnityTest]
+        public IEnumerator RabbitTakesACommittedHitAndPursuesAPlayerWhoRuns()
+        {
+            var rabbit = UnityEngine.Object.FindObjectsByType<MonsterInteractable>(FindObjectsSortMode.None)
+                .Single(animal => animal.Combat != null);
+            var agent = rabbit.GetComponent<NavMeshAgent>();
+            Vector3 home = rabbit.transform.position;
+            Vector3 start = home + Vector3.right * (rabbit.InteractionDistance - .12f);
+            Vector3 sidestep = home - Vector3.right * .36f;
+            Vector3 escape = home + Vector3.right * 4f;
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(start.x, start.z), out var attacker, .18f, NavMesh.AllAreas), Is.True);
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(sidestep.x, sidestep.z), out var shifted, .18f, NavMesh.AllAreas), Is.True);
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(escape.x, escape.z), out var retreat, .5f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(attacker.position), Is.True);
+            int health = rabbit.Health;
+            rabbit.RequestInteraction(game.Worker);
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Attacking));
+            Assert.That(agent.Warp(shifted.position), Is.True);
+            Assert.That(game.Worker.InReach(rabbit.transform.position, rabbit.InteractionDistance), Is.False);
+            yield return Until(() => rabbit.Health < health, 2f);
+
+            int playerHealth = game.State.Health;
+            Assert.That(game.Worker.WarpTo(retreat.position), Is.True);
+            yield return Until(() => agent.hasPath && agent.velocity.sqrMagnitude > .01f, 3f);
+            yield return Until(() => game.State.Health < playerHealth, 5f);
         }
 
         [UnityTest]
@@ -871,7 +942,8 @@ namespace Workerborn.Tests
                 for (int i = 0; i < pile.Length; i++)
                 {
                     pile[i] = UnityEngine.Object.Instantiate(prefab);
-                    pile[i].Initialize(game.Crops[0].Definition, position, position, true);
+                    Vector3 at = i == 0 ? position + game.WorldCamera.transform.forward * .75f : position;
+                    pile[i].Initialize(game.Crops[0].Definition, at, at, true);
                 }
 
                 yield return null;
@@ -909,6 +981,9 @@ namespace Workerborn.Tests
                     Assert.That(Vector2.Distance(projected, actual), Is.LessThan(.1f));
                     Assert.That(name.GetComponent<Image>().raycastTarget, Is.EqualTo(boxed));
                 }
+                var far = visibleNames.Single(name => name.Target == pile[0]);
+                var near = visibleNames.Single(name => name.Target == pile[1]);
+                Assert.That(far.transform.GetSiblingIndex(), Is.LessThan(near.transform.GetSiblingIndex()));
             }
         }
 
@@ -1427,7 +1502,9 @@ namespace Workerborn.Tests
                 Assert.That(body.textInfo.pageCount, Is.GreaterThan(1));
                 Assert.That(body.pageToDisplay, Is.EqualTo(1));
                 Assert.That(FindButton(dialogue, "다음"), Is.Not.Null);
-                Assert.That(dialogue.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "거래하기"), Is.False);
+                Assert.That(dialogue.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "거래하기" || text.text == "대화 종료"), Is.False);
+                game.Hud.CloseWindow("conversation");
+                Assert.That(game.Hud.IsSpeakingWith(merchant), Is.True);
 
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Space));
                 yield return null;
@@ -1446,6 +1523,7 @@ namespace Workerborn.Tests
                 Assert.That(body.text, Does.Not.Contain("Gold"));
                 var details = card.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Job details");
                 Assert.That(details.text, Does.Contain("Gold").And.Contain("접수 중"));
+                Assert.That(dialogue.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "대화 종료"), Is.False);
                 FindButton(dialogue, "일을 맡는다").onClick.Invoke();
                 Assert.That(game.State.Job, Is.EqualTo(JobStatus.Active));
                 Assert.That(body.text, Does.Contain("계약서를 챙겨 가"));
@@ -1740,8 +1818,16 @@ namespace Workerborn.Tests
                 fullRow.OnPointerClick(pointer);
                 yield return Until(() => miniMarker.gameObject.activeSelf && fullMarker.gameObject.activeSelf, 2f);
                 Assert.That(miniMarker.Find("Direction arrow").gameObject.activeSelf, Is.True);
+                var waypoint = UnityEngine.Object.FindFirstObjectByType<JobWaypointView>();
+                Assert.That(waypoint.GetComponent<Image>().sprite.name, Does.Contain("Arrow"));
                 workplace.position = game.Worker.transform.position;
+                yield return null;
+                yield return null;
+                Assert.That(waypoint.GetComponent<Image>().sprite.name, Does.Contain("Mappin"));
+                Assert.That(fullMarker.gameObject.activeSelf, Is.True);
+                fullRow.transform.Find("Job tracking").GetComponent<Button>().onClick.Invoke();
                 yield return Until(() => !miniMarker.gameObject.activeSelf && !fullMarker.gameObject.activeSelf, 2f);
+                Assert.That(waypoint.gameObject.activeSelf, Is.False);
             }
             finally
             {

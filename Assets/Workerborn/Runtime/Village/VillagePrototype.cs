@@ -544,11 +544,12 @@ namespace Workerborn
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 2.1f, "LEVEL UP", new Color(1f, 0.88f, 0.5f));
         }
 
-        public void Sleep(bool paidRoom) => Sleep(paidRoom, null);
+        public void Sleep(bool paidRoom) => SleepInBed(CurrentInterior?.Bed, paidRoom);
 
-        internal void Sleep(bool paidRoom, VillageInteractable innkeeper)
+        internal void SleepInBed(VillageBed bed, bool paidRoom)
         {
-            if (IsWorldTransitioning || AwaitingWorldCommand || State.AwaitingIncarnation)
+            if (ControlsBlocked || State.AwaitingIncarnation || bed == null || !bed.CanInteract ||
+                CurrentInterior?.Bed != bed || !worker.InReach(bed.Approach.position, .9f))
                 return;
             if (paidRoom && State.Gold < State.Rules.RoomPrice)
             {
@@ -557,31 +558,36 @@ namespace Workerborn
                 return;
             }
 
-            var lodging = innkeeper != null && innkeeper.GetComponentInParent<VillagePlot>() != null ? innkeeper.transform : restPoint;
-            TryWorldTransition(() =>
+            if (TryWorldTransition(() =>
             {
                 bool rested = State.TrySleep(paidRoom, IsOnline);
                 if (rested)
-                {
-                    BeginDay(resetResources: !IsOnline, lodging: lodging);
-                    hud.CloseDialogue();
-                }
+                    BeginDay(resetResources: !IsOnline);
+                worker.StandUpFromBed();
                 hud.ShowToast(State.LastMessage);
                 if (rested)
                     SaveGame(false);
-            });
+            }, coverDelay: .55f))
+                worker.LieOnBed(bed.Pose);
         }
 
-        private void BeginDay(bool resetResources = true, Transform lodging = null)
+        private void BeginDay(bool resetResources = true)
         {
-            var position = (lodging != null ? lodging : restPoint).position;
-            bool leavingInterior = CurrentInterior != null;
-            if (!TryWarpToMap(position))
+            var room = GuestRoomForRecovery();
+            var arrival = room != null ? room.Bed.Approach : restPoint;
+            bool arrived = TryWarpToMap(arrival.position, room);
+            if (!arrived && room != null)
+            {
+                arrival = restPoint;
+                arrived = TryWarpToMap(arrival.position);
+            }
+            if (!arrived)
                 worker.Cancel();
-            else if (leavingInterior)
-                RefreshAfterTravel();
             else
-                cameraRig.SnapToTarget();
+            {
+                worker.transform.rotation = arrival.rotation;
+                RefreshAfterTravel();
+            }
             if (resetResources)
                 ResetDailyResources();
             lighting?.SetDate(State.Day, State.Minute);
@@ -685,7 +691,7 @@ namespace Workerborn
 
         internal void UseGatheringSkill(SkillId skill)
         {
-            if (State.AwaitingIncarnation || hud.WorldActionsLocked)
+            if (State.AwaitingIncarnation || hud.WorldActionsLocked || !State.IsSkillLearned(skill))
                 return;
             HarvestableCrop nearest = null;
             float distance = float.MaxValue;

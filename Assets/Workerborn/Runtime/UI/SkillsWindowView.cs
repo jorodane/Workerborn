@@ -34,7 +34,7 @@ namespace Workerborn
                 var skill = pair.Key;
                 int rank = state.RankOf(skill);
                 var icon = Game.Settings.FindSkill(skill)?.Icon;
-                pair.Value.Bind(state.Rules.Skill(skill).Name, SkillProgression.RankLabel(rank), icon,
+                pair.Value.Bind(state.Rules.Skill(skill).Name, state.IsSkillLearned(skill) ? SkillProgression.RankLabel(rank) : "미습득", icon,
                     rank / (float)SkillProgression.MaxRank, () =>
                     {
                         selected = skill;
@@ -44,13 +44,19 @@ namespace Workerborn
             }
 
             ap.text = $"AP  {state.AP}";
+            bool learned = state.IsSkillLearned(selected);
             bool maxed = state.RankOf(selected) == SkillProgression.MaxRank;
             int cost = state.NextSkillCostFor(selected);
-            advanceText.text = maxed ? "최고 랭크" : $"승급  AP {cost}";
-            advance.interactable = !maxed && state.AP >= cost;
+            advanceText.text = !learned ? "미습득" : maxed ? "최고 랭크" : $"승급  AP {cost}";
+            advance.interactable = learned && !maxed && state.AP >= cost;
             use.gameObject.SetActive(SkillProgression.IsGathering(selected));
-            use.interactable = !state.AwaitingIncarnation;
-            details.text = Describe(state, selected);
+            use.interactable = learned && !state.AwaitingIncarnation;
+            details.text = learned ? Describe(state, selected) : selected switch
+            {
+                SkillId.Harvesting => "첫 일자리 퀘스트를 완료하면 배울 수 있어요.",
+                SkillId.Woodcutting => "목재 납품을 마치거나 잡화점의 벌목 입문서를 읽으면 배울 수 있어요.",
+                _ => $"잡화점의 {state.Rules.Skill(selected).Name} 입문서를 읽으면 배울 수 있어요."
+            };
         }
 
         private static string Describe(VillageState state, SkillId skill)

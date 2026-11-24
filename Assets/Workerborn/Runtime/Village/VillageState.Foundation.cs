@@ -103,7 +103,8 @@ namespace Workerborn
             FoundationStage = FarmFoundationStage.SelectingSite;
             AP += quest.RewardAP;
             AddExperience(quest.RewardExperience);
-            return Result(true, "납품을 마쳤어요. 농장이 들어설 부지를 지정해 주세요.");
+            bool learned = LearnSkill(SkillId.Woodcutting);
+            return Result(true, "납품을 마쳤어요. 농장이 들어설 부지를 지정해 주세요." + (learned ? " 벌목 스킬을 배웠어요." : ""));
         }
 
         private static void RemoveDocument(GridInventory inventory, string id)

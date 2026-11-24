@@ -25,7 +25,7 @@ namespace Workerborn
         private readonly List<UiActionView> replies = new List<UiActionView>();
         private VillageInteractable npc;
         private DialogueAction openingTopic, topic;
-        private bool confirmingRebirth, confirmingEra, trading;
+        private bool confirmingRebirth, confirmingEra, trading, finishing;
         private enum LookPart { Body, Hair, Face, Outfit }
         private UiActionView nextPage;
         private int replyCount;
@@ -35,11 +35,12 @@ namespace Workerborn
         private int page, pageCount, pageStart, pageEnd;
         private int advancedFrame = -1;
         private bool jobWasOpen;
+        internal bool CanLeave => IsOpen && (trading || page >= pageCount && replyCount == 0);
 
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
-            leave.onClick.AddListener(() => hud.CloseDialogue(animate: true));
+            leave.onClick.AddListener(() => hud.TryLeaveDialogue());
             DisableButtonSelection(leave);
             nextPage = Instantiate(dialogueChoice, choices.transform);
             nextPage.Bind("다음", () => TryAdvancePage());
@@ -52,7 +53,7 @@ namespace Workerborn
         {
             npc = target;
             presentedText = followUp = null;
-            trading = false;
+            trading = finishing = false;
             confirmingRebirth = confirmingEra = false;
             advancedFrame = -1;
             bool beforeFarm = !Game.State.FarmAvailable;
@@ -79,6 +80,7 @@ namespace Workerborn
             }
             presentedText = followUp = null;
             topic = next;
+            finishing = false;
             confirmingRebirth = confirmingEra = false;
             Refresh();
         }
@@ -190,6 +192,7 @@ namespace Workerborn
         private void ShowPageChoices()
         {
             bool more = page < pageCount;
+            leave.gameObject.SetActive(CanLeave);
             nextPage.gameObject.SetActive(more);
             for (int i = 0; i < replies.Count; i++)
                 replies[i].gameObject.SetActive(!more && i < replyCount);
@@ -247,6 +250,12 @@ namespace Workerborn
                 return;
             }
 
+            if (finishing)
+            {
+                ShowLine("다음에 또 이야기하자.");
+                return;
+            }
+
             if (npc.Role == VillageRole.Guide)
             {
                 LookOption("체형", LookPart.Body);
@@ -262,6 +271,12 @@ namespace Workerborn
             string response = topic == DialogueAction.Greeting ? Greeting(prose) : TopicResponse(state, prose);
             if (topic != openingTopic)
                 Reply("다른 이야기를 한다", () => SelectTopic(openingTopic));
+            else if (replyCount > 0)
+                Reply("다음에 다시 온다", () =>
+                {
+                    finishing = true;
+                    Refresh();
+                });
             ShowLine(followUp ?? response);
         }
 
@@ -318,10 +333,11 @@ namespace Workerborn
                     return $"{prose}\n\n{r.ExpansionDescription}\n자금 {s.DonatedGold:N0}/{s.ExpansionGoldRequired:N0} Gold\n" +
                         $"{ItemCatalog.Get(r.DonationItemId).Name} {s.DonatedPotatoes:N0}/{s.ExpansionItemsRequired:N0}";
                 case DialogueAction.Rest:
-                    Reply("무료 잠자리에서 쉰다", () => Game.Sleep(false, npc));
-                    Reply("객실을 빌린다", () => Game.Sleep(true, npc), s.Gold >= r.RoomPrice);
+                    if (!Game.CanEnterGuestRoom(npc))
+                        return "여관 안에서 이야기해 주면 방을 안내해 줄게.";
+                    Reply("내 방으로 들어간다", () => Game.EnterGuestRoom(npc));
                     string wake = Game.IsOnline ? "" : $"\n기상  {VillageClockView.TimeLabel(r.WakeMinute)}";
-                    return $"{prose}{wake}\n\n무료 잠자리  ·  스태미나 {r.FreeRestEnergy}\n객실  {r.RoomPrice} Gold  ·  완전 회복";
+                    return $"{prose}{wake}\n\n방에서 침대를 눌러 잠을 청할 수 있어요.";
                 case DialogueAction.Rebirth:
                     return RebirthResponse(s, prose);
                 case DialogueAction.Legend:

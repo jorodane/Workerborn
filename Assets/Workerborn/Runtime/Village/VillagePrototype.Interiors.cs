@@ -25,7 +25,11 @@ namespace Workerborn
             int slot = 0;
             foreach (var door in doors)
                 if (door.InteriorPrefab != null)
-                    AddInterior(door, door.BuildingId, slot++);
+                {
+                    var room = AddInterior(door, door.BuildingId, slot++);
+                    if (room?.KeeperPoint != null)
+                        PlaceInnkeeper(FindInteraction(VillageRole.Innkeeper), room);
+                }
             var plots = new List<VillagePlot>(buildPlots.Values);
             plots.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
             foreach (var plot in plots)
@@ -36,7 +40,18 @@ namespace Workerborn
         {
             if (door == null || !plotInteriorSlots.TryGetValue(plot, out int slot))
                 return null;
-            return AddInterior(door, $"plot/{plot.Id}/{door.BuildingId}", slot);
+            var lobby = AddInterior(door, $"plot/{plot.Id}/{door.BuildingId}", slot);
+            if (lobby?.KeeperPoint != null)
+                foreach (var npc in plot.GetComponentsInChildren<VillageInteractable>(true))
+                    if (npc.Role == VillageRole.Innkeeper)
+                        PlaceInnkeeper(npc, lobby);
+            return lobby;
+        }
+
+        private static void PlaceInnkeeper(VillageInteractable npc, VillageInteriorMap lobby)
+        {
+            if (npc != null)
+                npc.transform.SetPositionAndRotation(lobby.KeeperPoint.position, lobby.KeeperPoint.rotation);
         }
 
         private VillageInteriorMap AddInterior(VillageBuildingDoor door, string id, int slot)
@@ -49,11 +64,19 @@ namespace Workerborn
                 return null;
             }
 
-            var offset = new Vector3(slot % InteriorsPerRow, 0f, slot / InteriorsPerRow) * InteriorSpacing;
+            var offset = new Vector3(slot % InteriorsPerRow, 0f, slot / InteriorsPerRow * 2) * InteriorSpacing;
             var room = Instantiate(prefab, interiorsRoot.position + offset, Quaternion.identity, interiorsRoot);
             room.Bind(this, door, id);
             interiors.Add(id, room);
             door.Bind(this, room);
+            if (room.GuestRoomPrefab is { IsConfigured: true, Bed: not null } guestPrefab)
+            {
+                var guest = Instantiate(guestPrefab, room.transform.position + Vector3.forward * InteriorSpacing,
+                    Quaternion.identity, interiorsRoot);
+                guest.Bind(this, door, id + "/guest", room);
+                room.GuestRoom = guest;
+                interiors.Add(guest.Id, guest);
+            }
             return room;
         }
 
@@ -61,13 +84,19 @@ namespace Workerborn
         {
             if (room == null)
                 return true;
-            if (CurrentInterior == room)
+            if (CurrentInterior == room || CurrentInterior?.Lobby == room)
             {
                 if (!TryWarpToMap(room.Entrance.Approach.position) && !TryWarpToMap(spawnPoint.position))
                     return false;
                 RefreshAfterTravel();
             }
             room.Entrance.Unbind();
+            if (room.GuestRoom != null)
+            {
+                interiors.Remove(room.GuestRoom.Id);
+                room.GuestRoom.gameObject.SetActive(false);
+                Destroy(room.GuestRoom.gameObject);
+            }
             interiors.Remove(room.Id);
             room.gameObject.SetActive(false);
             Destroy(room.gameObject);
@@ -85,10 +114,28 @@ namespace Workerborn
             bool exiting = door.IsExit;
             if (exiting && CurrentInterior != room || !exiting && CurrentInterior != null)
                 return false;
-            Transform arrival = exiting ? room.Entrance.Approach : room.Arrival;
+            var destination = exiting ? room.Lobby : room;
+            Transform arrival = destination != null ? destination.Arrival : room.Entrance.Approach;
+            return TravelToInterior(arrival, destination);
+        }
+
+        internal bool CanEnterGuestRoom(VillageInteractable keeper) => keeper != null &&
+            keeper.Role == VillageRole.Innkeeper && CurrentInterior?.GuestRoom != null &&
+            CurrentInterior.Contains(keeper.transform.position.x, keeper.transform.position.z);
+
+        internal void EnterGuestRoom(VillageInteractable keeper)
+        {
+            if (!CanEnterGuestRoom(keeper) || !hud.IsSpeakingWith(keeper) || AwaitingWorldCommand || State.AwaitingIncarnation)
+                return;
+            var room = CurrentInterior.GuestRoom;
+            TravelToInterior(room.Arrival, room);
+        }
+
+        private bool TravelToInterior(Transform arrival, VillageInteriorMap destination)
+        {
             return TryWorldTransition(() =>
             {
-                if (arrival == null || !TryWarpToMap(arrival.position, exiting ? null : room))
+                if (arrival == null || !TryWarpToMap(arrival.position, destination))
                 {
                     hud.ShowToast("반대편에 설 수 있는 곳이 없어요.");
                     return;
@@ -97,6 +144,20 @@ namespace Workerborn
                 RefreshAfterTravel();
                 SaveGame(false);
             });
+        }
+
+        private VillageInteriorMap GuestRoomForRecovery()
+        {
+            if (CurrentInterior?.Bed != null)
+                return CurrentInterior;
+            if (CurrentInterior?.GuestRoom != null)
+                return CurrentInterior.GuestRoom;
+            if (interiors.TryGetValue("inn", out var inn) && inn.GuestRoom != null)
+                return inn.GuestRoom;
+            foreach (var room in interiors.Values)
+                if (room.GuestRoom != null)
+                    return room.GuestRoom;
+            return null;
         }
 
         private VillageInteriorMap InteriorAt(float x, float z)

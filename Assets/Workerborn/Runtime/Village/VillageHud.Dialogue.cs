@@ -33,7 +33,7 @@ namespace Workerborn
         {
             if (!HasModal || IsChatTyping || HasQuantityPrompt)
                 return false;
-            bool space = WorkerbornInput.Pressed("Gameplay/ContinueDialogue");
+            bool space = WorkerbornInput.Pressed("Gameplay/Jump");
             if (!space && !WorkerbornInput.Pressed("Gameplay/Chat"))
                 return false;
             var selected = EventSystem.current?.currentSelectedGameObject;
@@ -41,6 +41,12 @@ namespace Workerborn
                 return false;
             return views.TryGetValue("conversation", out var panel) &&
                 panel is ConversationWindowView dialogue && dialogue.TryAdvancePage(pagingOnly: !space);
+        }
+
+        internal void TryLeaveDialogue()
+        {
+            if (views.TryGetValue("conversation", out var panel) && panel is ConversationWindowView { CanLeave: true })
+                CloseDialogue(animate: true);
         }
 
         public void CloseDialogue() => CloseDialogue(animate: false);

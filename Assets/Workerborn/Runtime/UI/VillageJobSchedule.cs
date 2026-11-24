@@ -7,7 +7,6 @@ namespace Workerborn
     internal sealed class VillageJobSchedule
     {
         private const string ReminderKey = "Workerborn.JobReminder.";
-        private const float ArrivalRange = 2f;
 
         internal sealed class Entry
         {
@@ -33,7 +32,8 @@ namespace Workerborn
         private Entry pinned;
         internal IReadOnlyList<Entry> Jobs => jobs;
         internal int Revision { get; private set; }
-        internal Transform PinnedWorkplace => pinned?.Workplace != null ? pinned.Workplace.transform : null;
+        internal VillageInteractable PinnedProvider => pinned?.Workplace;
+        internal Transform PinnedWorkplace => PinnedProvider != null ? PinnedProvider.transform : null;
 
         internal VillageJobSchedule(VillagePrototype owner)
         {
@@ -64,11 +64,11 @@ namespace Workerborn
 
         internal bool IsPinned(Entry job) => job != null && pinned == job;
 
-        internal void Pin(Entry job)
+        internal void TogglePin(Entry job)
         {
-            if (job?.Workplace == null || pinned == job)
+            if (job?.Workplace == null)
                 return;
-            pinned = job;
+            pinned = pinned == job ? null : job;
             Revision++;
         }
 
@@ -84,9 +84,7 @@ namespace Workerborn
 
         internal void Update()
         {
-            var workplace = PinnedWorkplace;
-            if (pinned != null && (workplace == null ||
-                game.SharesMap(workplace.position) && game.Worker.InReach(workplace.position, ArrivalRange)))
+            if (pinned != null && PinnedWorkplace == null)
             {
                 pinned = null;
                 Revision++;

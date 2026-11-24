@@ -14,11 +14,14 @@ namespace Workerborn
         private bool hasPose;
         private Transform modularModel;
         private int lookSelection;
+        private Vector3 visualBase;
+        private float jumpOffset, shownJumpOffset;
 
         internal void Bind(CharacterDefinition appearance, VillageHud display, string name, CharacterLook look)
         {
             hud = display;
             gameObject.name = name;
+            visualBase = visual != null ? visual.localPosition : Vector3.zero;
             if (visual != null && appearance != null && appearance.BasePrefab != null)
             {
                 var model = CharacterAssembler.Build(appearance, visual, look);
@@ -29,6 +32,7 @@ namespace Workerborn
                 }
                 animationDriver?.Initialize(model.GetComponentInChildren<Animator>(), appearance.Idle, appearance.Run, appearance.Work, appearance.Walk);
             }
+            CharacterActor.SuppressBodyCollision(gameObject);
             label = hud.CreatePlayerOverhead(name);
         }
 
@@ -46,6 +50,7 @@ namespace Workerborn
             float height = Mathf.Abs(avatar.y - surfaceY) < 3f ? avatar.y : surfaceY;
             destination = new Vector3(avatar.x, height, avatar.z);
             yaw = Quaternion.Euler(0, avatar.yaw, 0);
+            jumpOffset = float.IsFinite(avatar.jumpOffset) ? Mathf.Clamp(avatar.jumpOffset, 0f, .6f) : 0f;
             if (!hasPose || Vector3.SqrMagnitude(destination - transform.position) > 64f)
                 transform.SetPositionAndRotation(destination, yaw);
             hasPose = true;
@@ -59,8 +64,11 @@ namespace Workerborn
             float factor = 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime);
             transform.SetPositionAndRotation(Vector3.Lerp(transform.position, destination, factor),
                 Quaternion.Slerp(transform.rotation, yaw, factor));
+            shownJumpOffset = Mathf.Lerp(shownJumpOffset, jumpOffset, factor);
+            if (visual != null)
+                visual.localPosition = visualBase + Vector3.up * shownJumpOffset;
             if (label != null && hud != null)
-                hud.PositionPlayerOverhead(label, transform.position, transform.position + Vector3.up * labelHeight);
+                hud.PositionPlayerOverhead(label, transform.position, transform.position + Vector3.up * (labelHeight + shownJumpOffset));
         }
 
         private void OnDestroy()

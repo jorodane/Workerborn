@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: unarmed_combat_primer
+  m_EditorClassIdentifier: ''
+  id: unarmed_combat_primer
+  displayName: 맨손전투 입문서
+  description: 읽으면 맨손전투 스킬을 배웁니다.
+  icon: {fileID: 21300000, guid: 4b0e66002b1cf4f94af2dbf91766a5c0, type: 3}
+  worldPrefab: {fileID: 412048366482316108, guid: ea0aa594ce6eb804da99471897f183c5, type: 3}
+  width: 1
+  height: 1
+  maxStack: 1
+  price: 15
+  healthRestore: 0
+  teachesSkill: 1
+  taughtSkill: 3
+  equipmentSlot: 0
+  equipmentPart: {fileID: 0}
+  groundPrefab: {fileID: 100008, guid: 8de4554e811552b6ab5c6e805271a06b, type: 3}

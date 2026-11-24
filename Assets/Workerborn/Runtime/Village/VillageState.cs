@@ -371,7 +371,8 @@ namespace Workerborn
             IntroClaimed = true;
             AP += Rules.IntroAP;
             AddExperience(Rules.IntroExperience);
-            return Result(true, "퀘스트 완료: " + Rules.IntroTitle);
+            bool learned = LearnSkill(SkillId.Harvesting);
+            return Result(true, "퀘스트 완료: " + Rules.IntroTitle + (learned ? " · 수확 스킬을 배웠어요." : ""));
         }
 
         public bool TryHarvest(int baseYield, bool lucky, out int drops)
@@ -604,7 +605,7 @@ namespace Workerborn
         }
 
         private static bool CanAssignItemShortcut(ItemSpec item) => item.EquipmentSlot != EquipmentSlot.None ||
-            item.HealthRestore > 0 || item.Id == ItemIds.Bread;
+            item.HealthRestore > 0 || item.Id == ItemIds.Bread || item.TaughtSkill.HasValue;
 
         public bool TryDrinkPotion(int entryId)
         {

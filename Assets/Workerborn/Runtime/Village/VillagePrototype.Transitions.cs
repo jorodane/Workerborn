@@ -14,14 +14,14 @@ namespace Workerborn
 
         public bool IsWorldTransitioning { get; private set; }
 
-        private bool TryWorldTransition(Action commit)
+        private bool TryWorldTransition(Action commit, float coverDelay = 0f)
         {
             if (IsWorldTransitioning)
                 return false;
             IsWorldTransitioning = true;
             worker.Cancel();
             hud.SetWorldFade(commit == null ? 1f : 0f, true);
-            StartCoroutine(PlayWorldTransition(commit));
+            StartCoroutine(PlayWorldTransition(commit, coverDelay));
             return true;
         }
 
@@ -35,12 +35,14 @@ namespace Workerborn
                 apply();
         }
 
-        private IEnumerator PlayWorldTransition(Action commit)
+        private IEnumerator PlayWorldTransition(Action commit, float coverDelay)
         {
             try
             {
                 if (commit != null)
                 {
+                    if (coverDelay > 0f)
+                        yield return new WaitForSecondsRealtime(coverDelay);
                     yield return FadeWorld(0f, 1f, CoverDuration);
                     commit();
                 }

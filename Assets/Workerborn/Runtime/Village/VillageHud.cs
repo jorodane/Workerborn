@@ -25,6 +25,7 @@ namespace Workerborn
         [SerializeField] private GameObject dialogueBackdrop;
         [SerializeField] private GameObject normalHud;
         [SerializeField] private ItemShortcutBarView itemShortcuts;
+        [SerializeField] private JobWaypointView jobWaypoint;
         [SerializeField] private RectTransform chatLayer;
         [SerializeField] private VillageClockView clock;
         [SerializeField] private VillageMapView minimap;
@@ -205,7 +206,7 @@ namespace Workerborn
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
                 if (IsShopOpen)
-                    CloseDialogue(animate: true);
+                    TryLeaveDialogue();
                 else if (!CloseFocusedWindow())
                 {
                     if (IsHoldingItem)
@@ -274,6 +275,7 @@ namespace Workerborn
                 seenNotice = state.NoticeSerial;
             }
             Jobs.Update();
+            UpdateJobWaypoint();
             UpdateToast();
 
             if (state.Version != seenVersion || state.Inventory.Version != seenInventoryVersion)
@@ -314,6 +316,18 @@ namespace Workerborn
         {
             if (!focused && draggedEntry != 0)
                 CancelItemDrag();
+        }
+
+        private void UpdateJobWaypoint()
+        {
+            if (jobWaypoint == null)
+                return;
+            WorldInteractable target = Jobs.PinnedProvider;
+            if (HasModal || game.IsWorldTransitioning || game.InRebirthZone)
+                target = null;
+            else if (target != null && !game.SharesMap(target.transform.position))
+                target = game.CurrentInterior?.Exit;
+            jobWaypoint.Display(game.WorldCamera, CanvasRect, target);
         }
 
         private void UpdateWorldFeedback()
@@ -464,7 +478,7 @@ namespace Workerborn
         {
             if (id == "conversation" || (id == "shop" && HasModal))
             {
-                CloseDialogue(animate: true);
+                TryLeaveDialogue();
                 return;
             }
             dialogueWindowStates.Remove(id);

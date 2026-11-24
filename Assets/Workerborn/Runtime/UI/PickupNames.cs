@@ -3,10 +3,12 @@ using UnityEngine;
 
 namespace Workerborn
 {
+    [DefaultExecutionOrder(110)]
     public sealed class PickupNames : MonoBehaviour
     {
         private readonly Dictionary<WorldInteractable, WorldNameplateView> names = new Dictionary<WorldInteractable, WorldNameplateView>();
         private readonly List<WorldInteractable> removed = new List<WorldInteractable>();
+        private readonly List<(Transform View, float Depth)> visible = new List<(Transform, float)>();
         private PrefabPool<WorldNameplateView> nameplates;
         private VillagePrototype game;
 
@@ -51,7 +53,7 @@ namespace Workerborn
                 var target = pair.Key;
                 var view = pair.Value;
                 if ((!alt && !target.ShowNameByDefault) ||
-                    !TryProject(game, canvas, target.transform.position, target.NamePosition, out var point))
+                    !TryProject(game, canvas, target.transform.position, target.NamePosition, out var point, out float depth))
                 {
                     view.gameObject.SetActive(false);
                     continue;
@@ -65,18 +67,37 @@ namespace Workerborn
                 }
                 view.SetBox(alt);
                 view.PlaceAt(point);
+                IncludeDepth(view.transform, depth);
             }
+
+            visible.Sort(CompareDepth);
+            for (int i = 0; i < visible.Count; i++)
+                if (visible[i].View != null && visible[i].View.GetSiblingIndex() != i)
+                    visible[i].View.SetSiblingIndex(i);
+            visible.Clear();
+        }
+
+        internal void IncludeDepth(Transform view, float depth) => visible.Add((view, depth));
+
+        private void OnDisable() => visible.Clear();
+
+        private static int CompareDepth((Transform View, float Depth) a, (Transform View, float Depth) b)
+        {
+            int depth = b.Depth.CompareTo(a.Depth);
+            return depth != 0 ? depth : a.View.GetInstanceID().CompareTo(b.View.GetInstanceID());
         }
 
         internal static bool TryProject(VillagePrototype game, RectTransform canvas, Vector3 position, Vector3 namePosition,
-            out Vector2 point)
+            out Vector2 point, out float depth)
         {
             point = default;
+            depth = 0f;
             if (!game.SharesMap(position))
                 return false;
 
             var camera = game.WorldCamera;
             Vector3 screen = camera.WorldToScreenPoint(namePosition);
+            depth = screen.z;
             return screen.z >= camera.nearClipPlane && screen.z <= camera.farClipPlane &&
                 WorkerbornInput.IsInView(camera, screen) &&
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out point);

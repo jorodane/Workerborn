@@ -29,11 +29,12 @@ namespace Workerborn
         internal Transform Approach => approach;
         internal bool IsExit => Interior != null && Interior.Exit == this;
         internal bool IsOpen => Interior != null && (IsExit || IsWithinHours(village.State.Minute, opensAt, closesAt));
-        public override string DisplayName => displayName;
+        public override string DisplayName => IsExit && Interior.Lobby != null ? "여관 로비" : displayName;
         public override bool ShowNameByDefault => true;
         public override Vector3 NamePosition => transform.TransformPoint(NameOffset);
         public override bool CanInteract => Interior != null && base.CanInteract;
-        public override string InteractionVerb => IsExit ? "밖으로 나가기" : IsOpen ? "들어가기" : "문 닫힘";
+        public override string InteractionVerb => IsExit ? (Interior.Lobby != null ? "로비로 나가기" : "밖으로 나가기") :
+            IsOpen ? "들어가기" : "문 닫힘";
         public override float InteractionDistance => approach != null
             ? Mathf.Max(base.InteractionDistance, Vector3.Distance(approach.position, transform.position) + .9f)
             : base.InteractionDistance;

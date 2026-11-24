@@ -19,6 +19,9 @@ namespace Workerborn
     public sealed partial class HarvestWorker : MonoBehaviour
     {
         internal const float DefaultPickupDistance = 2f;
+        private const float StrikeMovementTolerance = .55f;
+        private const float JumpSeconds = .55f;
+        private const float JumpHeight = .6f;
         [SerializeField, Min(.1f)] private float runSpeed = 3.7f;
         [SerializeField, Min(.1f)] private float walkSpeed = 1.65f;
         [Header("Nearby Pickup")]
@@ -56,6 +59,12 @@ namespace Workerborn
         private bool onSeat;
         private float nextCollect;
         private int consecutiveCollections;
+        private Transform jumpingVisual;
+        private Vector3 jumpBase;
+        private float jumpStartedAt;
+        private Transform restingVisual;
+        private Vector3 restBase;
+        private Quaternion restRotation;
         public bool AcceptsInteractionCommands => village == null || !village.ControlsBlocked;
         public bool AcceptsGroundItemCommands => village == null || village.Hud.AllowsGroundItems && !village.State.AwaitingIncarnation;
         public PointerTargeting Targeting => village != null ? village.Targeting : null;
@@ -63,6 +72,7 @@ namespace Workerborn
         public bool IsWalking => Action == WorkerAction.Moving &&
             (manualMoving ? WorkerbornInput.Held("Gameplay/Walk") : walkPath);
         public bool HasPendingDrop => pendingDrop != null;
+        internal float VisualJumpOffset => jumpingVisual != null ? jumpingVisual.localPosition.y - jumpBase.y : 0f;
         internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
         public WorkerAction Action { get; private set; }
         public HarvestableCrop HoveredCrop { get; private set; }
@@ -91,6 +101,7 @@ namespace Workerborn
             agent.height = 1.8f;
             agent.stoppingDistance = 0.08f;
             agent.autoBraking = true;
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
         }
 
         private void Update()
@@ -102,6 +113,7 @@ namespace Workerborn
                 Cancel();
             if (AcceptsInteractionCommands && WorkerbornInput.Pressed("Gameplay/Sit"))
                 ToggleSit();
+            UpdateVisualJump();
             bool movingByKeys = UpdateManualMovement();
             UpdateNearbyCollection();
             if (!movingByKeys && Action == WorkerAction.Moving)
@@ -118,6 +130,34 @@ namespace Workerborn
                 _ => WorkerMotion.Idle
             };
             animationDriver?.SetAction((int)motion);
+        }
+
+        private void UpdateVisualJump()
+        {
+            if (jumpingVisual != null)
+            {
+                float progress = (Time.time - jumpStartedAt) / JumpSeconds;
+                if (progress >= 1f || !AcceptsInteractionCommands || Action == WorkerAction.Sitting)
+                    FinishVisualJump();
+                else
+                    jumpingVisual.localPosition = jumpBase + Vector3.up * (JumpHeight * 4f * progress * (1f - progress));
+            }
+            else if (AcceptsInteractionCommands && (Action == WorkerAction.Idle || Action == WorkerAction.Moving) &&
+                WorkerbornInput.Pressed("Gameplay/Jump"))
+            {
+                jumpingVisual = village?.PlayerActor?.VisualRoot;
+                if (jumpingVisual == null)
+                    return;
+                jumpBase = jumpingVisual.localPosition;
+                jumpStartedAt = Time.time;
+            }
+        }
+
+        private void FinishVisualJump()
+        {
+            if (jumpingVisual != null)
+                jumpingVisual.localPosition = jumpBase;
+            jumpingVisual = null;
         }
 
         internal void ToggleSit()
@@ -387,7 +427,9 @@ namespace Workerborn
 
         private void StartAttack(WorldInteractable target)
         {
-            if (target == null || !target.CanReceiveStrike || (village.State.Energy <= 0 || village.State.Health <= 0) || !AcceptsInteractionCommands)
+            if (target == null || !target.CanReceiveStrike || village.State.Energy <= 0 || village.State.Health <= 0 ||
+                !AcceptsInteractionCommands || !village.SharesMap(target.transform.position) ||
+                !InReach(target.transform.position, target.InteractionDistance))
                 return;
             Cancel();
             Face(target.transform.position);
@@ -401,17 +443,21 @@ namespace Workerborn
 
         private void UpdateAttack()
         {
-            if (strikeTarget == null || !AcceptsInteractionCommands || (village.State.Energy <= 0 || village.State.Health <= 0))
+            if (strikeTarget == null || !AcceptsInteractionCommands || village.State.Energy <= 0 || village.State.Health <= 0 ||
+                !village.SharesMap(strikeTarget.transform.position))
             {
                 Cancel();
                 return;
             }
             float progress = Mathf.InverseLerp(strikeStartedAt, nextStrikeAt, Time.time);
             animationDriver?.SampleStrike(progress);
+            if (!struck)
+                Face(strikeTarget.transform.position);
             if (!struck && progress >= .36f)
             {
                 struck = true;
-                if (strikeTarget.CanReceiveStrike && InReach(strikeTarget.transform.position, strikeTarget.InteractionDistance))
+                if (strikeTarget.CanReceiveStrike &&
+                    InReach(strikeTarget.transform.position, strikeTarget.InteractionDistance + StrikeMovementTolerance))
                 {
                     int bonus = village.State.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : village.State.UnarmedDamageBonus;
                     strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus + village.State.Strength));
@@ -427,7 +473,8 @@ namespace Workerborn
                 Approach(target, target.transform.position, target.InteractionDistance * .7f, arrival);
         }
 
-        internal void CommandApproachAt(WorldInteractable target, Vector3 point) => Approach(target, point, 0f, null);
+        internal void CommandApproachAt(WorldInteractable target, Vector3 point, System.Action arrival = null) =>
+            Approach(target, point, 0f, arrival);
 
         private void Approach(WorldInteractable target, Vector3 point, float offset, System.Action arrival)
         {
@@ -719,6 +766,8 @@ namespace Workerborn
         internal void ResetLifeActivity()
         {
             Cancel();
+            FinishVisualJump();
+            StandUpFromBed();
             ResetCollectHold();
             inventory.Clear();
             collectedCount = 0;
@@ -733,12 +782,34 @@ namespace Workerborn
         public bool WarpTo(Vector3 position)
         {
             Cancel();
+            FinishVisualJump();
+            StandUpFromBed();
             return agent.Warp(position);
+        }
+
+        internal void LieOnBed(Transform pose)
+        {
+            FinishVisualJump();
+            restingVisual = village?.PlayerActor?.VisualRoot;
+            if (restingVisual == null)
+                return;
+            restBase = restingVisual.localPosition;
+            restRotation = restingVisual.localRotation;
+            restingVisual.SetPositionAndRotation(pose.position, pose.rotation);
+        }
+
+        internal void StandUpFromBed()
+        {
+            if (restingVisual != null)
+                restingVisual.SetLocalPositionAndRotation(restBase, restRotation);
+            restingVisual = null;
         }
 
         private void OnDisable()
         {
             Cancel();
+            FinishVisualJump();
+            StandUpFromBed();
             ResetCollectHold();
         }
     }

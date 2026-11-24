@@ -15,6 +15,8 @@ MonoBehaviour:
   health: 30
   counterDamage: 7
   counterDelay: 1.15
+  chaseRadius: 9
+  chaseSpeed: 3.3
   corpseSeconds: 2
   loot: {fileID: 11400000, guid: 608359c05769534d8eff00afb932220e, type: 2}
   lootCount: 2

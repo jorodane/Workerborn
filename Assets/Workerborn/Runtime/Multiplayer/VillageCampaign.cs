@@ -24,7 +24,7 @@ namespace Workerborn
         public string id;
         public string name;
         public CharacterLook look;
-        public float x, y, z, yaw;
+        public float x, y, z, yaw, jumpOffset;
         public int motion;
     }
 
@@ -336,6 +336,7 @@ namespace Workerborn
             target.z = pose.z;
             target.yaw = pose.yaw;
             target.motion = pose.motion;
+            target.jumpOffset = float.IsNaN(pose.jumpOffset) ? 0f : Math.Max(0f, Math.Min(.6f, pose.jumpOffset));
         }
 
         private static bool FiniteCoordinate(float value) => !float.IsNaN(value) && Math.Abs(value) <= 10000f;
@@ -480,6 +481,7 @@ namespace Workerborn
             avatar.z = origin?.z ?? character.playerZ;
             avatar.yaw = origin?.yaw ?? 0f;
             avatar.motion = (int)WorkerMotion.Idle;
+            avatar.jumpOffset = 0f;
             if (character.hasLifeLook)
                 avatar.look = character.lifeLook.Validated();
         }

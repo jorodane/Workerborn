@@ -14,16 +14,20 @@ namespace Workerborn
         [SerializeField] private string attackState = "Base Layer.Attack";
         [SerializeField] private string defeatedState = "Base Layer.Death";
         private const float VisibleHealthSeconds = 60f;
+        private const float PursuitUpdateSeconds = .18f;
         private Animator animator;
         private AnimalWander wander;
         private Collider[] livingColliders = Array.Empty<Collider>();
         private HarvestWorker opponent;
         private VillagePrototype corpseVillage;
         private float nextCounterAt;
+        private float nextPursuitAt;
         private float despawnAt;
         private bool counterAnimation;
         private bool lootTaken;
         private bool corpseHidden;
+        private bool returning;
+        private Vector3 home;
 
         public override string DisplayName => displayName;
         public override bool CanTarget => !IsDefeated;
@@ -41,10 +45,12 @@ namespace Workerborn
 
         private void Awake()
         {
+            CharacterActor.SuppressBodyCollision(gameObject);
             if (combat == null)
                 return;
             animator = GetComponentInChildren<Animator>(true);
             wander = GetComponent<AnimalWander>();
+            home = wander != null ? wander.Home : transform.position;
             livingColliders = Array.FindAll(GetComponentsInChildren<Collider>(true), collider => collider.enabled);
             if (animator != null)
                 animator.applyRootMotion = false;
@@ -66,6 +72,8 @@ namespace Workerborn
             HealthVisibleUntil = 0f;
             lootTaken = IsDefeated && gathered;
             opponent = null;
+            returning = false;
+            wander?.StopCombatMovement();
             counterAnimation = false;
             corpseVillage = null;
             SetBodyAlive(!IsDefeated);
@@ -144,8 +152,10 @@ namespace Workerborn
             else if (opponent != worker)
             {
                 opponent = worker;
+                returning = false;
                 wander?.SetSuspended(true);
                 nextCounterAt = Time.time + combat.CounterDelay;
+                nextPursuitAt = 0f;
             }
             HealthVisibleUntil = Time.unscaledTime + VisibleHealthSeconds;
             worker.Village.Hud.ShowPlayerHealthUntil(HealthVisibleUntil);
@@ -172,25 +182,69 @@ namespace Workerborn
                     Play(idleState);
                 }
             }
-            if (opponent == null || !opponent.InReach(transform.position, InteractionDistance + .75f))
+            if (combat == null)
+                return;
+            if (opponent == null)
             {
-                opponent = null;
-                wander?.SetSuspended(false);
+                if (returning && (WithinHome(transform.position, .55f) || wander.CombatMovementComplete))
+                    FinishReturn();
                 return;
             }
-            if (Time.time < nextCounterAt || !opponent.InReach(transform.position, InteractionDistance))
-                return;
-            var village = opponent.Village;
-            if (village == null || village.Hud.WorldActionsLocked || village.State.Health <= 0 || village.State.Energy <= 0)
-                return;
 
+            var village = opponent.Village;
+            Vector3 destination = opponent.StandingPosition;
+            if (village == null || !village.SharesMap(transform.position) || village.State.AwaitingIncarnation ||
+                village.State.Health <= 0 || village.State.Energy <= 0 ||
+                !WithinHome(destination, combat.ChaseRadius) || !WithinHome(transform.position, combat.ChaseRadius + .2f))
+            {
+                ReturnHome();
+                return;
+            }
+            if (!opponent.InReach(transform.position, InteractionDistance))
+            {
+                if (Time.time < nextPursuitAt)
+                    return;
+                nextPursuitAt = Time.time + PursuitUpdateSeconds;
+                counterAnimation = false;
+                if (wander != null && !wander.MoveForCombat(destination, combat.ChaseSpeed, InteractionDistance * .75f))
+                    ReturnHome();
+                return;
+            }
+
+            wander?.StopCombatMovement();
+            if (Time.time < nextCounterAt || village.Hud.WorldActionsLocked)
+                return;
             nextCounterAt = Time.time + combat.CounterDelay;
-            Vector3 facing = opponent.transform.position - transform.position;
+            Vector3 facing = destination - transform.position;
             facing.y = 0;
             if (facing.sqrMagnitude > .001f)
                 transform.rotation = Quaternion.LookRotation(facing);
             counterAnimation = Play(attackState);
             village.ReceiveAnimalHit(combat.CounterDamage);
+        }
+
+        private bool WithinHome(Vector3 point, float radius)
+        {
+            Vector3 delta = point - home;
+            delta.y = 0f;
+            return delta.sqrMagnitude <= radius * radius;
+        }
+
+        private void ReturnHome()
+        {
+            opponent = null;
+            counterAnimation = false;
+            returning = !WithinHome(transform.position, .55f) &&
+                wander?.MoveForCombat(home, combat.ChaseSpeed, .2f) == true;
+            if (!returning)
+                FinishReturn();
+        }
+
+        private void FinishReturn()
+        {
+            returning = false;
+            wander?.SetSuspended(false);
+            Play(idleState);
         }
 
         private bool Play(string state)
@@ -208,6 +262,7 @@ namespace Workerborn
         {
             base.OnDisable();
             opponent = null;
+            returning = false;
         }
     }
 }
