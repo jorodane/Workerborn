@@ -45,13 +45,12 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator FreshSceneOpensGuideAndBuildsTheSelectedPlotAfterRebirth()
+        public IEnumerator FoundationBuildsTheSelectedPlotAfterReturningFromRebirth()
         {
             var state = game.State;
-            Assert.That(game.Hud.HasModal, Is.True);
             Assert.That(game.Crops, Is.Empty);
             Assert.That(state.Inventory.Entries, Is.Empty);
-            game.Hud.CloseDialogue();
+            yield return Incarnate();
 
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Farmer));
             yield return Until(() => game.Hud.HasModal);
@@ -79,17 +78,26 @@ namespace Workerborn.Tests
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Shrine));
             yield return Until(() => game.Hud.HasModal);
             game.AdvanceEra();
+            yield return Until(() => !game.IsWorldTransitioning);
             Assert.That(state.Life, Is.EqualTo(2));
             Assert.That(state.Inventory.Entries, Is.Empty);
             Assert.That(state.Equipment, Is.Empty);
-            Assert.That(game.Hud.HasModal, Is.True);
             Assert.That(game.Crops.Count, Is.EqualTo(12));
             Assert.That(game.Crops.All(crop => crop.transform.position.z < -10), Is.True);
-            game.Hud.CloseDialogue();
+            yield return Incarnate();
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Farmer));
             yield return Until(() => game.Hud.HasModal);
             Assert.That(game.Perform(state.TryAcceptJob), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.EqualTo(1));
+        }
+
+        private IEnumerator Incarnate()
+        {
+            Assert.That(game.InRebirthZone, Is.True);
+            game.Hud.OpenDialogue(game.RebirthArea.Guide);
+            game.ConfirmIncarnation();
+            yield return Until(() => !game.IsWorldTransitioning);
+            Assert.That(game.InRebirthZone, Is.False);
         }
 
         private IEnumerator Gather(string id, int required)

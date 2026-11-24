@@ -19,63 +19,22 @@ namespace Workerborn
         [SerializeField] private TMP_Text emptyLabel;
         private const int DaysAhead = 7;
         private readonly List<PartTimeScheduleRowView> views = new List<PartTimeScheduleRowView>();
-        private readonly List<Entry> jobs = new List<Entry>();
         private VillagePrototype game;
+        private VillageJobSchedule schedule;
         private int dayOffset;
-        private (int Day, int Minute, bool Farm, JobStatus Job, int LastJobDay, int Offset) shown;
-
-        private sealed class Entry
-        {
-            public string Id, Title;
-            public int Start, End;
-            public VillageInteractable Workplace;
-        }
+        private (int Day, int Minute, bool Farm, JobStatus Job, int LastJobDay, int Offset, int Revision) shown;
 
         internal void Bind(VillagePrototype owner)
         {
             if (game != null)
                 return;
             game = owner;
-            CollectJobs();
+            schedule = owner.Hud.Jobs;
             if (previousDay != null)
                 previousDay.onClick.AddListener(() => TurnPage(-1));
             if (nextDay != null)
                 nextDay.onClick.AddListener(() => TurnPage(1));
             LateUpdate();
-        }
-
-        private void CollectJobs()
-        {
-            var entries = new Dictionary<string, Entry>(StringComparer.Ordinal);
-            foreach (var npc in game.Interactables)
-            {
-                if (npc == null)
-                    continue;
-                var job = npc.Definition?.Job;
-                if (job == null || string.IsNullOrWhiteSpace(job.Id) || job.StartMinute >= job.EndMinute)
-                    continue;
-                if (!entries.TryGetValue(job.Id, out var existing) ||
-                    (existing.Workplace.Role == VillageRole.NoticeBoard && npc.Role != VillageRole.NoticeBoard))
-                {
-                    entries[job.Id] = new Entry
-                    {
-                        Id = job.Id, Title = job.Title, Start = job.StartMinute, End = job.EndMinute, Workplace = npc
-                    };
-                }
-            }
-
-            var rules = game.State.Rules;
-            if (!string.IsNullOrWhiteSpace(rules.JobId) && rules.JobStart < rules.JobEnd)
-            {
-                entries.TryGetValue(rules.JobId, out var listed);
-                entries[rules.JobId] = new Entry
-                {
-                    Id = rules.JobId, Title = rules.JobTitle, Start = rules.JobStart, End = rules.JobEnd,
-                    Workplace = game.FindInteraction(VillageRole.Farmer) ?? listed?.Workplace
-                };
-            }
-            jobs.AddRange(entries.Values);
-            jobs.Sort((a, b) => a.Start != b.Start ? a.Start.CompareTo(b.Start) : string.CompareOrdinal(a.Id, b.Id));
         }
 
         private void OnEnable()
@@ -98,7 +57,7 @@ namespace Workerborn
             if (game == null)
                 return;
             var state = game.State;
-            var current = (state.Day, Mathf.FloorToInt(state.Minute), state.FarmAvailable, state.Job, state.LastJobDay, dayOffset);
+            var current = (state.Day, Mathf.FloorToInt(state.Minute), state.FarmAvailable, state.Job, state.LastJobDay, dayOffset, schedule.Revision);
             if (shown == current)
                 return;
             shown = current;
@@ -112,7 +71,7 @@ namespace Workerborn
             if (nextDay != null)
                 nextDay.interactable = dayOffset < DaysAhead;
 
-            foreach (var job in jobs)
+            foreach (var job in schedule.Jobs)
             {
                 if (upcomingRows > 0 && shown.Minute >= job.End)
                     continue;
@@ -126,27 +85,27 @@ namespace Workerborn
                 rows.gameObject.SetActive(count > 0);
             if (emptyLabel != null)
             {
-                emptyLabel.text = jobs.Count == 0 ? "등록된 일정 없음" : "오늘 일정 종료";
+                emptyLabel.text = schedule.Jobs.Count == 0 ? "등록된 일정 없음" : "오늘 일정 종료";
                 emptyLabel.gameObject.SetActive(count == 0);
             }
         }
 
-        private void ShowRow(int index, Entry job, bool today)
+        private void ShowRow(int index, VillageJobSchedule.Entry job, bool today)
         {
             if (index == views.Count)
             {
                 var row = Instantiate(rowPrefab, rows);
-                row.Bind(map);
+                row.Bind(map, schedule);
                 views.Add(row);
             }
             string hours = $"{VillageClockView.TimeLabel(job.Start)}–{VillageClockView.TimeLabel(job.End)}";
             bool current = today && shown.Minute >= job.Start && shown.Minute < job.End;
             var view = views[index];
-            view.Show(job.Title, hours, Status(job, today), current, job.Workplace != null ? job.Workplace.transform : null);
+            view.Show(job, hours, Status(job, today), current);
             view.gameObject.SetActive(true);
         }
 
-        private string Status(Entry job, bool today)
+        private string Status(VillageJobSchedule.Entry job, bool today)
         {
             bool contract = string.Equals(job.Id, game.State.Rules.JobId, StringComparison.Ordinal);
             if (today && contract && shown.LastJobDay == shown.Day && shown.Job == JobStatus.Completed)

@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 namespace Workerborn
 {
-    public sealed class PartTimeScheduleRowView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    public sealed class PartTimeScheduleRowView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
     {
         [SerializeField] private Image background;
         [SerializeField] private TMP_Text title;
@@ -14,24 +14,40 @@ namespace Workerborn
         [SerializeField] private Color idle = new Color(.10f, .17f, .22f, 1f);
         [SerializeField] private Color active = new Color(.17f, .29f, .36f, 1f);
         [SerializeField] private Color hovered = new Color(.24f, .37f, .44f, 1f);
+        [SerializeField] private Button reminder;
+        [SerializeField] private Image reminderIcon;
+        [SerializeField] private Sprite reminderOn;
+        [SerializeField] private Sprite reminderOff;
         private VillageMapView map;
-        private Transform workplace;
+        private VillageJobSchedule schedule;
+        private VillageJobSchedule.Entry job;
         private bool isCurrent, pointerOver;
+        private Transform Workplace => job?.Workplace != null ? job.Workplace.transform : null;
 
-        internal void Bind(VillageMapView view) => map = view;
-
-        internal void Show(string name, string hours, string state, bool current, Transform location)
+        internal void Bind(VillageMapView view, VillageJobSchedule jobs)
         {
-            title.text = name;
+            map = view;
+            schedule = jobs;
+            reminder.onClick.AddListener(() =>
+            {
+                schedule.ToggleReminder(job);
+                UpdateReminderIcon();
+            });
+        }
+
+        internal void Show(VillageJobSchedule.Entry entry, string hours, string state, bool current)
+        {
+            title.text = entry.Title;
             time.text = hours;
             status.text = state;
             isCurrent = current;
-            if (workplace != location)
+            if (job != entry)
             {
-                workplace = location;
+                job = entry;
                 if (pointerOver && map != null)
-                    map.ShowJobLocation(this, workplace);
+                    map.ShowJobLocation(this, Workplace);
             }
+            UpdateReminderIcon();
             UpdateColor();
         }
 
@@ -39,7 +55,15 @@ namespace Workerborn
         {
             pointerOver = true;
             if (map != null)
-                map.ShowJobLocation(this, workplace);
+                map.ShowJobLocation(this, Workplace);
+            UpdateColor();
+        }
+
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData.button != PointerEventData.InputButton.Left)
+                return;
+            schedule.Pin(job);
             UpdateColor();
         }
 
@@ -56,6 +80,14 @@ namespace Workerborn
             UpdateColor();
         }
 
-        private void UpdateColor() => background.color = pointerOver ? hovered : isCurrent ? active : idle;
+        private void UpdateReminderIcon()
+        {
+            bool enabled = job?.Reminder == true;
+            reminderIcon.sprite = enabled ? reminderOn : reminderOff;
+            reminderIcon.color = enabled ? new Color(.64f, .87f, 1f) : new Color(.63f, .68f, .72f);
+        }
+
+        private void UpdateColor() =>
+            background.color = pointerOver || schedule?.IsPinned(job) == true ? hovered : isCurrent ? active : idle;
     }
 }

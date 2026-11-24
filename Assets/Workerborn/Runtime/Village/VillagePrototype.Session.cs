@@ -73,6 +73,8 @@ namespace Workerborn
 
         public bool PerformWorld(CampaignAction action, string argument = null, int value = 1)
         {
+            if (IsWorldTransitioning)
+                return false;
             bool incarnate = action == CampaignAction.Incarnate;
             bool eraChoice = IsOnline && action is (CampaignAction.VoteForEra or CampaignAction.AnnounceEra or
                 CampaignAction.ParticipateInEra or CampaignAction.CancelAnnouncement);
@@ -89,15 +91,22 @@ namespace Workerborn
             }
             if (incarnate || action == CampaignAction.Rebirth)
             {
-                if (!(incarnate ? State.TryIncarnate(value) : State.TryRebirth()))
+                Func<bool> changeLife = incarnate ? () => State.TryIncarnate(value) : State.TryRebirth;
+                if (incarnate ? !State.CanIncarnate(value) : !State.CanRebirth)
                 {
+                    changeLife();
                     hud.ShowToast(State.LastMessage);
                     return false;
                 }
-                FinishTransition(reborn: !incarnate, eraChanged: false);
-                hud.ShowToast(State.LastMessage);
-                SaveGame(false);
-                return true;
+                return TryWorldTransition(() =>
+                {
+                    bool changed = changeLife();
+                    if (changed)
+                        FinishTransition(reborn: !incarnate, eraChanged: false);
+                    hud.ShowToast(State.LastMessage);
+                    if (changed)
+                        SaveGame(false);
+                });
             }
             switch (action)
             {
@@ -134,6 +143,19 @@ namespace Workerborn
         {
             if (!initialized || world?.legend == null || world.era < State.Era)
                 return;
+            if (IsWorldTransitioning || ChangesDateOrEra(world))
+                PresentWorldUpdate(() => ChangesDateOrEra(world), () => ApplySharedWorldNow(world, avatars));
+            else
+                ApplySharedWorldNow(world, avatars);
+        }
+
+        private bool ChangesDateOrEra(VillageWorldRecord world) =>
+            world.era >= State.Era && (world.era != State.Era || world.day != State.Day);
+
+        private void ApplySharedWorldNow(VillageWorldRecord world, SessionAvatar[] avatars)
+        {
+            if (world.era < State.Era)
+                return;
             int era = State.Era;
             int day = State.Day;
             State.ApplyWorld(world);
@@ -152,6 +174,15 @@ namespace Workerborn
         internal void ApplySessionProfile(VillageSave save, VillageWorldRecord world, string message, bool transition)
         {
             if (!initialized || world?.legend == null)
+                return;
+            PresentWorldUpdate(() => ChangesDateOrEra(world) || save != null &&
+                (save.life != State.Life || save.awaitingIncarnation != State.AwaitingIncarnation),
+                () => ApplySessionProfileNow(save, world, message, transition));
+        }
+
+        private void ApplySessionProfileNow(VillageSave save, VillageWorldRecord world, string message, bool transition)
+        {
+            if (world.era < State.Era)
                 return;
             int era = State.Era;
             int life = State.Life;

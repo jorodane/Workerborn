@@ -86,15 +86,17 @@ namespace Workerborn
             if (exiting && CurrentInterior != room || !exiting && CurrentInterior != null)
                 return false;
             Transform arrival = exiting ? room.Entrance.Approach : room.Arrival;
-            if (!TryWarpToMap(arrival.position, exiting ? null : room))
+            return TryWorldTransition(() =>
             {
-                hud.ShowToast("반대편에 설 수 있는 곳이 없어요.");
-                return false;
-            }
-            worker.transform.rotation = arrival.rotation;
-            RefreshAfterTravel();
-            SaveGame(false);
-            return true;
+                if (arrival == null || !TryWarpToMap(arrival.position, exiting ? null : room))
+                {
+                    hud.ShowToast("반대편에 설 수 있는 곳이 없어요.");
+                    return;
+                }
+                worker.transform.rotation = arrival.rotation;
+                RefreshAfterTravel();
+                SaveGame(false);
+            });
         }
 
         private VillageInteriorMap InteriorAt(float x, float z)
@@ -126,6 +128,7 @@ namespace Workerborn
                 return false;
             CurrentInterior = room;
             InRebirthZone = toClouds;
+            lighting?.SetInteriorBackground(room != null);
             return true;
         }
 

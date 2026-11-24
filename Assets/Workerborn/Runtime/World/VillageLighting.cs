@@ -26,9 +26,19 @@ namespace Workerborn
         private float[] lanternIntensities;
         private Vector3 sunAngles;
         private float previousNight = -1f;
+        private CameraClearFlags outdoorClearFlags;
+        private int outdoorCullingMask;
+        private Color outdoorBackground;
+        private bool indoors;
 
         private void Awake()
         {
+            if (worldCamera != null)
+            {
+                outdoorClearFlags = worldCamera.clearFlags;
+                outdoorCullingMask = worldCamera.cullingMask;
+                outdoorBackground = worldCamera.backgroundColor;
+            }
             if (sun != null)
             {
                 sunIntensity = sun.intensity;
@@ -49,6 +59,16 @@ namespace Workerborn
         }
 
         public string WeatherName(int day) => weather != null ? weather.NameForDay(day) : "";
+
+        internal void SetInteriorBackground(bool inside)
+        {
+            if (worldCamera == null || indoors == inside)
+                return;
+            indoors = inside;
+            worldCamera.clearFlags = inside ? CameraClearFlags.SolidColor : outdoorClearFlags;
+            worldCamera.backgroundColor = inside ? Color.black : outdoorBackground;
+            worldCamera.cullingMask = inside ? outdoorCullingMask & ~(1 << VillageWeather.SkyLayer) : outdoorCullingMask;
+        }
 
         public void SetDate(int day, float minute)
         {
@@ -74,8 +94,9 @@ namespace Workerborn
             }
             if (sceneSky != null)
                 sceneSky.SetColor(Tint, Color.Lerp(daySkyTint, nightSkyTint, night));
-            if (worldCamera != null)
-                worldCamera.backgroundColor = Color.Lerp(dayAmbient, nightAmbient, night);
+            outdoorBackground = Color.Lerp(dayAmbient, nightAmbient, night);
+            if (worldCamera != null && !indoors)
+                worldCamera.backgroundColor = outdoorBackground;
 
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = Color.Lerp(dayAmbient, nightAmbient, night);

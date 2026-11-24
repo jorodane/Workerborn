@@ -183,18 +183,21 @@ namespace Workerborn
                 return;
             jobSource = null;
             jobLocation = null;
-            jobMarker.gameObject.SetActive(false);
+            PlaceJobMarker();
         }
 
         private void PlaceJobMarker()
         {
-            bool visible = jobLocation != null && game != null && !game.InRebirthZone &&
-                game.MapRegion != null && game.SharesMap(jobLocation.position);
+            Transform location = game?.Hud.Jobs.PinnedWorkplace;
+            if (location == null)
+                location = jobLocation;
+            bool visible = location != null && game != null && !game.InRebirthZone &&
+                game.MapRegion != null && game.SharesMap(location.position);
             jobMarker.gameObject.SetActive(visible);
             if (!visible)
                 return;
 
-            Vector2 point = VillageMapRegion.WorldToMap(area, jobLocation.position);
+            Vector2 point = VillageMapRegion.WorldToMap(area, location.position);
             Vector2 center = imageSize * .5f;
             Vector2 offset = Vector2.Scale(point, imageSize) - center;
             Vector2 edge = Vector2.Max(Vector2.one, center - jobMarker.sizeDelta * .5f - Vector2.one * 3f);

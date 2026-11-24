@@ -69,6 +69,8 @@ namespace Workerborn.Tests
             Assert.That(game.CaptureSave().awaitingIncarnation, Is.True);
             Assert.That(game.State.Level, Is.EqualTo(1));
             Assert.That(game.State.Inventory.Entries, Is.Empty);
+            yield return Until(() => game.State.Day > waiting.Day && !game.IsWorldTransitioning, 3f);
+            Assert.That(game.InRebirthZone, Is.True);
             Assert.That(game.Hud.transform.Find("Normal HUD").gameObject.activeInHierarchy, Is.True);
             Assert.That(game.Hud.OpenWindow("inventory"), Is.Not.Null);
             var skills = game.Hud.OpenWindow("skills");
@@ -81,8 +83,6 @@ namespace Workerborn.Tests
             Assert.That(game.PerformWorld(CampaignAction.Incarnate), Is.False);
             var agent = game.Worker.GetComponent<NavMeshAgent>();
             Assert.That(agent.isOnNavMesh, Is.True);
-            yield return Until(() => game.State.Day > waiting.Day, 3f);
-            Assert.That(game.InRebirthZone, Is.True);
             Vector3 target = game.Worker.transform.position + Vector3.right * 2f;
             Vector3 destination = game.SurfacePosition(target.x, target.z);
             game.Worker.CommandMove(destination);
@@ -96,6 +96,7 @@ namespace Workerborn.Tests
             var look = new CharacterLook { body = 1, hair = 7, face = 2, outfit = 4 };
             game.PreviewIncarnationLook(look);
             game.ConfirmIncarnation();
+            yield return Until(() => !game.InRebirthZone, 3f);
             Assert.That(game.InRebirthZone, Is.False);
             Assert.That(game.State.LifeMinutes, Is.EqualTo(0).Within(.02));
             Assert.That(game.State.LifeLook, Is.EqualTo(look));
@@ -140,11 +141,16 @@ namespace Workerborn.Tests
 
             int nextChange = Enumerable.Range(game.State.Day + 1, 60)
                 .First(day => forecast.ProfileForDay(day) != startingProfile);
+            var fade = game.Hud.transform.Find("World transition").GetComponent<CanvasGroup>();
             for (int day = game.State.Day + 1; day <= nextChange; day++)
             {
                 game.Sleep(false);
-                Assert.That(game.State.Day, Is.EqualTo(day));
-                yield return null;
+                Assert.That(game.State.Day, Is.EqualTo(day - 1));
+                Assert.That(game.ControlsBlocked, Is.True);
+                yield return Until(() => game.State.Day == day, 3f);
+                Assert.That(fade.alpha, Is.EqualTo(1f));
+                yield return Until(() => !game.IsWorldTransitioning, 3f);
+                Assert.That(fade.gameObject.activeSelf, Is.False);
             }
 
             var expected = forecast.ProfileForDay(nextChange);
@@ -253,6 +259,7 @@ namespace Workerborn.Tests
             int ap = game.State.AP;
             game.Hud.CloseDialogue();
             game.Rebirth();
+            yield return Until(() => !game.IsWorldTransitioning, 3f);
             Assert.That(game.InRebirthZone, Is.True);
             Assert.That(game.State.Life, Is.EqualTo(2));
             Assert.That(game.State.Level, Is.EqualTo(1));
@@ -304,7 +311,7 @@ namespace Workerborn.Tests
             Assert.That(game.State.FarmUpgradePending, Is.True);
             Assert.That(game.Crops.Count, Is.EqualTo(12));
             game.AdvanceEra();
-            yield return null;
+            yield return Until(() => !game.IsWorldTransitioning, 3f);
             Assert.That(game.State.FarmLevel, Is.EqualTo(2));
             Assert.That(game.Crops.Count, Is.EqualTo(24));
             Assert.That(game.State.OfferedJobRequirement, Is.EqualTo(10));
@@ -1275,6 +1282,7 @@ namespace Workerborn.Tests
             load.onClick.Invoke();
             var previous = game;
             menu.GetComponentsInChildren<Button>().Single(button => button.name == "Confirm load").onClick.Invoke();
+            Assert.That(previous.IsWorldTransitioning, Is.True);
             yield return Until(() => previous == null, 10f);
             game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
             Assert.That(game, Is.Not.Null);
@@ -1461,6 +1469,12 @@ namespace Workerborn.Tests
                 Assert.That(miniMarker.gameObject.activeSelf, Is.False);
                 fullRow.OnPointerExit(pointer);
                 Assert.That(fullMarker.gameObject.activeSelf, Is.False);
+
+                fullRow.OnPointerClick(pointer);
+                yield return Until(() => miniMarker.gameObject.activeSelf && fullMarker.gameObject.activeSelf, 2f);
+                Assert.That(miniMarker.Find("Direction arrow").gameObject.activeSelf, Is.True);
+                workplace.position = game.Worker.transform.position;
+                yield return Until(() => !miniMarker.gameObject.activeSelf && !fullMarker.gameObject.activeSelf, 2f);
             }
             finally
             {
@@ -1474,6 +1488,53 @@ namespace Workerborn.Tests
             Assert.That(miniSchedule.transform.Find("Empty schedule").GetComponent<TMP_Text>().text, Is.EqualTo("오늘 일정 종료"));
             Assert.That(fullRow.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Job status").text,
                 Is.EqualTo("마감"));
+        }
+
+        [UnityTest]
+        public IEnumerator JobReminderRepeatsOnEachOpeningUntilTurnedOff()
+        {
+            var state = game.State;
+            var job = game.Hud.Jobs.Jobs.Single(row => row.Id == state.Rules.JobId);
+            string preference = "Workerborn.JobReminder." + job.Id;
+            bool hadPreference = PlayerPrefs.HasKey(preference);
+            int original = PlayerPrefs.GetInt(preference);
+            var bell = game.Hud.GetComponentInChildren<PartTimeScheduleRowView>().GetComponentInChildren<Button>();
+            var message = game.Hud.GetComponentsInChildren<TMP_Text>(true).Single(label => label.name == "Message");
+            try
+            {
+                if (job.Reminder)
+                    bell.onClick.Invoke();
+                Assert.That(state.TrySleep(false), Is.True);
+                bell.onClick.Invoke();
+                Assert.That(PlayerPrefs.GetInt(preference), Is.EqualTo(1));
+                yield return null;
+                Assert.That(job.LastRemindedDay, Is.LessThan(state.Day));
+
+                for (int opening = 0; opening < 2; opening++)
+                {
+                    Assert.That(state.TryWaitForWork(), Is.True);
+                    yield return Until(() => job.LastRemindedDay == state.Day, 2f);
+                    Assert.That(message.text, Is.EqualTo($"{job.Title} 아르바이트가 시작됐어요."));
+                    game.Hud.ShowToast("다른 소식");
+                    yield return null;
+                    Assert.That(message.text, Is.EqualTo("다른 소식"));
+                    Assert.That(state.TrySleep(false), Is.True);
+                }
+
+                bell.onClick.Invoke();
+                Assert.That(PlayerPrefs.GetInt(preference), Is.Zero);
+                Assert.That(state.TryWaitForWork(), Is.True);
+                yield return null;
+                Assert.That(job.LastRemindedDay, Is.LessThan(state.Day));
+            }
+            finally
+            {
+                if (hadPreference)
+                    PlayerPrefs.SetInt(preference, original);
+                else
+                    PlayerPrefs.DeleteKey(preference);
+                PlayerPrefs.Save();
+            }
         }
 
         [UnityTest]
@@ -1689,17 +1750,32 @@ namespace Workerborn.Tests
         {
             var store = WorldInteractable.Active.OfType<VillageBuildingDoor>().Single(door => door.BuildingId == "general-store");
             Assert.That(store.IsOpen, Is.True);
+            var hingedModel = store.transform.Find("Hinged door model");
+            var backing = hingedModel.Find("Doorway shade");
+            Assert.That(backing.GetComponent<MeshRenderer>(), Is.Not.Null);
+            Assert.That(backing.localPosition.z, Is.LessThan(hingedModel.Find("Door leaf").localPosition.z));
+            Assert.That(backing.GetComponent<Collider>(), Is.Null);
+
+            var fade = game.Hud.transform.Find("World transition").GetComponent<CanvasGroup>();
+            CameraClearFlags outdoorClear = game.WorldCamera.clearFlags;
+            int outdoorMask = game.WorldCamera.cullingMask;
             Vector3 approach = store.Approach.position;
             Assert.That(NavMesh.SamplePosition(game.SurfacePosition(approach.x, approach.z), out var outside, .8f, NavMesh.AllAreas), Is.True);
             Assert.That(game.Worker.WarpTo(outside.position), Is.True);
             store.RequestInteraction(game.Worker);
+            Assert.That(game.CurrentInterior, Is.Null);
             yield return Until(() => game.CurrentInterior == store.Interior, 3f);
+            Assert.That(fade.alpha, Is.EqualTo(1f));
+            yield return Until(() => !game.IsWorldTransitioning, 3f);
             var inside = game.CurrentInterior;
             Assert.That(inside.Id, Is.EqualTo("general-store"));
             Assert.That(game.MapBounds, Is.EqualTo(inside.MapBounds));
             Assert.That(game.SharesMap(store.transform.position), Is.False);
             Assert.That(game.TryMapGround(Vector2.one * .5f, out var floor), Is.True);
             Assert.That(floor.collider, Is.SameAs(inside.Floor));
+            Assert.That(game.WorldCamera.clearFlags, Is.EqualTo(CameraClearFlags.SolidColor));
+            Assert.That(game.WorldCamera.backgroundColor, Is.EqualTo(Color.black));
+            Assert.That(game.WorldCamera.cullingMask & (1 << VillageWeather.SkyLayer), Is.Zero);
 
             game.State.AdvanceTime((20f * 60f + 10f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
             Assert.That(store.IsOpen, Is.False);
@@ -1712,11 +1788,15 @@ namespace Workerborn.Tests
             game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
             inside = game.CurrentInterior;
             Assert.That(inside.Id, Is.EqualTo("general-store"));
+            Assert.That(game.WorldCamera.backgroundColor, Is.EqualTo(Color.black));
             store = inside.Entrance;
             Assert.That(store.IsOpen, Is.False);
 
             inside.Exit.RequestInteraction(game.Worker);
             yield return Until(() => game.CurrentInterior == null, 3f);
+            yield return Until(() => !game.IsWorldTransitioning, 3f);
+            Assert.That(game.WorldCamera.clearFlags, Is.EqualTo(outdoorClear));
+            Assert.That(game.WorldCamera.cullingMask, Is.EqualTo(outdoorMask));
             Assert.That(game.Worker.InReach(store.Approach.position, 1f), Is.True);
             store.RequestInteraction(game.Worker);
             yield return null;

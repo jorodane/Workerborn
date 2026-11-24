@@ -131,9 +131,17 @@ namespace Workerborn
 
         internal static VillageState BeforeFirstLife(VillageRules rules) => new VillageState(rules) { AwaitingIncarnation = true };
 
+        internal bool CanIncarnate(int selection) => CanIncarnate(selection, out _);
+
+        private bool CanIncarnate(int selection, out CharacterLook look)
+        {
+            look = default;
+            return AwaitingIncarnation && !HasVillageProgress && CharacterLook.TryFromSelection(selection, out look);
+        }
+
         internal bool TryIncarnate(int selection)
         {
-            if (!AwaitingIncarnation || HasVillageProgress || !CharacterLook.TryFromSelection(selection, out var look))
+            if (!CanIncarnate(selection, out var look))
                 return Result(false, "운명의 인도자에게서 다시 환생을 준비해 주세요.");
             LifeLook = look;
             AwaitingIncarnation = false;
@@ -208,9 +216,11 @@ namespace Workerborn
             ApplyWorld(world);
         }
 
+        internal bool NeedsRest => !AwaitingIncarnation && (Health <= 0 || Energy <= 0);
+
         internal bool RecoverInSharedWorld()
         {
-            if (AwaitingIncarnation || (Health > 0 && Energy > 0))
+            if (!NeedsRest)
                 return false;
             Health = HealthLimit;
             Energy = Math.Min(StaminaLimit, Rules.CollapseEnergy);

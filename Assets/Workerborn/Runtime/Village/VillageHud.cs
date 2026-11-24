@@ -28,8 +28,10 @@ namespace Workerborn
         [SerializeField] private VillageClockView clock;
         [SerializeField] private VillageMapView minimap;
         [SerializeField] private PartTimeScheduleView mapSchedule;
+        [SerializeField] private CanvasGroup worldFade;
         private readonly List<VillageWindowView> windowFocus = new List<VillageWindowView>();
         private Vector2 lastCanvasSize;
+        internal VillageJobSchedule Jobs { get; private set; }
 
 
         [SerializeField]
@@ -65,7 +67,7 @@ namespace Workerborn
         public bool HasModal => dialogueTarget != null;
         public bool IsShopOpen => views.TryGetValue("shop", out var shop) && shop.IsOpen;
         public bool WorldActionsLocked => HasModal || dialogueClosing || IsShopOpen || HasQuantityPrompt;
-        public bool AllowsGroundItems => game != null && !game.AwaitingWorldCommand && !IsChatTyping;
+        public bool AllowsGroundItems => game != null && !game.IsWorldTransitioning && !game.AwaitingWorldCommand && !IsChatTyping;
         public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.IsOpen;
         internal bool TradeQuantityOpen => views.TryGetValue("quantity", out var quantity) &&
             quantity is QuantityWindowView { IsOpen: true, IsTrade: true };
@@ -102,6 +104,7 @@ namespace Workerborn
                 return;
             }
 
+            Jobs = new VillageJobSchedule(game);
             clock.Bind(game);
             minimap?.Bind(game);
             mapSchedule?.Bind(game);
@@ -182,7 +185,7 @@ namespace Workerborn
 
         private void Update()
         {
-            if (WorkerbornInput.Current == null || game == null)
+            if (WorkerbornInput.Current == null || game == null || game.IsWorldTransitioning)
                 return;
             if (!game.AwaitingWorldCommand &&
                 (WorkerbornInput.Pressed("Gameplay/Interact") || WorkerbornInput.Pressed("Camera/OrbitRight")))
@@ -240,7 +243,7 @@ namespace Workerborn
                 ShowHeldItem(WorkerbornInput.Point);
             else if (!IsHoldingItem && dragGhost != null)
                 ClearHeldVisual();
-            if (!game.AwaitingWorldCommand)
+            if (!game.IsWorldTransitioning && !game.AwaitingWorldCommand)
                 ReleaseDraggedItem();
             var state = game.State;
             if (lastCanvasSize != CanvasRect.rect.size)
@@ -264,6 +267,7 @@ namespace Workerborn
                     ShowToast(state.LastMessage);
                 seenNotice = state.NoticeSerial;
             }
+            Jobs.Update();
             UpdateToast();
 
             if (state.Version != seenVersion || state.Inventory.Version != seenInventoryVersion)
@@ -285,6 +289,19 @@ namespace Workerborn
                 controls = gameObject.AddComponent<CanvasGroup>();
             }
             controls.interactable = !pending;
+        }
+
+        internal void SetWorldFade(float opacity, bool active)
+        {
+            if (worldFade == null)
+                return;
+            worldFade.alpha = opacity;
+            if (worldFade.gameObject.activeSelf != active)
+            {
+                if (active)
+                    releaseHeldOnMouseUp = false;
+                worldFade.gameObject.SetActive(active);
+            }
         }
 
         private void OnApplicationFocus(bool focused)

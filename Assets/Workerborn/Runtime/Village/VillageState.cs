@@ -248,6 +248,14 @@ namespace Workerborn
             return success;
         }
 
+        internal bool WillAdvanceDay(float seconds, bool paused)
+        {
+            if (paused)
+                return false;
+            float nextMinute = Minute + seconds * Rules.MinutesPerSecond;
+            return AwaitingIncarnation ? nextMinute >= 1440f : nextMinute >= Rules.CollapseMinute || NeedsRest;
+        }
+
         public bool AdvanceTime(float seconds, bool paused = false)
         {
             if (float.IsNaN(seconds) || float.IsInfinity(seconds) || seconds < 0f)
@@ -270,7 +278,7 @@ namespace Workerborn
                 Result(false, "아르바이트 시간이 종료되었습니다.");
             }
 
-            if (Minute < Rules.CollapseMinute && Energy > 0 && Health > 0)
+            if (Minute < Rules.CollapseMinute && !NeedsRest)
                 return false;
             NextDay(Rules.CollapseEnergy, true);
             Result(true, "의식을 잃고 숙소에서 깨어났습니다.");

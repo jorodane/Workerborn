@@ -100,7 +100,8 @@ namespace Workerborn
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
         internal int PrewarmGroundPickups => prewarmGroundPickups;
-        public bool ControlsBlocked => AwaitingWorldCommand || hud != null && (hud.WorldActionsLocked || hud.IsHoldingItem || hud.IsChatTyping);
+        public bool ControlsBlocked => IsWorldTransitioning || AwaitingWorldCommand ||
+            hud != null && (hud.WorldActionsLocked || hud.IsHoldingItem || hud.IsChatTyping);
 
         public int RemainingHarvests
         {
@@ -164,7 +165,8 @@ namespace Workerborn
             State = IsAppearanceTrial ? new VillageState(rules) : VillageState.BeforeFirstLife(rules);
             string notice = null;
             usesSelectedWorld = !IsAppearanceTrial && Session?.HasLocalWorld == true;
-            if (Session != null && Session.TakeSoloReload(out restoredWorld, out notice))
+            bool reloading = Session != null && Session.TakeSoloReload(out restoredWorld, out notice);
+            if (reloading)
                 State = VillageState.Restore(restoredWorld, rules);
             else if (IsOnline || usesSelectedWorld)
             {
@@ -230,6 +232,8 @@ namespace Workerborn
             RestoreWorldObjects();
             lighting?.SetDate(State.Day, State.Minute);
             initialized = true;
+            if (reloading)
+                TryWorldTransition(null);
             Session?.Attach(this);
             nextSave = Time.unscaledTime + 15f;
             if (restoredWorld != null)
@@ -518,7 +522,7 @@ namespace Workerborn
 
         private bool ApplyLocalAction(Func<bool> operation)
         {
-            if (AwaitingWorldCommand)
+            if (IsWorldTransitioning || AwaitingWorldCommand)
                 return false;
             int level = State.Level;
             bool success = operation();
@@ -542,19 +546,28 @@ namespace Workerborn
 
         internal void Sleep(bool paidRoom, VillageInteractable innkeeper)
         {
-            if (AwaitingWorldCommand || State.AwaitingIncarnation)
+            if (IsWorldTransitioning || AwaitingWorldCommand || State.AwaitingIncarnation)
                 return;
-            if (!State.TrySleep(paidRoom, IsOnline))
+            if (paidRoom && State.Gold < State.Rules.RoomPrice)
             {
+                State.TrySleep(paidRoom, IsOnline);
                 hud.ShowToast(State.LastMessage);
                 return;
             }
 
             var lodging = innkeeper != null && innkeeper.GetComponentInParent<VillagePlot>() != null ? innkeeper.transform : restPoint;
-            BeginDay(resetResources: !IsOnline, lodging: lodging);
-            hud.CloseDialogue();
-            hud.ShowToast(State.LastMessage);
-            SaveGame(false);
+            TryWorldTransition(() =>
+            {
+                bool rested = State.TrySleep(paidRoom, IsOnline);
+                if (rested)
+                {
+                    BeginDay(resetResources: !IsOnline, lodging: lodging);
+                    hud.CloseDialogue();
+                }
+                hud.ShowToast(State.LastMessage);
+                if (rested)
+                    SaveGame(false);
+            });
         }
 
         private void BeginDay(bool resetResources = true, Transform lodging = null)
@@ -565,6 +578,8 @@ namespace Workerborn
                 worker.Cancel();
             else if (leavingInterior)
                 RefreshAfterTravel();
+            else
+                cameraRig.SnapToTarget();
             if (resetResources)
                 ResetDailyResources();
             lighting?.SetDate(State.Day, State.Minute);
@@ -583,6 +598,8 @@ namespace Workerborn
 
         public void AdvanceEra()
         {
+            if (IsWorldTransitioning)
+                return;
             if (IsOnline)
             {
                 hud.CloseDialogue();
@@ -591,14 +608,21 @@ namespace Workerborn
             }
             if (State.AwaitingIncarnation)
                 return;
-            if (!State.TryAdvanceEra())
+            if (!State.CanAdvanceEra)
             {
+                State.TryAdvanceEra();
                 hud.ShowToast(State.LastMessage);
                 return;
             }
-            FinishTransition(reborn: true, eraChanged: true);
-            hud.ShowToast(State.LastMessage);
-            SaveGame(false);
+            TryWorldTransition(() =>
+            {
+                bool advanced = State.TryAdvanceEra();
+                if (advanced)
+                    FinishTransition(reborn: true, eraChanged: true);
+                hud.ShowToast(State.LastMessage);
+                if (advanced)
+                    SaveGame(false);
+            });
         }
 
         private void FinishTransition(bool reborn, bool eraChanged)
@@ -851,13 +875,18 @@ namespace Workerborn
 
         public void ReloadSavedGame()
         {
-            if (!CanReloadSavedGame || !Session.TryReloadSolo(State.Rules, AuthoredSites(), spawnPoint.position, usesSelectedWorld))
+            if (!CanReloadSavedGame)
             {
                 hud.ShowToast("불러올 저장 기록을 열지 못했어요.");
                 return;
             }
-            initialized = false;
-            worker.Cancel();
+            TryWorldTransition(() =>
+            {
+                if (Session.TryReloadSolo(State.Rules, AuthoredSites(), spawnPoint.position, usesSelectedWorld))
+                    initialized = false;
+                else
+                    hud.ShowToast("불러올 저장 기록을 열지 못했어요.");
+            });
         }
 
         internal VillageSave CaptureSave()
@@ -910,7 +939,7 @@ namespace Workerborn
             if (!initialized)
                 return;
             hud.SetCommandPending(AwaitingWorldCommand);
-            if (AwaitingWorldCommand)
+            if (IsWorldTransitioning || AwaitingWorldCommand)
                 return;
             if (equipmentVersion != State.Version)
             {
@@ -918,8 +947,24 @@ namespace Workerborn
                 player.ShowEquipment(State.Equipment, settings);
             }
 
+            float elapsed = Time.deltaTime;
+            bool paused = hud.HasModal;
+            if (IsOnline ? State.NeedsRest : State.WillAdvanceDay(elapsed, paused))
+            {
+                TryWorldTransition(() => TickClock(elapsed, paused));
+                return;
+            }
+            TickClock(elapsed, paused);
+
+            if (Time.unscaledTime >= nextSave && (IsOnline || usesSelectedWorld || loadSavedGame && !IsAppearanceTrial))
+                SaveGame(false);
+            lighting?.SetDate(State.Day, State.Minute);
+        }
+
+        private void TickClock(float elapsed, bool paused)
+        {
             int day = State.Day;
-            bool rested = IsOnline ? State.RecoverInSharedWorld() : State.AdvanceTime(Time.deltaTime, hud.HasModal);
+            bool rested = IsOnline ? State.RecoverInSharedWorld() : State.AdvanceTime(elapsed, paused);
             if (State.AwaitingIncarnation && State.Day != day)
                 ResetDailyResources();
             if (rested)
@@ -929,10 +974,6 @@ namespace Workerborn
                 hud.ShowToast(State.LastMessage);
                 SaveGame(false);
             }
-
-            if (Time.unscaledTime >= nextSave && (IsOnline || usesSelectedWorld || loadSavedGame && !IsAppearanceTrial))
-                SaveGame(false);
-            lighting?.SetDate(State.Day, State.Minute);
         }
 
         private void OnDestroy()
