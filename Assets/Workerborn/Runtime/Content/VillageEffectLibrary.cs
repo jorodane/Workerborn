@@ -11,7 +11,8 @@ namespace Workerborn
         [InspectorName("획득 도착")] PickupArrival = 2,
         [InspectorName("레벨업")] LevelUp = 3,
         [InspectorName("드롭 트레일")] DropTrail = 4,
-        [InspectorName("획득 트레일")] PickupTrail = 5
+        [InspectorName("획득 트레일")] PickupTrail = 5,
+        [InspectorName("시체 소멸")] CorpseDespawn = 6
     }
 
     [Serializable]

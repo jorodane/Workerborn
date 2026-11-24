@@ -427,6 +427,8 @@ namespace Workerborn
 
         private void RemovePickup(GroundPickup pickup) => pickups.Remove(pickup);
 
+        internal void PlayCorpseDespawn(Vector3 position) => effects?.PlayCorpseDespawn(position);
+
         internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount)
         {
             var prefab = reward != null ? reward.GroundPrefab : null;

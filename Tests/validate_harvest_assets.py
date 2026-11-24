@@ -202,12 +202,15 @@ sky_layers=[m for m in cozy['m_Modification']['m_Modifications'] if m['propertyP
 assert sky_layers and all(int(m['value'])==12 for m in sky_layers)
 effects=behaviours(scene,'World/VillageEffects.cs')[0]
 effect_library=documents(resolve(effects['library']))[0]['MonoBehaviour']
-assert {row['effect'] for row in effect_library['effects']}==set(range(6))
-assert len(effect_library['effects'])==6
+assert {row['effect'] for row in effect_library['effects']}==set(range(7))
+assert len(effect_library['effects'])==7
 assert all(resolve(row['prefab']).is_relative_to(CONTENT/'Prefabs/Effects') for row in effect_library['effects'])
+despawn = next(row for row in effect_library['effects'] if row['effect'] == 6)
+dust = next(row['PrefabInstance'] for row in docs(resolve(despawn['prefab'])) if 'PrefabInstance' in row)
+assert resolve(dust['m_SourcePrefab']).stem == 'HCFX_Dust_01' and despawn['prewarm'] > 0
 assert not behaviours(scene,'HarvestPrototype.cs'),'Village must not generate its map from the harvest demo'
 animals=behaviours(scene,'Village/AnimalNpc.cs')
-assert len(animals)==2 and all(a['keepVisualWhenDepleted'] for a in animals)
+assert len(animals)==2 and all(a['keepVisualWhenDepleted'] and a['harvestMoveTolerance'] > 0 for a in animals)
 encounters=[a for a in behaviours(scene,'Interaction/MonsterInteractable.cs') if a.get('combat',{}).get('fileID')]
 assert len(encounters)==1 and encounters[0]['persistentId']
 wanderers = behaviours(scene, 'World/AnimalWander.cs')
@@ -216,7 +219,7 @@ for wanderer in wanderers:
     agent = next(d['NavMeshAgent'] for d in scene if d.get('NavMeshAgent', {}).get('m_GameObject') == wanderer['m_GameObject'])
     assert not agent['m_Enabled'] and agent['m_Speed'] > 0 and wanderer['radius'] > 0
 rabbit_profile=docs(resolve(encounters[0]['combat']))[0]['MonoBehaviour']
-assert rabbit_profile['health']>0 and rabbit_profile['counterDelay']>0
+assert rabbit_profile['health']>0 and rabbit_profile['counterDelay']>0 and rabbit_profile['corpseSeconds']>0
 assert resolve(rabbit_profile['loot']).stem=='rabbit_meat' and rabbit_profile['lootCount']>0
 logging_trees=behaviours(scene,'LoggingTree.cs')
 assert len(logging_trees)==3 and all(resolve(tree['branch']).stem=='branch' for tree in logging_trees)
@@ -229,6 +232,8 @@ for p in ['Potato.asset','Gathering/GatherEggs.asset','Gathering/CutTimber.asset
     crop=docs(CONTENT/'Data'/p)[0]['MonoBehaviour']
     work=docs(resolve(crop['workAnimation']))[0]['MonoBehaviour']
     work_clips[crop['itemId']]=[resolve(work[k]) for k in ('begin','loop','finish') if work[k]['fileID']]
+    if crop['itemId'] == 'timber':
+        assert 0 < work['loopImpact'] < 1
 assert all(p.is_relative_to(ROOT/'Assets/Kevin Iglesias') for clips in work_clips.values() for p in clips)
 assert len(work_clips['timber'])==3 and all('TreeChopping' in p.stem for p in work_clips['timber'])
 assert len(work_clips['pond_fish'])==3 and all('Fishing' in p.stem for p in work_clips['pond_fish'])
@@ -355,6 +360,9 @@ nameplate_rows = docs(resolve(nameplate))
 nameplate_view = next(row['MonoBehaviour'] for row in nameplate_rows if row['_id'] == nameplate['fileID'])
 health = next(row['MonoBehaviour'] for row in nameplate_rows if row['_id'] == nameplate_view['healthFill']['fileID'])
 assert health['m_Type'] == 3 and health['m_FillMethod'] == 0 and not health['m_RaycastTarget']
+health_rect = next(row['RectTransform'] for row in nameplate_rows if row['_id'] == nameplate_view['healthBar']['fileID'])
+assert health_rect['m_AnchorMin']['y'] == health_rect['m_AnchorMax']['y'] == 0
+assert health_rect['m_Pivot']['y'] == 1 and health_rect['m_AnchoredPosition']['y'] < 0
 overhead_rows = docs(resolve(library['playerOverhead']))
 overhead = behaviours(overhead_rows, 'UI/PlayerOverheadView.cs')[0]
 nested_name = next(row['MonoBehaviour'] for row in overhead_rows if row['_id'] == overhead['playerName']['fileID'])

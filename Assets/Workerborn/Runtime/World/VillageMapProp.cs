@@ -5,7 +5,7 @@ namespace Workerborn
     public sealed class VillageMapProp : MonoBehaviour
     {
         // Navigation volumes describe the footprint, not the visible picking surface.
-        public const int PointerLayers = ~((1 << 2) | (1 << 8) | (1 << PointerTargeting.HoverAssistLayer));
+        public const int PointerLayers = ~((1 << 2) | (1 << VillageNavigationBlocker.Layer) | (1 << PointerTargeting.HoverAssistLayer));
         public const int PointerGeometryLayer = 11;
         [SerializeField]
         private Transform visual;

@@ -17,7 +17,7 @@ namespace Workerborn
 
         private const int VisibleLines = 4;
         private const int RecentMessages = 3;
-        private const float NameGap = 4f;
+        private const float NameGap = 11f;
         private readonly List<string> spoken = new List<string>(RecentMessages);
         private float shownUntil;
         private bool speechChanged;

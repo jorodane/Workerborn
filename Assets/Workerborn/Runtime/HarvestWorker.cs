@@ -48,6 +48,7 @@ namespace Workerborn
         private InventoryEntry pendingDrop;
         private Vector3 dropPoint;
         private Vector3 approachTargetPosition;
+        private Vector3 harvestOrigin;
         private VillagePrototype village;
         private int collectedCount;
         private bool walkPath;
@@ -177,9 +178,43 @@ namespace Workerborn
             Vector3 forward = Vector3.Cross(right, Vector3.up);
             Vector3 direction = Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
             agent.speed = IsWalking ? walkSpeed : runSpeed;
-            agent.Move(direction * (agent.speed * Time.deltaTime));
+            MoveWithWorldCollision(direction * (agent.speed * Time.deltaTime));
             Face(transform.position + direction);
             return true;
+        }
+
+        private void MoveWithWorldCollision(Vector3 displacement)
+        {
+            Vector3 origin = agent.nextPosition;
+            Vector3 step = SweepMovement(origin, displacement, out var hit);
+            if (hit.collider != null)
+            {
+                Vector3 normal = hit.normal;
+                normal.y = 0f;
+                if (normal.sqrMagnitude > .001f)
+                {
+                    Vector3 slide = Vector3.ProjectOnPlane(displacement - step, normal);
+                    step += SweepMovement(origin + step, slide, out _);
+                }
+            }
+            agent.Move(step);
+        }
+
+        private Vector3 SweepMovement(Vector3 origin, Vector3 displacement, out RaycastHit hit)
+        {
+            const float skin = .035f;
+            const int blockers = (1 << VillageNavigationBlocker.Layer) | (1 << VillageMapProp.PointerGeometryLayer);
+            float distance = displacement.magnitude;
+            hit = default;
+            if (distance < .0001f)
+                return Vector3.zero;
+
+            float radius = agent.radius;
+            Vector3 bottom = origin + Vector3.up * (radius + .08f);
+            Vector3 top = origin + Vector3.up * Mathf.Max(radius + .08f, agent.height - radius);
+            Vector3 direction = displacement / distance;
+            return Physics.CapsuleCast(bottom, top, radius, direction, out hit, distance + skin, blockers, QueryTriggerInteraction.Ignore)
+                ? direction * Mathf.Clamp(hit.distance - skin, 0f, distance) : displacement;
         }
 
         private void UpdateNearbyCollection()
@@ -576,15 +611,15 @@ namespace Workerborn
             }
             if (!InReach(HarvestPoint, cropTarget.InteractionDistance + .15f) || !cropTarget.TryBegin(this))
             {
-                string message = FishingPoint.HasValue ? "지금 이곳에서는 낚시할 수 없어요." : cropTarget is AnimalNpc { IsWalking: true }
-                    ? "동물이 멈춘 뒤 다시 채집해 주세요." : "이 작물에서는 지금 수확할 수 없어요.";
+                bool fishing = FishingPoint.HasValue;
                 Cancel();
-                Message?.Invoke(message);
+                Message?.Invoke(fishing ? "지금 이곳에서는 낚시할 수 없어요." : "이 대상은 지금 채집할 수 없어요.");
                 return;
             }
 
             Action = WorkerAction.Harvesting;
-            Face(HarvestPoint);
+            harvestOrigin = HarvestPoint;
+            Face(harvestOrigin);
             animationDriver?.BeginWork(cropTarget.Definition.WorkAnimation, cropTarget.Definition.HarvestSeconds);
             if (FishingPoint is Vector3 spot)
                 ShowFishingCast(spot);
@@ -594,9 +629,15 @@ namespace Workerborn
 
         private void UpdateHarvest()
         {
-            if (cropTarget == null || !cropTarget.isActiveAndEnabled || !InReach(HarvestPoint, cropTarget.InteractionDistance + 0.3f))
+            if (cropTarget == null || !cropTarget.isActiveAndEnabled || !InReach(harvestOrigin, cropTarget.InteractionDistance + .3f))
             {
                 Cancel();
+                return;
+            }
+            if (cropTarget is AnimalNpc animal && animal.HasMovedOutOfHarvest(harvestOrigin))
+            {
+                Cancel();
+                Message?.Invoke("동물이 너무 멀리 움직여서 채집에 실패했어요.");
                 return;
             }
             if (village != null && !village.CanHarvest(cropTarget))
@@ -605,26 +646,17 @@ namespace Workerborn
                 return;
             }
 
-            if (!cropTarget.Advance(this, Time.deltaTime))
-            {
-                animationDriver?.SampleWork(cropTarget.Progress);
+            bool completed = cropTarget.Advance(this, Time.deltaTime);
+            if (animationDriver?.SampleWork(cropTarget.Progress) == true && cropTarget is LoggingTree tree)
+                tree.ShowImpact(this);
+            if (!completed)
                 return;
-            }
 
-            animationDriver?.SampleWork(1f);
             if (village == null)
                 Message?.Invoke($"수확 완료! 바닥의 {cropTarget.Definition.DisplayName}를 클릭해서 주워 주세요.");
             cropTarget = null;
             ClearFishingCast();
             Action = WorkerAction.Idle;
-        }
-
-        internal void HarvestInterrupted(HarvestableCrop crop, string message)
-        {
-            if (ActiveCrop != crop)
-                return;
-            Cancel();
-            Message?.Invoke(message);
         }
 
         internal bool InReach(Vector3 position, float range)

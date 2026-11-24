@@ -27,7 +27,7 @@ namespace Workerborn
         private int workInput = Work;
         private int sitInput = -1;
         private float workDuration, beginDuration, finishDuration;
-        private float loopCycles;
+        private float loopCycles, loopImpact, lastLoopPosition;
         private bool timedWork;
         private int target;
         public void Initialize(Animator animator, AnimationClip idle, AnimationClip move, AnimationClip work, AnimationClip walk = null)
@@ -135,16 +135,21 @@ namespace Workerborn
             if (finishDuration > 0)
                 BindClip(WorkFinish, animation.Finish, true);
             loopCycles = Mathf.Max(1, Mathf.Round((workDuration - beginDuration - finishDuration) / lengths[Work]));
+            loopImpact = animation.LoopImpact;
+            lastLoopPosition = 0f;
             SampleWork(0f);
         }
 
-        public void SampleWork(float progress)
+        public bool SampleWork(float progress)
         {
             if (!timedWork || !graph.IsValid())
-                return;
+                return false;
 
             float elapsed = Mathf.Clamp01(progress) * workDuration;
             float finishAt = workDuration - finishDuration;
+            float loopPosition = loopCycles * Mathf.Clamp01((elapsed - beginDuration) / (finishAt - beginDuration));
+            bool impact = loopImpact > 0f && Mathf.FloorToInt(loopPosition - loopImpact) > Mathf.FloorToInt(lastLoopPosition - loopImpact);
+            lastLoopPosition = loopPosition;
             float phase;
             if (elapsed < beginDuration)
             {
@@ -159,10 +164,11 @@ namespace Workerborn
             else
             {
                 workInput = Work;
-                phase = Mathf.Repeat(loopCycles * (elapsed - beginDuration) / (finishAt - beginDuration), 1f);
+                phase = Mathf.Repeat(loopPosition, 1f);
             }
 
             clips[workInput].SetTime(phase * lengths[workInput]);
+            return impact;
         }
 
         public void SetAction(int action)

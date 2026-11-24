@@ -79,13 +79,18 @@ namespace Workerborn
                     hoveredOrder = pair.Key.NameplateOrder;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out var point);
                 Vector2 size = pair.Value.LayoutSize;
-                var objectScreen = game.WorldCamera.WorldToScreenPoint(pair.Key.transform.position);
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, objectScreen, null, out var objectPoint);
                 var slot = pair.Value.LayoutSlot;
                 slot.Order = pair.Key.NameplateOrder;
                 slot.X = point.x;
                 slot.Y = point.y;
-                slot.ObjectY = objectPoint.y;
+                if (alt)
+                {
+                    Vector3 position = pair.Key.transform.position;
+                    Vector3 ground = game.SurfacePosition(position.x, position.z);
+                    var groundScreen = game.WorldCamera.WorldToScreenPoint(ground);
+                    RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, groundScreen, null, out var groundPoint);
+                    slot.ObjectY = groundPoint.y;
+                }
                 slot.Width = size.x;
                 slot.Height = size.y;
                 slots.Add(slot);

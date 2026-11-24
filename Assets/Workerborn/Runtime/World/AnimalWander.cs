@@ -1,7 +1,5 @@
-using System;
 using UnityEngine;
 using UnityEngine.AI;
-using Random = UnityEngine.Random;
 
 namespace Workerborn
 {
@@ -25,7 +23,6 @@ namespace Workerborn
         private bool suspended;
 
         internal bool IsWalking { get; private set; }
-        internal event Action StartedWalking;
 
         private void Awake()
         {
@@ -49,6 +46,12 @@ namespace Workerborn
                 StopWalking();
             else
                 Rest();
+        }
+
+        internal void StopForDefeat()
+        {
+            SetSuspended(true);
+            agent.enabled = false;
         }
 
         private void Rest()
@@ -93,7 +96,6 @@ namespace Workerborn
                 IsWalking = true;
                 stopWalkingAt = Time.time + MaximumWalkSeconds;
                 Play(Walk);
-                StartedWalking?.Invoke();
                 return true;
             }
             return false;

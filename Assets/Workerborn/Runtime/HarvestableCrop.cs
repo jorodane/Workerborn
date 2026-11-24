@@ -11,7 +11,6 @@ namespace Workerborn
         private HarvestWorker owner;
         [SerializeField]
         private Transform visual;
-        private Vector3 restScale;
         [SerializeField]
         private Renderer[] charges;
         [SerializeField] private bool keepVisualWhenDepleted;
@@ -19,6 +18,7 @@ namespace Workerborn
         [SerializeField] private Collider[] interactionColliders;
         private Collider[] hoverAssistColliders;
         public CropDefinition Definition => definition;
+        protected Transform Visual => visual;
         public override string DisplayName => definition != null ? definition.DisplayName : name;
         protected override float DefaultDistance => 1.05f;
 
@@ -29,8 +29,6 @@ namespace Workerborn
         public override bool CanInteract => base.CanInteract && !IsDepleted;
         public override string InteractionVerb => definition != null ? definition.InteractionVerb : base.InteractionVerb;
         public float Progress => cycle?.Progress ?? 0f;
-        protected virtual bool CanStartHarvest => true;
-
         public event Action<HarvestableCrop> Harvested;
         protected void Awake() => EnsureInitialized();
         public void EnsureInitialized()
@@ -45,7 +43,6 @@ namespace Workerborn
                 foreach (var child in visual.GetComponentsInChildren<Transform>(true))
                     if (child.gameObject.layer != PointerTargeting.HoverAssistLayer)
                         child.gameObject.layer = 2;
-                restScale = visual.localScale;
             }
             ResetHarvests();
         }
@@ -54,14 +51,13 @@ namespace Workerborn
         {
             definition = crop;
             visual = plantVisual;
-            restScale = visual.localScale;
             charges = chargeMarkers;
             ResetHarvests();
         }
 
         public bool TryBegin(HarvestWorker worker)
         {
-            if (!isActiveAndEnabled || !CanStartHarvest || worker == null || owner != null || cycle == null || !cycle.TryBegin())
+            if (!isActiveAndEnabled || worker == null || owner != null || cycle == null || !cycle.TryBegin())
                 return false;
             owner = worker;
             return true;
@@ -84,17 +80,6 @@ namespace Workerborn
                 return;
             cycle?.Cancel();
             owner = null;
-            if (visual != null)
-                visual.localScale = restScale;
-        }
-
-        protected void InterruptHarvest(string message)
-        {
-            var worker = owner;
-            if (worker == null)
-                return;
-            Cancel(worker);
-            worker.HarvestInterrupted(this, message);
         }
 
         public void ResetHarvests()
@@ -123,10 +108,7 @@ namespace Workerborn
                 if (collider != null)
                     collider.enabled = available;
             if (visual != null)
-            {
                 visual.gameObject.SetActive(keepVisualWhenDepleted || !IsDepleted);
-                visual.localScale = restScale;
-            }
             if (depletedVisual != null)
                 depletedVisual.SetActive(IsDepleted);
 
@@ -134,12 +116,6 @@ namespace Workerborn
                 return;
             for (int i = 0; i < charges.Length; i++)
                 charges[i].enabled = i < Remaining;
-        }
-
-        private void Update()
-        {
-            if (owner != null && visual != null)
-                visual.localScale = restScale * (1f + Mathf.Sin(Time.time * 16f) * 0.025f);
         }
 
         protected override void OnDisable()

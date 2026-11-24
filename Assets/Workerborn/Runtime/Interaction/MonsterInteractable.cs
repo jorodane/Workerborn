@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace Workerborn
@@ -15,10 +16,14 @@ namespace Workerborn
         private const float VisibleHealthSeconds = 60f;
         private Animator animator;
         private AnimalWander wander;
+        private Collider[] livingColliders = Array.Empty<Collider>();
         private HarvestWorker opponent;
+        private VillagePrototype corpseVillage;
         private float nextCounterAt;
+        private float despawnAt;
         private bool counterAnimation;
         private bool lootTaken;
+        private bool corpseHidden;
 
         public override string DisplayName => displayName;
         public override bool CanTarget => !IsDefeated;
@@ -40,6 +45,7 @@ namespace Workerborn
                 return;
             animator = GetComponentInChildren<Animator>(true);
             wander = GetComponent<AnimalWander>();
+            livingColliders = Array.FindAll(GetComponentsInChildren<Collider>(true), collider => collider.enabled);
             if (animator != null)
                 animator.applyRootMotion = false;
             ResetEncounter();
@@ -49,10 +55,10 @@ namespace Workerborn
         {
             if (combat == null)
                 return;
-            RestoreEncounter(combat.Health, false, false);
+            RestoreEncounter(combat.Health, false);
         }
 
-        internal void RestoreEncounter(int health, bool gathered, bool keepDefeatedPose = true)
+        internal void RestoreEncounter(int health, bool gathered)
         {
             if (combat == null)
                 return;
@@ -61,11 +67,38 @@ namespace Workerborn
             lootTaken = IsDefeated && gathered;
             opponent = null;
             counterAnimation = false;
-            wander?.SetSuspended(IsDefeated);
+            corpseVillage = null;
+            SetBodyAlive(!IsDefeated);
             if (IsDefeated)
-                Play(defeatedState, keepDefeatedPose ? 1f : 0f);
+            {
+                HideCorpse();
+                return;
+            }
+            if (corpseHidden)
+            {
+                corpseHidden = false;
+                gameObject.SetActive(true);
+            }
+            Play(idleState);
+        }
+
+        private void SetBodyAlive(bool alive)
+        {
+            if (alive)
+                wander?.SetSuspended(false);
             else
-                Play(idleState);
+                wander?.StopForDefeat();
+            foreach (var collider in livingColliders)
+                if (collider != null)
+                    collider.enabled = alive;
+        }
+
+        private void HideCorpse()
+        {
+            if (!gameObject.activeSelf)
+                return;
+            corpseHidden = true;
+            gameObject.SetActive(false);
         }
 
         protected override void Interact(HarvestWorker worker)
@@ -99,7 +132,12 @@ namespace Workerborn
             worker.Village.Hud.ShowFloatingText(NamePosition + Vector3.up * .2f, "-" + applied, new Color(1f, .85f, .56f));
             if (IsDefeated)
             {
-                RestoreEncounter(0, false, false);
+                opponent = null;
+                counterAnimation = false;
+                SetBodyAlive(false);
+                Play(defeatedState);
+                corpseVillage = worker.Village;
+                despawnAt = Time.time + combat.CorpseSeconds;
                 TryDropLoot(worker.Village);
                 worker.Village.SaveGame(false);
             }
@@ -115,6 +153,16 @@ namespace Workerborn
 
         private void Update()
         {
+            if (IsDefeated)
+            {
+                if (Time.time >= despawnAt)
+                {
+                    corpseVillage?.PlayCorpseDespawn(transform.position);
+                    corpseVillage = null;
+                    HideCorpse();
+                }
+                return;
+            }
             if (counterAnimation && animator != null)
             {
                 var playing = animator.GetCurrentAnimatorStateInfo(0);
@@ -127,10 +175,10 @@ namespace Workerborn
             if (opponent == null || !opponent.InReach(transform.position, InteractionDistance + .75f))
             {
                 opponent = null;
-                wander?.SetSuspended(IsDefeated);
+                wander?.SetSuspended(false);
                 return;
             }
-            if (IsDefeated || Time.time < nextCounterAt || !opponent.InReach(transform.position, InteractionDistance))
+            if (Time.time < nextCounterAt || !opponent.InReach(transform.position, InteractionDistance))
                 return;
             var village = opponent.Village;
             if (village == null || village.Hud.WorldActionsLocked || village.State.Health <= 0 || village.State.Energy <= 0)
@@ -145,14 +193,14 @@ namespace Workerborn
             village.ReceiveAnimalHit(combat.CounterDamage);
         }
 
-        private bool Play(string state, float progress = 0)
+        private bool Play(string state)
         {
             if (animator == null || animator.runtimeAnimatorController == null || !animator.isActiveAndEnabled)
                 return false;
             int hash = Animator.StringToHash(state);
             if (!animator.HasState(0, hash))
                 return false;
-            animator.Play(hash, 0, progress);
+            animator.Play(hash, 0, 0f);
             return true;
         }
 

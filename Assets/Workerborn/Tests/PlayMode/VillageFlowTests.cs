@@ -167,15 +167,12 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator AHenWalkingAwayInterruptsHarvestWithoutSpendingACharge()
+        public IEnumerator AHenCanShiftBeforeItMovesFarEnoughToInterruptHarvest()
         {
             var hen = UnityEngine.Object.FindFirstObjectByType<AnimalNpc>();
             var wander = hen.GetComponent<AnimalWander>();
-            var rest = typeof(AnimalWander).GetField("restSeconds",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            rest.SetValue(wander, Vector2.one * .5f);
             wander.SetSuspended(true);
-            Assert.That(NavMesh.SamplePosition(hen.transform.position + Vector3.right, out var stand, .8f, NavMesh.AllAreas), Is.True);
+            Assert.That(NavMesh.SamplePosition(hen.transform.position + Vector3.right * 1.6f, out var stand, .8f, NavMesh.AllAreas), Is.True);
             Assert.That(game.Worker.WarpTo(stand.position), Is.True);
 
             int charges = hen.Remaining;
@@ -188,20 +185,19 @@ namespace Workerborn.Tests
             {
                 game.Worker.CommandHarvest(hen);
                 yield return Until(() => game.Worker.ActiveCrop == hen, 2f);
-                Vector3 home = hen.transform.position;
-                wander.SetSuspended(false);
-                yield return Until(() => wander.IsWalking, 2f);
+                Vector3 start = hen.transform.position;
+                Vector3 away = Vector3.ProjectOnPlane(start - game.Worker.transform.position, Vector3.up).normalized;
+                hen.transform.position = start + away * .55f;
+                yield return null;
+                Assert.That(game.Worker.ActiveCrop, Is.SameAs(hen));
+                hen.transform.position = start + away * .9f;
+                yield return Until(() => game.Worker.ActiveCrop == null, 1f);
                 Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
                 Assert.That(hen.Progress, Is.Zero);
                 Assert.That(hen.Remaining, Is.EqualTo(charges));
                 Assert.That(game.State.Energy, Is.EqualTo(energy));
                 Assert.That(game.GroundItemCount, Is.EqualTo(drops));
                 Assert.That(notice, Does.Contain("채집에 실패"));
-                yield return Until(() => Vector3.Distance(home, hen.transform.position) > .12f, 2f);
-                yield return Until(() => !wander.IsWalking, 8f);
-                Vector3 offset = hen.transform.position - home;
-                offset.y = 0f;
-                Assert.That(offset.magnitude, Is.LessThanOrEqualTo(3.1f));
             }
             finally
             {
@@ -226,11 +222,13 @@ namespace Workerborn.Tests
                 return nameplate != null;
             }, 2f);
             var healthBar = nameplate.transform.Find("Health bar");
+            Vector2 labelSize = nameplate.Rect.rect.size;
             int health = rabbit.Health;
             int stamina = game.State.Energy;
             int drops = game.GroundItemCount;
             rabbit.RequestInteraction(game.Worker);
             yield return Until(() => healthBar.gameObject.activeSelf, 2f);
+            Assert.That(nameplate.Rect.rect.size, Is.EqualTo(labelSize));
             yield return Until(() => rabbit.Health < health, 3f);
             Assert.That(rabbit.HealthVisibleUntil - Time.unscaledTime, Is.InRange(59f, 60f));
             int remaining = rabbit.Health;
@@ -250,27 +248,53 @@ namespace Workerborn.Tests
             }
             Assert.That(rabbit.LootTaken, Is.True);
             Assert.That(rabbit.CanInteract, Is.False);
+            Assert.That(rabbit.GetComponent<NavMeshAgent>().enabled, Is.False);
+            Assert.That(rabbit.GetComponentsInChildren<Collider>(true).All(collider => !collider.enabled), Is.True);
+            Assert.That(rabbit.gameObject.activeSelf, Is.True);
             Assert.That(nameplate.Target, Is.Null);
             Assert.That(fill.fillAmount, Is.Zero);
             Assert.That(game.GroundItemCount, Is.EqualTo(drops + rabbit.Combat.LootCount));
             rabbit.RequestInteraction(game.Worker);
             Assert.That(game.GroundItemCount, Is.EqualTo(drops + rabbit.Combat.LootCount));
+
+            yield return Until(() => !rabbit.gameObject.activeSelf, rabbit.Combat.CorpseSeconds + 2f);
+            Assert.That(GameObject.Find("CorpseDespawn(Clone)"), Is.Not.Null);
+            Assert.That(game.CaptureSave().animalStates.Single(animal => animal.id == rabbit.PersistentId).health, Is.Zero);
+            rabbit.ResetEncounter();
+            Assert.That(rabbit.gameObject.activeSelf, Is.True);
+            Assert.That(rabbit.GetComponentsInChildren<Collider>(true).Any(collider => collider.enabled), Is.True);
+            Assert.That(rabbit.Health, Is.EqualTo(rabbit.Combat.Health));
         }
 
         [UnityTest]
-        public IEnumerator BareHandedTreeStrikeDropsABranchWithoutSpendingALoggingCharge()
+        public IEnumerator TreeReactsToBareHandedAndAxeImpacts()
         {
             var tree = game.Crops.OfType<LoggingTree>().First();
             Vector3 approach = tree.transform.position + Vector3.right * 1.75f;
             Assert.That(NavMesh.SamplePosition(approach, out var at, .4f, NavMesh.AllAreas), Is.True);
             game.Worker.WarpTo(at.position);
             int remaining = tree.Remaining;
+            var visual = tree.transform.Find("Visual");
+            Quaternion rest = visual.localRotation;
+            Vector3 scale = visual.localScale;
             Assert.That(tree.InteractionVerbFor(game.Worker), Is.EqualTo("때리기"));
             tree.RequestInteraction(game.Worker);
             yield return Until(() => WorldInteractable.Active.OfType<GroundPickup>().Any(item => item.ItemId == tree.Branch.Id), 3f);
             var branch = WorldInteractable.Active.OfType<GroundPickup>().Single(item => item.ItemId == tree.Branch.Id);
             Assert.That(tree.Remaining, Is.EqualTo(remaining));
             Assert.That(branch.Quantity, Is.EqualTo(1));
+            yield return Until(() => Quaternion.Angle(visual.localRotation, rest) > .2f, .25f);
+            Assert.That(visual.localScale, Is.EqualTo(scale));
+            yield return Until(() => Quaternion.Angle(visual.localRotation, rest) < .01f, .5f);
+
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
+            Assert.That(game.State.TryEquip(game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Axe).Id), Is.True);
+            tree.RequestInteraction(game.Worker);
+            yield return Until(() => game.Worker.ActiveCrop == tree, 3f);
+            Assert.That(Quaternion.Angle(visual.localRotation, rest), Is.LessThan(.01f));
+            yield return Until(() => Quaternion.Angle(visual.localRotation, rest) > .2f, tree.Definition.HarvestSeconds);
+            Assert.That(game.Worker.ActiveCrop, Is.SameAs(tree));
+            Assert.That(visual.localScale, Is.EqualTo(scale));
         }
 
         [UnityTest]
@@ -1792,6 +1816,38 @@ namespace Workerborn.Tests
             finally
             {
                 InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator KeyboardMovementStopsAtUnbakedWorldGeometry()
+        {
+            var agent = game.Worker.GetComponent<NavMeshAgent>();
+            Vector3 start = agent.nextPosition;
+            Vector3 right = Vector3.ProjectOnPlane(game.WorldCamera.transform.right, Vector3.up).normalized;
+            Vector3 forward = Vector3.Cross(right, Vector3.up);
+            var (key, direction) = new[] { (Key.W, forward), (Key.S, -forward), (Key.A, -right), (Key.D, right) }
+                .First(move => !agent.Raycast(start + move.Item2 * 1.5f, out _));
+            var wall = new GameObject("Unbaked pointer geometry") { layer = VillageMapProp.PointerGeometryLayer };
+            wall.transform.SetPositionAndRotation(start + direction * .85f + Vector3.up * .8f, Quaternion.LookRotation(direction));
+            var collider = wall.AddComponent<BoxCollider>();
+            collider.size = new Vector3(1.5f, 1.6f, .14f);
+            Physics.SyncTransforms();
+
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            try
+            {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(key));
+                yield return new WaitForSeconds(.65f);
+                Assert.That(Vector3.Dot(agent.nextPosition - start, direction), Is.InRange(.15f, .5f));
+                collider.enabled = false;
+                Physics.SyncTransforms();
+                yield return Until(() => Vector3.Dot(agent.nextPosition - start, direction) > 1f, 1f);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(keyboard);
+                UnityEngine.Object.Destroy(wall);
             }
         }
 

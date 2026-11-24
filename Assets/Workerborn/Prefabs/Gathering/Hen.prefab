@@ -159,6 +159,7 @@ MonoBehaviour:
   charges: []
   keepVisualWhenDepleted: 1
   inspectMessage: 암탉이 모이를 쪼고 있어요.
+  harvestMoveTolerance: 0.75
   depletedVisual: {fileID: 0}
   interactionColliders: []
 --- !u!195 &100019

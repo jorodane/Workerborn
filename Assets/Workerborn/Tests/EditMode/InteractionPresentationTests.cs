@@ -154,6 +154,40 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void CrowdedFieldLabelsStayNearTheirProjectedPositionsWhileScrolling()
+        {
+            var slots = Enumerable.Range(0, 18).Select(index => new NameplateSlot
+            {
+                Order = index,
+                X = 200,
+                Y = 420 - index * 10,
+                ObjectY = 400 - index * 10,
+                Width = 64,
+                Height = 26
+            }).ToList();
+            var sign = new NameplateSlot { Order = 18, X = 200, Y = 424, ObjectY = 380, Width = 112, Height = 26 };
+            var unrelated = new NameplateSlot { Order = 19, X = 200, Y = 115, ObjectY = 105, Width = 70, Height = 26 };
+            slots.Add(sign);
+            slots.Add(unrelated);
+
+            float overflow = NameplateLayout.Arrange(slots, 0, 540, 3, scrollOrder: 0);
+            Assert.That(overflow, Is.GreaterThan(0));
+            Assert.That(slots.First(label => label.Order == 0).Visible, Is.True);
+            var seen = new HashSet<long>();
+            for (int step = 0; step <= 20; step++)
+            {
+                NameplateLayout.Arrange(slots, 0, 540, 3, overflow * step / 20f, scrollOrder: 0);
+                Assert.That(unrelated.PlacedY, Is.EqualTo(unrelated.Y));
+                foreach (var label in slots.Where(label => label.Visible))
+                {
+                    Assert.That(Math.Abs(label.PlacedY - label.Y), Is.LessThanOrEqualTo(label.Height * 2f + .001f));
+                    seen.Add(label.Order);
+                }
+            }
+            Assert.That(seen.Count, Is.EqualTo(slots.Count));
+        }
+
+        [Test]
         public void RemovingACollectedItemClosesTheGapAndEdgeStacksStayInsideTheScreen()
         {
             var slots = new List<NameplateSlot>

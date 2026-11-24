@@ -30,7 +30,6 @@ namespace Workerborn
         [SerializeField] private Color itemName = Color.white;
         [SerializeField] private Color enemyName = new Color(1f, .63f, .35f);
         private bool boxVisible, pointerInside, pointerDown;
-        private float nameWidth, nameHeight;
         private PointerTargeting targeting;
         private WorldTargetReference target;
         public WorldInteractable Target => target.Target;
@@ -74,9 +73,8 @@ namespace Workerborn
         public void SetText(string text)
         {
             label.text = text;
-            nameWidth = Mathf.Max(48, label.preferredWidth + padding.x);
-            nameHeight = Mathf.Max(22, label.preferredHeight + padding.y);
-            Resize();
+            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(48, label.preferredWidth + padding.x));
+            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(22, label.preferredHeight + padding.y));
         }
 
         internal void SetHealth(bool visible, int health = 0, int maximum = 0)
@@ -84,20 +82,8 @@ namespace Workerborn
             visible &= maximum > 0;
             if (visible)
                 healthFill.fillAmount = Mathf.Clamp01((float)health / maximum);
-            if (healthBar.gameObject.activeSelf == visible)
-                return;
-            healthBar.gameObject.SetActive(visible);
-            Resize();
-        }
-
-        private void Resize()
-        {
-            bool showHealth = healthBar.gameObject.activeSelf;
-            float healthHeight = showHealth ? healthBar.sizeDelta.y + 4f : 0f;
-            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
-                showHealth ? Mathf.Max(nameWidth, healthBar.sizeDelta.x + 10f) : nameWidth);
-            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, nameHeight + healthHeight);
-            label.rectTransform.offsetMin = new Vector2(0f, healthHeight);
+            if (healthBar.gameObject.activeSelf != visible)
+                healthBar.gameObject.SetActive(visible);
         }
 
         public void SetBox(bool visible)

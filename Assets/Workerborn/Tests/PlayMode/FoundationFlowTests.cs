@@ -104,6 +104,9 @@ namespace Workerborn.Tests
         {
             var targets = UnityEngine.Object.FindObjectsByType<HarvestableCrop>(FindObjectsSortMode.None).Where(c => c.Definition.ItemId == id);
             foreach (var crop in targets)
+            {
+                if (crop.TryGetComponent<AnimalWander>(out var wander))
+                    wander.SetSuspended(true);
                 while (crop.CanInteract && !crop.IsDepleted && game.State.Inventory.Count(id) < required)
                 {
                     int remaining = crop.Remaining;
@@ -117,6 +120,7 @@ namespace Workerborn.Tests
                         yield return Until(() => drop == null || !drop.CanCollect);
                     }
                 }
+            }
             Assert.That(game.State.Inventory.Count(id), Is.GreaterThanOrEqualTo(required));
         }
 
