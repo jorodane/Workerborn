@@ -22,6 +22,7 @@ namespace Workerborn
         private const float Epsilon = .001f;
         private const float MaximumDisplacementInRows = 2f;
         private const float MaximumDisplacementInColumns = 1.5f;
+        private const float HorizontalDistanceWeight = .85f;
 
         public static void Present(List<NameplateSlot> labels, bool alt, float bottom, float top, float gap,
             float left = float.NegativeInfinity, float right = float.PositiveInfinity)
@@ -202,12 +203,11 @@ namespace Workerborn
                     AddCandidate(rows, other.PlacedY + height, minY, maxY);
                 }
 
-                // Try the anchor and edges of nearby boxes. In a packed area keep all
-                // labels placed, favoring the positions with the least overlap.
+                // Try the anchor and edges of nearby boxes before searching farther.
                 var best = (Overlap: float.PositiveInfinity, Reversed: int.MaxValue, Distance: float.PositiveInfinity);
                 foreach (float x in columns)
                 {
-                    float dx = (x - label.AnchorX) * .85f;
+                    float dx = (x - label.AnchorX) * HorizontalDistanceWeight;
                     foreach (float y in rows)
                     {
                         float dy = y - label.AnchorY;
@@ -235,7 +235,73 @@ namespace Workerborn
                         label.PlacedY = y;
                     }
                 }
+
+                if (best.Overlap > 0f && !TryPlaceInFreeSpace(label, occupied, columns, bottom, top, left, right, gap))
+                    TryPlaceInFreeSpace(label, occupied, columns, bottom, top, left, right, 0f);
                 occupied.Add(label);
+            }
+        }
+
+        private static bool TryPlaceInFreeSpace(NameplateSlot label, List<NameplateSlot> occupied, List<float> columns,
+            float bottom, float top, float left, float right, float gap)
+        {
+            // A closest open point is at the anchor or on an edge of an occupied box's excluded area.
+            float minX = ClampCenter(left, left, right, label.HalfWidth);
+            float maxX = ClampCenter(right, left, right, label.HalfWidth);
+            float minY = ClampCenter(bottom, bottom, top, label.HalfHeight);
+            float maxY = ClampCenter(top, bottom, top, label.HalfHeight);
+            columns.Clear();
+            columns.Add(label.AnchorX);
+            foreach (var other in occupied)
+            {
+                float separation = label.HalfWidth + other.HalfWidth + gap;
+                AddCandidate(columns, other.PlacedX - separation, minX, maxX);
+                AddCandidate(columns, other.PlacedX + separation, minX, maxX);
+            }
+
+            float bestDistance = float.PositiveInfinity;
+            foreach (float x in columns)
+            {
+                float dx = (x - label.AnchorX) * HorizontalDistanceWeight;
+                if (dx * dx >= bestDistance)
+                    continue;
+                var (below, above) = FindOpenRows(label, x, occupied, gap);
+                bool canPlaceBelow = below >= minY;
+                bool canPlaceAbove = above <= maxY;
+                if (!canPlaceBelow && !canPlaceAbove)
+                    continue;
+
+                float y = canPlaceBelow && (!canPlaceAbove || label.AnchorY - below <= above - label.AnchorY) ? below : above;
+                float dy = y - label.AnchorY;
+                float distance = dx * dx + dy * dy;
+                if (distance >= bestDistance)
+                    continue;
+                bestDistance = distance;
+                label.PlacedX = x;
+                label.PlacedY = y;
+            }
+            return !float.IsPositiveInfinity(bestDistance);
+        }
+
+        private static (float Below, float Above) FindOpenRows(NameplateSlot label, float x, List<NameplateSlot> occupied, float gap)
+        {
+            float below = label.AnchorY, above = label.AnchorY;
+            while (true)
+            {
+                float previousBelow = below, previousAbove = above;
+                foreach (var other in occupied)
+                {
+                    if (Math.Abs(x - other.PlacedX) >= label.HalfWidth + other.HalfWidth + gap - Epsilon)
+                        continue;
+                    float separation = label.HalfHeight + other.HalfHeight + gap;
+                    float start = other.PlacedY - separation, end = other.PlacedY + separation;
+                    if (below > start + Epsilon && below < end - Epsilon)
+                        below = start;
+                    if (above > start + Epsilon && above < end - Epsilon)
+                        above = end;
+                }
+                if (below == previousBelow && above == previousAbove)
+                    return (below, above);
             }
         }
 

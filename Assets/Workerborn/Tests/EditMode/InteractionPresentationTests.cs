@@ -178,6 +178,50 @@ namespace Workerborn.Tests
             }
         }
 
+        [TestCase(0)]
+        [TestCase(-85)]
+        public void PackedCropsAndWideSignsUseOpenSpaceWithoutCoveringEachOther(int xOffset)
+        {
+            var slots = new List<NameplateSlot>();
+            for (int row = 0; row < 4; row++)
+                for (int column = 0; column < 4; column++)
+                {
+                    float y = 333f - row * 14f - column * 6f;
+                    Add(156f + column * 22f + row * 12f, y, y - 8f, 64f);
+                }
+
+            Add(164f, 340f, 314f, 184f);
+            Add(238f, 320f, 294f, 150f);
+            Add(140f, 299f, 276f, 164f);
+            Add(295f, 353f, 329f, 108f);
+            Add(300f, 316f, 283f, 96f, 47f);
+            Add(94f, 345f, 323f, 116f);
+            Add(590f, 280f, 250f, 100f);
+            var separateSign = slots[slots.Count - 1];
+
+            NameplateLayout.Arrange(slots, 40f, 560f, 3f, left: 8f, right: 792f);
+
+            AssertSeparated(slots, 3f);
+            Assert.That(separateSign.PlacedX, Is.EqualTo(separateSign.X));
+            Assert.That(separateSign.PlacedY, Is.EqualTo(separateSign.Y));
+            foreach (var slot in slots)
+            {
+                Assert.That(slot.PlacedX, Is.InRange(8f + slot.Width * .5f, 792f - slot.Width * .5f));
+                Assert.That(slot.PlacedY, Is.InRange(40f + slot.Height * .5f, 560f - slot.Height * .5f));
+            }
+
+            void Add(float x, float y, float groundY, float width, float height = 40f) =>
+                slots.Add(new NameplateSlot
+                {
+                    Order = slots.Count,
+                    X = x + xOffset,
+                    Y = y,
+                    ObjectY = groundY,
+                    Width = width,
+                    Height = height
+                });
+        }
+
         [Test]
         public void RemovingACollectedItemClosesTheGapAndEdgeStacksStayInsideTheScreen()
         {
