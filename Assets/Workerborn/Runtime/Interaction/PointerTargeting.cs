@@ -194,7 +194,8 @@ namespace Workerborn
                     target = PickTarget(cursor, control && !game.ControlsBlocked);
             }
 
-            if (target != null && (!target.CanInteract || game.ControlsBlocked && !(target is GroundPickup)))
+            if (target != null && (!target.CanInteract || !game.SharesMap(target.transform.position) ||
+                game.ControlsBlocked && !(target is GroundPickup)))
                 target = null;
             if (rightPressed)
             {
@@ -243,12 +244,12 @@ namespace Workerborn
         private WorldInteractable PickTarget(Vector2 cursor, bool control)
         {
             if (!HasMask)
-                return null;
+                return control ? null : PickHoverAssist(cursor, doorsOnly: true);
             if (!control)
             {
                 int id = TargetMaskGeometry.IdAtScreen(pixels, mask.width, mask.height, flipReadback,
                     cursor.x, cursor.y, Screen.width, Screen.height);
-                return id != 0 ? SnapshotTarget(id) : PickHoverAssist(cursor);
+                return (id != 0 ? SnapshotTarget(id) : null) ?? PickHoverAssist(cursor);
             }
             if (TargetMaskGeometry.Closest(pixels, mask.width, mask.height, flipReadback, cursor.x, cursor.y,
                 Screen.width, Screen.height, out var closest, IsLivingTarget))
@@ -262,7 +263,7 @@ namespace Workerborn
             return target != null && target.CanTarget && target.CanInteract;
         }
 
-        private WorldInteractable PickHoverAssist(Vector2 cursor)
+        private WorldInteractable PickHoverAssist(Vector2 cursor, bool doorsOnly = false)
         {
             if (cursor.x < 0 || cursor.y < 0 || cursor.x >= Screen.width || cursor.y >= Screen.height)
                 return null;
@@ -286,7 +287,8 @@ namespace Workerborn
                 if (hit.distance >= nearest || !hit.collider.isTrigger)
                     continue;
                 var target = hit.collider.GetComponentInParent<WorldInteractable>();
-                if (target == null || !target.CanInteract || target.gameObject.scene != game.gameObject.scene)
+                if (target == null || !target.CanInteract || target.gameObject.scene != game.gameObject.scene ||
+                    !game.SharesMap(target.transform.position) || doorsOnly && !(target is VillageBuildingDoor))
                     continue;
 
                 target.GetComponentsInChildren(false, actorGeometry);

@@ -416,6 +416,8 @@ namespace Workerborn
                 view.transform.SetAsLastSibling();
             if ((view.Id == "inventory" || view.Id == "shop") && TradeQuantityOpen)
                 views["quantity"].transform.SetAsLastSibling();
+            if (dragGhost != null)
+                dragGhost.SetAsLastSibling();
         }
 
         private bool CloseFocusedWindow()

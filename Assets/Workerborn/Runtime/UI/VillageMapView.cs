@@ -25,6 +25,7 @@ namespace Workerborn
         private readonly Dictionary<VillageInteractable, Marker> npcs = new Dictionary<VillageInteractable, Marker>();
         private readonly Dictionary<VillagePlot, Marker> plots = new Dictionary<VillagePlot, Marker>();
         private Marker farm;
+        private Marker interiorExit;
         private Vector2 imageSize, imagePadding;
         private Rect area;
         private PartTimeScheduleRowView jobSource;
@@ -63,6 +64,7 @@ namespace Workerborn
                 npcs.Add(guide, AddMarker(guide.DisplayName, npcIcon));
             foreach (var plot in game.BuildPlots)
                 plots.Add(plot, AddMarker(plot.DisplayName, plotIcon));
+            interiorExit = AddMarker("출구", npcIcon);
             if (showPlaceNames && game.FarmMapAnchor != null)
                 farm = AddMarker("농장", null);
             if (game.MapRegion != null)
@@ -127,10 +129,16 @@ namespace Workerborn
             FitImage();
             if (area.width <= 0f || area.height <= 0f)
                 return;
-            areaName.text = game.InRebirthZone ? game.RebirthArea.MapName : villageName;
-            map.texture = game.InRebirthZone || game.MapRegion == null ? null : game.MapRegion.TerrainImage(game.GroundTerrain, game);
+            var interior = game.CurrentInterior;
+            areaName.text = interior != null ? interior.MapName : game.InRebirthZone ? game.RebirthArea.MapName : villageName;
+            map.texture = interior != null ? interior.MapImage() :
+                game.InRebirthZone || game.MapRegion == null ? null : game.MapRegion.TerrainImage(game.GroundTerrain, game);
             map.enabled = map.texture != null;
             Place(player, game.Worker.transform.position);
+            if (interior != null)
+                Place(interiorExit.Icon.rectTransform, interior.Exit.transform.position);
+            else
+                interiorExit.Icon.gameObject.SetActive(false);
             foreach (var pair in npcs)
                 if (pair.Key != null && pair.Key.isActiveAndEnabled && game.SharesMap(pair.Key.transform.position))
                     Place(pair.Value.Icon.rectTransform, pair.Key.transform.position);

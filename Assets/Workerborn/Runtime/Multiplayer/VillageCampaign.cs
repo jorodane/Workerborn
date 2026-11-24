@@ -459,6 +459,7 @@ namespace Workerborn
             profile.character = state.Export();
             profile.character.playerX = previous.playerX;
             profile.character.playerZ = previous.playerZ;
+            profile.character.interior = teleport ? default : previous.interior;
             profile.character.cropStates = teleport ? Array.Empty<CropStateSave>() : previous.cropStates;
             profile.character.animalStates = teleport ? Array.Empty<AnimalStateSave>() : previous.animalStates;
             profile.character.collectedPickupIds = teleport && previous.life != state.Life ? Array.Empty<string>() : previous.collectedPickupIds;

@@ -29,6 +29,14 @@ namespace Workerborn
     }
 
     [Serializable]
+    public struct InteriorPositionSave
+    {
+        public string id;
+        public float localX;
+        public float localZ;
+    }
+
+    [Serializable]
     public sealed class GroundDropSave
     {
         public string id;
@@ -36,6 +44,7 @@ namespace Workerborn
         public string itemId;
         public float x;
         public float z;
+        public InteriorPositionSave interior;
     }
 
     [Serializable]
@@ -104,6 +113,7 @@ namespace Workerborn
         public GroundDropSave[] drops = Array.Empty<GroundDropSave>();
         public float playerX;
         public float playerZ = -4.4f;
+        public InteriorPositionSave interior;
         public bool awaitingIncarnation;
         public bool hasLifeLook;
         public CharacterLook lifeLook;
@@ -839,7 +849,8 @@ namespace Workerborn
             if (save.bagExpanded != state.BagExpanded || state.BagExpanded && inventory.Rows < BagInventoryRows)
                 throw new ArgumentException("Invalid bag equipment.");
 
-            if (save.pendingPurchase is PendingPurchaseSave purchase)
+            if (save.pendingPurchase is PendingPurchaseSave purchase &&
+                (purchase.quantity != 0 || !string.IsNullOrEmpty(purchase.itemId)))
             {
                 if (!state.IsPurchasable(purchase.itemId) || purchase.quantity < 1 ||
                     purchase.quantity > PurchaseLimit(ItemCatalog.Get(purchase.itemId)))
@@ -847,7 +858,8 @@ namespace Workerborn
                 state.PendingPurchase = new InventoryEntry { ItemId = purchase.itemId, Quantity = purchase.quantity };
             }
 
-            if (state.AwaitingIncarnation && (state.HasVillageProgress || save.gold != 0 || (save.drops?.Length ?? 0) > 0))
+            if (state.AwaitingIncarnation && (state.HasVillageProgress || save.gold != 0 ||
+                (save.drops?.Length ?? 0) > 0 || !string.IsNullOrEmpty(save.interior.id)))
                 throw new ArgumentException("An incarnation waiting on the clouds cannot carry possessions or progress from the village.");
 
             if (state.Job == JobStatus.Active && state.Minute >= rules.JobEnd)

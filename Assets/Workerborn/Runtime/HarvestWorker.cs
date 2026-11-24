@@ -58,7 +58,8 @@ namespace Workerborn
         public bool AcceptsGroundItemCommands => village == null || village.Hud.AllowsGroundItems && !village.State.AwaitingIncarnation;
         public PointerTargeting Targeting => village != null ? village.Targeting : null;
         internal VillagePrototype Village => village;
-        public bool IsWalking => Action == WorkerAction.Moving && walkPath;
+        public bool IsWalking => Action == WorkerAction.Moving &&
+            (manualMoving ? WorkerbornInput.Held("Gameplay/Walk") : walkPath);
         public bool HasPendingDrop => pendingDrop != null;
         internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
         public WorkerAction Action { get; private set; }
@@ -170,7 +171,8 @@ namespace Workerborn
             right.Normalize();
             Vector3 forward = Vector3.Cross(right, Vector3.up);
             Vector3 direction = Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
-            agent.Move(direction * (runSpeed * Time.deltaTime));
+            agent.speed = IsWalking ? walkSpeed : runSpeed;
+            agent.Move(direction * (agent.speed * Time.deltaTime));
             Face(transform.position + direction);
             return true;
         }
@@ -381,8 +383,16 @@ namespace Workerborn
 
         public void CommandApproach(WorldInteractable target, System.Action arrival = null)
         {
+            if (target != null)
+                Approach(target, target.transform.position, target.InteractionDistance * .7f, arrival);
+        }
+
+        internal void CommandApproachAt(WorldInteractable target, Vector3 point) => Approach(target, point, 0f, null);
+
+        private void Approach(WorldInteractable target, Vector3 point, float offset, System.Action arrival)
+        {
             if (village == null || target == null || village.ControlsBlocked ||
-                !NavigateNear(target.transform.position, target.InteractionDistance * 0.7f))
+                !NavigateNear(point, offset))
                 return;
             interactionTarget = target;
             onInteractionArrival = arrival;

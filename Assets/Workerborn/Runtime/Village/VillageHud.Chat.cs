@@ -26,7 +26,7 @@ namespace Workerborn
 
         internal void PositionPlayerOverhead(PlayerOverheadView overhead, Vector3 position)
         {
-            overhead.Position(game.WorldCamera, (RectTransform)overhead.transform.parent, position);
+            overhead.Position(game.WorldCamera, (RectTransform)overhead.transform.parent, position, game.SharesMap(position));
         }
 
         internal void ShowChat(string speaker, string message, bool local)

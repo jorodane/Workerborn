@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.AI;
 
 namespace Workerborn
 {
@@ -12,7 +11,6 @@ namespace Workerborn
 
         public bool InRebirthZone { get; private set; }
         internal RebirthZone RebirthArea => rebirthZone;
-        internal bool SharesMap(Vector3 position) => InRebirthZone == (rebirthZone?.Contains(position.x, position.z) == true);
 
         private void EnterClouds()
         {
@@ -52,12 +50,16 @@ namespace Workerborn
         {
             if (State.AwaitingIncarnation != toClouds)
                 return false;
-            Vector3 surface = SurfacePosition(destination.x, destination.z);
-            if (!NavMesh.SamplePosition(surface, out var landing, 2f, NavMesh.AllAreas) || !worker.WarpTo(landing.position))
+            if (!TryWarpToMap(destination, toClouds: toClouds))
                 return false;
-            InRebirthZone = toClouds;
             if (toClouds)
                 worker.transform.rotation = rebirthZone.Spawn.rotation;
+            RefreshAfterTravel();
+            return true;
+        }
+
+        private void RefreshAfterTravel()
+        {
             hud.CloseDialogue();
             hud.CloseWorldContext();
             hud.CancelItemDrag();
@@ -65,7 +67,6 @@ namespace Workerborn
             hud.SetIncarnationPresentation();
             targeting?.RefreshStaticGeometry();
             cameraRig.SnapToTarget();
-            return true;
         }
     }
 }

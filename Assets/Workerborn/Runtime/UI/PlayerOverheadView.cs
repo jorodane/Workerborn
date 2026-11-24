@@ -118,7 +118,7 @@ namespace Workerborn
                 spoken[0] = spoken[0].Substring(offset);
         }
 
-        internal void Position(Camera camera, RectTransform canvas, Vector3 world)
+        internal void Position(Camera camera, RectTransform canvas, Vector3 world, bool sharesMap = true)
         {
             float now = Time.unscaledTime;
             if (spoken.Count > 0 && now >= shownUntil)
@@ -130,7 +130,7 @@ namespace Workerborn
 
             AnimateSize(now);
             var screen = camera.WorldToScreenPoint(world);
-            bool visible = screen.z > 0f && camera.pixelRect.Contains((Vector2)screen);
+            bool visible = sharesMap && screen.z > 0f && camera.pixelRect.Contains((Vector2)screen);
             Rect.gameObject.SetActive(visible);
             if (!visible)
                 return;

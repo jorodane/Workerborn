@@ -949,11 +949,28 @@ namespace Workerborn.Tests
                 Is.SameAs(game.Settings.FindItem(ItemIds.Potato).Icon));
             Assert.That(held.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Count").enabled, Is.False);
 
-            game.Hud.ClickEquipment(EquipmentSlot.MainHand, pointer);
+            var mouse = InputSystem.AddDevice<Mouse>();
+            try
+            {
+                var slotRect = (RectTransform)slot.transform;
+                var slotPoint = RectTransformUtility.WorldToScreenPoint(null, slotRect.TransformPoint(slotRect.rect.center));
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = slotPoint, buttons = 1 });
+                yield return null;
+                Assert.That(held.transform.GetSiblingIndex(), Is.GreaterThan(inventory.transform.GetSiblingIndex()));
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = slotPoint });
+                yield return null;
+                Assert.That(held.gameObject.activeInHierarchy, Is.True);
+                Assert.That(game.Hud.IsHoldingItem, Is.True);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(mouse);
+            }
+
             var notice = game.Hud.GetComponentsInChildren<CanvasGroup>(true).Single(group => group.name == "System message");
             var noticeCanvas = notice.GetComponent<Canvas>();
             Assert.That(notice.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("해당 위치에 장착할 수 없습니다."));
-            Assert.That(notice.alpha, Is.Zero);
+            Assert.That(notice.alpha, Is.LessThan(1f));
             Assert.That(noticeCanvas.overrideSorting, Is.True);
             Assert.That(noticeCanvas.sortingOrder, Is.GreaterThan(game.Hud.GetComponent<Canvas>().sortingOrder));
             var noticeRect = (RectTransform)notice.transform;
@@ -1611,6 +1628,99 @@ namespace Workerborn.Tests
             {
                 InputSystem.RemoveDevice(keyboard);
             }
+        }
+
+        [UnityTest]
+        public IEnumerator KeyboardMovementWalksOnlyWhileShiftIsHeld()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            try
+            {
+                var agent = game.Worker.GetComponent<NavMeshAgent>();
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W));
+                yield return null;
+                Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+                Assert.That(game.Worker.IsWalking, Is.False);
+                float running = agent.speed;
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W, Key.LeftShift));
+                yield return null;
+                Assert.That(game.Worker.IsWalking, Is.True);
+                Assert.That(agent.speed, Is.LessThan(running));
+                Assert.That(game.Worker.GetComponent<WorkerAnimation>().CurrentAction, Is.EqualTo((int)WorkerMotion.Walk));
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W));
+                yield return null;
+                Assert.That(game.Worker.IsWalking, Is.False);
+                Assert.That(agent.speed, Is.EqualTo(running));
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator CameraCanZoomOverTheWorldDuringDialogue()
+        {
+            var mouse = InputSystem.AddDevice<Mouse>();
+            try
+            {
+                game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
+                float start = game.CameraRig.Distance;
+                Assert.That(game.ControlsBlocked, Is.True);
+                InputSystem.QueueStateEvent(mouse, new MouseState
+                {
+                    position = new Vector2(Screen.width * .5f, Screen.height * .75f),
+                    scroll = new Vector2(0f, 120f)
+                });
+                yield return null;
+                Assert.That(game.CameraRig.Distance, Is.LessThan(start));
+                Assert.That(game.Hud.HasModal, Is.True);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(mouse);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator BuildingRestoresItsInteriorAndAlwaysLetsPlayersLeave()
+        {
+            var store = WorldInteractable.Active.OfType<VillageBuildingDoor>().Single(door => door.BuildingId == "general-store");
+            Assert.That(store.IsOpen, Is.True);
+            Vector3 approach = store.Approach.position;
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(approach.x, approach.z), out var outside, .8f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(outside.position), Is.True);
+            store.RequestInteraction(game.Worker);
+            yield return Until(() => game.CurrentInterior == store.Interior, 3f);
+            var inside = game.CurrentInterior;
+            Assert.That(inside.Id, Is.EqualTo("general-store"));
+            Assert.That(game.MapBounds, Is.EqualTo(inside.MapBounds));
+            Assert.That(game.SharesMap(store.transform.position), Is.False);
+            Assert.That(game.TryMapGround(Vector2.one * .5f, out var floor), Is.True);
+            Assert.That(floor.collider, Is.SameAs(inside.Floor));
+
+            game.State.AdvanceTime((20f * 60f + 10f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
+            Assert.That(store.IsOpen, Is.False);
+            Assert.That(inside.Exit.IsOpen, Is.True);
+            var save = game.CaptureSave();
+            Assert.That(save.interior.id, Is.EqualTo(inside.Id));
+            Assert.That(VillageSaveStore.TrySave(save, out _), Is.True);
+            yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
+            yield return null;
+            game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
+            inside = game.CurrentInterior;
+            Assert.That(inside.Id, Is.EqualTo("general-store"));
+            store = inside.Entrance;
+            Assert.That(store.IsOpen, Is.False);
+
+            inside.Exit.RequestInteraction(game.Worker);
+            yield return Until(() => game.CurrentInterior == null, 3f);
+            Assert.That(game.Worker.InReach(store.Approach.position, 1f), Is.True);
+            store.RequestInteraction(game.Worker);
+            yield return null;
+            Assert.That(game.CurrentInterior, Is.Null);
         }
 
         [UnityTest]

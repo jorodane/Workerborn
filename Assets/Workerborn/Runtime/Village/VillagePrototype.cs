@@ -55,7 +55,12 @@ namespace Workerborn
         [SerializeField] private Transform farm;
         public PointerTargeting Targeting => targeting;
         public Terrain GroundTerrain => navigation != null ? navigation.GroundTerrain : null;
-        public bool IsGround(Collider hit) => InRebirthZone ? rebirthZone.IsGround(hit) : navigation != null && navigation.IsGround(hit);
+        public bool IsGround(Collider hit)
+        {
+            if (CurrentInterior != null)
+                return hit == CurrentInterior.Floor;
+            return InRebirthZone ? rebirthZone.IsGround(hit) : navigation != null && navigation.IsGround(hit);
+        }
         public RenderTexture NpcPortraitTexture => npcPortraitTexture;
 
         public void ShowNpcPortrait(CharacterActor actor)
@@ -189,6 +194,7 @@ namespace Workerborn
             ApplyWorldStage();
             foreach (var plot in buildPlots.Values)
                 plot.Bind(this);
+            BindBuildingDoors();
             bool plotBlocksNavigation = RenderPlots();
             navigation.Activate(useBakedData: !plotBlocksNavigation && State.FarmAvailable && string.IsNullOrEmpty(State.FarmSiteId));
             rebirthZone?.Initialize();
@@ -554,11 +560,11 @@ namespace Workerborn
         private void BeginDay(bool resetResources = true, Transform lodging = null)
         {
             var position = (lodging != null ? lodging : restPoint).position;
-            var rest = SurfacePosition(position.x, position.z);
-            if (NavMesh.SamplePosition(rest, out var point, 2f, NavMesh.AllAreas))
-                worker.WarpTo(point.position);
-            else
+            bool leavingInterior = CurrentInterior != null;
+            if (!TryWarpToMap(position))
                 worker.Cancel();
+            else if (leavingInterior)
+                RefreshAfterTravel();
             if (resetResources)
                 ResetDailyResources();
             lighting?.SetDate(State.Day, State.Minute);
@@ -659,7 +665,8 @@ namespace Workerborn
             float distance = float.MaxValue;
             foreach (var crop in allCrops)
             {
-                if (!crop.CanInteract || crop.Definition.Skill != skill || !State.HasTool(crop.Definition.RequiredTool?.Id))
+                if (!crop.CanInteract || crop.Definition.Skill != skill || !SharesMap(crop.transform.position) ||
+                    !State.HasTool(crop.Definition.RequiredTool?.Id))
                     continue;
                 float candidate = (crop.transform.position - worker.transform.position).sqrMagnitude;
                 if (candidate < distance)
@@ -676,7 +683,10 @@ namespace Workerborn
         internal Vector3 SurfacePosition(float x, float z)
         {
             var point = new Vector3(x, 0, z);
-            if (rebirthZone?.Contains(x, z) == true)
+            var interior = InteriorAt(x, z);
+            if (interior != null)
+                point.y = interior.Area.max.y;
+            else if (rebirthZone?.Contains(x, z) == true)
                 point.y = rebirthZone.Area.max.y;
             else if (GroundTerrain != null)
                 point.y = GroundTerrain.SampleHeight(point) + GroundTerrain.transform.position.y;
@@ -689,7 +699,7 @@ namespace Workerborn
             Rect area = MapBounds;
             if (area.width <= 0f || area.height <= 0f)
                 return false;
-            Collider ground = InRebirthZone ? rebirthZone.Floor :
+            Collider ground = CurrentInterior != null ? CurrentInterior.Floor : InRebirthZone ? rebirthZone.Floor :
                 GroundTerrain != null ? GroundTerrain.GetComponent<TerrainCollider>() : navigation.GroundBox;
             if (ground == null)
                 return false;
@@ -703,6 +713,8 @@ namespace Workerborn
         {
             get
             {
+                if (CurrentInterior != null)
+                    return CurrentInterior.MapBounds;
                 if (!InRebirthZone)
                     return mapRegion != null ? mapRegion.WorldBounds : default;
                 Bounds clouds = rebirthZone.Area;
@@ -741,8 +753,13 @@ namespace Workerborn
                     item.Despawn();
             pickups.RemoveAll(item => item == null || !item.CanCollect);
 
-            if (!float.IsNaN(restoredWorld.playerX) && !float.IsNaN(restoredWorld.playerZ) && !float.IsInfinity(restoredWorld.playerX) && !float.IsInfinity(restoredWorld.playerZ) && NavMesh.SamplePosition(SurfacePosition(restoredWorld.playerX, restoredWorld.playerZ), out var position, 2f, NavMesh.AllAreas))
-                worker.WarpTo(position.position);
+            bool restoredInterior = !State.AwaitingIncarnation &&
+                TryRestoreInterior(restoredWorld.interior, out var room, out var interiorPosition) &&
+                TryWarpToMap(interiorPosition, room);
+            if (restoredInterior)
+                cameraRig.SnapToTarget();
+            else if (float.IsFinite(restoredWorld.playerX) && float.IsFinite(restoredWorld.playerZ))
+                TryWarpToMap(new Vector3(restoredWorld.playerX, 0f, restoredWorld.playerZ));
             if (restoredWorld.cropStates != null && restoredWorld.cropStates.Length > 0)
             {
                 var saved = new Dictionary<string, int>();
@@ -780,7 +797,9 @@ namespace Workerborn
                                 break;
                             }
 
-                    var end = SurfacePosition(drop.x, drop.z) + Vector3.up * .08f;
+                    Vector3 point = TryRestoreInterior(drop.interior, out _, out var inside)
+                        ? inside : new Vector3(drop.x, 0f, drop.z);
+                    var end = SurfacePosition(point.x, point.z) + Vector3.up * .08f;
                     if (authored != null)
                     {
                         authored.SetQuantity(drop.quantity);
@@ -844,7 +863,14 @@ namespace Workerborn
         internal VillageSave CaptureSave()
         {
             var save = State.Export();
-            Vector3 position = State.AwaitingIncarnation ? spawnPoint.position : worker.StandingPosition;
+            Vector3 position = worker.StandingPosition;
+            if (State.AwaitingIncarnation)
+                position = spawnPoint.position;
+            else if (CurrentInterior != null)
+            {
+                save.interior = CurrentInterior.CapturePosition(position);
+                position = ExteriorPosition(CurrentInterior);
+            }
             save.playerX = position.x;
             save.playerZ = position.z;
             if (State.AwaitingIncarnation)
@@ -864,7 +890,16 @@ namespace Workerborn
             var ground = new List<GroundDropSave>();
             foreach (var item in pickups)
                 if (item != null && item.isActiveAndEnabled)
-                    ground.Add(new GroundDropSave { id = item.PersistentId, quantity = item.Quantity, itemId = item.ItemId, x = item.LandingPosition.x, z = item.LandingPosition.z });
+                {
+                    Vector3 landing = item.LandingPosition;
+                    var room = InteriorAt(landing.x, landing.z);
+                    Vector3 exterior = room != null ? ExteriorPosition(room) : landing;
+                    ground.Add(new GroundDropSave
+                    {
+                        id = item.PersistentId, quantity = item.Quantity, itemId = item.ItemId,
+                        x = exterior.x, z = exterior.z, interior = room != null ? room.CapturePosition(landing) : default
+                    });
+                }
             save.drops = ground.ToArray();
             save.collectedPickupIds = new List<string>(collectedPickups).ToArray();
             return save;

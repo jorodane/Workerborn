@@ -71,10 +71,10 @@ namespace Workerborn
                 return;
             Vector2 position = WorkerbornInput.Point;
             bool blocked = game != null && game.ControlsBlocked;
-            bool canOrbit = !blocked || game.Hud?.HasModal == true && !game.AwaitingWorldCommand;
+            bool canAdjustView = !blocked || game.Hud?.HasModal == true && !game.AwaitingWorldCommand;
             var ui = game?.Targeting?.UiAt(position);
             bool overUi = ui != null && ui.GetComponentInParent<WorldNameplateView>() == null;
-            if (WorkerbornInput.Pressed("Camera/OrbitRight") && (canOrbit || game?.Hud.AllowsGroundItems == true) && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitRight") && (canAdjustView || game?.Hud.AllowsGroundItems == true) && !overUi)
             {
                 rightPressed = true;
                 rightDragged = false;
@@ -82,7 +82,7 @@ namespace Workerborn
                 pressPoint = position;
             }
 
-            if (WorkerbornInput.Pressed("Camera/OrbitMiddle") && canOrbit && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitMiddle") && canAdjustView && !overUi)
                 middlePressed = true;
             if (WorkerbornInput.Released("Camera/OrbitMiddle"))
                 middlePressed = false;
@@ -91,7 +91,7 @@ namespace Workerborn
             {
                 if (rightPressed && (position - pressPoint).sqrMagnitude > 25f)
                     rightDragged = true;
-                if ((rightDragged || middlePressed) && canOrbit)
+                if ((rightDragged || middlePressed) && canAdjustView)
                 {
                     Vector2 delta = WorkerbornInput.Look;
                     yaw += delta.x * orbitSensitivity;
@@ -99,7 +99,7 @@ namespace Workerborn
                 }
             }
 
-            if (!blocked && !overUi)
+            if (canAdjustView && !overUi)
                 distance = OrbitZoom.Apply(distance, WorkerbornInput.Scroll, minimumDistance, maximumDistance, zoomSensitivity);
             if (rightPressed && (yaw != previousYaw || pitch != previousPitch || distance != previousDistance))
                 rightViewMoved = true;
@@ -133,7 +133,9 @@ namespace Workerborn
             Vector3 direction = rotation * Vector3.back;
             Vector3 position = focus + direction * distance;
             float floor = target.position.y + .2f;
-            if (game != null && !game.InRebirthZone && game.GroundTerrain != null)
+            if (game?.CurrentInterior != null)
+                floor = game.CurrentInterior.Area.max.y + cameraComponent.nearClipPlane + .2f;
+            else if (game != null && !game.InRebirthZone && game.GroundTerrain != null)
                 floor = game.SurfacePosition(position.x, position.z).y + cameraComponent.nearClipPlane + .2f;
             position.y = Mathf.Max(position.y, floor);
             if (target.TryGetComponent<CapsuleCollider>(out var capsule) &&

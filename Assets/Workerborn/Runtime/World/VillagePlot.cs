@@ -20,6 +20,7 @@ namespace Workerborn
         [SerializeField] private GameObject cornerMarker;
 
         private GameObject contents;
+        private VillageInteriorMap interior;
         internal PlotFacilityDefinition InstalledFacility { get; private set; }
         internal string Id => plotId;
         public string DisplayName => displayName;
@@ -50,6 +51,9 @@ namespace Workerborn
                 return false;
             if (contents != null)
             {
+                if (!village.RemovePlotInterior(interior))
+                    return false;
+                interior = null;
                 navigationChanged = contents.GetComponentInChildren<VillageNavigationBlocker>() != null;
                 foreach (var crop in contents.GetComponentsInChildren<HarvestableCrop>(true))
                     village.RemovePlotCrop(crop);
@@ -68,6 +72,7 @@ namespace Workerborn
             else
             {
                 Instantiate(facility.Prefab, contents.transform, false);
+                interior = village.AddPlotInterior(this, contents.GetComponentInChildren<VillageBuildingDoor>(true));
                 var crops = contents.GetComponentsInChildren<HarvestableCrop>(true);
                 for (int i = 0; i < crops.Length; i++)
                     village.RegisterPlotCrop(crops[i], $"{resourceId}/{i}");
