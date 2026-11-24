@@ -24,3 +24,16 @@ MonoBehaviour:
   requiredGold: 0
   requiredItems: 6
   contractItem: {fileID: 11400000, guid: 4aca5391145a59108b6ae8cb1db30b35, type: 2}
+  dialogueOffers:
+  - recipient: {fileID: 11400000, guid: 75726c5d35e65ed692974f034a75ba62, type: 2}
+    openOnTalk: 1
+    topic:
+      keyword: 농장 건설
+      action: 7
+      text: 목재를 모으면 농장을 지을 수 있어. 광장 가장자리의 암탉에게서 달걀을 모아 노아에게 팔아 봐. 도끼를 사서 주무기에 장착한 다음, 마을 서쪽의 소나무를 베면 돼.
+      requirements:
+      - kind: 0
+        invert: 0
+        questStages: 14
+        item: {fileID: 0}
+        minimum: 1

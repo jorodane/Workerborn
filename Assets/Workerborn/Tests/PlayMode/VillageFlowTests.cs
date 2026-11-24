@@ -528,6 +528,10 @@ namespace Workerborn.Tests
             const string rewardTopic = "첫 일자리 보상은요?";
             var farmer = game.FindInteraction(VillageRole.Farmer);
             var state = game.State;
+            var quests = game.Settings.GetQuests(farmer.Definition);
+            var offer = quests.Introduction.DialogueOffers.Single(entry => entry.Topic.keyword == rewardTopic);
+            Assert.That(offer.Recipient, Is.SameAs(farmer.Definition));
+            Assert.That(farmer.Definition.Dialogue.Topics.Select(topic => topic.keyword), Does.Not.Contain(rewardTopic));
             var actions = new List<WorldContextAction>();
             bool ContextOffersReward()
             {
@@ -551,6 +555,7 @@ namespace Workerborn.Tests
             Assert.That(game.Perform(state.TryDeliverJob), Is.True);
             Assert.That(DialogueOffersReward(), Is.True);
             Assert.That(ContextOffersReward(), Is.True);
+            Assert.That(game.FindDialogueTopic(farmer, DialogueAction.IntroQuest), Is.SameAs(offer.Topic));
             FindButton(dialogue, rewardTopic).onClick.Invoke();
             FindButton(dialogue, "보상을 받는다").onClick.Invoke();
             Assert.That(state.IntroClaimed, Is.True);
@@ -560,6 +565,40 @@ namespace Workerborn.Tests
             Assert.That(ContextOffersReward(), Is.False);
             var body = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
             Assert.That(body.text, Is.EqualTo(farmer.Definition.Dialogue.TextFor(DialogueAction.Greeting)));
+        }
+
+        [UnityTest]
+        public IEnumerator DialogueTopicsWithTheSameActionKeepTheirOwnAuthoredResponses()
+        {
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            var quests = game.Settings.GetQuests(farmer.Definition);
+            var first = quests.Introduction.DialogueOffers.Single().Topic;
+            var second = quests.Expansion.DialogueOffers.Single().Topic;
+            var firstAction = first.action;
+            var secondAction = second.action;
+            var state = game.State;
+            Assert.That(state.TryAcceptJob(), Is.True);
+            Assert.That(state.Inventory.TryAdd(state.Rules.JobItemId, state.JobRequirement), Is.True);
+            Assert.That(state.TryDeliverJob(), Is.True);
+
+            try
+            {
+                first.action = second.action = DialogueAction.PlainText;
+                game.OpenConversation(farmer);
+                yield return null;
+                var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+                var body = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
+                FindButton(dialogue, second.keyword).onClick.Invoke();
+                Assert.That(body.text, Is.EqualTo(second.text));
+                game.OpenConversation(farmer);
+                FindButton(dialogue, first.keyword).onClick.Invoke();
+                Assert.That(body.text, Is.EqualTo(first.text));
+            }
+            finally
+            {
+                first.action = firstAction;
+                second.action = secondAction;
+            }
         }
 
         [UnityTest]

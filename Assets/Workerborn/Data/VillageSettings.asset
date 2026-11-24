@@ -72,3 +72,11 @@ MonoBehaviour:
   farmFoundation: {fileID: 11400000, guid: 077e12d014f15e7a98111c8bfcdfa87b, type: 2}
   remotePlayerPrefab: {fileID: 100006, guid: 71dd2fe1f8ff50ffb419a8c7e25cd4ac, type: 3}
   woodcuttingLegend: {fileID: 11400000, guid: aa07c53c62065f9d921d54c0c9d0f0c0, type: 2}
+  dialogueOffers:
+  - recipient: {fileID: 11400000, guid: 8393d4cec3a7531da15e4bb700d06bfe, type: 2}
+    openOnTalk: 0
+    topic:
+      keyword: 전설의 나무꾼
+      action: 9
+      text: ''
+      requirements: []

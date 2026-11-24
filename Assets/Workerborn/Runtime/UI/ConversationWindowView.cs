@@ -24,7 +24,8 @@ namespace Workerborn
 
         private readonly List<UiActionView> replies = new List<UiActionView>();
         private VillageInteractable npc;
-        private DialogueAction topic;
+        private DialogueTopicDefinition topic;
+        private bool atOpening;
         private bool confirmingRebirth, confirmingEra, trading, waitingForWorldReply;
         private enum LookPart { Body, Hair, Face, Outfit }
         private UiActionView nextPage;
@@ -50,42 +51,39 @@ namespace Workerborn
             body.overflowMode = TextOverflowModes.Page;
         }
 
-        public void Open(VillageInteractable target, DialogueAction? requestedTopic = null)
+        public void Open(VillageInteractable target, DialogueAction? requestedTopic = null) =>
+            OpenTopic(target, requestedTopic.HasValue ? Game.FindDialogueTopic(target, requestedTopic.Value) : null);
+
+        internal void OpenTopic(VillageInteractable target, DialogueTopicDefinition selected)
         {
             npc = target;
             presentedText = followUp = null;
             trading = waitingForWorldReply = false;
             confirmingRebirth = confirmingEra = false;
             advancedFrame = -1;
-            bool beforeFarm = !Game.State.FarmAvailable;
-            DialogueAction openingTopic = npc.Role switch
-            {
-                VillageRole.Farmer when beforeFarm => DialogueAction.Foundation,
-                VillageRole.NoticeBoard => DialogueAction.Job,
-                VillageRole.Guide when Game.State.Life > 1 => DialogueAction.GuideAfter,
-                _ => DialogueAction.Greeting
-            };
-            topic = requestedTopic.HasValue && npc.IsTopicAvailable(Game, requestedTopic.Value) ? requestedTopic.Value : openingTopic;
+            topic = selected;
+            atOpening = selected == null || selected.action == DialogueAction.Greeting;
             var actor = npc.GetComponent<CharacterActor>();
             Game.ShowNpcPortrait(actor);
             portrait.gameObject.SetActive(actor != null);
             Refresh();
         }
 
-        internal void SelectTopic(DialogueAction next)
+        private void SelectTopic(DialogueTopicDefinition next)
         {
-            if (!npc.IsTopicAvailable(Game, next))
+            if (!Game.IsDialogueTopicAvailable(npc, next))
             {
                 Refresh();
                 return;
             }
-            if (next == DialogueAction.Shop)
+            atOpening = false;
+            topic = next;
+            if (next.action == DialogueAction.Shop)
             {
                 Hud.OpenShop(npc);
                 return;
             }
             presentedText = followUp = null;
-            topic = next;
             confirmingRebirth = confirmingEra = false;
             Refresh();
         }
@@ -95,6 +93,9 @@ namespace Workerborn
             if (trading)
                 return;
             trading = true;
+            atOpening = false;
+            if (topic?.action != DialogueAction.Shop)
+                topic = Game.FindDialogueTopic(npc, DialogueAction.Shop);
             presentedText = followUp = null;
             Refresh();
         }
@@ -131,7 +132,7 @@ namespace Workerborn
                 return;
             if (measuredChoiceWidth != ((RectTransform)choices.transform).rect.width)
                 ShowLine(presentedText);
-            if (jobInfo.activeSelf && jobWasOpen != Game.State.JobWindowOpen)
+            if (jobWasOpen != Game.State.JobWindowOpen)
                 Refresh();
             if (body.maxVisibleCharacters >= pageEnd)
                 return;
@@ -247,9 +248,22 @@ namespace Workerborn
             replyCount = 0;
             speaker.text = npc.DisplayName;
             leaveLabel.text = trading ? "거래 종료" : "대화 끝내기";
-            string prose = npc.Definition?.Dialogue?.TextFor(trading ? DialogueAction.Shop : topic) ?? string.Empty;
             var state = Game.State;
-            jobInfo.SetActive(!trading && followUp == null && topic == DialogueAction.Job && state.FarmAvailable);
+            jobWasOpen = state.JobWindowOpen;
+            if (atOpening && followUp == null)
+            {
+                var fallback = npc.Role switch
+                {
+                    VillageRole.NoticeBoard => DialogueAction.Job,
+                    VillageRole.Guide when state.Life > 1 => DialogueAction.GuideAfter,
+                    _ => DialogueAction.Greeting
+                };
+                topic = Game.OpeningDialogueTopic(npc, fallback);
+            }
+            string prose = topic?.text ?? string.Empty;
+            var action = topic?.action ?? DialogueAction.Greeting;
+            bool available = atOpening || Game.IsDialogueTopicAvailable(npc, topic);
+            jobInfo.SetActive(!trading && followUp == null && available && action == DialogueAction.Job && state.FarmAvailable);
 
             if (trading)
             {
@@ -263,42 +277,48 @@ namespace Workerborn
                 return;
             }
 
-            if (npc.Role == VillageRole.Guide)
+            if (!available)
+            {
+                ShowLine(prose);
+                return;
+            }
+
+            if (npc.Role == VillageRole.Guide && action is (DialogueAction.Greeting or DialogueAction.GuideAfter))
             {
                 LookOption("체형", LookPart.Body);
                 LookOption("머리", LookPart.Hair);
                 LookOption("얼굴", LookPart.Face);
                 LookOption("기본 의상", LookPart.Outfit);
                 Reply("환생하기", Game.ConfirmIncarnation, state.AwaitingIncarnation);
+                if (atOpening)
+                    AddTopicChoices();
                 var look = Game.IncarnationLook;
                 ShowLine($"{prose}\n\n{state.Life}번째 생 · 레벨 1\n체형 {look.body + 1}   머리 {look.hair}   얼굴 {look.face}   기본 의상 {look.outfit}");
                 return;
             }
 
-            string response = topic == DialogueAction.Greeting ? Greeting(prose) : TopicResponse(state, prose);
+            string response = TopicResponse(action, state, prose);
+            if (atOpening)
+                AddTopicChoices();
             ShowLine(response);
         }
 
-        private string Greeting(string prose)
+        private void AddTopicChoices()
         {
-            var topics = npc.Definition?.Dialogue?.Topics;
-            if (topics != null)
-                foreach (var entry in topics)
-                {
-                    var next = entry.action;
-                    if (next == DialogueAction.Greeting || string.IsNullOrWhiteSpace(entry.keyword) || !npc.IsTopicAvailable(Game, next))
-                        continue;
-                    Reply(entry.keyword, () => SelectTopic(next));
-                }
-            if (npc.Role == VillageRole.Shrine)
-                Reply("전설의 나무꾼", () => SelectTopic(DialogueAction.Legend));
-            return prose;
+            foreach (var entry in Game.DialogueTopicsFor(npc))
+            {
+                var next = entry.Topic;
+                if (next.action == DialogueAction.Greeting || string.IsNullOrWhiteSpace(next.keyword) ||
+                    (next == topic && next.action != DialogueAction.Shop))
+                    continue;
+                Reply(next.keyword, () => SelectTopic(next));
+            }
         }
 
-        private string TopicResponse(VillageState s, string prose)
+        private string TopicResponse(DialogueAction action, VillageState s, string prose)
         {
             var r = s.Rules;
-            switch (topic)
+            switch (action)
             {
                 case DialogueAction.Foundation:
                     var quest = r.Foundation;
@@ -360,7 +380,6 @@ namespace Workerborn
             bool active = s.Job == JobStatus.Active;
             bool workedToday = s.LastJobDay == s.Day;
             bool closed = workedToday && !active || s.Minute >= r.JobEnd;
-            jobWasOpen = s.JobWindowOpen;
             jobTitle.text = r.JobTitle;
             string status = active ? "진행 중" : closed ? "마감" : jobWasOpen ? "접수 중" : "접수 전";
             string progress = active ? $"{s.Inventory.Count(r.JobItemId):N0}/{s.JobRequirement:N0}" : $"{s.OfferedJobRequirement:N0}개";

@@ -32,35 +32,22 @@ namespace Workerborn
         protected override void Interact(HarvestWorker worker) => worker.CommandInteract(this);
         protected override void OnArrived(VillagePrototype village, HarvestWorker worker) => village?.OpenConversation(this);
 
-        public bool IsTopicAvailable(VillagePrototype village, DialogueAction action)
-        {
-            var state = village.State;
-            if (Role == VillageRole.Farmer && !state.FarmAvailable)
-                return action == DialogueAction.Foundation;
-
-            return action switch
-            {
-                DialogueAction.IntroQuest => state.CanClaimIntroQuest,
-                DialogueAction.Contribution => state.ExpansionQuestActive,
-                DialogueAction.Foundation => !state.FarmAvailable,
-                _ => true
-            };
-        }
+        public bool IsTopicAvailable(VillagePrototype village, DialogueAction action) => village.FindDialogueTopic(this, action) != null;
 
         public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
         {
             base.AddContextActions(village, actions);
-            if (Role == VillageRole.NoticeBoard || Definition?.Dialogue?.Topics == null)
+            if (Role == VillageRole.NoticeBoard)
                 return;
-            foreach (var topic in Definition.Dialogue.Topics)
+            foreach (var entry in village.DialogueTopicsFor(this))
             {
-                var action = topic.action;
-                if (action == DialogueAction.Greeting || string.IsNullOrWhiteSpace(topic.keyword) || !IsTopicAvailable(village, action))
+                var topic = entry.Topic;
+                if (topic.action == DialogueAction.Greeting || string.IsNullOrWhiteSpace(topic.keyword))
                     continue;
                 actions.Add(new WorldContextAction(topic.keyword, () =>
                 {
-                    if (IsTopicAvailable(village, action) && BeginInteraction(village.Worker))
-                        village.Worker.CommandApproach(this, () => village.OpenConversation(this, action));
+                    if (village.IsDialogueTopicAvailable(this, topic) && BeginInteraction(village.Worker))
+                        village.Worker.CommandApproach(this, () => village.OpenConversationTopic(this, topic));
                 }));
             }
         }

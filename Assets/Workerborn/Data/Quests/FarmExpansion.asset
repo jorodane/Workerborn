@@ -26,3 +26,16 @@ MonoBehaviour:
   goldPerContribution: 25
   itemsPerContribution: 5
   resultingWorldStage: 2
+  dialogueOffers:
+  - recipient: {fileID: 11400000, guid: 75726c5d35e65ed692974f034a75ba62, type: 2}
+    openOnTalk: 0
+    topic:
+      keyword: 농장 확장을 묻는다
+      action: 3
+      text: 모두가 조금씩 힘을 보태면 농장을 넓힐 수 있어.
+      requirements:
+      - kind: 0
+        invert: 0
+        questStages: 12
+        item: {fileID: 0}
+        minimum: 1

@@ -12,7 +12,10 @@ namespace Workerborn
         private bool dialogueClosing;
         internal bool IsSpeakingWith(VillageInteractable target) => target != null && dialogueTarget == target;
 
-        public void OpenDialogue(VillageInteractable target, DialogueAction? topic = null)
+        public void OpenDialogue(VillageInteractable target, DialogueAction? topic = null) =>
+            OpenDialogueTopic(target, topic.HasValue ? game.FindDialogueTopic(target, topic.Value) : null);
+
+        internal void OpenDialogueTopic(VillageInteractable target, DialogueTopicDefinition topic)
         {
             if (target == null || game.State.AwaitingIncarnation && target != game.RebirthArea?.Guide)
                 return;
@@ -24,8 +27,9 @@ namespace Workerborn
             dialogueTarget = target;
             SuspendDialogueWindows();
             SetDialoguePresentation(true);
-            (OpenWindow("conversation") as ConversationWindowView)?.Open(target, topic == DialogueAction.Shop ? null : topic);
-            if (topic == DialogueAction.Shop && target.IsTopicAvailable(game, DialogueAction.Shop))
+            var selected = game.IsDialogueTopicAvailable(target, topic) ? topic : null;
+            (OpenWindow("conversation") as ConversationWindowView)?.OpenTopic(target, selected);
+            if (selected?.action == DialogueAction.Shop)
                 OpenShop(target);
         }
 

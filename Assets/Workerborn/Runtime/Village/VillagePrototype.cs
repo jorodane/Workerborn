@@ -339,6 +339,18 @@ namespace Workerborn
 
         public void OpenConversation(VillageInteractable target, DialogueAction? topic = null)
         {
+            PrepareConversation(target);
+            hud.OpenDialogue(target, topic);
+        }
+
+        internal void OpenConversationTopic(VillageInteractable target, DialogueTopicDefinition topic)
+        {
+            PrepareConversation(target);
+            hud.OpenDialogueTopic(target, topic);
+        }
+
+        private void PrepareConversation(VillageInteractable target)
+        {
             worker.Cancel();
             if (target.Role == VillageRole.Farmer)
                 State.MeetFarmer();
@@ -349,8 +361,6 @@ namespace Workerborn
                 if (forward.sqrMagnitude > 0.01f)
                     target.transform.rotation = Quaternion.LookRotation(forward);
             }
-
-            hud.OpenDialogue(target, topic);
         }
 
         private int BaseWorkCost(CropDefinition work) => work.StaminaCost > 0 ? work.StaminaCost : State.Rules.HarvestEnergy;

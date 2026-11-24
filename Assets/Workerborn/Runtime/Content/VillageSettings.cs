@@ -21,6 +21,8 @@ namespace Workerborn
         private QuestDefinition expansionQuest;
         [SerializeField]
         private QuestDefinition farmFoundation;
+        [SerializeField, Tooltip("Situation-dependent dialogue supplied outside a quest.")]
+        private DialogueOffer[] dialogueOffers;
         [SerializeField]
         private CharacterDefinition player;
         [SerializeField]
@@ -56,6 +58,7 @@ namespace Workerborn
         public PartTimeJobDefinition DefaultJob => defaultJob;
         public QuestDefinition IntroQuest => introQuest;
         public QuestDefinition ExpansionQuest => expansionQuest;
+        internal DialogueOffer[] DialogueOffers => dialogueOffers ?? System.Array.Empty<DialogueOffer>();
         internal System.Collections.Generic.IReadOnlyList<ItemDefinition> Items => items ?? System.Array.Empty<ItemDefinition>();
         internal System.Collections.Generic.IReadOnlyList<PlotFacilityDefinition> PlotFacilities => plotFacilities ?? System.Array.Empty<PlotFacilityDefinition>();
 
@@ -90,9 +93,8 @@ namespace Workerborn
         [SerializeField] private WoodcuttingLegendDefinition woodcuttingLegend;
         public RemoteVillagePlayer RemotePlayerPrefab => remotePlayerPrefab;
 
-        public VillageRules CreateRules(NpcDefinition employer = null)
+        internal (QuestDefinition Introduction, QuestDefinition Expansion, QuestDefinition Foundation) GetQuests(NpcDefinition employer)
         {
-            var jobDefinition = employer != null && employer.Job != null ? employer.Job : defaultJob;
             var introduction = introQuest;
             var expansion = expansionQuest;
             if (employer != null && employer.Quests != null)
@@ -105,6 +107,13 @@ namespace Workerborn
                     if (quest.Kind == QuestKind.WorldContribution)
                         expansion = quest;
                 }
+            return (introduction, expansion, farmFoundation);
+        }
+
+        public VillageRules CreateRules(NpcDefinition employer = null)
+        {
+            var jobDefinition = employer != null && employer.Job != null ? employer.Job : defaultJob;
+            var (introduction, expansion, foundation) = GetQuests(employer);
 
             if (items != null)
             {
@@ -199,17 +208,17 @@ namespace Workerborn
                 rules.ExpansionRewardExperience = expansion.RewardExperience;
             }
 
-            if (farmFoundation != null && farmFoundation.ContractItem != null && farmFoundation.ContributionItem != null)
+            if (foundation != null && foundation.ContractItem != null && foundation.ContributionItem != null)
                 rules.Foundation = new FarmFoundationRules
                 {
-                    Title = farmFoundation.Title,
-                    Description = farmFoundation.Description,
-                    DocumentItemId = farmFoundation.ContractItem.Id,
-                    TimberItemId = farmFoundation.ContributionItem.Id,
-                    TimberCount = farmFoundation.RequiredItems,
-                    RewardGold = farmFoundation.RewardGold,
-                    RewardAP = farmFoundation.RewardAP,
-                    RewardExperience = farmFoundation.RewardExperience
+                    Title = foundation.Title,
+                    Description = foundation.Description,
+                    DocumentItemId = foundation.ContractItem.Id,
+                    TimberItemId = foundation.ContributionItem.Id,
+                    TimberCount = foundation.RequiredItems,
+                    RewardGold = foundation.RewardGold,
+                    RewardAP = foundation.RewardAP,
+                    RewardExperience = foundation.RewardExperience
                 };
 
             return rules;

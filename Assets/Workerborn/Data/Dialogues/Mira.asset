@@ -26,12 +26,9 @@ MonoBehaviour:
   - keyword: 아르바이트를 묻는다
     action: 1
     text: 밭에서 캐 온 감자를 모아 주겠어? 해 지기 전에 부탁해.
-  - keyword: 첫 일자리 보상은요?
-    action: 2
-    text: 함께 일해 줘서 고마워.
-  - keyword: 농장 확장을 묻는다
-    action: 3
-    text: 모두가 조금씩 힘을 보태면 농장을 넓힐 수 있어.
-  - keyword: 농장 건설
-    action: 7
-    text: 목재를 모으면 농장을 지을 수 있어. 광장 가장자리의 암탉에게서 달걀을 모아 노아에게 팔아 봐. 도끼를 사서 주무기에 장착한 다음, 마을 서쪽의 소나무를 베면 돼.
+    requirements:
+    - kind: 1
+      invert: 0
+      questStages: 0
+      item: {fileID: 0}
+      minimum: 1
