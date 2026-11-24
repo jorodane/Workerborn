@@ -233,9 +233,9 @@ namespace Workerborn
             HoveredPickup = target as GroundPickup;
             HoveredInteraction = target as VillageInteractable;
             // The village pointer controller handles both nameplates and world hits.
-            if (village != null || !AcceptsInteractionCommands)
+            if (village != null || !AcceptsInteractionCommands || !WorkerbornInput.TryGetPointerPosition(out var screen) ||
+                !WorkerbornInput.IsInView(worldCamera, screen))
                 return;
-            Vector2 screen = WorkerbornInput.Point;
             if (EventSystem.current != null)
             {
                 uiHits.Clear();

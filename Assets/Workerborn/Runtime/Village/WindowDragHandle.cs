@@ -19,7 +19,7 @@ namespace Workerborn
             if (positionKey == null || !PlayerPrefs.HasKey(positionKey + ".x") || !PlayerPrefs.HasKey(positionKey + ".y"))
                 return;
             var saved = new Vector2(PlayerPrefs.GetFloat(positionKey + ".x"), PlayerPrefs.GetFloat(positionKey + ".y"));
-            if (!float.IsNaN(saved.x) && !float.IsNaN(saved.y) && !float.IsInfinity(saved.x) && !float.IsInfinity(saved.y))
+            if (WorkerbornInput.IsFinite(saved))
             {
                 HasSavedPosition = true;
                 window.anchoredPosition = saved;
@@ -28,7 +28,8 @@ namespace Workerborn
 
         public void OnBeginDrag(PointerEventData eventData)
         {
-            if (eventData.button != PointerEventData.InputButton.Left || window == null)
+            if (eventData.button != PointerEventData.InputButton.Left || window == null ||
+                !WorkerbornInput.IsFinite(eventData.pressPosition))
                 return;
             start = window.anchoredPosition;
             dragging = RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)window.parent,
@@ -37,7 +38,7 @@ namespace Workerborn
 
         public void OnDrag(PointerEventData eventData)
         {
-            if (!dragging || eventData.button != PointerEventData.InputButton.Left)
+            if (!dragging || eventData.button != PointerEventData.InputButton.Left || !WorkerbornInput.IsFinite(eventData.position))
                 return;
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)window.parent, eventData.position,
                 eventData.pressEventCamera, out var pointer))

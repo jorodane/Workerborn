@@ -67,14 +67,11 @@ namespace Workerborn
         private void Update()
         {
             RightClickThisFrame = false;
-            if (game?.IsWorldTransitioning == true)
+            if (target == null || game?.IsWorldTransitioning == true || !WorkerbornInput.TryGetPointerPosition(out var position))
             {
                 rightPressed = middlePressed = false;
                 return;
             }
-            if (target == null || WorkerbornInput.Current == null)
-                return;
-            Vector2 position = WorkerbornInput.Point;
             bool blocked = game != null && game.ControlsBlocked;
             bool canAdjustView = !blocked || game.Hud?.HasModal == true && !game.AwaitingWorldCommand;
             var ui = game?.Targeting?.UiAt(position);

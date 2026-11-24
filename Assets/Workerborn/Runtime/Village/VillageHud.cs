@@ -187,10 +187,11 @@ namespace Workerborn
         {
             if (WorkerbornInput.Current == null || game == null || game.IsWorldTransitioning)
                 return;
-            if (!game.AwaitingWorldCommand &&
+            bool hasPointer = WorkerbornInput.TryGetPointerPosition(out var cursor);
+            if (hasPointer && !game.AwaitingWorldCommand &&
                 (WorkerbornInput.Pressed("Gameplay/Interact") || WorkerbornInput.Pressed("Camera/OrbitRight")))
             {
-                var hit = game.Targeting?.UiAt(WorkerbornInput.Point);
+                var hit = game.Targeting?.UiAt(cursor);
                 if (hit != null)
                     FocusWindow(hit.GetComponentInParent<VillageWindowView>());
             }
@@ -221,10 +222,10 @@ namespace Workerborn
                 ToggleWindow("character");
             if (WorkerbornInput.Pressed("Gameplay/Map"))
                 ToggleWindow("map");
-            if (WorkerbornInput.Current != null)
+            if (hasPointer)
             {
                 if (IsHoldingItem)
-                    MoveItemDrag(WorkerbornInput.Point);
+                    MoveItemDrag(cursor);
                 if (WorkerbornInput.Pressed("Camera/OrbitRight"))
                 {
                     suppressRightContext = IsHoldingItem;
@@ -502,7 +503,8 @@ namespace Workerborn
 
         public void OpenWorldContext(WorldInteractable subject, Vector2 screen)
         {
-            if (subject == null || !subject.CanInteract || WorldActionsLocked && !(subject is GroundPickup) || IsHoldingItem)
+            if (subject == null || !subject.CanInteract || WorldActionsLocked && !(subject is GroundPickup) || IsHoldingItem ||
+                !WorkerbornInput.IsInView(game.WorldCamera, screen))
                 return;
             HideItemTooltip();
             CloseItemContext();

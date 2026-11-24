@@ -1,4 +1,5 @@
 """Read-only checks against fully expanded native visual geometry and material bindings."""
+import struct
 import sys
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,20 @@ for path in sorted((ROOT / 'Assets/Workerborn/Prefabs/World').glob('*.prefab')):
     count += local_count
 
 base = ROOT / 'Assets/Workerborn'
+door_triangles = 0
+for path in sorted((base / 'Models/BuildingDoors').glob('*.asset')):
+    mesh = documents(path)[0]['Mesh']
+    # The door meshes pack position, normal, tangent and UV as twelve floats.
+    vertices = list(struct.iter_unpack('<12f', bytes.fromhex(mesh['m_VertexData']['_typelessdata'])))
+    for ia, ib, ic in struct.iter_unpack('<3H', bytes.fromhex(mesh['m_IndexBuffer'])):
+        a, b, c = (vertices[index] for index in (ia, ib, ic))
+        ux, uy, uz = (b[k] - a[k] for k in range(3))
+        vx, vy, vz = (c[k] - a[k] for k in range(3))
+        face_normal = (uy*vz - uz*vy, uz*vx - ux*vz, ux*vy - uy*vx)
+        alignment = sum(face_normal[k] * (a[3+k] + b[3+k] + c[3+k]) for k in range(3))
+        assert alignment > 0, (path.stem, ia, ib, ic, 'Winding must face the vertex normals')
+        door_triangles += 1
+
 palette = documents(base / 'Data/ToonPalette.asset')[0]['MonoBehaviour']
 forest_count = 0
 for pair in palette['materials']:
@@ -68,3 +83,4 @@ for pair in palette['materials']:
         assert GUIDS[textures['_BumpMap']['m_Texture']['guid']].name == 'T_Potato_01_Normal.png'
         if path.stem.startswith('M_PotatoLeaf'): assert floats['_AlphaClip'] == 1 and floats['_Cull'] == 0
 print(f'Validated {count} exact picking meshes against expanded source transforms, {len(palette["materials"])} stable material bindings and {forest_count} preserved forest texture sets.')
+print(f'Validated outward winding for {door_triangles} authored door triangles.')

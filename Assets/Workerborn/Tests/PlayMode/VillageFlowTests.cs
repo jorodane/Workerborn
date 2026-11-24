@@ -465,6 +465,17 @@ namespace Workerborn.Tests
                 blocker.enabled = false;
                 Physics.SyncTransforms();
                 yield return Until(() => game.Targeting.CurrentTarget == crop, 2f);
+                var invalid = new Vector2(float.NaN, float.NegativeInfinity);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = invalid, buttons = 1 });
+                yield return null;
+                Assert.That(WorkerbornInput.TryGetPointerPosition(out var lastPosition), Is.False);
+                Assert.That(lastPosition, Is.EqualTo(pixel));
+                Assert.That(game.Targeting.CurrentTarget, Is.Null);
+                Assert.That(game.Targeting.UiAt(invalid), Is.Null);
+                Assert.That(game.Targeting.TryDropPoint(invalid, out _), Is.False);
+                Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel });
+                yield return Until(() => game.Targeting.CurrentTarget == crop, 2f);
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel, buttons = 1 });
                 yield return Until(() => game.Worker.LastCrop == crop, 2f);
             }

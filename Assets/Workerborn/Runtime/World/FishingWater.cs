@@ -22,7 +22,8 @@ namespace Workerborn
         protected override void Interact(HarvestWorker worker)
         {
             var camera = worker.Village?.WorldCamera;
-            if (camera != null && TryGetCastPoint(camera.ScreenPointToRay(WorkerbornInput.Point), out var point))
+            if (WorkerbornInput.TryGetPointerPosition(out var cursor) && WorkerbornInput.IsInView(camera, cursor) &&
+                TryGetCastPoint(camera.ScreenPointToRay(cursor), out var point))
                 worker.CommandFish(this, point);
         }
 

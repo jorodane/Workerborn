@@ -12,6 +12,8 @@ namespace Workerborn
         [SerializeField]
         private InputActionAsset actions;
         private InputActionAsset runtime;
+        // Pointer-following UI can stay at the last usable position while input settles.
+        private Vector2 lastPointerPosition;
         private readonly List<InputActionReference> uiReferences = new List<InputActionReference>();
         public static WorkerbornInput Current { get; private set; }
         public InputActionAsset Actions => runtime;
@@ -21,9 +23,52 @@ namespace Workerborn
         public static bool Released(string name) => Current?.Find(name)?.WasReleasedThisFrame() ?? false;
         public static bool Held(string name) => Current?.Find(name)?.IsPressed() ?? false;
         public static Vector2 Move => Current?.Find("Gameplay/Move")?.ReadValue<Vector2>() ?? Vector2.zero;
-        public static Vector2 Point => Current?.Find("Gameplay/Point")?.ReadValue<Vector2>() ?? Vector2.zero;
-        public static Vector2 Look => Current?.Find("Camera/Look")?.ReadValue<Vector2>() ?? Vector2.zero;
-        public static float Scroll => Current?.Find("Camera/Zoom")?.ReadValue<float>() ?? 0f;
+
+        public static Vector2 Point
+        {
+            get
+            {
+                TryGetPointerPosition(out var position);
+                return position;
+            }
+        }
+
+        public static Vector2 Look
+        {
+            get
+            {
+                var delta = Current?.Find("Camera/Look")?.ReadValue<Vector2>() ?? Vector2.zero;
+                return IsFinite(delta) ? delta : Vector2.zero;
+            }
+        }
+
+        public static float Scroll
+        {
+            get
+            {
+                float delta = Current?.Find("Camera/Zoom")?.ReadValue<float>() ?? 0f;
+                return float.IsFinite(delta) ? delta : 0f;
+            }
+        }
+
+        internal static bool TryGetPointerPosition(out Vector2 position)
+        {
+            var input = Current;
+            position = input != null ? input.lastPointerPosition : Vector2.zero;
+            var action = input?.Find("Gameplay/Point");
+            if (action == null)
+                return false;
+            Vector2 sample = action.ReadValue<Vector2>();
+            if (!IsFinite(sample))
+                return false;
+            position = input.lastPointerPosition = sample;
+            return true;
+        }
+
+        internal static bool IsFinite(Vector2 point) => float.IsFinite(point.x) && float.IsFinite(point.y);
+
+        internal static bool IsInView(Camera camera, Vector2 point) =>
+            camera != null && IsFinite(point) && camera.pixelRect.Contains(point);
 
         private void Awake()
         {

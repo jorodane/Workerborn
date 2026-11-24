@@ -309,7 +309,8 @@ namespace Workerborn
 
         public void DropHeldOnGround(Vector2 screen)
         {
-            if (HasQuantityPrompt || !IsHoldingItem || releaseHeldOnMouseUp || game.Targeting == null)
+            if (HasQuantityPrompt || !IsHoldingItem || releaseHeldOnMouseUp || game.Targeting == null ||
+                !WorkerbornInput.IsInView(game.WorldCamera, screen))
                 return;
             if (!game.Targeting.TryDropPoint(screen, out var ground))
             {
@@ -325,9 +326,8 @@ namespace Workerborn
             if (!releaseHeldOnMouseUp || !WorkerbornInput.Released("Gameplay/Interact"))
                 return;
             releaseHeldOnMouseUp = false;
-            if (!IsHoldingItem || game.Targeting == null)
+            if (!IsHoldingItem || game.Targeting == null || !WorkerbornInput.TryGetPointerPosition(out var screen))
                 return;
-            Vector2 screen = WorkerbornInput.Point;
             GameObject hit = game.Targeting.UiAt(screen);
             if (hit == null || hit.GetComponentInParent<WorldNameplateView>() != null)
                 DropHeldOnGround(screen);

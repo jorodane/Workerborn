@@ -156,7 +156,7 @@ namespace Workerborn
 
         public GameObject UiAt(Vector2 position)
         {
-            if (EventSystem.current == null)
+            if (EventSystem.current == null || !WorkerbornInput.IsFinite(position))
                 return null;
             uiHits.Clear();
             EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = position }, uiHits);
@@ -166,6 +166,8 @@ namespace Workerborn
         public bool TryDropPoint(Vector2 screen, out Vector3 point)
         {
             point = default;
+            if (game == null || !WorkerbornInput.IsInView(game.WorldCamera, screen))
+                return false;
             GameObject ui = UiAt(screen);
             if ((ui != null && ui.GetComponentInParent<WorldNameplateView>() == null) ||
                 !TryWorldHit(screen, out var hit) || !game.IsGround(hit.collider))
@@ -176,9 +178,14 @@ namespace Workerborn
 
         private void Update()
         {
-            if (game == null || WorkerbornInput.Current == null)
+            if (game == null)
                 return;
-            var cursor = WorkerbornInput.Point;
+            if (!WorkerbornInput.TryGetPointerPosition(out var cursor) || !WorkerbornInput.IsInView(game.WorldCamera, cursor))
+            {
+                currentTarget = pressTarget = rightTarget = default;
+                return;
+            }
+
             var ui = UiAt(cursor);
             var plate = ui != null ? ui.GetComponentInParent<WorldNameplateView>() : null;
             bool overUi = ui != null && plate == null;
@@ -265,8 +272,6 @@ namespace Workerborn
 
         private WorldInteractable PickHoverAssist(Vector2 cursor, bool doorsOnly = false)
         {
-            if (cursor.x < 0 || cursor.y < 0 || cursor.x >= Screen.width || cursor.y >= Screen.height)
-                return null;
             Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
             const int layer = 1 << HoverAssistLayer;
             var hits = hoverHits;
