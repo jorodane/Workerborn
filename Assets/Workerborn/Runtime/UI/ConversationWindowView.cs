@@ -74,6 +74,11 @@ namespace Workerborn
 
         internal void SelectTopic(DialogueAction next)
         {
+            if (!npc.IsTopicAvailable(Game, next))
+            {
+                Refresh();
+                return;
+            }
             if (next == DialogueAction.Shop)
             {
                 Hud.OpenShop(npc);
@@ -311,9 +316,10 @@ namespace Workerborn
                 case DialogueAction.Job:
                     return JobResponse(s, prose);
                 case DialogueAction.IntroQuest:
-                    if (!s.IntroClaimed && s.Career >= r.IntroRequiredJobs)
-                        Reply("보상을 받는다", () => Respond(() => Game.Perform(s.TryClaimIntroQuest), "고생했어. 다음에 또 함께 일하자."));
-                    return s.IntroClaimed ? prose : $"{prose}\n\n{r.IntroDescription}\n보상  {r.IntroGold} Gold  ·  AP {r.IntroAP}";
+                    if (!s.CanClaimIntroQuest)
+                        return prose;
+                    Reply("보상을 받는다", () => Respond(() => Game.Perform(Game.State.TryClaimIntroQuest), "고생했어. 다음에 또 함께 일하자."));
+                    return $"{prose}\n\n{r.IntroDescription}\n보상  {r.IntroGold} Gold  ·  AP {r.IntroAP}";
                 case DialogueAction.Contribution:
                     if (s.CanConfirmExpansion)
                         Reply("확장 준비를 확인한다", () => RespondToWorld(CampaignAction.DonateGold));

@@ -61,7 +61,7 @@ namespace Workerborn
                     return s.CanConfirmTimberDelivery || s.Inventory.Count(contract.DocumentItemId) == 0 || s.Inventory.Count(contract.TimberItemId) > 0
                         ? farmer : HarvestTrackingTarget(contract.TimberItemId);
                 case VillageQuestPage.FirstWork:
-                    if (s.Career >= s.Rules.IntroRequiredJobs)
+                    if (s.CanClaimIntroQuest)
                         return farmer;
                     if (!s.JobWindowOpen)
                         return null;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DistantLands.Cozy;
@@ -519,6 +520,46 @@ namespace Workerborn.Tests
             game.Hud.CloseDialogue();
             yield return new WaitForSeconds(0.15f);
             Assert.That(game.State.Minute, Is.GreaterThan(minute));
+        }
+
+        [UnityTest]
+        public IEnumerator MiraOffersTheFirstJobRewardOnlyAfterDeliveryAndBeforeClaiming()
+        {
+            const string rewardTopic = "첫 일자리 보상은요?";
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            var state = game.State;
+            var actions = new List<WorldContextAction>();
+            bool ContextOffersReward()
+            {
+                actions.Clear();
+                farmer.AddContextActions(game, actions);
+                return actions.Any(action => action.Label == rewardTopic);
+            }
+
+            Assert.That(ContextOffersReward(), Is.False);
+            game.OpenConversation(farmer);
+            yield return null;
+            var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+            bool DialogueOffersReward() => dialogue.GetComponentsInChildren<Button>()
+                .Any(button => button.GetComponentInChildren<TMP_Text>()?.text == rewardTopic);
+            Assert.That(DialogueOffersReward(), Is.False);
+            Assert.That(game.Perform(state.TryAcceptJob), Is.True);
+            Assert.That(DialogueOffersReward(), Is.False);
+            Assert.That(ContextOffersReward(), Is.False);
+
+            Assert.That(state.Inventory.TryAdd(state.Rules.JobItemId, state.JobRequirement), Is.True);
+            Assert.That(game.Perform(state.TryDeliverJob), Is.True);
+            Assert.That(DialogueOffersReward(), Is.True);
+            Assert.That(ContextOffersReward(), Is.True);
+            FindButton(dialogue, rewardTopic).onClick.Invoke();
+            FindButton(dialogue, "보상을 받는다").onClick.Invoke();
+            Assert.That(state.IntroClaimed, Is.True);
+
+            game.OpenConversation(farmer, DialogueAction.IntroQuest);
+            Assert.That(DialogueOffersReward(), Is.False);
+            Assert.That(ContextOffersReward(), Is.False);
+            var body = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
+            Assert.That(body.text, Is.EqualTo(farmer.Definition.Dialogue.TextFor(DialogueAction.Greeting)));
         }
 
         [UnityTest]

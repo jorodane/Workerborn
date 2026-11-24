@@ -152,6 +152,7 @@ namespace Workerborn
         public int LifetimeHarvests { get; private set; }
         public bool IntroAccepted { get; private set; }
         public bool IntroClaimed { get; private set; }
+        public bool CanClaimIntroQuest => IntroAccepted && !IntroClaimed && Career >= Rules.IntroRequiredJobs;
         public int DonatedGold { get; private set; }
         public int DonatedPotatoes { get; private set; }
         public bool FarmUpgradePending { get; private set; }
@@ -362,10 +363,10 @@ namespace Workerborn
 
         public bool TryClaimIntroQuest()
         {
-            if (!IntroAccepted || Career < Rules.IntroRequiredJobs)
-                return Result(false, "아직 퀘스트 목표를 완료하지 못했습니다.");
             if (IntroClaimed)
                 return Result(false, "이 퀘스트의 보상은 이미 받았어요.");
+            if (!CanClaimIntroQuest)
+                return Result(false, "아직 퀘스트 목표를 완료하지 못했습니다.");
             if (Rules.IntroGold > 0 && !Inventory.TryAdd(ItemIds.Gold, Rules.IntroGold))
                 return Result(false, "보상을 받을 소지품 공간이 부족합니다.");
             IntroClaimed = true;

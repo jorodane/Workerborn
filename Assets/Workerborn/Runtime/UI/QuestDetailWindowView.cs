@@ -85,7 +85,7 @@ namespace Workerborn
                 ? $"기부금  {s.DonatedGold:N0}/{s.ExpansionGoldRequired:N0}G\n\n{ItemCatalog.Get(r.DonationItemId).Name}  {s.DonatedPotatoes:N0}/{s.ExpansionItemsRequired:N0}\n\n" +
                     (s.FarmUpgradePending ? "[완료] 시대 전환 가능" : s.CanConfirmExpansion ? "요구량을 채웠어요. 확장 준비를 확인하세요." : "[진행 중]")
                 : $"농장 아르바이트 완료  {Mathf.Min(s.Career, r.IntroRequiredJobs)}/{r.IntroRequiredJobs}\n\n" +
-                    (s.IntroClaimed ? "[완료] 보상 수령" : s.Career >= r.IntroRequiredJobs ? "미라와 대화해 보고" : "[진행 중]");
+                    (s.IntroClaimed ? "[완료] 보상 수령" : s.CanClaimIntroQuest ? "미라와 대화해 보고" : "[진행 중]");
         }
 
         internal void RefreshTracking()

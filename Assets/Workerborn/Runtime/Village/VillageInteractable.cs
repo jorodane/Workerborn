@@ -34,9 +34,17 @@ namespace Workerborn
 
         public bool IsTopicAvailable(VillagePrototype village, DialogueAction action)
         {
-            if (Role != VillageRole.Farmer)
-                return true;
-            return village.State.FarmAvailable ? action != DialogueAction.Foundation : action == DialogueAction.Foundation;
+            var state = village.State;
+            if (Role == VillageRole.Farmer && !state.FarmAvailable)
+                return action == DialogueAction.Foundation;
+
+            return action switch
+            {
+                DialogueAction.IntroQuest => state.CanClaimIntroQuest,
+                DialogueAction.Contribution => state.ExpansionQuestActive,
+                DialogueAction.Foundation => !state.FarmAvailable,
+                _ => true
+            };
         }
 
         public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
@@ -51,7 +59,7 @@ namespace Workerborn
                     continue;
                 actions.Add(new WorldContextAction(topic.keyword, () =>
                 {
-                    if (BeginInteraction(village.Worker))
+                    if (IsTopicAvailable(village, action) && BeginInteraction(village.Worker))
                         village.Worker.CommandApproach(this, () => village.OpenConversation(this, action));
                 }));
             }

@@ -244,13 +244,18 @@ namespace Workerborn.Tests
         public void JobRewardAndIntroQuestCannotBeClaimedTwice()
         {
             var state = new VillageState();
+            Assert.That(state.CanClaimIntroQuest, Is.False);
             state.TryAcceptJob();
+            Assert.That(state.CanClaimIntroQuest, Is.False);
             state.Inventory.TryAdd(ItemIds.Potato, 12);
             Assert.That(state.TryDeliverJob(), Is.True);
+            Assert.That(state.CanClaimIntroQuest, Is.True);
             Assert.That(state.TryDeliverJob(), Is.False);
             Assert.That(state.TryAcceptJob(), Is.False);
             Assert.That(state.TryClaimIntroQuest(), Is.True);
+            Assert.That(state.CanClaimIntroQuest, Is.False);
             Assert.That(state.TryClaimIntroQuest(), Is.False);
+            Assert.That(VillageState.Restore(state.Export(), state.Rules).CanClaimIntroQuest, Is.False);
             Assert.That(state.Gold, Is.EqualTo(75));
             Assert.That(state.Career, Is.EqualTo(1));
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(6));

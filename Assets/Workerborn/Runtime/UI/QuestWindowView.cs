@@ -37,7 +37,7 @@ namespace Workerborn
             {
                 firstWork.gameObject.SetActive(s.IntroAccepted && !s.IntroClaimed);
                 if (firstWork.gameObject.activeSelf)
-                    firstWork.Bind(r.IntroTitle, s.Career >= r.IntroRequiredJobs ? "보고 가능" : "진행 중", null,
+                    firstWork.Bind(r.IntroTitle, s.CanClaimIntroQuest ? "보고 가능" : "진행 중", null,
                         (float)s.Career / r.IntroRequiredJobs, () => Hud.OpenQuestDetail(false));
                 expansion.gameObject.SetActive(s.ExpansionQuestActive);
                 if (s.ExpansionQuestActive)
