@@ -15,6 +15,7 @@ GameObject:
       fileID: 100057
   - component:
       fileID: 100062
+  - component: {fileID: 809481013}
   m_Layer: 0
   m_Name: General store
   m_TagString: Untagged
@@ -1413,3 +1414,17 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 100002, guid: f4b303e436ab58e682ff94789adfa2df, type: 3}
   m_PrefabInstance: {fileID: 921156001}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &809481013
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100056}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0933f415e50951f39c623203b70a46e7, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  facilityType: {fileID: 11400000, guid: ff9e09f1509754e8afae3957817fef6b, type: 2}
+  standingPoint: {fileID: 921150018}

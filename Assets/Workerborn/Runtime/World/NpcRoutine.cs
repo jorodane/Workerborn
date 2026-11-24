@@ -6,17 +6,16 @@ namespace Workerborn
     [DisallowMultipleComponent]
     internal sealed class NpcRoutine : MonoBehaviour
     {
-        private const float SeatSearchRadius = 5f;
+        private const float RetryDelay = .8f;
         private NavMeshPath path;
         private VillagePrototype game;
         private VillageInteractable npc;
         private WorkerAnimation animationDriver;
         private NavMeshAgent agent;
         private NpcScheduleEntry scheduled;
-        private Vector3 home, farmPosition, destination;
-        private Quaternion facing;
-        private SeatSlot seat;
-        private HarvestableCrop crop;
+        private Vector3 home, approach, destination;
+        private Quaternion facing, seatFacing;
+        private FacilityUse goal;
         private bool hasRoute, arrived, seated, paused, placed;
         private float retryAt, workElapsed, workBreak;
         internal NpcActivity Activity { get; private set; }
@@ -32,7 +31,8 @@ namespace Workerborn
             path = new NavMeshPath();
         }
 
-        internal bool ReservesSeat(Vector3 position) => seat != null && (seat.Position - position).sqrMagnitude < .04f;
+        internal bool ReservesSeat(Vector3 position) => goal.Seat != null &&
+            ((seated ? transform.position : goal.Seat.Position) - position).sqrMagnitude < .04f;
 
         private void Update()
         {
@@ -53,26 +53,21 @@ namespace Workerborn
             }
 
             var next = NpcScheduleEntry.Resolve(npc.Definition.DailySchedule, game.State, npc.Definition.Job);
-            var farm = game.FarmMapAnchor;
-            Vector3 currentFarm = farm != null ? farm.position : home;
-            if (scheduled != next || (next?.Place == NpcSchedulePlace.Farm && farmPosition != currentFarm) ||
-                (seat != null && (!seat.isActiveAndEnabled || game.SeatInUse(seat.Position, this))) || (seated && seat == null))
+            if (scheduled != next || (hasRoute && !RouteIsValid()))
             {
                 ClearRoute();
                 scheduled = next;
-                farmPosition = currentFarm;
             }
 
-            if (!seated && hasRoute && !agent.isOnNavMesh)
-                ClearRoute();
             if (!hasRoute)
             {
                 if (Time.time < retryAt)
                     return;
-                retryAt = Time.time + .8f;
-                if (!PlanRoute())
-                    return;
+                retryAt = Time.time + RetryDelay;
+                bool planned = PlanRoute();
                 placed = true;
+                if (!planned)
+                    return;
             }
 
             if (paused)
@@ -92,8 +87,15 @@ namespace Workerborn
                 else
                     animationDriver?.SetAction((int)WorkerMotion.Walk);
             }
-            if (arrived && crop != null)
-                AnimateHarvest();
+            if (!arrived)
+                return;
+            if (goal.Crop != null)
+                AnimateHarvest(goal.Crop);
+            else if (scheduled?.Activity == NpcActivity.Harvesting && goal.Activity == NpcActivity.Working && Time.time >= retryAt)
+            {
+                retryAt = Time.time + RetryDelay;
+                TryPlanFacility(useCrops: true);
+            }
         }
 
         private bool PlanRoute()
@@ -101,71 +103,72 @@ namespace Workerborn
             if (!BindNavigation())
                 return false;
 
-            Vector3 center = home;
-            var place = scheduled?.Place ?? NpcSchedulePlace.Origin;
-            if (place == NpcSchedulePlace.Farm)
-                center = farmPosition;
-            else if (place == NpcSchedulePlace.ScenePoint || place == NpcSchedulePlace.NearbySeat)
-            {
-                var point = game.FindNpcSchedulePoint(scheduled.PointId);
-                if (point != null)
-                    center = point.position;
-                else if (place == NpcSchedulePlace.ScenePoint)
-                    return false;
-            }
-            center += scheduled?.Offset ?? Vector3.zero;
-
-            if (place == NpcSchedulePlace.Farm && scheduled.Activity == NpcActivity.Harvesting && TryChooseCrop(center))
-                return true;
-            if (place == NpcSchedulePlace.NearbySeat && TryChooseSeat(center))
-                return true;
-            return TryDestination(center, place == NpcSchedulePlace.Farm ? 3f : 1.5f) ||
-                (place == NpcSchedulePlace.NearbySeat && TryDestination(home, 1.5f));
+            if (scheduled?.Facility == null)
+                return TryDestination(home, 1.5f, default);
+            return (scheduled.Activity == NpcActivity.Harvesting && TryPlanFacility(useCrops: true)) || TryPlanFacility(useCrops: false);
         }
 
-        private bool TryChooseCrop(Vector3 center)
+        private bool TryPlanFacility(bool useCrops)
         {
-            var farm = game.FarmMapAnchor;
-            HarvestableCrop nearest = null;
-            float closest = float.PositiveInfinity;
-            Vector3 approach = default;
-            foreach (var candidate in game.Crops)
+            FacilityUse nearest = default;
+            float bestDistance = float.PositiveInfinity;
+            foreach (var facility in FindObjectsByType<VillageFacility>(FindObjectsSortMode.None))
             {
-                if (candidate == null || !candidate.isActiveAndEnabled || candidate.IsDepleted ||
-                    farm == null || !candidate.transform.IsChildOf(farm))
+                if (!MatchesFacility(facility))
                     continue;
-                Vector3 plant = candidate.transform.position;
-                Vector3 outward = plant - center;
-                outward.y = 0f;
-                float distance = outward.sqrMagnitude;
-                if (distance >= closest)
-                    continue;
-                if (distance < .01f)
-                    outward = Vector3.back;
-                Vector3 point = plant + outward.normalized * .9f;
-                if (!FindPath(point, .65f, out _))
-                    continue;
-                closest = distance;
-                nearest = candidate;
-                approach = point;
+                if (scheduled.Activity == NpcActivity.Resting)
+                {
+                    foreach (var seat in facility.GetComponentsInChildren<SeatSlot>())
+                        Consider(new FacilityUse(facility, NpcActivity.Resting, seat: seat), ref nearest, ref bestDistance);
+                }
+                else if (useCrops)
+                {
+                    foreach (var crop in facility.GetComponentsInChildren<HarvestableCrop>())
+                        Consider(new FacilityUse(facility, NpcActivity.Harvesting, crop: crop), ref nearest, ref bestDistance);
+                }
+                else
+                {
+                    var activity = scheduled.Activity == NpcActivity.Harvesting ? NpcActivity.Working : scheduled.Activity;
+                    Consider(new FacilityUse(facility, activity), ref nearest, ref bestDistance);
+                }
             }
-            return nearest != null && TryDestination(approach, .65f, nearest);
+            return nearest.Facility != null && TryDestination(nearest.Approach, nearest.Tolerance, nearest);
         }
 
-        private bool TryChooseSeat(Vector3 center)
+        private void Consider(FacilityUse candidate, ref FacilityUse nearest, ref float bestDistance)
         {
-            SeatSlot nearest = null;
-            float closest = SeatSearchRadius * SeatSearchRadius;
-            foreach (var candidate in FindObjectsByType<SeatSlot>(FindObjectsSortMode.None))
-            {
-                float distance = (candidate.Position - center).sqrMagnitude;
-                if (distance >= closest || !candidate.isActiveAndEnabled || candidate.gameObject.scene != game.gameObject.scene ||
-                    game.SeatInUse(candidate.Position, this) || !FindPath(candidate.ApproachPosition, .7f, out _))
-                    continue;
-                closest = distance;
-                nearest = candidate;
-            }
-            return nearest != null && TryDestination(nearest.ApproachPosition, .7f, reservedSeat: nearest);
+            if (!CanUse(candidate))
+                return;
+            Vector3 point = candidate.Approach;
+            float distance = (point - transform.position).sqrMagnitude;
+            if (distance >= bestDistance || !FindPath(point, candidate.Tolerance, candidate.Seat, out _))
+                return;
+            bestDistance = distance;
+            nearest = candidate;
+        }
+
+        private bool MatchesFacility(VillageFacility facility) => facility != null && facility.isActiveAndEnabled &&
+            facility.gameObject.scene == game.gameObject.scene && facility.FacilityType == scheduled.Facility;
+
+        private bool CanUse(FacilityUse use)
+        {
+            if (use.Activity == NpcActivity.Resting)
+                return use.Seat != null && use.Seat.isActiveAndEnabled && use.Seat.transform.IsChildOf(use.Facility.transform) &&
+                    !game.SeatInUse(use.Seat.Position, this);
+            if (use.Activity == NpcActivity.Harvesting)
+                return use.Crop != null && use.Crop.isActiveAndEnabled && !use.Crop.IsDepleted &&
+                    use.Crop.transform.IsChildOf(use.Facility.transform);
+            return use.Facility.StandingPoint.gameObject.activeInHierarchy;
+        }
+
+        private bool RouteIsValid()
+        {
+            if (!seated && !agent.isOnNavMesh)
+                return false;
+            if (scheduled?.Facility == null)
+                return true;
+            return MatchesFacility(goal.Facility) && CanUse(goal) && (goal.Approach - approach).sqrMagnitude < .0004f &&
+                (goal.Seat == null || Quaternion.Angle(goal.Seat.Facing, seatFacing) < .5f);
         }
 
         private bool BindNavigation()
@@ -173,7 +176,8 @@ namespace Workerborn
             if (agent != null && agent.isOnNavMesh)
                 return true;
             Vector3 point = game.SurfacePosition(transform.position.x, transform.position.z);
-            if (!NavMesh.SamplePosition(point, out var ground, 1.5f, NavMesh.AllAreas))
+            if (!NavMesh.SamplePosition(point, out var ground, 1.5f, NavMesh.AllAreas) &&
+                !NavMesh.SamplePosition(point, out ground, VillagePlot.CellSide * 2f, NavMesh.AllAreas))
                 return false;
             if (agent != null)
                 agent.enabled = false;
@@ -192,30 +196,33 @@ namespace Workerborn
             return agent.isOnNavMesh;
         }
 
-        private bool FindPath(Vector3 point, float tolerance, out Vector3 ground)
+        private bool FindPath(Vector3 point, float tolerance, SeatSlot seat, out Vector3 ground)
         {
             ground = default;
             Vector3 surface = game.SurfacePosition(point.x, point.z);
             if (!NavMesh.SamplePosition(surface, out var hit, tolerance, NavMesh.AllAreas) ||
+                (seat != null && !seat.Covers(hit.position)) ||
                 !agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete)
                 return false;
             ground = hit.position;
             return true;
         }
 
-        private bool TryDestination(Vector3 point, float tolerance, HarvestableCrop workTarget = null, SeatSlot reservedSeat = null)
+        private bool TryDestination(Vector3 point, float tolerance, FacilityUse use)
         {
-            if (!FindPath(point, tolerance, out var ground))
+            if (!FindPath(point, tolerance, use.Seat, out var ground))
                 return false;
             bool atGoal = !placed ? agent.Warp(ground) : (transform.position - ground).sqrMagnitude <= .15f * .15f;
             if (!atGoal && !agent.SetPath(path))
                 return false;
 
             destination = ground;
-            seat = reservedSeat;
-            crop = workTarget;
-            facing = workTarget != null ? FacingTowards(workTarget.transform.position - destination) : transform.rotation;
+            approach = point;
+            goal = use;
+            seatFacing = goal.Seat != null ? goal.Seat.Facing : Quaternion.identity;
+            facing = goal.Crop != null ? FacingTowards(goal.Crop.transform.position - destination) : transform.rotation;
             hasRoute = true;
+            arrived = false;
             if (atGoal)
                 Arrive();
             else
@@ -238,9 +245,8 @@ namespace Workerborn
             arrived = true;
             agent.isStopped = true;
             agent.ResetPath();
-            Activity = scheduled?.Activity ?? NpcActivity.Idle;
-            if (Activity == NpcActivity.Harvesting && crop == null)
-                Activity = NpcActivity.Working;
+            Activity = goal.Activity;
+            var seat = goal.Seat;
             if (seat != null)
             {
                 seated = true;
@@ -251,19 +257,14 @@ namespace Workerborn
             }
             else
             {
-                if (crop != null)
+                if (goal.Crop != null)
                     transform.rotation = facing;
                 animationDriver?.SetAction((int)WorkerMotion.Idle);
             }
         }
 
-        private void AnimateHarvest()
+        private void AnimateHarvest(HarvestableCrop crop)
         {
-            if (!crop.isActiveAndEnabled || crop.IsDepleted)
-            {
-                ClearRoute();
-                return;
-            }
             if (workBreak > 0f)
             {
                 workBreak -= Time.deltaTime;
@@ -300,8 +301,7 @@ namespace Workerborn
                 agent.isStopped = true;
                 agent.ResetPath();
             }
-            seat = null;
-            crop = null;
+            goal = default;
             hasRoute = arrived = seated = false;
             retryAt = workElapsed = workBreak = 0f;
             Activity = NpcActivity.Idle;
@@ -309,5 +309,39 @@ namespace Workerborn
         }
 
         private void OnDisable() => ClearRoute();
+
+        private readonly struct FacilityUse
+        {
+            internal readonly VillageFacility Facility;
+            internal readonly NpcActivity Activity;
+            internal readonly SeatSlot Seat;
+            internal readonly HarvestableCrop Crop;
+
+            internal FacilityUse(VillageFacility facility, NpcActivity activity, SeatSlot seat = null, HarvestableCrop crop = null)
+            {
+                Facility = facility;
+                Activity = activity;
+                Seat = seat;
+                Crop = crop;
+            }
+
+            internal float Tolerance => Seat != null ? .7f : Crop != null ? .65f : 1.5f;
+            internal Vector3 Approach
+            {
+                get
+                {
+                    if (Seat != null)
+                        return Seat.ApproachPosition;
+                    if (Crop == null)
+                        return Facility.StandingPoint.position;
+
+                    Vector3 plant = Crop.transform.position;
+                    Vector3 approachSide = Vector3.ProjectOnPlane(Facility.StandingPoint.position - plant, Vector3.up);
+                    if (approachSide.sqrMagnitude < .01f)
+                        approachSide = -Facility.transform.forward;
+                    return plant + approachSide.normalized * .9f;
+                }
+            }
+        }
     }
 }

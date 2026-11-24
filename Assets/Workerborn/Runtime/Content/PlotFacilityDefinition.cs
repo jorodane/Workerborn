@@ -16,6 +16,8 @@ namespace Workerborn
         private HarvestableCrop fieldCrop;
         [SerializeField, Tooltip("Number of plants across and along each cell of a field.")]
         private Vector2Int plantsPerCell = new Vector2Int(2, 2);
+        [SerializeField, Tooltip("Schedule facility type for the entire generated field. For other facilities, add Village Facility directly to the prefab.")]
+        private VillageFacilityType fieldFacilityType;
         [SerializeField, Tooltip("The ground drawn on the map for this facility.")]
         private VillageMapSurface mapSurface;
 
@@ -25,6 +27,7 @@ namespace Workerborn
         public HarvestableCrop FieldCrop => fieldCrop;
         public bool FillsPlot => fieldCrop != null;
         internal VillageMapSurface MapSurface => mapSurface;
+        internal VillageFacilityType FieldFacilityType => fieldFacilityType;
         internal Vector2Int PlantsPerCell => new Vector2Int(Mathf.Clamp(plantsPerCell.x, 1, 4), Mathf.Clamp(plantsPerCell.y, 1, 4));
         internal PlotFootprint Footprint => new PlotFootprint(width, depth, ground);
         internal bool IsConfigured => !string.IsNullOrWhiteSpace(id) && !string.IsNullOrWhiteSpace(title) && prefab != null &&

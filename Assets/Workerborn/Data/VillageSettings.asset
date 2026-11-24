@@ -123,7 +123,7 @@ MonoBehaviour:
     topic:
       keyword: 오늘 일은 끝났나요?
       action: 10
-      text: 주말 저녁엔 북쪽 벤치가 한적해서 좋아. 너도 앉았다 갈래?
+      text: 주말 저녁엔 마을이 한적해서 좋아. 너도 앉았다 갈래?
       requirements:
       - kind: 6
         invert: 0

@@ -40,9 +40,7 @@ MonoBehaviour:
   interactionDistance: 1.8
   dailySchedule:
   - activity: 4
-    place: 2
-    offset: {x: -4, y: 0, z: -1.3}
-    pointId: ''
+    facility: {fileID: 11400000, guid: f9380f8cd0b05679ab16556319340c51, type: 2}
     weekdays: 31
     startMinute: 720
     endMinute: 780
@@ -50,9 +48,7 @@ MonoBehaviour:
     useJobHours: 0
     leadMinutes: 45
   - activity: 2
-    place: 0
-    offset: {x: 0, y: 0, z: 0}
-    pointId: ''
+    facility: {fileID: 11400000, guid: ff9e09f1509754e8afae3957817fef6b, type: 2}
     weekdays: 127
     startMinute: 360
     endMinute: 1200
@@ -60,9 +56,7 @@ MonoBehaviour:
     useJobHours: 0
     leadMinutes: 45
   - activity: 4
-    place: 2
-    offset: {x: -4, y: 0, z: -1.3}
-    pointId: ''
+    facility: {fileID: 11400000, guid: f9380f8cd0b05679ab16556319340c51, type: 2}
     weekdays: 127
     startMinute: 1200
     endMinute: 360

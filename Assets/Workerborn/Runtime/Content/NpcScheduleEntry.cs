@@ -4,17 +4,13 @@ using UnityEngine;
 namespace Workerborn
 {
     public enum NpcActivity { Idle, Walking, Working, Harvesting, Resting, Event }
-    public enum NpcSchedulePlace { Origin, Farm, NearbySeat, ScenePoint }
 
     [Serializable]
     public sealed class NpcScheduleEntry
     {
         [SerializeField] private NpcActivity activity;
-        [SerializeField] private NpcSchedulePlace place;
-        [SerializeField, Tooltip("World-space offset from the spawn point, farm, or assigned scene point. Nearby Seat searches around this point.")]
-        private Vector3 offset;
-        [SerializeField, Tooltip("Schedule-point ID for Scene Point, or an optional center for Nearby Seat.")]
-        private string pointId;
+        [SerializeField, Tooltip("Facility type to find in the current village layout. Leave empty for idle time at the spawn point.")]
+        private VillageFacilityType facility;
         [SerializeField] private VillageWeekdays weekdays = VillageWeekdays.All;
         [SerializeField, Range(0, 1439)] private int startMinute = 480;
         [SerializeField, Range(0, 1440)] private int endMinute = 1080;
@@ -26,9 +22,7 @@ namespace Workerborn
         private int leadMinutes = 45;
 
         internal NpcActivity Activity => activity;
-        internal NpcSchedulePlace Place => place;
-        internal Vector3 Offset => offset;
-        internal string PointId => pointId;
+        internal VillageFacilityType Facility => facility;
 
         internal static NpcScheduleEntry Resolve(NpcScheduleEntry[] entries, VillageState state, PartTimeJobDefinition job)
         {

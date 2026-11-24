@@ -696,6 +696,56 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator RestingNpcWaitsForVacantSeatsAndFollowsAvailableFacilities()
+        {
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            yield return Until(() => farmer.CurrentActivity == NpcActivity.Harvesting, 3f);
+            var restType = farmer.Definition.DailySchedule.Single(entry => entry.Activity == NpcActivity.Resting).Facility;
+            var benches = UnityEngine.Object.FindObjectsByType<VillageFacility>(FindObjectsSortMode.None)
+                .Where(facility => facility.FacilityType == restType)
+                .OrderByDescending(facility => (facility.transform.position - farmer.transform.position).sqrMagnitude)
+                .ToArray();
+            Assert.That(benches.Length, Is.GreaterThanOrEqualTo(2));
+            foreach (var bench in benches.Skip(1))
+                bench.enabled = false;
+
+            var seats = benches[0].GetComponentsInChildren<SeatSlot>();
+            var agent = farmer.GetComponent<NavMeshAgent>();
+            var path = new NavMeshPath();
+            var firstSeat = seats.FirstOrDefault(seat =>
+            {
+                var candidateApproach = seat.ApproachPosition;
+                return NavMesh.SamplePosition(game.SurfacePosition(candidateApproach.x, candidateApproach.z), out var hit, .7f, NavMesh.AllAreas) &&
+                    seat.Covers(hit.position) && agent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete;
+            });
+            Assert.That(firstSeat, Is.Not.Null);
+            foreach (var seat in seats.Where(seat => seat != firstSeat))
+                seat.enabled = false;
+            var state = game.State;
+            state.AdvanceTime((state.Rules.JobEnd - state.Minute + 1f) / state.Rules.MinutesPerSecond);
+            yield return Until(() => farmer.CurrentActivity == NpcActivity.Walking && farmer.Routine.ReservesSeat(firstSeat.Position), 3f);
+
+            Vector3 front = firstSeat.ApproachPosition;
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(front.x, front.z), out var standing, .7f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(standing.position), Is.True);
+            game.Worker.ToggleSit();
+            Assert.That(game.Worker.OccupiesSeat(firstSeat.Position), Is.True);
+            yield return Until(() => farmer.CurrentActivity == NpcActivity.Idle, 3f);
+
+            benches[1].enabled = true;
+            yield return Until(() => farmer.Routine.IsSeated, 32f);
+            Assert.That(benches[1].GetComponentsInChildren<SeatSlot>()
+                .Any(seat => farmer.Routine.ReservesSeat(seat.Position)), Is.True);
+            Assert.That(game.Worker.OccupiesSeat(firstSeat.Position), Is.True);
+
+            benches[1].gameObject.SetActive(false);
+            yield return Until(() => farmer.CurrentActivity == NpcActivity.Idle, 3f);
+            game.Worker.ToggleSit();
+            yield return Until(() => farmer.Routine.IsSeated, 32f);
+            Assert.That(farmer.Routine.ReservesSeat(firstSeat.Position), Is.True);
+        }
+
+        [UnityTest]
         public IEnumerator SaveReloadPreservesBagTimeAndDepletedCrops()
         {
             game.State.Inventory.TryAdd(ItemIds.Potato, 7);
@@ -1298,7 +1348,11 @@ namespace Workerborn.Tests
             var field = options.Single(row => row.GetComponentsInChildren<TMP_Text>().First().text == "감자밭");
             field.GetComponent<Button>().onClick.Invoke();
             Assert.That(VillagePlot.CellSide, Is.EqualTo(5f));
-            Assert.That(large.GetComponentsInChildren<HarvestableCrop>().Length, Is.EqualTo(64));
+            var farmType = game.FindInteraction(VillageRole.Farmer).Definition.DailySchedule
+                .Single(entry => entry.Activity == NpcActivity.Harvesting).Facility;
+            var builtFarm = large.GetComponentInChildren<VillageFacility>();
+            Assert.That(builtFarm.FacilityType, Is.EqualTo(farmType));
+            Assert.That(builtFarm.GetComponentsInChildren<HarvestableCrop>().Length, Is.EqualTo(64));
             Assert.That(game.Crops.Count, Is.EqualTo(76));
             Assert.That(game.State.Export().plotPlacements.Single().facilityId, Is.EqualTo("potato_field"));
 

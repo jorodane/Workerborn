@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace Workerborn
 {
@@ -24,15 +23,6 @@ namespace Workerborn
             npc.Routine = routine;
             npcRoutines.RemoveAll(entry => entry == null);
             npcRoutines.Add(routine);
-        }
-
-        internal Transform FindNpcSchedulePoint(string id)
-        {
-            if (!string.IsNullOrEmpty(id))
-                foreach (var point in FindObjectsByType<NpcSchedulePoint>(FindObjectsSortMode.None))
-                    if (point.isActiveAndEnabled && point.gameObject.scene == gameObject.scene && point.Id == id)
-                        return point.transform;
-            return null;
         }
     }
 }

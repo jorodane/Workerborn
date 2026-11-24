@@ -133,12 +133,14 @@ namespace Workerborn
                 gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress };
         }
 
-        internal bool SeatInUse(Vector3 position, NpcRoutine except = null)
+        internal bool SeatInUse(Vector3 position, NpcRoutine searchingNpc = null)
         {
             if (worker != null && worker.OccupiesSeat(position))
                 return true;
+            // En-route NPCs coordinate with each other. A player can still sit before they arrive.
             foreach (var routine in npcRoutines)
-                if (routine != null && routine != except && routine.isActiveAndEnabled && routine.ReservesSeat(position))
+                if (routine != null && routine != searchingNpc && routine.isActiveAndEnabled &&
+                    (routine.IsSeated || searchingNpc != null) && routine.ReservesSeat(position))
                     return true;
             foreach (var peer in peers.Values)
                 if (peer != null && peer.OccupiesSeat(position))

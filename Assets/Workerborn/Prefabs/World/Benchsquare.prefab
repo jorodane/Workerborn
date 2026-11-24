@@ -15,6 +15,7 @@ GameObject:
       fileID: 100101
   - component:
       fileID: 100106
+  - component: {fileID: 809481011}
   m_Layer: 0
   m_Name: Bench square
   m_TagString: Untagged
@@ -579,3 +580,17 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
   m_PrefabInstance: {fileID: 801179003}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &809481011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100100}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0933f415e50951f39c623203b70a46e7, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  facilityType: {fileID: 11400000, guid: f9380f8cd0b05679ab16556319340c51, type: 2}
+  standingPoint: {fileID: 0}

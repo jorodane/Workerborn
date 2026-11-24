@@ -24,9 +24,7 @@ MonoBehaviour:
   interactionDistance: 1.8
   dailySchedule:
   - activity: 3
-    place: 1
-    offset: {x: 0, y: 0, z: 0}
-    pointId: ''
+    facility: {fileID: 11400000, guid: f8a35e1c4c9e5158bf4be41e55403525, type: 2}
     weekdays: 127
     startMinute: 480
     endMinute: 1080
@@ -34,20 +32,8 @@ MonoBehaviour:
     useJobHours: 1
     leadMinutes: 45
   - activity: 4
-    place: 2
-    offset: {x: 11, y: 0, z: -4.4}
-    pointId: ''
-    weekdays: 31
-    startMinute: 1080
-    endMinute: 480
-    calendarEvent: {fileID: 0}
-    useJobHours: 0
-    leadMinutes: 45
-  - activity: 4
-    place: 2
-    offset: {x: 2.75, y: 0, z: 13.5}
-    pointId: ''
-    weekdays: 96
+    facility: {fileID: 11400000, guid: f9380f8cd0b05679ab16556319340c51, type: 2}
+    weekdays: 127
     startMinute: 1080
     endMinute: 480
     calendarEvent: {fileID: 0}

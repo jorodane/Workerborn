@@ -90,6 +90,8 @@ namespace Workerborn
 
         private void PlantField(VillagePrototype village, PlotFacilityDefinition facility, string resourceId)
         {
+            if (facility.FieldFacilityType != null)
+                contents.AddComponent<VillageFacility>().Bind(facility.FieldFacilityType);
             float side = CellSide;
             Vector2Int density = facility.PlantsPerCell;
             for (int row = 0; row < depth; row++)
