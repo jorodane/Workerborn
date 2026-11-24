@@ -307,6 +307,78 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator ItemShortcutsEquipToolsAndUsePotionsOutsideChat()
+        {
+            var state = game.State;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.HealthPotion, 2), Is.True);
+            var axe = state.Inventory.Entries.Single(item => item.ItemId == ItemIds.Axe);
+            var potion = state.Inventory.Entries.Single(item => item.ItemId == ItemIds.HealthPotion);
+            var bar = UnityEngine.Object.FindFirstObjectByType<ItemShortcutBarView>();
+            var slots = bar.GetComponentsInChildren<ItemShortcutSlotView>();
+            Assert.That(slots.Length, Is.EqualTo(10));
+            var first = slots.Single(slot => slot.Index == 0);
+            var last = slots.Single(slot => slot.Index == 9);
+            var inventory = game.Hud.OpenWindow("inventory") as InventoryWindowView;
+            inventory.Refresh();
+            yield return new WaitForSecondsRealtime(.35f);
+            Canvas.ForceUpdateCanvases();
+
+            var mouse = InputSystem.AddDevice<Mouse>();
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            try
+            {
+                Vector2 source = Center(inventory.GetComponentsInChildren<InventoryItemDrag>().Single(item => item.EntryId == axe.Id).transform);
+                Vector2 destination = Center(first.transform);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = source, buttons = 1 });
+                yield return null;
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = destination, buttons = 1 });
+                yield return Until(() => game.Hud.IsHoldingItem, 1f);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = destination });
+                yield return Until(() => state.ItemShortcutAt(0) == ItemIds.Axe, 1f);
+                Assert.That(state.Inventory.Find(axe.Id), Is.SameAs(axe));
+
+                game.Hud.BeginItemDrag(potion.Id, Center(last.transform));
+                last.OnPointerClick(new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left });
+                Assert.That(state.ItemShortcutAt(9), Is.EqualTo(ItemIds.HealthPotion));
+                Assert.That(state.Inventory.Find(potion.Id).Quantity, Is.EqualTo(2));
+                Assert.That(game.Hud.IsHoldingItem, Is.False);
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Digit1));
+                yield return Until(() => state.Equipment.TryGetValue(EquipmentSlot.MainHand, out var id) && id == ItemIds.Axe, 1f);
+                first.OnPointerClick(new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left });
+                Assert.That(state.Equipment[EquipmentSlot.MainHand], Is.EqualTo(ItemIds.Axe));
+
+                game.ReceiveAnimalHit(40);
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Enter));
+                yield return Until(() => game.Hud.IsChatTyping, 1f);
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Digit0));
+                yield return null;
+                Assert.That(state.Inventory.Count(ItemIds.HealthPotion), Is.EqualTo(2));
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Escape));
+                yield return Until(() => !game.Hud.IsChatTyping, 1f);
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Digit0));
+                yield return Until(() => state.Inventory.Count(ItemIds.HealthPotion) == 1, 1f);
+                Assert.That(state.Health, Is.EqualTo(state.HealthLimit - 10));
+
+                last.OnPointerClick(new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Right });
+                Assert.That(state.ItemShortcutAt(9), Is.Null);
+                Assert.That(state.Inventory.Count(ItemIds.HealthPotion), Is.EqualTo(1));
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(mouse);
+                InputSystem.RemoveDevice(keyboard);
+            }
+
+            static Vector2 Center(Transform item)
+            {
+                var rect = (RectTransform)item;
+                return RectTransformUtility.WorldToScreenPoint(null, rect.TransformPoint(rect.rect.center));
+            }
+        }
+
+        [UnityTest]
         public IEnumerator TreeReactsToBareHandedAndAxeImpacts()
         {
             var tree = game.Crops.OfType<LoggingTree>().First();

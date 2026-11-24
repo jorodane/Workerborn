@@ -24,6 +24,7 @@ namespace Workerborn
         [SerializeField] private RawImage selectionOutline;
         [SerializeField] private GameObject dialogueBackdrop;
         [SerializeField] private GameObject normalHud;
+        [SerializeField] private ItemShortcutBarView itemShortcuts;
         [SerializeField] private RectTransform chatLayer;
         [SerializeField] private VillageClockView clock;
         [SerializeField] private VillageMapView minimap;
@@ -113,6 +114,7 @@ namespace Workerborn
             if (dialogueBackdrop != null)
                 backdropTransitions = dialogueBackdrop.GetComponentsInChildren<WindowTransition>(true);
             BuildWorldFeedback();
+            itemShortcuts?.Bind(this);
             InitializeChat();
             floatingTexts = new PrefabPool<TMP_Text>(library.FloatingText, transform);
             floatingTexts.Prewarm(12);
@@ -224,6 +226,7 @@ namespace Workerborn
                 ToggleWindow("character");
             if (WorkerbornInput.Pressed("Gameplay/Map"))
                 ToggleWindow("map");
+            ReadItemShortcuts();
             if (hasPointer)
             {
                 if (IsHoldingItem)

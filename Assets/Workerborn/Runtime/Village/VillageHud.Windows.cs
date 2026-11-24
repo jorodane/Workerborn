@@ -17,6 +17,7 @@ namespace Workerborn
             foreach (var view in views.Values)
                 if (view != null && view.IsOpen)
                     view.Refresh();
+            itemShortcuts?.Refresh(game.State, game.Settings);
         }
 
         private void RefreshInventoryItems()
@@ -86,7 +87,11 @@ namespace Workerborn
         {
             if (HasQuantityPrompt)
                 return;
-            var item = game.State.Inventory.Find(selectedEntry);
+            UseInventoryItem(game.State.Inventory.Find(selectedEntry));
+        }
+
+        private void UseInventoryItem(InventoryEntry item)
+        {
             if (item == null)
                 return;
             if (game.State.TryGetDocumentPage(item.ItemId, out var page))
@@ -337,6 +342,8 @@ namespace Workerborn
                 SellHeldItem(screen);
             else if (hit.GetComponentInParent<EquipmentSlotPointer>() is EquipmentSlotPointer equipment)
                 ClickEquipment(equipment.Slot, screen);
+            else if (hit.GetComponentInParent<ItemShortcutSlotView>() is ItemShortcutSlotView shortcut)
+                AssignHeldItemShortcut(shortcut.Index);
             else
                 EndItemDrag(screen);
         }

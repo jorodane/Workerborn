@@ -105,6 +105,7 @@ namespace Workerborn
         public int inventoryColumns = VillageState.LegacyInventoryColumns;
         public int inventoryRows = VillageState.BaseInventoryRows;
         public InventoryEntrySave[] inventory = Array.Empty<InventoryEntrySave>();
+        public string[] itemShortcuts = Array.Empty<string>();
         public PendingPurchaseSave pendingPurchase;
         public int[] cropRemaining = Array.Empty<int>();
         public CropStateSave[] cropStates = Array.Empty<CropStateSave>();
@@ -123,6 +124,8 @@ namespace Workerborn
     // Unity-independent rules, shared by the playable village and its NUnit tests.
     public sealed partial class VillageState
     {
+        internal const int ItemShortcutCount = 10;
+        private readonly string[] itemShortcuts = new string[ItemShortcutCount];
         internal const int InventoryColumns = 6;
         internal const int LegacyInventoryColumns = 8;
         internal const int BaseInventoryRows = 4;
@@ -567,6 +570,42 @@ namespace Workerborn
             return Result(true, "빵을 먹고 에너지를 25 회복했어요.");
         }
 
+        internal string ItemShortcutAt(int index) => (uint)index < ItemShortcutCount ? itemShortcuts[index] : null;
+
+        internal bool IsEquipped(ItemSpec item) => equipment.TryGetValue(item.EquipmentSlot, out string id) && id == item.Id;
+
+        internal InventoryEntry FindShortcutEntry(int index)
+        {
+            string itemId = ItemShortcutAt(index);
+            if (itemId != null)
+                foreach (var entry in Inventory.Entries)
+                    if (entry.ItemId == itemId)
+                        return entry;
+            return null;
+        }
+
+        internal bool TryAssignItemShortcut(int index, int entryId)
+        {
+            if (AwaitingIncarnation || (uint)index >= ItemShortcutCount)
+                return false;
+            var entry = Inventory.Find(entryId);
+            if (entry == null || !CanAssignItemShortcut(entry.Spec))
+                return Result(false, "장비나 사용할 수 있는 소모품을 등록해 주세요.");
+            itemShortcuts[index] = entry.ItemId;
+            return Result(true, $"{(index + 1) % 10}번 단축키에 {entry.Spec.Name} 등록");
+        }
+
+        internal bool TryClearItemShortcut(int index)
+        {
+            if (AwaitingIncarnation || ItemShortcutAt(index) == null)
+                return false;
+            itemShortcuts[index] = null;
+            return Result(true, $"{(index + 1) % 10}번 단축키 등록을 해제했어요.");
+        }
+
+        private static bool CanAssignItemShortcut(ItemSpec item) => item.EquipmentSlot != EquipmentSlot.None ||
+            item.HealthRestore > 0 || item.Id == ItemIds.Bread;
+
         public bool TryDrinkPotion(int entryId)
         {
             if (AwaitingIncarnation || NeedsRest)
@@ -747,6 +786,7 @@ namespace Workerborn
                 inventoryColumns = Inventory.Columns,
                 inventoryRows = Inventory.Rows,
                 inventory = Inventory.Export(),
+                itemShortcuts = (string[])itemShortcuts.Clone(),
                 pendingPurchase = PendingPurchase == null ? null :
                     new PendingPurchaseSave { itemId = PendingPurchase.ItemId, quantity = PendingPurchase.Quantity }
             };
@@ -853,6 +893,13 @@ namespace Workerborn
                 Inventory = inventory
             };
             state.RestoreSkills(save);
+            if (save.itemShortcuts != null)
+                for (int index = 0; index < Math.Min(save.itemShortcuts.Length, ItemShortcutCount); index++)
+                {
+                    string id = save.itemShortcuts[index];
+                    if (ItemCatalog.Contains(id) && CanAssignItemShortcut(ItemCatalog.Get(id)))
+                        state.itemShortcuts[index] = id;
+                }
             state.RefreshSkillStats();
             state.Health = save.schema >= 6 ? Math.Min(save.health, state.HealthLimit) : state.HealthLimit;
             state.Energy = Math.Min(state.Energy, state.StaminaLimit);

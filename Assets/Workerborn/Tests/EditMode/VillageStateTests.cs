@@ -7,6 +7,39 @@ namespace Workerborn.Tests
     public sealed class VillageStateTests
     {
         [Test]
+        public void ItemShortcutsKeepTheirBindingWhenAStackRunsOutAndIsReplaced()
+        {
+            var state = new VillageState();
+            Assert.That(state.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.HealthPotion, 1), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, 1), Is.True);
+            var axe = state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Axe);
+            var potion = state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.HealthPotion);
+            var potato = state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
+            int inventoryVersion = state.Inventory.Version;
+            Assert.That(state.TryAssignItemShortcut(0, axe.Id), Is.True);
+            Assert.That(state.TryAssignItemShortcut(9, potion.Id), Is.True);
+            Assert.That(state.TryAssignItemShortcut(9, potato.Id), Is.False);
+            Assert.That(state.Inventory.Version, Is.EqualTo(inventoryVersion));
+            Assert.That(state.Inventory.Find(potion.Id), Is.SameAs(potion));
+
+            var reloaded = VillageState.Restore(state.Export());
+            Assert.That(reloaded.ItemShortcutAt(0), Is.EqualTo(ItemIds.Axe));
+            Assert.That(reloaded.ItemShortcutAt(9), Is.EqualTo(ItemIds.HealthPotion));
+            reloaded.TakeHit(10);
+            Assert.That(reloaded.TryDrinkPotion(reloaded.FindShortcutEntry(9).Id), Is.True);
+            Assert.That(reloaded.FindShortcutEntry(9), Is.Null);
+            reloaded = VillageState.Restore(reloaded.Export());
+            Assert.That(reloaded.ItemShortcutAt(9), Is.EqualTo(ItemIds.HealthPotion));
+            Assert.That(reloaded.Inventory.TryAdd(ItemIds.HealthPotion, 1), Is.True);
+            Assert.That(reloaded.FindShortcutEntry(9)?.ItemId, Is.EqualTo(ItemIds.HealthPotion));
+
+            Assert.That(reloaded.TryClearItemShortcut(9), Is.True);
+            Assert.That(reloaded.ItemShortcutAt(9), Is.Null);
+            Assert.That(reloaded.Inventory.Count(ItemIds.HealthPotion), Is.EqualTo(1));
+        }
+
+        [Test]
         public void HealthPotionHealsUpToTheLimitAndConsumesOnlyTheSelectedStack()
         {
             var state = new VillageState();

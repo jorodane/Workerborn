@@ -13,6 +13,7 @@ namespace Workerborn
 
         private void InitializeChat()
         {
+            chatAtStatus = chatLayer.anchoredPosition;
             chat = Instantiate(library.Chat, chatLayer);
             chat.Bind(game.TrySendChat, chatLayer);
             localOverhead = CreatePlayerOverhead(game.LegendPlayerName);

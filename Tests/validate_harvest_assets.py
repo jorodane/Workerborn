@@ -341,6 +341,7 @@ assert len(allids)==len(set(allids))
 required={'Gameplay':{'Interact':'<Mouse>/leftButton','Target':'<Keyboard>/leftCtrl','Names':'<Keyboard>/leftAlt','Walk':'<Keyboard>/leftShift',
                       'Sit':'<Keyboard>/c','Character':'<Keyboard>/o'},
           'Camera':{'OrbitMiddle':'<Mouse>/middleButton','OrbitRight':'<Mouse>/rightButton','Zoom':'<Mouse>/scroll/y'}}
+required['Gameplay'].update({f'Shortcut{digit}': f'<Keyboard>/{digit}' for digit in '1234567890'})
 for mapname,bindings in required.items():
     for name,binding in bindings.items():assert any(b['action']==name and b['path']==binding for b in maps[mapname]['bindings'])
 assert len(behaviours(scene,'Interaction/WorkerbornInput.cs'))==1
@@ -383,6 +384,16 @@ for prefab, controller in [('VillageHUD', 'Village/VillageHud.cs'), ('CharacterW
     reference = behaviours(rows, controller)[0]['healthBar']
     shared = next(row['MonoBehaviour'] for row in rows if row['_id'] == reference['fileID'])
     assert shared['m_CorrespondingSourceObject'] == health_source
+hud_rows = docs(CONTENT / 'Prefabs/UI/VillageHUD.prefab')
+shortcut_reference = behaviours(hud_rows, 'Village/VillageHud.cs')[0]['itemShortcuts']
+shortcut_link = next(row['MonoBehaviour'] for row in hud_rows if row['_id'] == shortcut_reference['fileID'])
+shortcut_rows = docs(resolve(shortcut_link['m_CorrespondingSourceObject']))
+slots = behaviours(shortcut_rows, 'UI/ItemShortcutBarView.cs')[0]['slots']
+assert len(slots) == 10
+for digit, slot in zip('1234567890', slots):
+    link = next(row['MonoBehaviour'] for row in shortcut_rows if row['_id'] == slot['fileID'])
+    instance = next(row['PrefabInstance'] for row in shortcut_rows if row['_id'] == link['m_PrefabInstance']['fileID'])
+    assert any(mod['propertyPath'] == 'm_text' and str(mod['value']) == digit for mod in instance['m_Modification']['m_Modifications'])
 overhead_rows = docs(resolve(library['playerOverhead']))
 overhead = behaviours(overhead_rows, 'UI/PlayerOverheadView.cs')[0]
 nested_name = next(row['MonoBehaviour'] for row in overhead_rows if row['_id'] == overhead['playerName']['fileID'])
