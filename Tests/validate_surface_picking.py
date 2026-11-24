@@ -50,6 +50,24 @@ for path in sorted((ROOT / 'Assets/Workerborn/Prefabs/World').glob('*.prefab')):
     count += local_count
 
 base = ROOT / 'Assets/Workerborn'
+supplied_door = ROOT / 'Assets/Fantastic Interior Pack/prefabs/ENV/Gateways/P_MOD_Door_interior.prefab'
+parts = documents(supplied_door)
+leaf = next(row['_id'] for row in parts if row.get('GameObject', {}).get('m_Name') == 'MOD_Door_part_interior')
+supplied_leaf = next(row['MeshFilter']['m_Mesh'] for row in parts
+                     if row.get('MeshFilter', {}).get('m_GameObject', {}).get('fileID') == leaf)
+building_names = ('Cottage', 'Farmhouse', 'Generalstore', 'Inn', 'Workshop')
+door_prefabs = [base / f'Prefabs/World/{name}.prefab' for name in building_names]
+door_prefabs += sorted((base / 'Prefabs/Interiors').glob('*Interior.prefab'))
+for path in door_prefabs:
+    parts = documents(path)
+    leaf = next(row['_id'] for row in parts if row.get('GameObject', {}).get('m_Name') == 'Door leaf')
+    mesh = next(row['MeshFilter']['m_Mesh'] for row in parts
+                if row.get('MeshFilter', {}).get('m_GameObject', {}).get('fileID') == leaf)
+    assert mesh == supplied_leaf, path
+    collider = next(row['BoxCollider'] for row in parts
+                    if row.get('BoxCollider', {}).get('m_GameObject', {}).get('fileID') == leaf)
+    assert collider['m_Enabled'] and not collider['m_IsTrigger'], path
+
 door_triangles = 0
 for path in sorted((base / 'Models/BuildingDoors').glob('*.asset')):
     mesh = documents(path)[0]['Mesh']
@@ -83,4 +101,4 @@ for pair in palette['materials']:
         assert GUIDS[textures['_BumpMap']['m_Texture']['guid']].name == 'T_Potato_01_Normal.png'
         if path.stem.startswith('M_PotatoLeaf'): assert floats['_AlphaClip'] == 1 and floats['_Cull'] == 0
 print(f'Validated {count} exact picking meshes against expanded source transforms, {len(palette["materials"])} stable material bindings and {forest_count} preserved forest texture sets.')
-print(f'Validated outward winding for {door_triangles} authored door triangles.')
+print(f'Validated {len(door_prefabs)} imported door leaves and outward winding on {door_triangles} door frame triangles.')

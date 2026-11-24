@@ -343,6 +343,19 @@ for p in (CONTENT/'Prefabs/UI').glob('*.prefab'):
         if v.get('m_Script',{}).get('guid')!='f4688fdb7df04437aeb418b961361dc5':continue
         assert v['m_fontAsset']['guid']==guid_for(CONTENT/'Fonts/WorkerbornKorean-SDF.asset')
         assert v['m_sharedMaterial']['fileID'] and not v['m_RaycastTarget'];texts+=1
+
+def nameplate_label(prefab, view, field):
+    rows = docs(CONTENT / 'Prefabs/UI' / f'{prefab}.prefab')
+    component = behaviours(rows, f'UI/{view}.cs')[0]
+    return next(row['MonoBehaviour'] for row in rows if row['_id'] == component[field]['fileID'])
+
+npc_label = nameplate_label('NpcName', 'WorldNameplateView', 'label')
+for label in (nameplate_label('PickupName', 'PickupNameView', 'label'),
+              nameplate_label('PlayerOverhead', 'PlayerOverheadView', 'playerName')):
+    for field in ('m_fontAsset', 'm_sharedMaterial', 'm_fontSize', 'm_fontWeight', 'm_fontStyle',
+                  'm_characterSpacing', 'm_enableAutoSizing', 'm_TextWrappingMode', 'm_fontColor'):
+        assert label[field] == npc_label[field], field
+
 font=next(d['MonoBehaviour']for d in docs(CONTENT/'Fonts/WorkerbornKorean-SDF.asset')if 'MonoBehaviour'in d)
 assert font['m_AtlasPopulationMode']==1 and font['m_IsMultiAtlasTexturesEnabled']==1 and font['m_SourceFontFile']['fileID']==12800000
 outline=docs(CONTENT/'Fonts/WorkerbornKorean-NameOutline.mat')[0]['Material'];assert 'OUTLINE_ON'in outline['m_ValidKeywords']

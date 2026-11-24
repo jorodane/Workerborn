@@ -76,6 +76,7 @@ namespace Workerborn
             }
         }
 
+        protected Vector3 NameOffset => nameOffset;
         public virtual Vector3 NamePosition => transform.position + nameOffset;
 
         protected virtual void OnEnable()

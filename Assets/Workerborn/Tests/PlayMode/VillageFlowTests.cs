@@ -1761,10 +1761,17 @@ namespace Workerborn.Tests
         {
             var store = WorldInteractable.Active.OfType<VillageBuildingDoor>().Single(door => door.BuildingId == "general-store");
             Assert.That(store.IsOpen, Is.True);
+            Assert.That(store.DisplayName, Is.EqualTo("잡화점"));
+            Assert.That(store.ShowNameByDefault, Is.True);
             var hingedModel = store.transform.Find("Hinged door model");
+            var frame = hingedModel.Find("Original door frame").GetComponent<MeshRenderer>();
+            Assert.That(store.NamePosition.y, Is.GreaterThan(frame.bounds.max.y));
+            var leaf = hingedModel.Find("Door leaf");
+            Assert.That(leaf.GetComponent<MeshFilter>().sharedMesh.name, Is.EqualTo("MOD_Door_part_interior"));
+            Assert.That(leaf.GetComponent<BoxCollider>(), Is.Not.Null);
             var backing = hingedModel.Find("Doorway shade");
             Assert.That(backing.GetComponent<MeshRenderer>(), Is.Not.Null);
-            Assert.That(backing.localPosition.z, Is.LessThan(hingedModel.Find("Door leaf").localPosition.z));
+            Assert.That(backing.localPosition.z, Is.LessThan(leaf.localPosition.z));
             Assert.That(backing.GetComponent<Collider>(), Is.Null);
 
             var fade = game.Hud.transform.Find("World transition").GetComponent<CanvasGroup>();
@@ -1790,7 +1797,10 @@ namespace Workerborn.Tests
 
             game.State.AdvanceTime((20f * 60f + 10f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
             Assert.That(store.IsOpen, Is.False);
+            Assert.That(store.ShowNameByDefault, Is.True);
             Assert.That(inside.Exit.IsOpen, Is.True);
+            Assert.That(inside.Exit.ShowNameByDefault, Is.True);
+            Assert.That(inside.Exit.DisplayName, Is.EqualTo("솔바람 마을"));
             var save = game.CaptureSave();
             Assert.That(save.interior.id, Is.EqualTo(inside.Id));
             Assert.That(VillageSaveStore.TrySave(save, out _), Is.True);
