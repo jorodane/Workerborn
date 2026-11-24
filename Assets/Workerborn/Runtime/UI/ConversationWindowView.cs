@@ -112,10 +112,10 @@ namespace Workerborn
             {
                 page++;
                 MeasurePage(restart: true);
-                ShowPageChoices();
             }
             else
                 return false;
+            ShowPageChoices();
             advancedFrame = Time.frameCount;
             return true;
         }
@@ -132,6 +132,8 @@ namespace Workerborn
                 return;
             body.maxVisibleCharacters = Mathf.Min(pageEnd,
                 pageStart + Mathf.FloorToInt((Time.unscaledTime - lineStarted) * charactersPerSecond));
+            if (body.maxVisibleCharacters >= pageEnd)
+                ShowPageChoices();
         }
 
         private void ShowLine(string text)
@@ -193,7 +195,7 @@ namespace Workerborn
         {
             bool more = page < pageCount;
             leave.gameObject.SetActive(CanLeave);
-            nextPage.gameObject.SetActive(more);
+            nextPage.gameObject.SetActive(more && body.maxVisibleCharacters >= pageEnd);
             for (int i = 0; i < replies.Count; i++)
                 replies[i].gameObject.SetActive(!more && i < replyCount);
         }

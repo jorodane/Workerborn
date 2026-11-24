@@ -1494,25 +1494,35 @@ namespace Workerborn.Tests
             var keyboard = InputSystem.AddDevice<Keyboard>();
             try
             {
-                greeting.text = string.Join("\n", Enumerable.Range(1, 30).Select(line => $"대화 {line}"));
+                greeting.text = string.Join("\n", Enumerable.Range(1, 60).Select(line => $"대화 {line}"));
                 game.Hud.OpenDialogue(merchant);
                 var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
                 yield return null;
                 var body = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
-                Assert.That(body.textInfo.pageCount, Is.GreaterThan(1));
+                var next = dialogue.GetComponentsInChildren<Button>(true)
+                    .Single(button => button.GetComponentInChildren<TMP_Text>(true)?.text == "다음");
+                Assert.That(body.textInfo.pageCount, Is.GreaterThanOrEqualTo(3));
                 Assert.That(body.pageToDisplay, Is.EqualTo(1));
-                Assert.That(FindButton(dialogue, "다음"), Is.Not.Null);
+                Assert.That(next.gameObject.activeInHierarchy, Is.False);
                 Assert.That(dialogue.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "거래하기" || text.text == "대화 종료"), Is.False);
                 game.Hud.CloseWindow("conversation");
                 Assert.That(game.Hud.IsSpeakingWith(merchant), Is.True);
 
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Space));
                 yield return null;
+                Assert.That(body.pageToDisplay, Is.EqualTo(1));
                 Assert.That(body.maxVisibleCharacters, Is.GreaterThanOrEqualTo(body.textInfo.pageInfo[0].lastCharacterIndex + 1));
+                Assert.That(next.gameObject.activeInHierarchy, Is.True);
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Enter));
                 yield return null;
                 Assert.That(body.pageToDisplay, Is.EqualTo(2));
+                Assert.That(next.gameObject.activeInHierarchy, Is.False);
                 Assert.That(game.Hud.IsChatTyping, Is.False);
+                yield return Until(() => next.gameObject.activeInHierarchy, 6f);
+                Assert.That(body.maxVisibleCharacters, Is.GreaterThanOrEqualTo(body.textInfo.pageInfo[1].lastCharacterIndex + 1));
+                next.onClick.Invoke();
+                Assert.That(body.pageToDisplay, Is.EqualTo(3));
+                Assert.That(next.gameObject.activeInHierarchy, Is.False);
 
                 game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Farmer));
                 FindButton(dialogue, "아르바이트를 묻는다").onClick.Invoke();
