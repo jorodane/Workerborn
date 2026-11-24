@@ -73,8 +73,9 @@ namespace Workerborn
             {
                 var guest = Instantiate(guestPrefab, room.transform.position + Vector3.forward * InteriorSpacing,
                     Quaternion.identity, interiorsRoot);
-                guest.Bind(this, door, id + "/guest", room);
+                guest.Bind(this, room.GuestRoomDoor != null ? room.GuestRoomDoor : door, id + "/guest", room);
                 room.GuestRoom = guest;
+                room.GuestRoomDoor?.Bind(this, guest);
                 interiors.Add(guest.Id, guest);
             }
             return room;
@@ -112,10 +113,12 @@ namespace Workerborn
 
             var room = door.Interior;
             bool exiting = door.IsExit;
-            if (exiting && CurrentInterior != room || !exiting && CurrentInterior != null)
+            if (CurrentInterior != (exiting ? room : room.Lobby))
                 return false;
             var destination = exiting ? room.Lobby : room;
-            Transform arrival = destination != null ? destination.Arrival : room.Entrance.Approach;
+            Transform arrival = room.Arrival;
+            if (exiting)
+                arrival = destination != null ? destination.GuestRoomDoor?.Approach ?? destination.Arrival : room.Entrance.Approach;
             return TravelToInterior(arrival, destination);
         }
 
@@ -201,13 +204,17 @@ namespace Workerborn
                 return false;
             Vector3 point = candidate.RestorePosition(save);
             if (!candidate.Contains(point.x, point.z))
-                return false;
+            {
+                if (candidate.Lobby == null || !float.IsFinite(point.x) || !float.IsFinite(point.z))
+                    return false;
+                point = candidate.Arrival.position;
+            }
             room = candidate;
             position = point;
             return true;
         }
 
         private Vector3 ExteriorPosition(VillageInteriorMap room) =>
-            room != null && room.Entrance != null ? room.Entrance.Approach.position : spawnPoint.position;
+            (room?.Lobby ?? room)?.Entrance?.Approach.position ?? spawnPoint.position;
     }
 }

@@ -8,6 +8,7 @@ namespace Workerborn
         [SerializeField] private WorkerAnimation animationDriver;
         [SerializeField, Min(0f)] private float labelHeight = 1.9f;
         private PlayerOverheadView label;
+        private Transform head;
         private VillageHud hud;
         private Vector3 destination;
         private Quaternion yaw;
@@ -30,7 +31,10 @@ namespace Workerborn
                     modularModel = model.transform;
                     lookSelection = look.ToSelection();
                 }
-                animationDriver?.Initialize(model.GetComponentInChildren<Animator>(), appearance.Idle, appearance.Run, appearance.Work, appearance.Walk);
+                var animator = model.GetComponentInChildren<Animator>();
+                animationDriver?.Initialize(animator, appearance.Idle, appearance.Run, appearance.Work, appearance.Walk);
+                if (animator != null && animator.avatar != null && animator.avatar.isValid && animator.isHuman)
+                    head = animator.GetBoneTransform(HumanBodyBones.Head);
             }
             CharacterActor.SuppressBodyCollision(gameObject);
             label = hud.CreatePlayerOverhead(name);
@@ -50,11 +54,14 @@ namespace Workerborn
             float height = Mathf.Abs(avatar.y - surfaceY) < 3f ? avatar.y : surfaceY;
             destination = new Vector3(avatar.x, height, avatar.z);
             yaw = Quaternion.Euler(0, avatar.yaw, 0);
-            jumpOffset = float.IsFinite(avatar.jumpOffset) ? Mathf.Clamp(avatar.jumpOffset, 0f, .6f) : 0f;
             if (!hasPose || Vector3.SqrMagnitude(destination - transform.position) > 64f)
                 transform.SetPositionAndRotation(destination, yaw);
             hasPose = true;
             animationDriver?.SetAction(avatar.motion);
+            if (animationDriver != null && float.IsFinite(avatar.gestureProgress))
+                animationDriver.SetGesture((WorkerGesture)avatar.gesture, avatar.gestureProgress);
+            jumpOffset = animationDriver?.Gesture != WorkerGesture.Jump && float.IsFinite(avatar.jumpOffset)
+                ? Mathf.Clamp(avatar.jumpOffset, 0f, .6f) : 0f;
         }
 
         private void LateUpdate()
@@ -68,7 +75,11 @@ namespace Workerborn
             if (visual != null)
                 visual.localPosition = visualBase + Vector3.up * shownJumpOffset;
             if (label != null && hud != null)
-                hud.PositionPlayerOverhead(label, transform.position, transform.position + Vector3.up * (labelHeight + shownJumpOffset));
+            {
+                Vector3 namePosition = head != null ? head.position + Vector3.up * .32f
+                    : transform.position + Vector3.up * (labelHeight + shownJumpOffset);
+                hud.PositionPlayerOverhead(label, transform.position, namePosition);
+            }
         }
 
         private void OnDestroy()

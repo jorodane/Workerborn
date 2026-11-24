@@ -10,6 +10,7 @@ namespace Workerborn
 {
     public enum SessionKind { SteamFriends = 1, Dedicated = 2 }
     internal enum WorkerMotion { Idle, Run, Work, Walk, GroundSit, SeatSit }
+    internal enum WorkerGesture { None, Jump, GatherSuccess, GatherFailure }
 
     public enum CampaignAction
     {
@@ -24,8 +25,8 @@ namespace Workerborn
         public string id;
         public string name;
         public CharacterLook look;
-        public float x, y, z, yaw, jumpOffset;
-        public int motion;
+        public float x, y, z, yaw, jumpOffset, gestureProgress;
+        public int motion, gesture;
     }
 
     [Serializable]
@@ -337,6 +338,9 @@ namespace Workerborn
             target.yaw = pose.yaw;
             target.motion = pose.motion;
             target.jumpOffset = float.IsNaN(pose.jumpOffset) ? 0f : Math.Max(0f, Math.Min(.6f, pose.jumpOffset));
+            target.gesture = pose.gesture >= (int)WorkerGesture.None && pose.gesture <= (int)WorkerGesture.GatherFailure
+                ? pose.gesture : (int)WorkerGesture.None;
+            target.gestureProgress = float.IsNaN(pose.gestureProgress) ? 0f : Math.Max(0f, Math.Min(1f, pose.gestureProgress));
         }
 
         private static bool FiniteCoordinate(float value) => !float.IsNaN(value) && Math.Abs(value) <= 10000f;
@@ -482,6 +486,8 @@ namespace Workerborn
             avatar.yaw = origin?.yaw ?? 0f;
             avatar.motion = (int)WorkerMotion.Idle;
             avatar.jumpOffset = 0f;
+            avatar.gesture = (int)WorkerGesture.None;
+            avatar.gestureProgress = 0f;
             if (character.hasLifeLook)
                 avatar.look = character.lifeLook.Validated();
         }

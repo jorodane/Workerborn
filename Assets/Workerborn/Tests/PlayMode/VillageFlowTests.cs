@@ -157,6 +157,16 @@ namespace Workerborn.Tests
             FindButton(dialogue, "내 방으로 들어간다").onClick.Invoke();
             yield return Until(() => game.CurrentInterior?.Lobby == inn.Interior && !game.IsWorldTransitioning, 3f);
             var room = game.CurrentInterior;
+            var lobby = room.Lobby;
+            Assert.That(lobby.MapBounds.width * lobby.MapBounds.height,
+                Is.GreaterThan(2 * room.MapBounds.width * room.MapBounds.height));
+            var guestDoor = lobby.GuestRoomDoor;
+            Assert.That(guestDoor.Interior, Is.SameAs(room));
+            room.Exit.RequestInteraction(game.Worker);
+            yield return Until(() => game.CurrentInterior == lobby && !game.IsWorldTransitioning, 3f);
+            Assert.That(Vector3.Distance(game.Worker.transform.position, guestDoor.Approach.position), Is.LessThan(.4f));
+            guestDoor.RequestInteraction(game.Worker);
+            yield return Until(() => game.CurrentInterior == room && !game.IsWorldTransitioning, 3f);
             Assert.That(game.CaptureSave().interior.id, Is.EqualTo(room.Id));
             Assert.That(NavMesh.SamplePosition(room.Bed.Approach.position, out var bedside, .35f, NavMesh.AllAreas), Is.True);
             Assert.That(game.Worker.WarpTo(bedside.position), Is.True);
@@ -221,6 +231,7 @@ namespace Workerborn.Tests
                 Assert.That(game.State.Energy, Is.EqualTo(energy));
                 Assert.That(game.GroundItemCount, Is.EqualTo(drops));
                 Assert.That(notice, Does.Contain("채집에 실패"));
+                Assert.That(game.Worker.GetComponent<WorkerAnimation>().Gesture, Is.EqualTo(WorkerGesture.GatherFailure));
             }
             finally
             {
@@ -236,12 +247,21 @@ namespace Workerborn.Tests
             {
                 Vector3 standing = game.Worker.transform.position;
                 var visual = game.PlayerActor.VisualRoot;
+                var animator = game.PlayerActor.Animator;
+                var leftFoot = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+                var rightFoot = animator.GetBoneTransform(HumanBodyBones.RightFoot);
+                float FootHeight() => Mathf.Min(leftFoot.position.y, rightFoot.position.y);
+                float groundHeight = FootHeight();
                 Vector3 original = visual.localPosition;
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Space));
-                yield return Until(() => visual.localPosition.y > original.y + .1f, 1f);
+                yield return Until(() => FootHeight() > groundHeight + .1f, 1f);
+                var animation = game.Worker.GetComponent<WorkerAnimation>();
+                Assert.That(animation.Gesture, Is.EqualTo(WorkerGesture.Jump));
+                Assert.That(animation.GestureProgress, Is.GreaterThan(0f));
                 Assert.That(Vector3.Distance(game.Worker.transform.position, standing), Is.LessThan(.002f));
                 Assert.That(Vector3.Distance(game.Worker.GetComponent<NavMeshAgent>().nextPosition, standing), Is.LessThan(.002f));
-                yield return Until(() => visual.localPosition == original, 1f);
+                Assert.That(visual.localPosition, Is.EqualTo(original));
+                yield return Until(() => animation.Gesture == WorkerGesture.None, 1f);
             }
             finally
             {
@@ -508,6 +528,7 @@ namespace Workerborn.Tests
                 var item = UnityEngine.Object.FindFirstObjectByType<GroundPickup>();
                 if (item == null)
                     continue; // A failed work attempt yields no drop.
+                Assert.That(game.Worker.GetComponent<WorkerAnimation>().Gesture, Is.EqualTo(WorkerGesture.GatherSuccess));
                 int before = game.State.Inventory.Count(ItemIds.Potato);
                 game.Worker.CommandPickup(item);
                 yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) > before, 8f);
@@ -1829,11 +1850,17 @@ namespace Workerborn.Tests
                 yield return Until(() => miniMarker.gameObject.activeSelf && fullMarker.gameObject.activeSelf, 2f);
                 Assert.That(miniMarker.Find("Direction arrow").gameObject.activeSelf, Is.True);
                 var waypoint = UnityEngine.Object.FindFirstObjectByType<JobWaypointView>();
-                Assert.That(waypoint.GetComponent<Image>().sprite.name, Does.Contain("Arrow"));
-                workplace.position = game.Worker.transform.position;
+                var pin = waypoint.GetComponentInChildren<Image>(true);
+                Assert.That(pin.gameObject.activeSelf, Is.False);
+                Assert.That(waypoint.GetComponent<Canvas>().sortingOrder, Is.GreaterThan(game.Hud.GetComponent<Canvas>().sortingOrder));
+                Vector3 direction = Vector3.ProjectOnPlane(workplace.position - game.Worker.StandingPosition, Vector3.up).normalized;
+                Assert.That(Vector3.Distance(waypoint.Direction, direction), Is.LessThan(.001f));
+                Vector3 right = Vector3.ProjectOnPlane(game.WorldCamera.transform.right, Vector3.up).normalized;
+                workplace.position = game.Worker.StandingPosition + right;
                 yield return null;
                 yield return null;
-                Assert.That(waypoint.GetComponent<Image>().sprite.name, Does.Contain("Mappin"));
+                Assert.That(pin.gameObject.activeSelf, Is.True);
+                Assert.That(Vector3.Distance(waypoint.Direction, right), Is.LessThan(.001f));
                 Assert.That(fullMarker.gameObject.activeSelf, Is.True);
                 fullRow.transform.Find("Job tracking").GetComponent<Button>().onClick.Invoke();
                 yield return Until(() => !miniMarker.gameObject.activeSelf && !fullMarker.gameObject.activeSelf, 2f);
@@ -2065,9 +2092,15 @@ namespace Workerborn.Tests
             try
             {
                 var agent = game.Worker.GetComponent<NavMeshAgent>();
+                Vector3 right = Vector3.ProjectOnPlane(game.WorldCamera.transform.right, Vector3.up).normalized;
+                Vector3 forward = Vector3.Cross(right, Vector3.up);
+                Quaternion facing = Quaternion.LookRotation(forward);
+                game.Worker.transform.rotation = Quaternion.LookRotation(-forward);
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W));
                 yield return null;
                 Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
+                Assert.That(Quaternion.Angle(game.Worker.transform.rotation, facing),
+                    Is.EqualTo(Mathf.Max(0f, 180f - agent.angularSpeed * Time.deltaTime)).Within(.5f));
                 Assert.That(game.Worker.IsWalking, Is.False);
                 float running = agent.speed;
 

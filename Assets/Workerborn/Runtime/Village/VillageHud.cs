@@ -327,7 +327,7 @@ namespace Workerborn
                 target = null;
             else if (target != null && !game.SharesMap(target.transform.position))
                 target = game.CurrentInterior?.Exit;
-            jobWaypoint.Display(game.WorldCamera, CanvasRect, target);
+            jobWaypoint.Display(game.WorldCamera, game.Worker.StandingPosition, target);
         }
 
         private void UpdateWorldFeedback()

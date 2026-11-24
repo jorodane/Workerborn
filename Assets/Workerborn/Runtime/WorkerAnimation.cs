@@ -6,11 +6,13 @@ namespace Workerborn
 {
     public sealed class WorkerAnimation : MonoBehaviour
     {
+        internal const float JumpSeconds = .55f;
         private const int Work = 2;
         private const int WorkBegin = 6;
         private const int WorkFinish = 7;
         private const int SitBegin = 8;
         private const int SitFinish = 9;
+        private const int GestureInput = 10;
         private const double SitSpeed = .85d;
         [SerializeField] private AnimationClip groundSit;
         [SerializeField] private AnimationClip groundSitBegin;
@@ -18,11 +20,14 @@ namespace Workerborn
         [SerializeField] private AnimationClip seatSit;
         [SerializeField] private AnimationClip seatSitBegin;
         [SerializeField] private AnimationClip seatSitFinish;
+        [SerializeField] private AnimationClip jump;
+        [SerializeField] private AnimationClip gatherSuccess;
+        [SerializeField] private AnimationClip gatherFailure;
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
-        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[10];
-        private readonly float[] lengths = new float[10];
-        private readonly float[] weights = new float[10];
+        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[GestureInput + 1];
+        private readonly float[] lengths = new float[GestureInput + 1];
+        private readonly float[] weights = new float[GestureInput + 1];
         private AnimationClip fallbackWork;
         private int workInput = Work;
         private int sitInput = -1;
@@ -43,6 +48,7 @@ namespace Workerborn
             workInput = Work;
             sitInput = -1;
             target = 0;
+            Gesture = WorkerGesture.None;
             animator.runtimeAnimatorController = null;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -62,6 +68,7 @@ namespace Workerborn
                 idle,
                 idle,
                 idle,
+                idle,
                 idle
             };
             for (int i = 0; i < source.Length; i++)
@@ -76,6 +83,9 @@ namespace Workerborn
 
         public int CurrentAction => target;
         public double ActionTime => graph.IsValid() ? clips[Input].GetTime() : 0d;
+        internal WorkerGesture Gesture { get; private set; }
+        internal float GestureProgress => Gesture == WorkerGesture.None || !graph.IsValid()
+            ? 0f : Mathf.Clamp01((float)clips[GestureInput].GetTime() / lengths[GestureInput]);
         private int Input => sitInput >= 0 ? sitInput : target == Work ? workInput : target;
 
         private void BindClip(int input, AnimationClip clip, bool sampled = false)
@@ -174,6 +184,8 @@ namespace Workerborn
         public void SetAction(int action)
         {
             int next = Mathf.Clamp(action, 0, (int)WorkerMotion.SeatSit);
+            if (next != (int)WorkerMotion.Idle && Gesture is WorkerGesture.GatherSuccess or WorkerGesture.GatherFailure)
+                SetGesture(WorkerGesture.None);
             if (next == target)
                 return;
             if (graph.IsValid())
@@ -189,6 +201,31 @@ namespace Workerborn
                     clips[next].SetTime(clips[target].GetTime() % lengths[target] / lengths[target] * lengths[next]);
             }
             target = next;
+        }
+
+        internal void SetGesture(WorkerGesture gesture, float progress = 0f)
+        {
+            if (!graph.IsValid())
+                return;
+            AnimationClip clip = gesture switch
+            {
+                WorkerGesture.Jump => jump,
+                WorkerGesture.GatherSuccess => gatherSuccess,
+                WorkerGesture.GatherFailure => gatherFailure,
+                _ => null
+            };
+            if (clip == null)
+            {
+                Gesture = WorkerGesture.None;
+                clips[GestureInput].SetSpeed(0d);
+                return;
+            }
+
+            Gesture = gesture;
+            BindClip(GestureInput, clip);
+            float duration = gesture == WorkerGesture.Jump ? JumpSeconds : Mathf.Min(1.15f, lengths[GestureInput]);
+            clips[GestureInput].SetTime(Mathf.Clamp(progress, 0f, .999f) * lengths[GestureInput]);
+            clips[GestureInput].SetSpeed(lengths[GestureInput] / duration);
         }
 
         private void PlaySitTransition(int input, AnimationClip clip)
@@ -211,8 +248,13 @@ namespace Workerborn
                     clips[target].SetTime(0);
                 sitInput = -1;
             }
+            if (Gesture != WorkerGesture.None && clips[GestureInput].GetTime() >= lengths[GestureInput])
+            {
+                clips[GestureInput].SetTime(lengths[GestureInput] * .999f);
+                SetGesture(WorkerGesture.None);
+            }
             float total = 0f;
-            int activeInput = Input;
+            int activeInput = Gesture != WorkerGesture.None ? GestureInput : Input;
             for (int i = 0; i < clips.Length; i++)
             {
                 if ((i != Work || !timedWork) && i < WorkBegin && clips[i].GetTime() >= lengths[i])

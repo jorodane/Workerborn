@@ -20,7 +20,6 @@ namespace Workerborn
     {
         internal const float DefaultPickupDistance = 2f;
         private const float StrikeMovementTolerance = .55f;
-        private const float JumpSeconds = .55f;
         private const float JumpHeight = .6f;
         [SerializeField, Min(.1f)] private float runSpeed = 3.7f;
         [SerializeField, Min(.1f)] private float walkSpeed = 1.65f;
@@ -62,6 +61,7 @@ namespace Workerborn
         private Transform jumpingVisual;
         private Vector3 jumpBase;
         private float jumpStartedAt;
+        private bool jumpUsesClip;
         private Transform restingVisual;
         private Vector3 restBase;
         private Quaternion restRotation;
@@ -72,7 +72,7 @@ namespace Workerborn
         public bool IsWalking => Action == WorkerAction.Moving &&
             (manualMoving ? WorkerbornInput.Held("Gameplay/Walk") : walkPath);
         public bool HasPendingDrop => pendingDrop != null;
-        internal float VisualJumpOffset => jumpingVisual != null ? jumpingVisual.localPosition.y - jumpBase.y : 0f;
+        internal float VisualJumpOffset { get; private set; }
         internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
         public WorkerAction Action { get; private set; }
         public HarvestableCrop HoveredCrop { get; private set; }
@@ -136,11 +136,16 @@ namespace Workerborn
         {
             if (jumpingVisual != null)
             {
-                float progress = (Time.time - jumpStartedAt) / JumpSeconds;
+                float progress = (Time.time - jumpStartedAt) / WorkerAnimation.JumpSeconds;
                 if (progress >= 1f || !AcceptsInteractionCommands || Action == WorkerAction.Sitting)
                     FinishVisualJump();
                 else
-                    jumpingVisual.localPosition = jumpBase + Vector3.up * (JumpHeight * 4f * progress * (1f - progress));
+                {
+                    // Peers without the jump clip can still show the visual hop.
+                    VisualJumpOffset = JumpHeight * 4f * progress * (1f - progress);
+                    if (!jumpUsesClip)
+                        jumpingVisual.localPosition = jumpBase + Vector3.up * VisualJumpOffset;
+                }
             }
             else if (AcceptsInteractionCommands && (Action == WorkerAction.Idle || Action == WorkerAction.Moving) &&
                 WorkerbornInput.Pressed("Gameplay/Jump"))
@@ -150,14 +155,19 @@ namespace Workerborn
                     return;
                 jumpBase = jumpingVisual.localPosition;
                 jumpStartedAt = Time.time;
+                animationDriver?.SetGesture(WorkerGesture.Jump);
+                jumpUsesClip = animationDriver?.Gesture == WorkerGesture.Jump;
             }
         }
 
         private void FinishVisualJump()
         {
-            if (jumpingVisual != null)
+            if (jumpingVisual != null && !jumpUsesClip)
                 jumpingVisual.localPosition = jumpBase;
             jumpingVisual = null;
+            VisualJumpOffset = 0f;
+            if (animationDriver?.Gesture == WorkerGesture.Jump)
+                animationDriver.SetGesture(WorkerGesture.None);
         }
 
         internal void ToggleSit()
@@ -209,6 +219,7 @@ namespace Workerborn
             {
                 Cancel();
                 agent.isStopped = false;
+                agent.updateRotation = false;
             }
             manualMoving = true;
             Action = WorkerAction.Moving;
@@ -219,7 +230,9 @@ namespace Workerborn
             Vector3 direction = Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
             agent.speed = IsWalking ? walkSpeed : runSpeed;
             MoveWithWorldCollision(direction * (agent.speed * Time.deltaTime));
-            Face(transform.position + direction);
+            if (direction.sqrMagnitude > .001f)
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(direction),
+                    agent.angularSpeed * Time.deltaTime);
             return true;
         }
 
@@ -432,6 +445,7 @@ namespace Workerborn
                 !InReach(target.transform.position, target.InteractionDistance))
                 return;
             Cancel();
+            FinishVisualJump();
             Face(target.transform.position);
             strikeTarget = target;
             Action = WorkerAction.Attacking;
@@ -665,6 +679,7 @@ namespace Workerborn
             }
 
             Action = WorkerAction.Harvesting;
+            FinishVisualJump();
             harvestOrigin = HarvestPoint;
             Face(harvestOrigin);
             animationDriver?.BeginWork(cropTarget.Definition.WorkAnimation, cropTarget.Definition.HarvestSeconds);
@@ -684,6 +699,7 @@ namespace Workerborn
             if (cropTarget is AnimalNpc animal && animal.HasMovedOutOfHarvest(harvestOrigin))
             {
                 Cancel();
+                ShowGatherResult(false);
                 Message?.Invoke("동물이 너무 멀리 움직여서 채집에 실패했어요.");
                 return;
             }
@@ -700,11 +716,17 @@ namespace Workerborn
                 return;
 
             if (village == null)
+            {
+                ShowGatherResult(true);
                 Message?.Invoke($"수확 완료! 바닥의 {cropTarget.Definition.DisplayName}를 클릭해서 주워 주세요.");
+            }
             cropTarget = null;
             ClearFishingCast();
             Action = WorkerAction.Idle;
         }
+
+        internal void ShowGatherResult(bool success) =>
+            animationDriver?.SetGesture(success ? WorkerGesture.GatherSuccess : WorkerGesture.GatherFailure);
 
         internal bool InReach(Vector3 position, float range)
         {
@@ -730,6 +752,8 @@ namespace Workerborn
                 agent.updatePosition = true;
                 onSeat = false;
             }
+            if (manualMoving && agent != null)
+                agent.updateRotation = true;
             manualMoving = false;
             walkPath = false;
             if (cropTarget != null)
@@ -753,7 +777,9 @@ namespace Workerborn
                 agent.ResetPath();
             }
 
-            animationDriver?.SetAction(0);
+            animationDriver?.SetAction((int)WorkerMotion.Idle);
+            if (animationDriver?.Gesture is WorkerGesture.GatherSuccess or WorkerGesture.GatherFailure)
+                animationDriver.SetGesture(WorkerGesture.None);
         }
 
         public void ResetWorker(Vector3 spawn)

@@ -385,9 +385,11 @@ namespace Workerborn
             Vector3 source = water != null ? worker.FishingPoint ?? crop.transform.position : crop.transform.position;
             if (!State.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(work), outcome, out int count))
             {
+                worker.ShowGatherResult(false);
                 hud.ShowFloatingText(source + Vector3.up, "실패", new Color(1f, .65f, .55f));
                 return;
             }
+            worker.ShowGatherResult(true);
             var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
             if (pickupPool.CanSpawn(prefab))
             {

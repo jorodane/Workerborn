@@ -127,9 +127,10 @@ namespace Workerborn
         internal SessionAvatar CaptureAvatar()
         {
             var pose = worker.transform;
+            var animation = player.GetComponent<WorkerAnimation>();
             return new SessionAvatar { x = pose.position.x, y = pose.position.y, z = pose.position.z,
-                yaw = pose.eulerAngles.y, motion = player.GetComponent<WorkerAnimation>().CurrentAction,
-                jumpOffset = worker.VisualJumpOffset };
+                yaw = pose.eulerAngles.y, motion = animation.CurrentAction, jumpOffset = worker.VisualJumpOffset,
+                gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress };
         }
 
         internal bool SeatInUse(Vector3 position)

@@ -10,6 +10,7 @@ namespace Workerborn
         [SerializeField] private Transform arrival;
         [SerializeField] private VillageBuildingDoor exit;
         [SerializeField] private VillageInteriorMap guestRoomPrefab;
+        [SerializeField] private VillageBuildingDoor guestRoomDoor;
         [SerializeField] private Transform keeperPoint;
         [SerializeField] private VillageBed bed;
         private Texture2D mapImage;
@@ -18,10 +19,11 @@ namespace Workerborn
         internal VillageInteriorMap Lobby { get; private set; }
         internal VillageInteriorMap GuestRoom { get; set; }
         internal VillageInteriorMap GuestRoomPrefab => guestRoomPrefab;
+        internal VillageBuildingDoor GuestRoomDoor => guestRoomDoor;
         internal Transform KeeperPoint => keeperPoint;
         internal VillageBed Bed => bed;
         internal string Id { get; private set; }
-        internal string MapName => Lobby != null ? "내 여관방" : $"{Entrance.DisplayName} 내부";
+        internal string MapName => Lobby != null ? "내 여관방" : GuestRoom != null ? "여관 로비" : $"{Entrance.DisplayName} 내부";
         internal BoxCollider Floor => navigation != null ? navigation.GroundBox : null;
         internal Transform Arrival => arrival;
         internal VillageBuildingDoor Exit => exit;

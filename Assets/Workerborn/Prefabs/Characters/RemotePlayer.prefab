@@ -83,6 +83,9 @@ MonoBehaviour:
   seatSit: {fileID: 3094330708855449807, guid: fb20771c14d3a614d9cb9a8bfd52d6b3, type: 3}
   seatSitBegin: {fileID: 3094330708855449807, guid: 1824d4618e2464b4192d6586093e312e, type: 3}
   seatSitFinish: {fileID: 3094330708855449807, guid: f3c52eacd2163f3439014aef89728a61, type: 3}
+  jump: {fileID: 8973767263969007744, guid: 2035f8d45874b4e47a2c15ea2fa026fb, type: 3}
+  gatherSuccess: {fileID: 3094330708855449807, guid: 3896161f581ae2142b00aace91cc37ed, type: 3}
+  gatherFailure: {fileID: 3094330708855449807, guid: a4aa72ceb1bc95946860f680bb0b1a99, type: 3}
 --- !u!114 &100006
 MonoBehaviour:
   m_ObjectHideFlags: 0
