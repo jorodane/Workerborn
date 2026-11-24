@@ -1,10 +1,39 @@
 using System;
+using System.Linq;
 using NUnit.Framework;
 
 namespace Workerborn.Tests
 {
     public sealed class VillageStateTests
     {
+        [Test]
+        public void HealthPotionHealsUpToTheLimitAndConsumesOnlyTheSelectedStack()
+        {
+            var state = new VillageState();
+            var potion = ItemCatalog.Get(ItemIds.HealthPotion);
+            int quantity = potion.MaxStack + 1;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Gold, potion.Price * quantity), Is.True);
+            Assert.That(state.TryBuy(ItemIds.HealthPotion, quantity), Is.True);
+            var second = state.Inventory.Entries.Single(item => item.ItemId == ItemIds.HealthPotion && item.Quantity == 1);
+            Assert.That(state.TryDrinkPotion(second.Id), Is.False);
+            Assert.That(state.Inventory.Count(ItemIds.HealthPotion), Is.EqualTo(quantity));
+
+            int stamina = state.Energy;
+            state.TakeHit(potion.HealthRestore + 8);
+            Assert.That(state.TryDrinkPotion(second.Id), Is.True);
+            Assert.That(state.Inventory.Find(second.Id), Is.Null);
+            var remaining = state.Inventory.Entries.Single(item => item.ItemId == ItemIds.HealthPotion);
+            Assert.That(remaining.Quantity, Is.EqualTo(potion.MaxStack));
+            Assert.That(state.Health, Is.EqualTo(state.HealthLimit - 8));
+
+            Assert.That(state.TryDrinkPotion(remaining.Id), Is.True);
+            Assert.That(state.Health, Is.EqualTo(state.HealthLimit));
+            Assert.That(state.Energy, Is.EqualTo(stamina));
+            var restored = VillageState.Restore(state.Export());
+            Assert.That(restored.Health, Is.EqualTo(state.HealthLimit));
+            Assert.That(restored.Inventory.Count(ItemIds.HealthPotion), Is.EqualTo(potion.MaxStack - 1));
+        }
+
         [Test]
         public void ExpandedWorldCreatesLargerOrdersAsWellAsMorePlants()
         {

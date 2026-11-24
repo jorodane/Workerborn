@@ -263,8 +263,18 @@ assert {skill['skill'] for skill in skills}==set(range(6))
 assert all(0<=row['fromRank']<=row['throughRank']<=100 for skill in skills for row in skill['rankEffects'])
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
 wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
-assert {i['id'] for i in itemdefs}=={'potato','bread','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch','fishing_rod','pond_fish'} | set(wardrobe)
+assert {i['id'] for i in itemdefs}=={'potato','bread','health_potion','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch','fishing_rod','pond_fish'} | set(wardrobe)
 assert all(i['icon']['fileID'] for i in itemdefs)
+potion = next(i for i in itemdefs if i['id'] == 'health_potion')
+assert potion['healthRestore'] > 0 and potion['maxStack'] > 1
+potion_model = resolve(potion['worldPrefab'])
+assert potion_model.is_relative_to(ROOT / 'Assets/Potion Emporium')
+potion_drop = docs(resolve(potion['groundPrefab']))
+potion_pickup = behaviours(potion_drop, 'GroundPickup.cs')[0]
+assert resolve(potion_pickup['item']).stem == 'health_potion'
+assert any(resolve(row['PrefabInstance']['m_SourcePrefab']) == potion_model for row in potion_drop if 'PrefabInstance' in row)
+noah = docs(CONTENT / 'Data/NPCs/Noah.asset')[0]['MonoBehaviour']
+assert any(resolve(row).stem == 'health_potion' for row in noah['shopItems'])
 assert next(i for i in itemdefs if i['id']=='gold')['maxStack']==1000
 assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5
 assert next(i for i in itemdefs if i['id']=='small_bag')['equipmentSlot']==9
@@ -358,11 +368,21 @@ library = docs(CONTENT / 'Data/VillageUI.asset')[0]['MonoBehaviour']
 nameplate = library['nameplate']
 nameplate_rows = docs(resolve(nameplate))
 nameplate_view = next(row['MonoBehaviour'] for row in nameplate_rows if row['_id'] == nameplate['fileID'])
-health = next(row['MonoBehaviour'] for row in nameplate_rows if row['_id'] == nameplate_view['healthFill']['fileID'])
-assert health['m_Type'] == 3 and health['m_FillMethod'] == 0 and not health['m_RaycastTarget']
-health_rect = next(row['RectTransform'] for row in nameplate_rows if row['_id'] == nameplate_view['healthBar']['fileID'])
-assert health_rect['m_AnchorMin']['y'] == health_rect['m_AnchorMax']['y'] == 0
-assert health_rect['m_Pivot']['y'] == 1 and health_rect['m_AnchoredPosition']['y'] < 0
+name_health = next(row['MonoBehaviour'] for row in nameplate_rows if row['_id'] == nameplate_view['healthBar']['fileID'])
+health_source = name_health['m_CorrespondingSourceObject']
+healthbar_rows = docs(resolve(health_source))
+healthbar = behaviours(healthbar_rows, 'UI/HealthBarView.cs')[0]
+for field in ('fill', 'changeFill'):
+    image = next(row['MonoBehaviour'] for row in healthbar_rows if row['_id'] == healthbar[field]['fileID'])
+    assert image['m_Type'] == 3 and image['m_FillMethod'] == 0 and image['m_Sprite']['fileID'] and not image['m_RaycastTarget']
+name_health_instance = next(row['PrefabInstance'] for row in nameplate_rows if row['_id'] == name_health['m_PrefabInstance']['fileID'])
+health_layout = {m['propertyPath']: float(m['value']) for m in name_health_instance['m_Modification']['m_Modifications']}
+assert health_layout['m_AnchoredPosition.y'] == -1.5 and health_layout['m_IsActive'] == 0
+for prefab, controller in [('VillageHUD', 'Village/VillageHud.cs'), ('CharacterWindow', 'UI/CharacterWindowView.cs')]:
+    rows = docs(CONTENT / f'Prefabs/UI/{prefab}.prefab')
+    reference = behaviours(rows, controller)[0]['healthBar']
+    shared = next(row['MonoBehaviour'] for row in rows if row['_id'] == reference['fileID'])
+    assert shared['m_CorrespondingSourceObject'] == health_source
 overhead_rows = docs(resolve(library['playerOverhead']))
 overhead = behaviours(overhead_rows, 'UI/PlayerOverheadView.cs')[0]
 nested_name = next(row['MonoBehaviour'] for row in overhead_rows if row['_id'] == overhead['playerName']['fileID'])

@@ -222,6 +222,8 @@ namespace Workerborn.Tests
                 return nameplate != null;
             }, 2f);
             var healthBar = nameplate.transform.Find("Health bar");
+            var fill = healthBar.Find("Health fill").GetComponent<Image>();
+            var change = healthBar.Find("Health change").GetComponent<Image>();
             Vector2 labelSize = nameplate.Rect.rect.size;
             int health = rabbit.Health;
             int stamina = game.State.Energy;
@@ -231,13 +233,13 @@ namespace Workerborn.Tests
             Assert.That(nameplate.Rect.rect.size, Is.EqualTo(labelSize));
             yield return Until(() => rabbit.Health < health, 3f);
             Assert.That(rabbit.HealthVisibleUntil - Time.unscaledTime, Is.InRange(59f, 60f));
+            yield return Until(() => change.fillAmount > fill.fillAmount + .05f, .2f);
             int remaining = rabbit.Health;
             Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Attacking));
             rabbit.RequestInteraction(game.Worker);
             yield return Until(() => game.State.Energy < stamina && game.Worker.Action == WorkerAction.Idle, 3f);
             Assert.That(rabbit.Health, Is.EqualTo(remaining), "A click during the delay must not queue a strike.");
             Assert.That(healthBar.gameObject.activeSelf, Is.True);
-            var fill = healthBar.Find("Health fill").GetComponent<Image>();
             Assert.That(fill.fillAmount, Is.EqualTo((float)remaining / rabbit.Combat.Health).Within(.01f));
 
             while (!rabbit.IsDefeated)
@@ -264,6 +266,44 @@ namespace Workerborn.Tests
             Assert.That(rabbit.gameObject.activeSelf, Is.True);
             Assert.That(rabbit.GetComponentsInChildren<Collider>(true).Any(collider => collider.enabled), Is.True);
             Assert.That(rabbit.Health, Is.EqualTo(rabbit.Combat.Health));
+        }
+
+        [UnityTest]
+        public IEnumerator BottomHealthBarShowsDamageAndAnInventoryPotionRestoresHealth()
+        {
+            var state = game.State;
+            var merchant = game.FindInteraction(VillageRole.Merchant);
+            var potion = merchant.Definition.ShopItems.Single(item => item.Id == ItemIds.HealthPotion).ToSpec();
+            Assert.That(state.Inventory.TryAdd(ItemIds.Gold, potion.Price), Is.True);
+            Assert.That(game.Perform(() => state.TryBuy(ItemIds.HealthPotion)), Is.True);
+            var entry = state.Inventory.Entries.Single(item => item.ItemId == ItemIds.HealthPotion);
+
+            var status = GameObject.Find("Character status").transform;
+            var health = status.Find("Health bar");
+            var fill = health.Find("Health fill").GetComponent<Image>();
+            var change = health.Find("Health change").GetComponent<Image>();
+            var stamina = status.Find("Stamina bar background/Stamina bar").GetComponent<Image>();
+            float staminaBefore = stamina.fillAmount;
+            game.ReceiveAnimalHit(potion.HealthRestore + 10);
+            yield return Until(() => change.fillAmount > fill.fillAmount + .05f, 1f);
+            Assert.That(change.color.r, Is.GreaterThan(change.color.g));
+            float damaged = (float)state.Health / state.HealthLimit;
+            Assert.That(fill.fillAmount, Is.EqualTo(damaged).Within(.01f));
+            yield return Until(() => change.fillAmount == 0f, 1f);
+
+            game.Hud.OpenItemContext(entry.Id, new Vector2(Screen.width * .5f, Screen.height * .5f));
+            var context = UnityEngine.Object.FindFirstObjectByType<ItemContextView>();
+            var use = FindButton(context, "사용");
+            Assert.That(use.interactable, Is.True);
+            use.onClick.Invoke();
+            Assert.That(state.Inventory.Find(entry.Id), Is.Null);
+            Assert.That(state.Health, Is.EqualTo(state.HealthLimit - 10));
+            yield return Until(() => change.fillAmount > fill.fillAmount + .05f, 1f);
+            Assert.That(change.color.g, Is.GreaterThan(change.color.r));
+            Assert.That(fill.fillAmount, Is.LessThan((float)state.Health / state.HealthLimit));
+            yield return Until(() => change.fillAmount == 0f, 1f);
+            Assert.That(fill.fillAmount, Is.EqualTo((float)state.Health / state.HealthLimit).Within(.01f));
+            Assert.That(stamina.fillAmount, Is.EqualTo(staminaBefore));
         }
 
         [UnityTest]

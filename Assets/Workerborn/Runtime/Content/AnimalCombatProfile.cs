@@ -8,7 +8,7 @@ namespace Workerborn
         [SerializeField, Min(1)] private int health = 30;
         [SerializeField, Min(1)] private int counterDamage = 7;
         [SerializeField, Min(.1f)] private float counterDelay = 1.15f;
-        [SerializeField, Min(.1f)] private float corpseSeconds = 6f;
+        [SerializeField, Min(.1f)] private float corpseSeconds = 2f;
         [SerializeField] private ItemDefinition loot;
         [SerializeField, Range(1, 8)] private int lootCount = 2;
 

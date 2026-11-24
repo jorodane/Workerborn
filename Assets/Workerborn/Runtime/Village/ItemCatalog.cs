@@ -16,6 +16,7 @@ namespace Workerborn
     {
         public const string Potato = "potato";
         public const string Bread = "bread";
+        public const string HealthPotion = "health_potion";
         public const string Hoe = "iron_hoe";
         public const string Bag = "small_bag";
         public const string Gold = "gold";
@@ -39,11 +40,14 @@ namespace Workerborn
         public int MaxStack { get; }
         public int Price { get; }
         public EquipmentSlot EquipmentSlot { get; }
-        public ItemSpec(string id, string name, string description, int width, int height, int maxStack, int price, EquipmentSlot equipmentSlot = EquipmentSlot.None)
+        public int HealthRestore { get; }
+        public ItemSpec(string id, string name, string description, int width, int height, int maxStack, int price,
+            EquipmentSlot equipmentSlot = EquipmentSlot.None, int healthRestore = 0)
         {
             Id = id; Name = name; Description = description;
             Width = width; Height = height; MaxStack = maxStack; Price = price;
             EquipmentSlot = equipmentSlot;
+            HealthRestore = Math.Max(0, healthRestore);
         }
     }
 
@@ -53,6 +57,7 @@ namespace Workerborn
         {
             new ItemSpec(ItemIds.Potato, "감자", "직접 수확한 감자. 농부에게 납품하거나 잡화점에서 개당 3G에 팔 수 있습니다.", 1, 1, 20, 3),
             new ItemSpec(ItemIds.Bread, "갓 구운 빵", "먹으면 에너지를 25 회복합니다. 인벤토리에서 우클릭하거나 사용 버튼을 누르세요.", 1, 1, 10, 10),
+            new ItemSpec(ItemIds.HealthPotion, "생명력 포션", "마시면 생명력을 회복합니다.", 1, 1, 10, 15, healthRestore: 30),
             new ItemSpec(ItemIds.Hoe, "튼튼한 괭이", "손에 장착하면 밭에서 작업할 때 스태미나 소모가 1 줄어듭니다.", 1, 3, 1, 60, EquipmentSlot.MainHand),
             new ItemSpec(ItemIds.Bag, "작은 여행 가방", "장착하면 소지품 공간이 2줄 늘어납니다.", 2, 2, 1, 100, EquipmentSlot.Bag),
             new ItemSpec(ItemIds.Gold, "골드", "물건을 사고 일의 대가로 받는 금화.", 1, 1, 1000, 1),

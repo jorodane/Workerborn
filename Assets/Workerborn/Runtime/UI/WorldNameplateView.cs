@@ -13,8 +13,7 @@ namespace Workerborn
         private TMP_Text label;
         [SerializeField]
         private Image background;
-        [SerializeField] private RectTransform healthBar;
-        [SerializeField] private Image healthFill;
+        [SerializeField] private HealthBarView healthBar;
         [SerializeField]
         private Vector2 padding = new Vector2(14f, 6f);
         [SerializeField]
@@ -45,7 +44,10 @@ namespace Workerborn
             targeting = controller;
             SetText(text ?? (target is GroundPickup { Quantity: > 1 } item
                 ? $"{item.DisplayName} ×{item.Quantity}" : target.DisplayName));
-            SetHealth(false);
+            if (target is MonsterInteractable { Combat: not null } monster)
+                SetHealth(false, monster.Health, monster.Combat.Health);
+            else
+                SetHealth(false);
             SetBox(false);
         }
 
@@ -80,8 +82,7 @@ namespace Workerborn
         internal void SetHealth(bool visible, int health = 0, int maximum = 0)
         {
             visible &= maximum > 0;
-            if (visible)
-                healthFill.fillAmount = Mathf.Clamp01((float)health / maximum);
+            healthBar.SetValue(health, maximum);
             if (healthBar.gameObject.activeSelf != visible)
                 healthBar.gameObject.SetActive(visible);
         }

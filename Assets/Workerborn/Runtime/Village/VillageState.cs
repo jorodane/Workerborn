@@ -567,6 +567,22 @@ namespace Workerborn
             return Result(true, "빵을 먹고 에너지를 25 회복했어요.");
         }
 
+        public bool TryDrinkPotion(int entryId)
+        {
+            if (AwaitingIncarnation || NeedsRest)
+                return Result(false, "지금은 생명력 포션을 사용할 수 없어요.");
+            var item = Inventory.Find(entryId);
+            if (item == null || item.Spec.HealthRestore <= 0)
+                return Result(false, "사용할 생명력 포션이 없어요.");
+            int restored = Math.Min(HealthLimit - Health, item.Spec.HealthRestore);
+            if (restored <= 0)
+                return Result(false, "생명력이 이미 가득해요.");
+            if (!Inventory.TryRemoveAt(entryId, 1))
+                return Result(false, "사용할 생명력 포션이 없어요.");
+            Health += restored;
+            return Result(true, $"생명력을 {restored:N0} 회복했어요.");
+        }
+
         public bool TrySellPotatoes(int amount)
         {
             int reward = amount >= 1 && amount <= 10000 ? amount * ItemCatalog.Get(ItemIds.Potato).Price : 0;

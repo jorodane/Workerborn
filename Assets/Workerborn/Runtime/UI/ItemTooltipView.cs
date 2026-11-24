@@ -24,8 +24,10 @@ namespace Workerborn
         public void Show(ItemSpec item, int quantity = 0, string trade = null)
         {
             title.text = item.Name;
-            description.text = quantity < 1 ? item.Description
-                : $"{item.Description}\n\n수량 {quantity:N0}   ·   개당 {item.Price:N0} Gold";
+            string info = item.Description;
+            if (item.HealthRestore > 0)
+                info += $"\n생명력 회복량  {item.HealthRestore:N0}";
+            description.text = quantity < 1 ? info : $"{info}\n\n수량 {quantity:N0}   ·   개당 {item.Price:N0} Gold";
             if (!string.IsNullOrEmpty(trade))
                 description.text += "\n\n" + trade;
             float height = description.GetPreferredValues(description.text, description.rectTransform.rect.width, Mathf.Infinity).y;

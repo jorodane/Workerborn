@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd66e0cfb6da54d7be0b1a62fdfca3d3, type: 3}
+  m_Name: health_potion
+  m_EditorClassIdentifier: ''
+  id: health_potion
+  displayName: 생명력 포션
+  description: 마시면 생명력을 회복합니다.
+  icon: {fileID: 21300000, guid: 383d924ce64f74873955546b0758452f, type: 3}
+  worldPrefab: {fileID: 8434432780171953157, guid: fc4be891d13855443abce2eaef7347dd, type: 3}
+  width: 1
+  height: 1
+  maxStack: 10
+  price: 15
+  healthRestore: 30
+  equipmentSlot: 0
+  equipmentPart: {fileID: 0}
+  groundPrefab: {fileID: 100008, guid: e155f6a2823f421487d24d15010e351c, type: 3}

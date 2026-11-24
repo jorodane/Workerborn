@@ -149,7 +149,8 @@ def author():
     _,label=b.text('Action',root,'',(136,28),(0,0),13,align=0)
     view=b.script(root,'UI/WorldTooltipView.cs',label=ref(label),cursorOffset=vec(18,-22))
     save(b,'WorldTooltip',view)
-    for name, script in (('WorldNameplate', 'WorldNameplateView'), ('PlayerOverhead', 'PlayerOverheadView'), ('VillageChat', 'VillageChatView')):
+    for name, script in (('WorldNameplate', 'WorldNameplateView'), ('PlayerOverhead', 'PlayerOverheadView'),
+                         ('VillageChat', 'VillageChatView'), ('CharacterWindow', 'CharacterWindowView')):
         path = PREFABS / f'{name}.prefab'
         script_guid = guid(BASE / 'Runtime/UI' / f'{script}.cs')
         component = next(d['_id'] for d in geo.documents(ROOT/path) if d.get('MonoBehaviour', {}).get('m_Script', {}).get('guid') == script_guid)
@@ -190,15 +191,6 @@ def author():
     left=b.ui('Letter',body,(280,330),(0,0),bg=(.95,.94,.83,.9));right=b.ui('Objectives',body,(320,330),(292,0),bg=(.95,.94,.83,.9))
     _,description=b.text('Description',left,'퀘스트 내용',(260,176),(10,-8),13,tint=(.24,.2,.14,1));_,rewards=b.text('Rewards',left,'보상',(260,120),(10,-199),13,tint=(.24,.2,.14,1));_,objectives=b.text('Objectives',right,'목표',(298,290),(10,-8),13,tint=(.24,.2,.14,1))
     view=b.script(root,'UI/QuestDetailWindowView.cs',**fields,description=ref(description),rewards=ref(rewards),objectives=ref(objectives));save(b,'QuestScrollWindow',view)
-
-    b,root,body,fields=window('character','캐릭터',442,405,(30,30))
-    static_text(b,body,'기본 정보',(0,0),(120,25));_,identity=b.text('Identity',body,'일꾼\n1번째 생 · 1일째',(414,54),(0,-34),13)
-    _,level=b.text('Level',body,'레벨 1 · 누적 1',(414,26),(0,-99),13)
-    xp=b.bar('Experience',body,(410,4),(0,-129),(.82,.75,.44,1))
-    _,stamina=b.text('Stamina',body,'스태미나 100/100',(414,26),(0,-145),13);energy=b.bar('Stamina fill',body,(410,6),(0,-174),(.71,.7,.3,1))
-    _,ap=b.text('AP',body,'어빌리티 포인트 0',(414,26),(0,-191),13)
-    _,statistics=b.text('Statistics',body,'수확 경력 0회\n아르바이트 0회\n작업 속도 ×1.00\n소지금 0 Gold\n마을 농장 1단계',(414,115),(0,-233),13)
-    view=b.script(root,'UI/CharacterWindowView.cs',**fields,identity=ref(identity),level=ref(level),stamina=ref(stamina),ap=ref(ap),staminaBar=ref(energy),experienceBar=ref(xp),statistics=ref(statistics));save(b,'CharacterWindow',view)
 
     def map_view(b,parent,size,pos):
         n=b.ui('Village map',parent,size,pos,bg=(.67,.58,.42,1));image_node,image=b.raw('Map image',n,size,tint=(1,.9,.72,1))

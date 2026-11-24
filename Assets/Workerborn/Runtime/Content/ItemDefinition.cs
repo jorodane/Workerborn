@@ -23,6 +23,8 @@ namespace Workerborn
         private int maxStack = 20;
         [SerializeField, Min(0)]
         private int price;
+        [SerializeField, Min(0), Tooltip("Health restored when one of this item is used.")]
+        private int healthRestore;
         [SerializeField, Tooltip("Ask for confirmation before selling this stack with Ctrl-click.")]
         private bool confirmQuickSale;
         [SerializeField]
@@ -42,6 +44,6 @@ namespace Workerborn
         public CharacterPartDefinition EquipmentPart => equipmentPart;
 
         public ItemSpec ToSpec() => new ItemSpec(id, displayName, description, Mathf.Min(width, VillageState.InventoryColumns),
-            height, maxStack, price, equipmentSlot);
+            height, maxStack, price, equipmentSlot, healthRestore);
     }
 }
