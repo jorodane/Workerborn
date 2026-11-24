@@ -2,7 +2,7 @@ using System;
 
 namespace Workerborn
 {
-    // One click starts one harvest. Only a completed harvest spends a charge.
+    // One click starts one attempt. Only a successful harvest spends a charge.
     public sealed class HarvestCycle
     {
         public int Capacity { get; }
@@ -31,15 +31,20 @@ namespace Workerborn
             return true;
         }
 
-        public bool Advance(float seconds)
+        public bool Advance(float seconds) => Advance(seconds, null, out _);
+
+        internal bool Advance(float seconds, Func<bool> tryGather, out bool gathered)
         {
+            gathered = false;
             if (float.IsNaN(seconds) || float.IsInfinity(seconds) || seconds < 0f)
                 throw new ArgumentOutOfRangeException(nameof(seconds));
             if (!IsWorking) return false;
             Elapsed = Math.Min(Duration, Elapsed + seconds);
             if (Elapsed < Duration) return false;
             IsWorking = false;
-            Remaining--;
+            gathered = tryGather?.Invoke() ?? true;
+            if (gathered)
+                Remaining--;
             return true;
         }
 

@@ -9,27 +9,28 @@ namespace Workerborn
             var recipient = npc != null ? npc.Definition : null;
             if (recipient == null)
                 yield break;
+            var activity = npc.CurrentActivity;
 
             if (recipient.Dialogue != null)
                 foreach (var topic in recipient.Dialogue.Topics)
-                    if (topic != null && topic.IsAvailable(State))
+                    if (topic != null && topic.IsAvailable(State, activity))
                         yield return (topic, false);
 
             var (introduction, expansion, foundation) = settings.GetQuests(FindInteraction(VillageRole.Farmer)?.Definition);
             foreach (var quest in new[] { introduction, expansion, foundation })
                 if (quest != null)
-                    foreach (var entry in AvailableOffers(quest.DialogueOffers, recipient, quest.DialogueStage(State)))
+                    foreach (var entry in AvailableOffers(quest.DialogueOffers, recipient, activity, quest.DialogueStage(State)))
                         yield return entry;
 
-            foreach (var entry in AvailableOffers(settings.DialogueOffers, recipient, DialogueQuestStage.None))
+            foreach (var entry in AvailableOffers(settings.DialogueOffers, recipient, activity, DialogueQuestStage.None))
                 yield return entry;
         }
 
         private IEnumerable<(DialogueTopicDefinition Topic, bool OpenOnTalk)> AvailableOffers(
-            DialogueOffer[] offers, NpcDefinition recipient, DialogueQuestStage stage)
+            DialogueOffer[] offers, NpcDefinition recipient, NpcActivity activity, DialogueQuestStage stage)
         {
             foreach (var offer in offers)
-                if (offer != null && offer.Recipient == recipient && offer.Topic != null && offer.Topic.IsAvailable(State, stage))
+                if (offer != null && offer.Recipient == recipient && offer.Topic != null && offer.Topic.IsAvailable(State, activity, stage))
                     yield return (offer.Topic, offer.OpenOnTalk);
         }
 

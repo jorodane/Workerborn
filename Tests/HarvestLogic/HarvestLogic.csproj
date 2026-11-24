@@ -15,10 +15,12 @@
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Foundation.cs" Link="VillageState.Foundation.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Plots.cs" Link="VillageState.Plots.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageRules.cs" Link="VillageRules.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageCalendar.cs" Link="VillageCalendar.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/OrbitZoom.cs" Link="OrbitZoom.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/HarvestCycleTests.cs" Link="HarvestCycleTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/GridInventoryTests.cs" Link="GridInventoryTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/VillageStateTests.cs" Link="VillageStateTests.cs" />
+    <Compile Include="../../Assets/Workerborn/Tests/EditMode/VillageCalendarTests.cs" Link="VillageCalendarTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/FoundationTests.cs" Link="FoundationTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/PlotPlacementTests.cs" Link="PlotPlacementTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/EditableVillageTests.cs" Link="EditableVillageTests.cs" />

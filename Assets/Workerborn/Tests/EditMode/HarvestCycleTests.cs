@@ -130,6 +130,23 @@ namespace Workerborn.Tests
             Assert.Throws<ArgumentOutOfRangeException>(() => new HarvestCycle(capacity, 1f));
         }
 
+        [Test]
+        public void FailedAttemptLeavesTheLastChargeAvailableForARetry()
+        {
+            var cycle = new HarvestCycle(1, 1f);
+            Assert.That(cycle.TryBegin(), Is.True);
+            Assert.That(cycle.Advance(.5f, () => throw new InvalidOperationException(), out _), Is.False);
+            Assert.That(cycle.Advance(.5f, () => false, out bool gathered), Is.True);
+            Assert.That(gathered, Is.False);
+            Assert.That(cycle.IsWorking, Is.False);
+            Assert.That(cycle.Remaining, Is.EqualTo(1));
+
+            Assert.That(cycle.TryBegin(), Is.True);
+            Assert.That(cycle.Advance(1f, () => true, out gathered), Is.True);
+            Assert.That(gathered, Is.True);
+            Assert.That(cycle.IsDepleted, Is.True);
+        }
+
         [TestCase(0f)]
         [TestCase(-1f)]
         [TestCase(float.NaN)]

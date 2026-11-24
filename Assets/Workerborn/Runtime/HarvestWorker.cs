@@ -85,6 +85,7 @@ namespace Workerborn
             interactionTarget is MonsterInteractable { Combat: not null };
         internal bool IsInteractingWith(WorldInteractable target) =>
             target == interactionTarget || target == strikeTarget || target == cropTarget;
+        internal bool OccupiesSeat(Vector3 position) => onSeat && (transform.position - position).sqrMagnitude < .04f;
 
         public event Action<string> Message;
         public void BindVillage(VillagePrototype game) => village = game;

@@ -82,7 +82,7 @@ namespace Workerborn
             {
                 Vector3 position = npc.transform.position;
                 npc.transform.position = village.SurfacePosition(position.x, position.z);
-                VillagePrototype.BindCharacter(npc, idleOnly: true);
+                village.BindNpcCharacter(npc);
             }
             navigationChanged |= contents.GetComponentInChildren<VillageNavigationBlocker>() != null;
             return true;

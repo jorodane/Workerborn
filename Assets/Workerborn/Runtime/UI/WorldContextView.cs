@@ -12,10 +12,21 @@ namespace Workerborn
         [SerializeField, Min(0)] private float headerHeight = 28f;
         private readonly List<WorldContextAction> choices = new List<WorldContextAction>();
         private WorldTargetReference target;
+        private Ray pointerRay;
+        private NpcActivity shownActivity;
+        private int shownDay;
+        private bool shownJobHours;
 
         internal bool Show(WorldInteractable subject, Ray pointerRay)
         {
             target = new WorldTargetReference(subject);
+            this.pointerRay = pointerRay;
+            if (subject is VillageInteractable npc)
+            {
+                shownActivity = npc.CurrentActivity;
+                shownDay = Game.State.Day;
+                shownJobHours = Game.State.JobWindowOpen;
+            }
             var shownTarget = target;
             targetName.text = subject.DisplayName;
             InventoryWindowView.Clear(actions);
@@ -40,8 +51,12 @@ namespace Workerborn
 
         private void LateUpdate()
         {
-            if (target.Target == null || Game.ControlsBlocked)
+            var subject = target.Target;
+            if (subject == null || Game.ControlsBlocked)
                 Hud.CloseWorldContext();
+            else if (subject is VillageInteractable npc &&
+                (npc.CurrentActivity != shownActivity || Game.State.Day != shownDay || Game.State.JobWindowOpen != shownJobHours))
+                Show(npc, pointerRay);
         }
     }
 }

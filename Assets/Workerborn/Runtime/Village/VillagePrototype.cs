@@ -189,7 +189,6 @@ namespace Workerborn
             {
                 crop.EnsureInitialized();
                 pickupPool.CanSpawn(crop.Definition?.PickupPrefab);
-                crop.Harvested += DropHarvest;
             }
             pickupPool.Prewarm(prewarmGroundPickups);
 
@@ -211,7 +210,7 @@ namespace Workerborn
             {
                 var actor = npc.GetComponent<CharacterActor>();
                 if (actor != null)
-                    BindCharacter(actor, true);
+                    BindNpcCharacter(actor);
             }
 
             foreach (var item in FindObjectsByType<GroundPickup>(FindObjectsSortMode.None))
@@ -354,7 +353,7 @@ namespace Workerborn
             worker.Cancel();
             if (target.Role == VillageRole.Farmer)
                 State.MeetFarmer();
-            if (target.GetComponent<CharacterActor>() != null)
+            if (target.Routine?.IsSeated != true && target.GetComponent<CharacterActor>() != null)
             {
                 Vector3 forward = worker.transform.position - target.transform.position;
                 forward.y = 0f;
@@ -385,7 +384,7 @@ namespace Workerborn
             return false;
         }
 
-        private void DropHarvest(HarvestableCrop crop)
+        internal bool TryGatherFrom(HarvestableCrop crop)
         {
             var work = crop.Definition;
             var skill = work.Skill;
@@ -394,14 +393,14 @@ namespace Workerborn
                 State.SkillBonus(skill, SkillEffect.GreatLuckyChance) * .01f);
             int level = State.Level;
             if (!CanHarvest(crop))
-                return;
+                return false;
             var water = crop as FishingWater;
             Vector3 source = water != null ? worker.FishingPoint ?? crop.transform.position : crop.transform.position;
             if (!State.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(work), outcome, out int count))
             {
                 worker.ShowGatherResult(false);
                 hud.ShowFloatingText(source + Vector3.up, "실패", new Color(1f, .65f, .55f));
-                return;
+                return false;
             }
             worker.ShowGatherResult(true);
             var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
@@ -428,6 +427,7 @@ namespace Workerborn
                 hud.ShowFloatingText(source + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "+" + State.Rules.HarvestExperience + " EXP", Color.white);
             ShowLevelUp(level);
+            return true;
         }
 
         private void SpawnPickup(GroundPickup source, CropDefinition definition, int quantity, Vector3 start, Vector3 end, bool settled = false)
@@ -1015,10 +1015,6 @@ namespace Workerborn
                 worker.Cancel();
                 worker.GetComponent<NavMeshAgent>().enabled = false;
             }
-
-            foreach (var crop in allCrops)
-                if (crop != null)
-                    crop.Harvested -= DropHarvest;
         }
 
         private void OnApplicationPause(bool paused)

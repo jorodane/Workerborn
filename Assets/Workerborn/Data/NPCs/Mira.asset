@@ -22,3 +22,34 @@ MonoBehaviour:
   quests: []
   shopItems: []
   interactionDistance: 1.8
+  dailySchedule:
+  - activity: 3
+    place: 1
+    offset: {x: 0, y: 0, z: 0}
+    pointId: ''
+    weekdays: 127
+    startMinute: 480
+    endMinute: 1080
+    calendarEvent: {fileID: 0}
+    useJobHours: 1
+    leadMinutes: 45
+  - activity: 4
+    place: 2
+    offset: {x: 11, y: 0, z: -4.4}
+    pointId: ''
+    weekdays: 31
+    startMinute: 1080
+    endMinute: 480
+    calendarEvent: {fileID: 0}
+    useJobHours: 0
+    leadMinutes: 45
+  - activity: 4
+    place: 2
+    offset: {x: 2.75, y: 0, z: 13.5}
+    pointId: ''
+    weekdays: 96
+    startMinute: 1080
+    endMinute: 480
+    calendarEvent: {fileID: 0}
+    useJobHours: 0
+    leadMinutes: 45

@@ -81,7 +81,6 @@ namespace Workerborn
             crop.AssignPersistentId(id);
             crop.EnsureInitialized();
             pickupPool.CanSpawn(crop.Definition?.PickupPrefab);
-            crop.Harvested += DropHarvest;
             allCrops.Add(crop);
             if (crop.gameObject.activeInHierarchy && crop.Definition?.ItemId == ItemIds.Potato)
                 crops.Add(crop);
@@ -89,7 +88,6 @@ namespace Workerborn
 
         internal void RemovePlotCrop(HarvestableCrop crop)
         {
-            crop.Harvested -= DropHarvest;
             allCrops.Remove(crop);
             crops.Remove(crop);
         }

@@ -133,8 +133,13 @@ namespace Workerborn
                 gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress };
         }
 
-        internal bool SeatInUse(Vector3 position)
+        internal bool SeatInUse(Vector3 position, NpcRoutine except = null)
         {
+            if (worker != null && worker.OccupiesSeat(position))
+                return true;
+            foreach (var routine in npcRoutines)
+                if (routine != null && routine != except && routine.isActiveAndEnabled && routine.ReservesSeat(position))
+                    return true;
             foreach (var peer in peers.Values)
                 if (peer != null && peer.OccupiesSeat(position))
                     return true;

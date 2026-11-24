@@ -13,7 +13,7 @@ namespace Workerborn
         private int shownDay, shownMinute = -1;
 
         internal static string TimeLabel(int minute) => $"{minute / 60:00}:{minute % 60:00}";
-        internal static string DateLabel(int day) => $"{day}일 · {Weekdays[(day - 1) % Weekdays.Length]}";
+        internal static string DateLabel(int day) => $"{day}일 · {Weekdays[VillageCalendar.WeekdayIndex(day)]}";
 
         internal void Bind(VillagePrototype owner)
         {

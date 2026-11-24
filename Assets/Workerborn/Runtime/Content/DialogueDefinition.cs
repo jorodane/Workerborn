@@ -5,7 +5,10 @@ namespace Workerborn
 {
     public enum DialogueAction { Greeting, Job, IntroQuest, Contribution, Shop, Rest, Rebirth, Foundation, GuideAfter, Legend, PlainText }
 
-    public enum DialogueRequirementKind { QuestStage, FarmAvailable, JobWindowOpen, MinimumEra, MinimumLife, ItemCount }
+    public enum DialogueRequirementKind
+    {
+        QuestStage, FarmAvailable, JobWindowOpen, MinimumEra, MinimumLife, ItemCount, NpcActivity, Weekday, CalendarEvent
+    }
 
     [Flags]
     public enum DialogueQuestStage
@@ -29,8 +32,11 @@ namespace Workerborn
         private ItemDefinition item;
         [SerializeField, Min(1), Tooltip("Minimum era, life, or item quantity.")]
         private int minimum = 1;
+        [SerializeField] private NpcActivity activity;
+        [SerializeField] private VillageWeekdays weekdays = VillageWeekdays.All;
+        [SerializeField] private VillageCalendarEvent calendarEvent;
 
-        internal bool IsMet(VillageState state, DialogueQuestStage questStage)
+        internal bool IsMet(VillageState state, DialogueQuestStage questStage, NpcActivity currentActivity)
         {
             bool? matches = kind switch
             {
@@ -40,6 +46,9 @@ namespace Workerborn
                 DialogueRequirementKind.MinimumEra => state.Era >= minimum,
                 DialogueRequirementKind.MinimumLife => state.Life >= minimum,
                 DialogueRequirementKind.ItemCount when item != null => state.Inventory.Count(item.Id) >= minimum,
+                DialogueRequirementKind.NpcActivity => activity == currentActivity,
+                DialogueRequirementKind.Weekday => (weekdays & VillageCalendar.Weekday(state.Day)) != 0,
+                DialogueRequirementKind.CalendarEvent when calendarEvent != null => calendarEvent.OccursOn(state.Day),
                 _ => null
             };
             return matches.HasValue && matches.Value != invert;
@@ -55,11 +64,11 @@ namespace Workerborn
         [SerializeField, Tooltip("All requirements must be met before showing this topic.")]
         private DialogueRequirement[] requirements;
 
-        internal bool IsAvailable(VillageState state, DialogueQuestStage questStage = DialogueQuestStage.None)
+        internal bool IsAvailable(VillageState state, NpcActivity activity, DialogueQuestStage questStage = DialogueQuestStage.None)
         {
             if (requirements != null)
                 foreach (var requirement in requirements)
-                    if (requirement == null || !requirement.IsMet(state, questStage))
+                    if (requirement == null || !requirement.IsMet(state, questStage, activity))
                         return false;
             return true;
         }

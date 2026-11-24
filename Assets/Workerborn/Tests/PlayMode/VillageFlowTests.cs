@@ -602,17 +602,50 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator FailedVillageHarvestKeepsTheCropAvailable()
+        {
+            var crop = game.Crops[0];
+            var definition = crop.Definition;
+            string original = JsonUtility.ToJson(definition);
+            try
+            {
+                int charges = crop.Remaining;
+                int drops = game.GroundItemCount;
+                JsonUtility.FromJsonOverwrite("{\"successChance\":0}", definition);
+                Assert.That(crop.TryBegin(game.Worker), Is.True);
+                Assert.That(crop.Advance(game.Worker, definition.HarvestSeconds), Is.True);
+                Assert.That(crop.Remaining, Is.EqualTo(charges));
+                Assert.That(game.GroundItemCount, Is.EqualTo(drops));
+                Assert.That(game.Worker.GetComponent<WorkerAnimation>().Gesture, Is.EqualTo(WorkerGesture.GatherFailure));
+
+                JsonUtility.FromJsonOverwrite("{\"successChance\":1}", definition);
+                Assert.That(crop.TryBegin(game.Worker), Is.True);
+                Assert.That(crop.Advance(game.Worker, definition.HarvestSeconds), Is.True);
+                Assert.That(crop.Remaining, Is.EqualTo(charges - 1));
+                Assert.That(game.GroundItemCount, Is.GreaterThan(drops));
+            }
+            finally
+            {
+                JsonUtility.FromJsonOverwrite(original, definition);
+            }
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator HarvestPickUpDeliverClaimQuestAndRebirth()
         {
             Assert.That(game.Perform(game.State.TryAcceptJob), Is.True);
             for (int i = 0; i < game.Crops.Count && game.State.Inventory.Count(ItemIds.Potato) < game.State.JobRequirement; i++)
             {
                 var crop = game.Crops[i];
+                int charges = crop.Remaining;
                 game.Worker.CommandHarvest(crop);
-                yield return Until(() => crop.Remaining == crop.Capacity - 1, 12f);
+                yield return Until(() => game.Worker.ActiveCrop == crop, 12f);
+                yield return Until(() => game.Worker.ActiveCrop == null, crop.Definition.HarvestSeconds + 1f);
+                if (crop.Remaining == charges)
+                    continue;
                 var item = UnityEngine.Object.FindFirstObjectByType<GroundPickup>();
-                if (item == null)
-                    continue; // A failed work attempt yields no drop.
+                Assert.That(item, Is.Not.Null);
                 Assert.That(game.Worker.GetComponent<WorkerAnimation>().Gesture, Is.EqualTo(WorkerGesture.GatherSuccess));
                 int before = game.State.Inventory.Count(ItemIds.Potato);
                 game.Worker.CommandPickup(item);
@@ -641,6 +674,25 @@ namespace Workerborn.Tests
             Assert.That(game.State.AP, Is.EqualTo(ap));
             Assert.That(game.State.Career, Is.EqualTo(1));
             Assert.That(game.GroundItemCount, Is.Zero);
+        }
+
+        [UnityTest]
+        public IEnumerator MiraWorksNearTheFarmAndRestsOnAFreeSeatAfterClosing()
+        {
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            int[] charges = game.Crops.Select(crop => crop.Remaining).ToArray();
+            yield return Until(() => farmer.CurrentActivity == NpcActivity.Harvesting, 3f);
+            Assert.That(game.Crops.Any(crop => Vector3.Distance(crop.transform.position, farmer.transform.position) < 2f), Is.True);
+            Assert.That(game.DialogueTopicsFor(farmer).Any(entry => entry.Topic.keyword == "밭일은 어때요?"), Is.True);
+            yield return Until(() => farmer.GetComponent<WorkerAnimation>().CurrentAction == (int)WorkerMotion.Work, 3f);
+            Assert.That(game.Crops.Select(crop => crop.Remaining), Is.EqualTo(charges));
+
+            var state = game.State;
+            state.AdvanceTime((state.Rules.JobEnd - state.Minute + 1f) / state.Rules.MinutesPerSecond);
+            yield return Until(() => farmer.CurrentActivity == NpcActivity.Resting && farmer.Routine.IsSeated, 28f);
+            Assert.That(game.SeatInUse(farmer.transform.position), Is.True);
+            Assert.That(game.DialogueTopicsFor(farmer).Any(entry => entry.Topic.keyword == "밭일은 어때요?"), Is.False);
+            Assert.That(game.DialogueTopicsFor(farmer).Any(entry => entry.Topic.keyword == "오늘 일은 끝났나요?"), Is.True);
         }
 
         [UnityTest]
@@ -1928,6 +1980,10 @@ namespace Workerborn.Tests
             var workplace = farmer.transform;
             var guide = game.Hud.GetComponentInChildren<GroundTrackingGuide>();
             Vector3 position = workplace.position;
+            var routine = farmer.Routine;
+            var workerAgent = farmer.GetComponent<NavMeshAgent>();
+            routine.enabled = false;
+            workerAgent.enabled = false;
             try
             {
                 workplace.position += Vector3.right * 300f;
@@ -1966,6 +2022,8 @@ namespace Workerborn.Tests
             finally
             {
                 workplace.position = position;
+                workerAgent.enabled = true;
+                routine.enabled = true;
             }
 
             var state = game.State;

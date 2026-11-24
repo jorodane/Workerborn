@@ -27,6 +27,10 @@ namespace Workerborn
         public override float InteractionDistance => definition != null ? definition.InteractionDistance : 1.8f;
         public override bool CanTarget => Role != VillageRole.Shrine && Role != VillageRole.NoticeBoard;
         public override bool ShowNameByDefault => true;
+        internal NpcRoutine Routine { get; set; }
+        internal NpcActivity CurrentActivity => Routine != null && Routine.isActiveAndEnabled ? Routine.Activity : NpcActivity.Idle;
+        public override Vector3 NamePosition => Routine?.IsSeated == true && TryGetComponent<CharacterActor>(out var actor)
+            ? actor.NamePosition : base.NamePosition;
         public override string InteractionVerb => Role == VillageRole.NoticeBoard ? "게시판 보기" : Role == VillageRole.Shrine ? "기도하기" : "대화하기";
 
         protected override void Interact(HarvestWorker worker) => worker.CommandInteract(this);

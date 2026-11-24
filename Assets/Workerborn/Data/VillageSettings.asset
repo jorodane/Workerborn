@@ -80,3 +80,79 @@ MonoBehaviour:
       action: 9
       text: ''
       requirements: []
+  - recipient: {fileID: 11400000, guid: 75726c5d35e65ed692974f034a75ba62, type: 2}
+    openOnTalk: 0
+    topic:
+      keyword: 밭일은 어때요?
+      action: 10
+      text: 감자 캐는 중이야. 납품할 게 있으면 여기서 불러 줘.
+      requirements:
+      - kind: 6
+        invert: 0
+        questStages: 0
+        item: {fileID: 0}
+        minimum: 1
+        activity: 3
+        weekdays: 127
+        calendarEvent: {fileID: 0}
+  - recipient: {fileID: 11400000, guid: 75726c5d35e65ed692974f034a75ba62, type: 2}
+    openOnTalk: 0
+    topic:
+      keyword: 오늘 일은 끝났나요?
+      action: 10
+      text: 오늘 밭일은 여기까지야. 해가 지기 전에 여기서 잠깐 쉬려고.
+      requirements:
+      - kind: 6
+        invert: 0
+        questStages: 0
+        item: {fileID: 0}
+        minimum: 1
+        activity: 4
+        weekdays: 127
+        calendarEvent: {fileID: 0}
+      - kind: 7
+        invert: 0
+        questStages: 0
+        item: {fileID: 0}
+        minimum: 1
+        activity: 0
+        weekdays: 31
+        calendarEvent: {fileID: 0}
+  - recipient: {fileID: 11400000, guid: 75726c5d35e65ed692974f034a75ba62, type: 2}
+    openOnTalk: 0
+    topic:
+      keyword: 오늘 일은 끝났나요?
+      action: 10
+      text: 주말 저녁엔 북쪽 벤치가 한적해서 좋아. 너도 앉았다 갈래?
+      requirements:
+      - kind: 6
+        invert: 0
+        questStages: 0
+        item: {fileID: 0}
+        minimum: 1
+        activity: 4
+        weekdays: 127
+        calendarEvent: {fileID: 0}
+      - kind: 7
+        invert: 0
+        questStages: 0
+        item: {fileID: 0}
+        minimum: 1
+        activity: 0
+        weekdays: 96
+        calendarEvent: {fileID: 0}
+  - recipient: {fileID: 11400000, guid: 5f87d23331cb5150b090dcb78b7030a8, type: 2}
+    openOnTalk: 0
+    topic:
+      keyword: 쉬시는 중이에요?
+      action: 10
+      text: 잠깐 다리 좀 쉬게. 물건이 필요하면 말해 줘.
+      requirements:
+      - kind: 6
+        invert: 0
+        questStages: 0
+        item: {fileID: 0}
+        minimum: 1
+        activity: 4
+        weekdays: 127
+        calendarEvent: {fileID: 0}

@@ -9,6 +9,7 @@ namespace Workerborn
         private CropDefinition definition;
         private HarvestCycle cycle;
         private HarvestWorker owner;
+        private Func<bool> gatherAttempt;
         [SerializeField]
         private Transform visual;
         [SerializeField]
@@ -65,14 +66,19 @@ namespace Workerborn
 
         public bool Advance(HarvestWorker worker, float seconds)
         {
-            if (owner != worker || owner == null || !cycle.Advance(seconds))
+            if (owner != worker || owner == null || !cycle.Advance(seconds, gatherAttempt ??= TryGather, out bool gathered))
                 return false;
             owner = null;
-            RefreshVisuals();
-            Harvested?.Invoke(this);
+            if (gathered)
+            {
+                RefreshVisuals();
+                Harvested?.Invoke(this);
+            }
             NotifyInteractionCompleted();
             return true;
         }
+
+        private bool TryGather() => owner.Village == null || owner.Village.TryGatherFrom(this);
 
         public void Cancel(HarvestWorker worker)
         {

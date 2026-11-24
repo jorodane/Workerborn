@@ -15,6 +15,7 @@ namespace Workerborn
         [SerializeField] private QuestDefinition[] quests;
         [SerializeField] private ItemDefinition[] shopItems;
         [SerializeField, Min(0.5f)] private float interactionDistance = 1.8f;
+        [SerializeField] private NpcScheduleEntry[] dailySchedule;
 
         public string Id => id;
         public string DisplayName => displayName;
@@ -26,5 +27,6 @@ namespace Workerborn
         public QuestDefinition[] Quests => quests;
         public ItemDefinition[] ShopItems => shopItems;
         public float InteractionDistance => interactionDistance;
+        internal NpcScheduleEntry[] DailySchedule => dailySchedule ?? System.Array.Empty<NpcScheduleEntry>();
     }
 }

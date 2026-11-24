@@ -15,6 +15,7 @@ namespace Workerborn
 
         internal Vector3 Position => transform.position + Facing * seatOffset;
         internal Quaternion Facing => Quaternion.Euler(0f, transform.eulerAngles.y + facingDegrees, 0f);
+        internal Vector3 ApproachPosition => Position + Facing * Vector3.forward * (approachDepth * .75f);
 
         internal bool Covers(Vector3 position)
         {
