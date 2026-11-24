@@ -60,7 +60,7 @@ namespace Workerborn
             transform.SetPositionAndRotation(Vector3.Lerp(transform.position, destination, factor),
                 Quaternion.Slerp(transform.rotation, yaw, factor));
             if (label != null && hud != null)
-                hud.PositionPlayerOverhead(label, transform.position + Vector3.up * labelHeight);
+                hud.PositionPlayerOverhead(label, transform.position, transform.position + Vector3.up * labelHeight);
         }
 
         private void OnDestroy()

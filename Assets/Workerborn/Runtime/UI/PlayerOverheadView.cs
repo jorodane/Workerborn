@@ -27,7 +27,13 @@ namespace Workerborn
         private RectTransform Rect => (RectTransform)transform;
 
         internal WorldNameplateView Nameplate => playerName;
-        internal void SetName(string name) => playerName.SetText(name);
+        internal Vector2 NameCenter => (Vector2)(Rect.localPosition + playerName.Rect.localPosition) + playerName.CenterOffset;
+
+        internal void SetName(string name)
+        {
+            playerName.SetText(name);
+            playerName.LayoutSlot.Order = NameplateSlot.NextOrder();
+        }
 
         internal void Say(string message)
         {
@@ -119,7 +125,7 @@ namespace Workerborn
                 spoken[0] = spoken[0].Substring(offset);
         }
 
-        internal void Position(Camera camera, RectTransform canvas, Vector3 world, bool sharesMap = true)
+        internal void Position(Vector2 local, bool visible)
         {
             float now = Time.unscaledTime;
             if (spoken.Count > 0 && now >= shownUntil)
@@ -130,15 +136,14 @@ namespace Workerborn
             }
 
             AnimateSize(now);
-            var screen = camera.WorldToScreenPoint(world);
-            bool visible = sharesMap && screen.z > 0f && camera.pixelRect.Contains((Vector2)screen);
             Rect.gameObject.SetActive(visible);
             if (!visible)
                 return;
             if (speechChanged)
                 LayoutSpeech(now);
-            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out var local))
-                Rect.localPosition = new Vector3(local.x, local.y, 0f);
+            Rect.localPosition = new Vector3(local.x, local.y, 0f);
         }
+
+        internal void ApplyNameLayout() => Rect.localPosition += (Vector3)playerName.LayoutDisplacement;
     }
 }

@@ -37,7 +37,6 @@ namespace Workerborn
     public abstract class WorldInteractable : MonoBehaviour
     {
         private static readonly List<WorldInteractable> active = new List<WorldInteractable>();
-        private static long nextNameplateOrder;
         public static IReadOnlyList<WorldInteractable> Active => active;
 
         [SerializeField]
@@ -88,7 +87,7 @@ namespace Workerborn
                 active.Add(this);
         }
 
-        protected void RenewNameplateOrder() => NameplateOrder = ++nextNameplateOrder;
+        protected void RenewNameplateOrder() => NameplateOrder = NameplateSlot.NextOrder();
 
         protected virtual void OnDisable() => active.Remove(this);
         public void RequestInteraction(HarvestWorker worker)

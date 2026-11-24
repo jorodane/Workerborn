@@ -141,20 +141,18 @@ namespace Workerborn.Tests
             NameplateLayout.Arrange(slots, 0, 400, 3, left: 0, right: 460);
 
             Assert.That(slots.All(s => s.Width == 78f && s.Height == 46f), Is.True);
-            var visible = slots.Where(s => s.Visible).ToArray();
-            Assert.That(visible.Length, Is.GreaterThan(0));
-            for (int i = 0; i < visible.Length; i++)
-                for (int j = 0; j < i; j++)
-                    Assert.That(System.Math.Abs(visible[i].PlacedX - visible[j].PlacedX) >= 80.999f ||
-                        System.Math.Abs(visible[i].PlacedY - visible[j].PlacedY) >= 48.999f, Is.True);
+            AssertSeparated(slots, 3f);
             foreach (var slot in slots)
-                Assert.That(slot.PlacedX, Is.EqualTo(slot.X));
+            {
+                Assert.That(Math.Abs(slot.PlacedX - slot.X), Is.LessThanOrEqualTo(slot.Width * 1.5f + .001f));
+                Assert.That(Math.Abs(slot.PlacedY - slot.Y), Is.LessThanOrEqualTo((slot.Height + 3f) * 2f + .001f));
+            }
             NameplateLayout.Present(slots, false, 0, 400, 3);
-            Assert.That(slots.All(s => s.Visible && s.PlacedY == s.Y), Is.True);
+            Assert.That(slots.All(s => s.PlacedX == s.X && s.PlacedY == s.Y), Is.True);
         }
 
         [Test]
-        public void CrowdedFieldLabelsStayNearTheirProjectedPositionsWhileScrolling()
+        public void CrowdedFieldLabelsStayNearTheirProjectedPositions()
         {
             var slots = Enumerable.Range(0, 18).Select(index => new NameplateSlot
             {
@@ -170,21 +168,14 @@ namespace Workerborn.Tests
             slots.Add(sign);
             slots.Add(unrelated);
 
-            float overflow = NameplateLayout.Arrange(slots, 0, 540, 3, scrollOrder: 0);
-            Assert.That(overflow, Is.GreaterThan(0));
-            Assert.That(slots.First(label => label.Order == 0).Visible, Is.True);
-            var seen = new HashSet<long>();
-            for (int step = 0; step <= 20; step++)
+            NameplateLayout.Arrange(slots, 0, 540, 3);
+            Assert.That(unrelated.PlacedX, Is.EqualTo(unrelated.X));
+            Assert.That(unrelated.PlacedY, Is.EqualTo(unrelated.Y));
+            foreach (var label in slots)
             {
-                NameplateLayout.Arrange(slots, 0, 540, 3, overflow * step / 20f, scrollOrder: 0);
-                Assert.That(unrelated.PlacedY, Is.EqualTo(unrelated.Y));
-                foreach (var label in slots.Where(label => label.Visible))
-                {
-                    Assert.That(Math.Abs(label.PlacedY - label.Y), Is.LessThanOrEqualTo(label.Height * 2f + .001f));
-                    seen.Add(label.Order);
-                }
+                Assert.That(Math.Abs(label.PlacedX - label.X), Is.LessThanOrEqualTo(label.Width * 1.5f + .001f));
+                Assert.That(Math.Abs(label.PlacedY - label.Y), Is.LessThanOrEqualTo((label.Height + 3f) * 2f + .001f));
             }
-            Assert.That(seen.Count, Is.EqualTo(slots.Count));
         }
 
         [Test]
@@ -217,35 +208,44 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void OversizedStacksExposeAStableVerticalScrollRange()
+        public void AStackThatIsTooTallUsesNearbyColumnsWithoutDroppingLabels()
         {
-            var slots = Enumerable.Range(0, 10).Select(i => new NameplateSlot { Order = i, X = 50, Y = 50, Width = 80, Height = 24 }).ToList();
-            float overflow = NameplateLayout.Arrange(slots, 0, 100, 4);
-            Assert.That(overflow, Is.GreaterThan(0));
+            var slots = Enumerable.Range(0, 9).Select(i =>
+                new NameplateSlot { Order = i, X = 190, Y = 50, Width = 80, Height = 24 }).ToList();
+            NameplateLayout.Arrange(slots, 0, 100, 4, left: 0, right: 380);
+            AssertSeparated(slots, 4f);
             Assert.That(slots.All(s => s.Height == 24f && s.Width == 80f), Is.True);
-            float first = slots[0].PlacedY;
-            NameplateLayout.Arrange(slots, 0, 100, 4, overflow);
-            Assert.That(slots[0].PlacedY - first, Is.EqualTo(overflow).Within(.01f));
-            Assert.That(slots[slots.Count - 1].PlacedY, Is.EqualTo(12).Within(.01f));
+            Assert.That(slots.All(s => s.PlacedX >= 40f && s.PlacedX <= 340f && s.PlacedY >= 12f && s.PlacedY <= 88f), Is.True);
+            var positions = slots.Select(s => (s.PlacedX, s.PlacedY)).ToArray();
+            slots.Reverse();
+            NameplateLayout.Arrange(slots, 0, 100, 4, left: 0, right: 380);
+            Assert.That(slots.Select(s => (s.PlacedX, s.PlacedY)), Is.EqualTo(positions));
         }
 
         [Test]
-        public void AnOverflowingStackScrollsWithoutCoveringAnUnobstructedName()
+        public void AStackSpreadsWithoutCoveringAnUnobstructedName()
         {
             var slots = Enumerable.Range(1, 8).Select(i =>
-                new NameplateSlot { Order = i, X = 50, Y = 42, Width = 60, Height = 20 }).ToList();
-            var fixedName = new NameplateSlot { Order = 9, X = 50, Y = 85, Width = 80, Height = 20 };
+                new NameplateSlot { Order = i, X = 150, Y = 42, Width = 60, Height = 20 }).ToList();
+            var fixedName = new NameplateSlot { Order = 9, X = 150, Y = 85, Width = 80, Height = 20 };
             slots.Add(fixedName);
-            float overflow = NameplateLayout.Arrange(slots, 0, 100, 4, scrollOrder: 1);
-            Assert.That(overflow, Is.GreaterThan(0));
-            Assert.That(slots.Any(slot => slot.Order == 1 && slot.Visible), Is.True);
-
-            NameplateLayout.Arrange(slots, 0, 100, 4, overflow, scrollOrder: 1);
-            Assert.That(slots.Any(slot => slot.Order == 8 && slot.Visible), Is.True);
-            Assert.That(fixedName.Visible, Is.True);
+            NameplateLayout.Arrange(slots, 0, 100, 4, left: 0, right: 300);
+            Assert.That(fixedName.PlacedX, Is.EqualTo(fixedName.X));
             Assert.That(fixedName.PlacedY, Is.EqualTo(fixedName.Y));
-            Assert.That(slots.Where(slot => slot.Visible && slot != fixedName)
-                .All(slot => slot.PlacedY + slot.Height * .5f <= 71f), Is.True);
+            AssertSeparated(slots, 4f);
+        }
+
+        private static void AssertSeparated(List<NameplateSlot> slots, float gap)
+        {
+            for (int i = 1; i < slots.Count; i++)
+                for (int j = 0; j < i; j++)
+                {
+                    var first = slots[i];
+                    var second = slots[j];
+                    Assert.That(Math.Abs(first.PlacedX - second.PlacedX) >= (first.Width + second.Width) * .5f + gap - .001f ||
+                        Math.Abs(first.PlacedY - second.PlacedY) >= (first.Height + second.Height) * .5f + gap - .001f,
+                        Is.True, $"Labels {first.Order} and {second.Order} overlap.");
+                }
         }
 
         [Test]

@@ -812,6 +812,57 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator AltShowsThePlayerNameBoxAndHealthForLivingCombatTargets()
+        {
+            var rabbit = UnityEngine.Object.FindObjectsByType<MonsterInteractable>(FindObjectsSortMode.None)
+                .Single(animal => animal.Combat != null);
+            Assert.That(NavMesh.SamplePosition(rabbit.transform.position + Vector3.right * .75f,
+                out var at, .4f, NavMesh.AllAreas), Is.True);
+            game.Worker.WarpTo(at.position);
+            game.CameraRig.SnapToTarget();
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            var mouse = InputSystem.AddDevice<Mouse>();
+            try
+            {
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = -Vector2.one });
+                yield return null;
+                yield return null;
+                var playerName = UnityEngine.Object.FindFirstObjectByType<PlayerOverheadView>().Nameplate;
+                var rabbitName = UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None)
+                    .Single(view => view.Subject == rabbit);
+                var playerBox = playerName.GetComponent<Image>();
+                var playerBar = playerName.transform.Find("Health bar").gameObject;
+                var rabbitBar = rabbitName.transform.Find("Health bar").gameObject;
+                Assert.That(playerBox.color.a, Is.Zero);
+                Assert.That(playerBar.activeInHierarchy, Is.False);
+                Assert.That(rabbitBar.activeInHierarchy, Is.False);
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftAlt));
+                yield return null;
+                yield return null;
+                Assert.That(playerBox.color.a, Is.GreaterThan(0f));
+                Assert.That(playerBox.raycastTarget, Is.False);
+                Assert.That(playerName.LayoutSlot.ObjectY, Is.Not.Null);
+                Assert.That(playerBar.activeInHierarchy, Is.True);
+                Assert.That(rabbitBar.activeInHierarchy, Is.True);
+                Assert.That(playerName.LayoutSlot.Height, Is.GreaterThan(playerName.Rect.rect.height));
+                Assert.That(rabbitName.LayoutSlot.Height, Is.GreaterThan(rabbitName.Rect.rect.height));
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                yield return null;
+                yield return null;
+                Assert.That(playerBox.color.a, Is.Zero);
+                Assert.That(playerBar.activeInHierarchy, Is.False);
+                Assert.That(rabbitBar.activeInHierarchy, Is.False);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(mouse);
+                InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator OverlappingPickupNamesOnlyMoveApartWhileAltIsHeld()
         {
             var first = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
@@ -848,6 +899,38 @@ namespace Workerborn.Tests
                 UnityEngine.Object.Destroy(first.gameObject);
                 UnityEngine.Object.Destroy(second.gameObject);
                 UnityEngine.InputSystem.InputSystem.RemoveDevice(keyboard);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AltKeepsEveryOnScreenPickupNameActiveInACrowd()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            var pile = new GroundPickup[12];
+            try
+            {
+                Vector3 position = game.Worker.transform.position + Vector3.right;
+                var prefab = game.Settings.FindItem(ItemIds.Potato).GroundPrefab;
+                for (int i = 0; i < pile.Length; i++)
+                {
+                    pile[i] = UnityEngine.Object.Instantiate(prefab);
+                    pile[i].Initialize(game.Crops[0].Definition, position, position, true);
+                }
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftAlt));
+                yield return null;
+                yield return null;
+                var visibleNames = UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None)
+                    .Where(view => view.Target is GroundPickup pickup && pile.Contains(pickup)).ToArray();
+                Assert.That(visibleNames, Has.Length.EqualTo(pile.Length));
+                Assert.That(visibleNames.All(view => view.GetComponent<Image>().raycastTarget), Is.True);
+            }
+            finally
+            {
+                foreach (var pickup in pile)
+                    if (pickup != null)
+                        UnityEngine.Object.Destroy(pickup.gameObject);
+                InputSystem.RemoveDevice(keyboard);
             }
         }
 

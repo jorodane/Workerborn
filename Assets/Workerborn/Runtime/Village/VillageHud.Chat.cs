@@ -26,9 +26,16 @@ namespace Workerborn
             return overhead;
         }
 
-        internal void PositionPlayerOverhead(PlayerOverheadView overhead, Vector3 position)
+        internal void PositionPlayerOverhead(PlayerOverheadView overhead, Vector3 position, Vector3 namePosition)
         {
-            overhead.Position(game.WorldCamera, (RectTransform)overhead.transform.parent, position, game.SharesMap(position));
+            bool alt = WorkerbornInput.Held("Gameplay/Names");
+            var canvas = (RectTransform)overhead.transform.parent;
+            bool visible = PickupNames.TryProject(game, canvas, position, namePosition, alt, out var point, out var objectY);
+            overhead.Position(point, visible);
+            if (visible && alt && pickupNames != null && pickupNames.isActiveAndEnabled)
+                pickupNames.IncludePlayer(overhead, objectY);
+            else
+                overhead.Nameplate.SetBox(alt);
         }
 
         internal void ShowPlayerHealthUntil(float until) => playerHealthVisibleUntil = until;
@@ -37,12 +44,13 @@ namespace Workerborn
         {
             if (localOverhead == null)
                 return;
-            PositionPlayerOverhead(localOverhead, game.PlayerActor.NamePosition);
             var targeting = game.Targeting;
             var state = game.State;
-            bool show = !state.AwaitingIncarnation && (game.Worker.IsFighting || Time.unscaledTime < playerHealthVisibleUntil ||
+            bool show = !state.AwaitingIncarnation && (WorkerbornInput.Held("Gameplay/Names") || game.Worker.IsFighting ||
+                Time.unscaledTime < playerHealthVisibleUntil ||
                 targeting != null && (targeting.IsHoveringPlayer || targeting.IsOverNameplate(localOverhead.Nameplate)));
             localOverhead.Nameplate.SetHealth(show, state.Health, state.HealthLimit);
+            PositionPlayerOverhead(localOverhead, game.PlayerActor.transform.position, game.PlayerActor.NamePosition);
         }
 
         internal void ShowChat(string speaker, string message, bool local)

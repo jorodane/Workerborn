@@ -5,49 +5,51 @@ namespace Workerborn
 {
     public sealed class NameplateSlot
     {
+        private static long nextOrder;
+
         public long Order;
         public float X, Y, Width, Height, PlacedX, PlacedY;
         public float? ObjectY;
-        public bool Visible = true;
-        internal float AnchorY;
+        internal float AnchorX, AnchorY;
         internal float HalfWidth => Width * .5f;
         internal float HalfHeight => Height * .5f;
+        internal static long NextOrder() => ++nextOrder;
     }
 
-    // Canvas coordinates, positive Y upwards. Only the safe area can change the projected X.
+    // Canvas coordinates, positive Y upwards.
     public static class NameplateLayout
     {
         private const float Epsilon = .001f;
         private const float MaximumDisplacementInRows = 2f;
+        private const float MaximumDisplacementInColumns = 1.5f;
 
-        public static float Present(List<NameplateSlot> labels, bool alt, float bottom, float top, float gap,
-            float overflowScroll = 0f, long? scrollOrder = null,
+        public static void Present(List<NameplateSlot> labels, bool alt, float bottom, float top, float gap,
             float left = float.NegativeInfinity, float right = float.PositiveInfinity)
         {
             if (alt)
-                return Arrange(labels, bottom, top, gap, overflowScroll, scrollOrder, left, right);
+            {
+                Arrange(labels, bottom, top, gap, left, right);
+                return;
+            }
             foreach (var label in labels)
             {
                 label.PlacedX = label.X;
                 label.PlacedY = label.Y;
-                label.Visible = true;
             }
-            return 0f;
         }
 
-        public static float Arrange(List<NameplateSlot> labels, float bottom, float top, float gap,
-            float overflowScroll = 0f, long? scrollOrder = null,
+        public static void Arrange(List<NameplateSlot> labels, float bottom, float top, float gap,
             float left = float.NegativeInfinity, float right = float.PositiveInfinity)
         {
             foreach (var label in labels)
             {
-                label.Visible = true;
-                SetAnchor(label, bottom, top, left, right);
+                label.AnchorX = label.PlacedX = ClampCenter(label.X, left, right, label.HalfWidth);
+                label.AnchorY = label.PlacedY = ClampCenter(label.Y, bottom, top, label.HalfHeight);
             }
 
             labels.Sort(Compare);
             if (!HasOverlaps(labels, gap))
-                return 0f;
+                return;
 
             var groups = new List<List<NameplateSlot>>();
             foreach (var label in labels)
@@ -74,31 +76,22 @@ namespace Workerborn
                 if (group.Count == 1)
                     occupied.Add(group[0]);
 
-            float maxOverflow = 0f;
             foreach (var group in groups)
             {
                 if (group.Count == 1)
                     continue;
                 group.Sort(Compare);
-                bool scrollThisGroup = !scrollOrder.HasValue || group.Exists(label => label.Order == scrollOrder.Value);
-                float overflow = Place(group, occupied, bottom, top, gap, scrollThisGroup ? overflowScroll : 0f);
-                if (scrollThisGroup)
-                    maxOverflow = Math.Max(maxOverflow, overflow);
+                if (TryStack(group, occupied, bottom, top, gap))
+                    occupied.AddRange(group);
+                else
+                    PlaceNearAnchors(group, occupied, bottom, top, left, right, gap);
             }
-            return maxOverflow;
-        }
-
-        private static void SetAnchor(NameplateSlot label, float bottom, float top, float left, float right)
-        {
-            label.PlacedX = ClampCenter(label.X, left, right, label.HalfWidth);
-            label.AnchorY = label.PlacedY = ClampCenter(label.Y, bottom, top, label.HalfHeight);
         }
 
         private static float ClampCenter(float value, float low, float high, float halfSize) =>
             high - low < halfSize * 2 ? (low + high) * .5f : Math.Max(low + halfSize, Math.Min(high - halfSize, value));
 
-        private static float Place(List<NameplateSlot> group, List<NameplateSlot> occupied,
-            float bottom, float top, float gap, float scroll)
+        private static bool TryStack(List<NameplateSlot> group, List<NameplateSlot> occupied, float bottom, float top, float gap)
         {
             float displacement = 0f;
             float minimum = float.NegativeInfinity, maximum = float.PositiveInfinity;
@@ -125,59 +118,40 @@ namespace Workerborn
                         j++;
                 }
                 displacement += current.AnchorY - current.PlacedY;
-                var bounds = AllowedShift(current, bottom, top);
-                minimum = Math.Max(minimum, bounds.Minimum);
-                maximum = Math.Min(maximum, bounds.Maximum);
+                var (low, high) = VerticalRange(current, bottom, top, gap);
+                minimum = Math.Max(minimum, low - current.PlacedY);
+                maximum = Math.Min(maximum, high - current.PlacedY);
+                if (minimum > maximum)
+                    return false;
             }
 
             float preferred = displacement / group.Count;
             float clamped = Math.Max(minimum, Math.Min(maximum, preferred));
-            if (minimum <= maximum && TryFit(group, occupied, clamped, minimum, maximum, gap, out float shift))
-            {
-                Commit(group, occupied, shift, bottom, top, gap);
-                return 0f;
-            }
-
-            // Scroll through crowded names, keeping each one inside its own visible range.
-            var (start, end) = ScrollRange(group, occupied, bottom, top, gap);
-            if (float.IsPositiveInfinity(start))
-            {
-                foreach (var label in group)
-                    label.Visible = false;
-                return 0f;
-            }
-            float overflow = Math.Max(0f, end - start);
-            shift = overflow > 0f ? start + Math.Min(Math.Max(0f, scroll), overflow) : Math.Max(end, Math.Min(start, preferred));
-            Commit(group, occupied, shift, bottom, top, gap);
-            return overflow;
-        }
-
-        private static (float Minimum, float Maximum) AllowedShift(NameplateSlot label, float bottom, float top)
-        {
-            float distance = label.Height * MaximumDisplacementInRows;
-            return (Math.Max(bottom + label.HalfHeight, label.AnchorY - distance) - label.PlacedY,
-                Math.Min(top - label.HalfHeight, label.AnchorY + distance) - label.PlacedY);
-        }
-
-        private static bool TryFit(List<NameplateSlot> group, List<NameplateSlot> occupied,
-            float preferred, float minimum, float maximum, float gap, out float shift)
-        {
-            float down = ClearObstacles(group, 0, group.Count, occupied, preferred, gap, -1);
-            float up = ClearObstacles(group, 0, group.Count, occupied, preferred, gap, 1);
+            float down = ClearObstacles(group, occupied, clamped, gap, -1);
+            float up = ClearObstacles(group, occupied, clamped, gap, 1);
             bool canMoveDown = down >= minimum - Epsilon, canMoveUp = up <= maximum + Epsilon;
-            shift = canMoveDown && (!canMoveUp || preferred - down <= up - preferred) ? down : up;
-            return canMoveDown || canMoveUp;
+            if (!canMoveDown && !canMoveUp)
+                return false;
+            float shift = canMoveDown && (!canMoveUp || clamped - down <= up - clamped) ? down : up;
+            foreach (var label in group)
+                label.PlacedY += shift;
+            return true;
         }
 
-        private static float ClearObstacles(List<NameplateSlot> group, int first, int end, List<NameplateSlot> occupied,
-            float shift, float gap, int direction)
+        private static (float Low, float High) VerticalRange(NameplateSlot label, float bottom, float top, float gap)
+        {
+            float distance = (label.Height + gap) * MaximumDisplacementInRows;
+            return (ClampCenter(label.AnchorY - distance, bottom, top, label.HalfHeight),
+                ClampCenter(label.AnchorY + distance, bottom, top, label.HalfHeight));
+        }
+
+        private static float ClearObstacles(List<NameplateSlot> group, List<NameplateSlot> occupied, float shift, float gap, int direction)
         {
             while (true)
             {
                 float next = shift;
-                for (int i = first; i < end; i++)
+                foreach (var label in group)
                 {
-                    var label = group[i];
                     foreach (var obstacle in occupied)
                     {
                         if (!HorizontalOverlap(label, obstacle, gap))
@@ -194,34 +168,82 @@ namespace Workerborn
             }
         }
 
-        private static (float Start, float End) ScrollRange(List<NameplateSlot> group, List<NameplateSlot> occupied,
-            float bottom, float top, float gap)
+        private static void PlaceNearAnchors(List<NameplateSlot> group, List<NameplateSlot> occupied,
+            float bottom, float top, float left, float right, float gap)
         {
-            float start = float.PositiveInfinity, end = float.NegativeInfinity;
-            for (int i = 0; i < group.Count; i++)
-            {
-                var bounds = AllowedShift(group[i], bottom, top);
-                float firstVisible = ClearObstacles(group, i, i + 1, occupied, bounds.Minimum, gap, 1);
-                float lastVisible = ClearObstacles(group, i, i + 1, occupied, bounds.Maximum, gap, -1);
-                if (firstVisible > lastVisible + Epsilon)
-                    continue;
-                start = Math.Min(start, lastVisible);
-                end = Math.Max(end, firstVisible);
-            }
-            return (start, end);
-        }
-
-        private static void Commit(List<NameplateSlot> group, List<NameplateSlot> occupied, float shift, float bottom, float top, float gap)
-        {
+            var columns = new List<float>();
+            var rows = new List<float>();
+            var neighbors = new List<(NameplateSlot Slot, float XSeparation, float YSeparation, bool Above)>();
             foreach (var label in group)
             {
-                var bounds = AllowedShift(label, bottom, top);
-                label.PlacedY += shift;
-                label.Visible = shift >= bounds.Minimum - Epsilon && shift <= bounds.Maximum + Epsilon &&
-                    !OverlapsGroup(label, occupied, gap);
-                if (label.Visible)
-                    occupied.Add(label);
+                columns.Clear();
+                columns.Add(label.AnchorX);
+                rows.Clear();
+                rows.Add(label.AnchorY);
+                neighbors.Clear();
+                float xRange = label.Width * MaximumDisplacementInColumns;
+                float minX = ClampCenter(label.AnchorX - xRange, left, right, label.HalfWidth);
+                float maxX = ClampCenter(label.AnchorX + xRange, left, right, label.HalfWidth);
+                var (minY, maxY) = VerticalRange(label, bottom, top, gap);
+                foreach (var other in occupied)
+                {
+                    float width = label.HalfWidth + other.HalfWidth + gap;
+                    float height = label.HalfHeight + other.HalfHeight + gap;
+                    if (other.PlacedX + width < minX || other.PlacedX - width > maxX ||
+                        other.PlacedY + height < minY || other.PlacedY - height > maxY)
+                        continue;
+
+                    bool orderedAbove = Math.Abs(label.AnchorX - other.AnchorX) < width - Epsilon &&
+                        Math.Abs(label.AnchorY - other.AnchorY) < height - Epsilon;
+                    neighbors.Add((other, width, height, orderedAbove));
+                    AddCandidate(columns, other.PlacedX - width, minX, maxX);
+                    AddCandidate(columns, other.PlacedX + width, minX, maxX);
+                    AddCandidate(rows, other.PlacedY - height, minY, maxY);
+                    AddCandidate(rows, other.PlacedY + height, minY, maxY);
+                }
+
+                // Try the anchor and edges of nearby boxes. In a packed area keep all
+                // labels placed, favoring the positions with the least overlap.
+                var best = (Overlap: float.PositiveInfinity, Reversed: int.MaxValue, Distance: float.PositiveInfinity);
+                foreach (float x in columns)
+                {
+                    float dx = (x - label.AnchorX) * .85f;
+                    foreach (float y in rows)
+                    {
+                        float dy = y - label.AnchorY;
+                        var score = (Overlap: 0f, Reversed: 0, Distance: dx * dx + dy * dy);
+                        foreach (var (other, xSeparation, ySeparation, above) in neighbors)
+                        {
+                            float across = xSeparation - Math.Abs(x - other.PlacedX);
+                            if (across <= Epsilon)
+                                continue;
+                            float vertical = y - other.PlacedY;
+                            float overlap = ySeparation - Math.Abs(vertical);
+                            if (overlap > Epsilon)
+                            {
+                                score.Overlap += across * overlap;
+                                if (score.Overlap > best.Overlap)
+                                    break;
+                            }
+                            if (above && vertical >= -Epsilon)
+                                score.Reversed++;
+                        }
+                        if (score.CompareTo(best) >= 0)
+                            continue;
+                        best = score;
+                        label.PlacedX = x;
+                        label.PlacedY = y;
+                    }
+                }
+                occupied.Add(label);
             }
+        }
+
+        private static void AddCandidate(List<float> positions, float value, float low, float high)
+        {
+            float clamped = Math.Max(low, Math.Min(high, value));
+            if (!positions.Contains(clamped))
+                positions.Add(clamped);
         }
 
         private static int Compare(NameplateSlot a, NameplateSlot b)
