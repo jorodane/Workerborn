@@ -1040,6 +1040,7 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 100055}
+  - {fileID: 980022002}
   m_Father: {fileID: 100037}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -1392,7 +1393,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 10, y: -8}
-  m_SizeDelta: {x: 298, y: 290}
+  m_SizeDelta: {x: 298, y: 278}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &100056
 CanvasRenderer:
@@ -1513,3 +1514,81 @@ MonoBehaviour:
   description: {fileID: 100049}
   rewards: {fileID: 100053}
   objectives: {fileID: 100057}
+  tracking: {fileID: 980022003}
+--- !u!1001 &980022001
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 100043}
+    m_Modifications:
+    - target: {fileID: 100001, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_Name
+      value: 'Quest tracking'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: '1'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: '0'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: '1'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: '0'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_Pivot.x
+      value: '1'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_Pivot.y
+      value: '0'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: '-10'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: '8'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '114'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '28'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100009, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_text
+      value: '추적하기'
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+--- !u!224 &980022002 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 980022001}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &980022003 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 100011, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 980022001}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c68ee155e24d552e9c3e9c6f9b3c719f, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''

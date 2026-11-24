@@ -41,3 +41,7 @@ MonoBehaviour:
     prefab: {fileID: 100001, guid: 9d756136703043bc87b2c6cbd02a9fd1, type: 3}
     prewarm: 4
     lifetime: 2
+  - effect: 7
+    prefab: {fileID: 100001, guid: 2f2d7271b03c5e3ebecd4fcdd0222b60, type: 3}
+    prewarm: 6
+    lifetime: 1

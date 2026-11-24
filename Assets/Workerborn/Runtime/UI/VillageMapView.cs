@@ -167,14 +167,14 @@ namespace Workerborn
                 else
                     farm.Icon.gameObject.SetActive(false);
             }
-            PlaceJobMarker();
+            PlaceTrackingMarker();
         }
 
         internal void ShowJobLocation(PartTimeScheduleRowView source, Transform location)
         {
             jobSource = source;
             jobLocation = location;
-            PlaceJobMarker();
+            PlaceTrackingMarker();
         }
 
         internal void ClearJobLocation(PartTimeScheduleRowView source)
@@ -183,14 +183,13 @@ namespace Workerborn
                 return;
             jobSource = null;
             jobLocation = null;
-            PlaceJobMarker();
+            PlaceTrackingMarker();
         }
 
-        private void PlaceJobMarker()
+        private void PlaceTrackingMarker()
         {
-            Transform location = game?.Hud.Jobs.PinnedWorkplace;
-            if (location == null)
-                location = jobLocation;
+            var tracked = game?.Hud.TrackedTarget;
+            Transform location = tracked != null ? tracked.transform : jobLocation;
             bool visible = location != null && game != null && !game.InRebirthZone &&
                 game.MapRegion != null && game.SharesMap(location.position);
             jobMarker.gameObject.SetActive(visible);

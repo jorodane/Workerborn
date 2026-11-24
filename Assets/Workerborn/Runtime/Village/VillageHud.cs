@@ -25,7 +25,7 @@ namespace Workerborn
         [SerializeField] private GameObject dialogueBackdrop;
         [SerializeField] private GameObject normalHud;
         [SerializeField] private ItemShortcutBarView itemShortcuts;
-        [SerializeField] private JobWaypointView jobWaypoint;
+        [SerializeField] private GroundTrackingGuide trackingGuide;
         [SerializeField] private RectTransform chatLayer;
         [SerializeField] private VillageClockView clock;
         [SerializeField] private VillageMapView minimap;
@@ -275,7 +275,7 @@ namespace Workerborn
                 seenNotice = state.NoticeSerial;
             }
             Jobs.Update();
-            UpdateJobWaypoint();
+            UpdateTracking();
             UpdateToast();
 
             if (state.Version != seenVersion || state.Inventory.Version != seenInventoryVersion)
@@ -316,18 +316,6 @@ namespace Workerborn
         {
             if (!focused && draggedEntry != 0)
                 CancelItemDrag();
-        }
-
-        private void UpdateJobWaypoint()
-        {
-            if (jobWaypoint == null)
-                return;
-            WorldInteractable target = Jobs.PinnedProvider;
-            if (HasModal || game.IsWorldTransitioning || game.InRebirthZone)
-                target = null;
-            else if (target != null && !game.SharesMap(target.transform.position))
-                target = game.CurrentInterior?.Exit;
-            jobWaypoint.Display(game.WorldCamera, game.Worker.StandingPosition, target);
         }
 
         private void UpdateWorldFeedback()

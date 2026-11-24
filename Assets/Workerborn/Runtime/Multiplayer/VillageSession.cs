@@ -1107,7 +1107,11 @@ namespace Workerborn
             if (packet.request != 0 && packet.request == waitingForRequest)
                 waitingForRequest = 0;
             if (village != null)
+            {
                 village.ApplySessionProfile(packet.character, packet.world, packet.message, packet.value == 1);
+                if (packet.request != 0 && packet.request == requestSequence)
+                    village.Hud.FinishDialogueWorldReply(packet.character != null, packet.message);
+            }
             else if (InitialCharacter != null && packet.character != null)
                 InitialCharacter = packet.character;
         }

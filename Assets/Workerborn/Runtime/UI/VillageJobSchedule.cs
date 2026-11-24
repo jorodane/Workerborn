@@ -32,8 +32,7 @@ namespace Workerborn
         private Entry pinned;
         internal IReadOnlyList<Entry> Jobs => jobs;
         internal int Revision { get; private set; }
-        internal VillageInteractable PinnedProvider => pinned?.Workplace;
-        internal Transform PinnedWorkplace => PinnedProvider != null ? PinnedProvider.transform : null;
+        internal VillageInteractable PinnedProvider => pinned != null && IsOpenNow(pinned) ? pinned.Workplace : null;
 
         internal VillageJobSchedule(VillagePrototype owner)
         {
@@ -69,6 +68,16 @@ namespace Workerborn
             if (job?.Workplace == null)
                 return;
             pinned = pinned == job ? null : job;
+            if (pinned != null)
+                game.Hud.ClearQuestTracking();
+            Revision++;
+        }
+
+        internal void ClearPin()
+        {
+            if (pinned == null)
+                return;
+            pinned = null;
             Revision++;
         }
 
@@ -84,11 +93,8 @@ namespace Workerborn
 
         internal void Update()
         {
-            if (pinned != null && PinnedWorkplace == null)
-            {
-                pinned = null;
-                Revision++;
-            }
+            if (pinned != null && pinned.Workplace == null)
+                ClearPin();
 
             var state = game.State;
             if (state.AwaitingIncarnation || game.IsWorldTransitioning)
@@ -96,16 +102,21 @@ namespace Workerborn
             List<string> opened = null;
             foreach (var job in jobs)
             {
-                if (!job.Reminder || job.LastRemindedDay == state.Day || state.Minute < job.Start || state.Minute >= job.End)
-                    continue;
-                if (job.Id == state.Rules.JobId && (!state.FarmAvailable ||
-                    state.LastJobDay == state.Day && state.Job == JobStatus.Completed))
+                if (!job.Reminder || job.LastRemindedDay == state.Day || !IsOpenNow(job))
                     continue;
                 job.LastRemindedDay = state.Day;
                 (opened ??= new List<string>()).Add(job.Title);
             }
             if (opened != null)
                 game.Hud.ShowToast($"{string.Join(", ", opened)} 아르바이트가 시작됐어요.");
+        }
+
+        private bool IsOpenNow(Entry job)
+        {
+            var state = game.State;
+            return state.Minute >= job.Start && state.Minute < job.End &&
+                (job.Id != state.Rules.JobId || state.FarmAvailable &&
+                (state.LastJobDay != state.Day || state.Job is not (JobStatus.Completed or JobStatus.Failed)));
         }
     }
 }

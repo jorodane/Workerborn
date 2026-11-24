@@ -49,6 +49,12 @@ namespace Workerborn
                 CloseDialogue(animate: true);
         }
 
+        internal void FinishDialogueWorldReply(bool success, string message)
+        {
+            if (views.TryGetValue("conversation", out var panel) && panel is ConversationWindowView dialogue)
+                dialogue.FinishWorldReply(success, message);
+        }
+
         public void CloseDialogue() => CloseDialogue(animate: false);
 
         internal void CloseDialogue(bool animate)

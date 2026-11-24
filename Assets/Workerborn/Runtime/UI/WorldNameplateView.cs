@@ -14,6 +14,8 @@ namespace Workerborn
         [SerializeField]
         private Image background;
         [SerializeField] private HealthBarView healthBar;
+        [SerializeField] private Image trackingLeft;
+        [SerializeField] private Image trackingRight;
         [SerializeField]
         private Vector2 padding = new Vector2(14f, 6f);
         [SerializeField]
@@ -45,6 +47,7 @@ namespace Workerborn
                 SetHealth(false, monster.Health, monster.Combat.Health);
             else
                 SetHealth(false);
+            SetTracked(false);
             SetBox(false);
         }
 
@@ -65,6 +68,7 @@ namespace Workerborn
             target = default;
             targeting = null;
             SetHealth(false);
+            SetTracked(false);
             SetBox(false);
         }
 
@@ -81,6 +85,14 @@ namespace Workerborn
             healthBar.SetValue(health, maximum);
             if (healthBar.gameObject.activeSelf != visible)
                 healthBar.gameObject.SetActive(visible);
+        }
+
+        internal void SetTracked(bool tracked)
+        {
+            if (trackingLeft.gameObject.activeSelf == tracked)
+                return;
+            trackingLeft.gameObject.SetActive(tracked);
+            trackingRight.gameObject.SetActive(tracked);
         }
 
         public void SetBox(bool visible)

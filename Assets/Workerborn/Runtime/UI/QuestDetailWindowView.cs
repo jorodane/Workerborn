@@ -1,6 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace Workerborn
 {
@@ -12,6 +11,7 @@ namespace Workerborn
         private TMP_Text rewards;
         [SerializeField]
         private TMP_Text objectives;
+        [SerializeField] private UiActionView tracking;
         private VillageQuestPage page;
         public void Select(VillageQuestPage selected)
         {
@@ -21,6 +21,7 @@ namespace Workerborn
 
         public override void Refresh()
         {
+            RefreshTracking();
             var s = Game.State;
             var r = s.Rules;
             if (page == VillageQuestPage.LegendFounding)
@@ -85,6 +86,13 @@ namespace Workerborn
                     (s.FarmUpgradePending ? "[완료] 시대 전환 가능" : s.CanConfirmExpansion ? "요구량을 채웠어요. 확장 준비를 확인하세요." : "[진행 중]")
                 : $"농장 아르바이트 완료  {Mathf.Min(s.Career, r.IntroRequiredJobs)}/{r.IntroRequiredJobs}\n\n" +
                     (s.IntroClaimed ? "[완료] 보상 수령" : s.Career >= r.IntroRequiredJobs ? "미라와 대화해 보고" : "[진행 중]");
+        }
+
+        internal void RefreshTracking()
+        {
+            bool selected = Hud.IsTrackingQuest(page);
+            tracking.Bind(selected ? "추적 해제" : "추적하기", () => Hud.ToggleQuestTracking(page),
+                selected || Game.CanTrackQuest(page));
         }
     }
 }

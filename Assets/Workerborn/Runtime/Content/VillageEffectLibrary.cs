@@ -12,7 +12,8 @@ namespace Workerborn
         [InspectorName("레벨업")] LevelUp = 3,
         [InspectorName("드롭 트레일")] DropTrail = 4,
         [InspectorName("획득 트레일")] PickupTrail = 5,
-        [InspectorName("시체 소멸")] CorpseDespawn = 6
+        [InspectorName("시체 소멸")] CorpseDespawn = 6,
+        [InspectorName("전투 타격")] CombatHit = 7
     }
 
     [Serializable]

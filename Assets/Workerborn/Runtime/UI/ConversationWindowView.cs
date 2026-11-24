@@ -24,8 +24,8 @@ namespace Workerborn
 
         private readonly List<UiActionView> replies = new List<UiActionView>();
         private VillageInteractable npc;
-        private DialogueAction openingTopic, topic;
-        private bool confirmingRebirth, confirmingEra, trading, finishing;
+        private DialogueAction topic;
+        private bool confirmingRebirth, confirmingEra, trading, waitingForWorldReply;
         private enum LookPart { Body, Hair, Face, Outfit }
         private UiActionView nextPage;
         private int replyCount;
@@ -35,12 +35,13 @@ namespace Workerborn
         private int page, pageCount, pageStart, pageEnd;
         private int advancedFrame = -1;
         private bool jobWasOpen;
-        internal bool CanLeave => IsOpen && (trading || page >= pageCount && replyCount == 0);
+        internal bool CanLeave => IsOpen && !waitingForWorldReply && (trading || page >= pageCount);
 
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
             leave.onClick.AddListener(() => hud.TryLeaveDialogue());
+            leave.transform.SetAsFirstSibling();
             DisableButtonSelection(leave);
             nextPage = Instantiate(dialogueChoice, choices.transform);
             nextPage.Bind("다음", () => TryAdvancePage());
@@ -53,11 +54,11 @@ namespace Workerborn
         {
             npc = target;
             presentedText = followUp = null;
-            trading = finishing = false;
+            trading = waitingForWorldReply = false;
             confirmingRebirth = confirmingEra = false;
             advancedFrame = -1;
             bool beforeFarm = !Game.State.FarmAvailable;
-            openingTopic = npc.Role switch
+            DialogueAction openingTopic = npc.Role switch
             {
                 VillageRole.Farmer when beforeFarm => DialogueAction.Foundation,
                 VillageRole.NoticeBoard => DialogueAction.Job,
@@ -80,7 +81,6 @@ namespace Workerborn
             }
             presentedText = followUp = null;
             topic = next;
-            finishing = false;
             confirmingRebirth = confirmingEra = false;
             Refresh();
         }
@@ -241,10 +241,10 @@ namespace Workerborn
                 return;
             replyCount = 0;
             speaker.text = npc.DisplayName;
-            leaveLabel.text = trading ? "거래 종료" : "대화 종료";
+            leaveLabel.text = trading ? "거래 종료" : "대화 끝내기";
             string prose = npc.Definition?.Dialogue?.TextFor(trading ? DialogueAction.Shop : topic) ?? string.Empty;
             var state = Game.State;
-            jobInfo.SetActive(!trading && topic == DialogueAction.Job && state.FarmAvailable);
+            jobInfo.SetActive(!trading && followUp == null && topic == DialogueAction.Job && state.FarmAvailable);
 
             if (trading)
             {
@@ -252,9 +252,9 @@ namespace Workerborn
                 return;
             }
 
-            if (finishing)
+            if (followUp != null)
             {
-                ShowLine("다음에 또 이야기하자.");
+                ShowLine(followUp);
                 return;
             }
 
@@ -271,15 +271,7 @@ namespace Workerborn
             }
 
             string response = topic == DialogueAction.Greeting ? Greeting(prose) : TopicResponse(state, prose);
-            if (topic != openingTopic)
-                Reply("다른 이야기를 한다", () => SelectTopic(openingTopic));
-            else if (replyCount > 0)
-                Reply("다음에 다시 온다", () =>
-                {
-                    finishing = true;
-                    Refresh();
-                });
-            ShowLine(followUp ?? response);
+            ShowLine(response);
         }
 
         private string Greeting(string prose)
@@ -310,11 +302,11 @@ namespace Workerborn
                     if (s.CanSelectFarmSite)
                         return s.CanAdvanceEra ? $"{Game.FarmSiteName}에 농장을 준비할게. 기억의 우물에서 시대를 넘길 수 있어." : "목재는 잘 받았어. 농장 후보지의 팻말을 살펴봐 줘.";
                     if (s.FoundationStage <= FarmFoundationStage.CollectingTimber && s.Inventory.Count(quest.DocumentItemId) == 0)
-                        Reply("계약서를 받는다", () => Game.PerformWorld(CampaignAction.AcceptFoundation));
+                        Reply("계약서를 받는다", () => RespondToWorld(CampaignAction.AcceptFoundation));
                     int owned = s.Inventory.Count(quest.TimberItemId);
                     if (s.FoundationStage == FarmFoundationStage.CollectingTimber)
                         Reply(s.CanConfirmTimberDelivery ? "납품 완료를 확인한다" : "목재를 납품한다",
-                            () => Game.PerformWorld(CampaignAction.DeliverTimber), s.CanConfirmTimberDelivery || owned > 0);
+                            () => RespondToWorld(CampaignAction.DeliverTimber), s.CanConfirmTimberDelivery || owned > 0);
                     return $"{prose}\n\n누적 납품  {s.TimberDelivered:N0}/{s.TimberRequired:N0}  ·  소지 목재 {owned:N0}";
                 case DialogueAction.Job:
                     return JobResponse(s, prose);
@@ -324,13 +316,13 @@ namespace Workerborn
                     return s.IntroClaimed ? prose : $"{prose}\n\n{r.IntroDescription}\n보상  {r.IntroGold} Gold  ·  AP {r.IntroAP}";
                 case DialogueAction.Contribution:
                     if (s.CanConfirmExpansion)
-                        Reply("확장 준비를 확인한다", () => Game.PerformWorld(CampaignAction.DonateGold));
+                        Reply("확장 준비를 확인한다", () => RespondToWorld(CampaignAction.DonateGold));
                     else
                     {
                         if (s.ExpansionQuestActive && s.DonatedGold < s.ExpansionGoldRequired)
-                            Reply($"{r.DonationGoldStep} Gold 기부", () => Game.PerformWorld(CampaignAction.DonateGold));
+                            Reply($"{r.DonationGoldStep} Gold 기부", () => RespondToWorld(CampaignAction.DonateGold));
                         if (s.ExpansionQuestActive && s.DonatedPotatoes < s.ExpansionItemsRequired)
-                            Reply("물품을 기부한다", () => Game.PerformWorld(CampaignAction.DonateItems));
+                            Reply("물품을 기부한다", () => RespondToWorld(CampaignAction.DonateItems));
                     }
                     return $"{prose}\n\n{r.ExpansionDescription}\n자금 {s.DonatedGold:N0}/{s.ExpansionGoldRequired:N0} Gold\n" +
                         $"{ItemCatalog.Get(r.DonationItemId).Name} {s.DonatedPotatoes:N0}/{s.ExpansionItemsRequired:N0}";
@@ -345,8 +337,8 @@ namespace Workerborn
                 case DialogueAction.Legend:
                     var recent = Array.ConvertAll(s.Legend.founders, founder => founder.name);
                     string names = recent.Length > 0 ? "\n기록된 나무꾼  " + string.Join(", ", recent, 0, Math.Min(recent.Length, 6)) : "";
-                    Reply("전설을 기록한다", () => Game.PerformWorld(CampaignAction.RecordLegend), s.CanRecordLegend(Game.LegendPlayerId));
-                    Reply("시련을 마친다", () => Game.PerformWorld(CampaignAction.ProveLegend), s.CanProveLegend(Game.LegendPlayerId));
+                    Reply("전설을 기록한다", () => RespondToWorld(CampaignAction.RecordLegend), s.CanRecordLegend(Game.LegendPlayerId));
+                    Reply("시련을 마친다", () => RespondToWorld(CampaignAction.ProveLegend), s.CanProveLegend(Game.LegendPlayerId));
                     return $"벌목 업적  {s.LifetimeTimber:N0}/{r.LegendFoundingTimber:N0}\n" +
                         $"목재 {r.LegendTrialTimber:N0}개를 가져오면 시련을 마칠 수 있어요. 남은 인정 인원 {s.LegendPlacesAvailable}명." + names;
                 default:
@@ -394,7 +386,6 @@ namespace Workerborn
                     Reply("다음 시대로 간다", Game.AdvanceEra);
                 else
                     Reply("다음 생을 준비한다", Game.Rebirth);
-                Reply("돌아간다", () => SelectTopic(DialogueAction.Rebirth));
                 return confirmingEra ? text + $"\n\n마을이 {s.Era + 1}시대로 넘어갑니다." : text;
             }
 
@@ -411,9 +402,41 @@ namespace Workerborn
 
         private void Respond(Func<bool> operation, string response)
         {
-            if (!operation() || !IsOpen || !Hud.IsSpeakingWith(npc))
+            if (operation())
+                EndWith(response ?? Game.State.LastMessage);
+        }
+
+        private void RespondToWorld(CampaignAction action)
+        {
+            if (!Game.IsOnline)
+            {
+                Respond(() => Game.PerformWorld(action), null);
                 return;
-            followUp = response;
+            }
+            if (Game.AwaitingWorldCommand)
+                return;
+            waitingForWorldReply = true;
+            if (!Game.PerformWorld(action))
+                waitingForWorldReply = false;
+            ShowPageChoices();
+        }
+
+        internal void FinishWorldReply(bool success, string response)
+        {
+            if (!waitingForWorldReply)
+                return;
+            waitingForWorldReply = false;
+            if (success)
+                EndWith(response);
+            else
+                ShowPageChoices();
+        }
+
+        private void EndWith(string response)
+        {
+            if (!IsOpen || !Hud.IsSpeakingWith(npc))
+                return;
+            followUp = string.IsNullOrEmpty(response) ? "그래. 또 이야기하자." : response;
             Refresh();
         }
     }

@@ -19,7 +19,6 @@ namespace Workerborn
     public sealed partial class HarvestWorker : MonoBehaviour
     {
         internal const float DefaultPickupDistance = 2f;
-        private const float StrikeMovementTolerance = .55f;
         private const float JumpHeight = .6f;
         [SerializeField, Min(.1f)] private float runSpeed = 3.7f;
         [SerializeField, Min(.1f)] private float walkSpeed = 1.65f;
@@ -457,7 +456,7 @@ namespace Workerborn
 
         private void UpdateAttack()
         {
-            if (strikeTarget == null || !AcceptsInteractionCommands || village.State.Energy <= 0 || village.State.Health <= 0 ||
+            if (strikeTarget == null || !AcceptsInteractionCommands || village.State.Health <= 0 ||
                 !village.SharesMap(strikeTarget.transform.position))
             {
                 Cancel();
@@ -470,8 +469,7 @@ namespace Workerborn
             if (!struck && progress >= .36f)
             {
                 struck = true;
-                if (strikeTarget.CanReceiveStrike &&
-                    InReach(strikeTarget.transform.position, strikeTarget.InteractionDistance + StrikeMovementTolerance))
+                if (strikeTarget.CanReceiveStrike)
                 {
                     int bonus = village.State.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : village.State.UnarmedDamageBonus;
                     strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus + village.State.Strength));

@@ -137,6 +137,7 @@ namespace Workerborn
             if (applied == 0)
                 return;
             Health -= applied;
+            worker.Village.ShowCombatHit(transform, TargetCenter);
             worker.Village.Hud.ShowFloatingText(NamePosition + Vector3.up * .2f, "-" + applied, new Color(1f, .85f, .56f));
             if (IsDefeated)
             {
@@ -194,7 +195,7 @@ namespace Workerborn
             var village = opponent.Village;
             Vector3 destination = opponent.StandingPosition;
             if (village == null || !village.SharesMap(transform.position) || village.State.AwaitingIncarnation ||
-                village.State.Health <= 0 || village.State.Energy <= 0 ||
+                village.State.Health <= 0 ||
                 !WithinHome(destination, combat.ChaseRadius) || !WithinHome(transform.position, combat.ChaseRadius + .2f))
             {
                 ReturnHome();

@@ -340,8 +340,9 @@ namespace Workerborn.Tests
             var agent = rabbit.GetComponent<NavMeshAgent>();
             Vector3 home = rabbit.transform.position;
             Vector3 start = home + Vector3.right * (rabbit.InteractionDistance - .12f);
-            Vector3 sidestep = home - Vector3.right * .36f;
-            Vector3 escape = home + Vector3.right * 4f;
+            Vector3 sidestep = home - Vector3.right * 1.1f;
+            Vector3 escape = home + Vector3.right * 12f;
+            Assert.That(rabbit.Combat.ChaseRadius, Is.EqualTo(30f));
             Assert.That(NavMesh.SamplePosition(game.SurfacePosition(start.x, start.z), out var attacker, .18f, NavMesh.AllAreas), Is.True);
             Assert.That(NavMesh.SamplePosition(game.SurfacePosition(sidestep.x, sidestep.z), out var shifted, .18f, NavMesh.AllAreas), Is.True);
             Assert.That(NavMesh.SamplePosition(game.SurfacePosition(escape.x, escape.z), out var retreat, .5f, NavMesh.AllAreas), Is.True);
@@ -350,13 +351,17 @@ namespace Workerborn.Tests
             rabbit.RequestInteraction(game.Worker);
             Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Attacking));
             Assert.That(agent.Warp(shifted.position), Is.True);
-            Assert.That(game.Worker.InReach(rabbit.transform.position, rabbit.InteractionDistance), Is.False);
+            Assert.That(game.Worker.InReach(rabbit.transform.position, rabbit.InteractionDistance + .55f), Is.False);
             yield return Until(() => rabbit.Health < health, 2f);
+            Assert.That(rabbit.GetComponent<HitFlash>().isActiveAndEnabled, Is.True);
+            Assert.That(GameObject.Find("CombatHit(Clone)"), Is.Not.Null);
 
             int playerHealth = game.State.Health;
             Assert.That(game.Worker.WarpTo(retreat.position), Is.True);
             yield return Until(() => agent.hasPath && agent.velocity.sqrMagnitude > .01f, 3f);
-            yield return Until(() => game.State.Health < playerHealth, 5f);
+            yield return Until(() => game.State.Health < playerHealth, 8f);
+            Assert.That(game.PlayerActor.VisualRoot.GetComponent<HitFlash>().isActiveAndEnabled, Is.True);
+            yield return Until(() => !rabbit.GetComponent<HitFlash>().isActiveAndEnabled, 1f);
         }
 
         [UnityTest]
@@ -1525,7 +1530,7 @@ namespace Workerborn.Tests
                 Assert.That(body.textInfo.pageCount, Is.GreaterThanOrEqualTo(3));
                 Assert.That(body.pageToDisplay, Is.EqualTo(1));
                 Assert.That(next.gameObject.activeInHierarchy, Is.False);
-                Assert.That(dialogue.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "거래하기" || text.text == "대화 종료"), Is.False);
+                Assert.That(dialogue.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "거래하기" || text.text == "대화 끝내기"), Is.False);
                 game.Hud.CloseWindow("conversation");
                 Assert.That(game.Hud.IsSpeakingWith(merchant), Is.True);
 
@@ -1554,10 +1559,15 @@ namespace Workerborn.Tests
                 Assert.That(body.text, Does.Not.Contain("Gold"));
                 var details = card.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Job details");
                 Assert.That(details.text, Does.Contain("Gold").And.Contain("접수 중"));
-                Assert.That(dialogue.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "대화 종료"), Is.False);
+                var leave = FindButton(dialogue, "대화 끝내기");
+                Assert.That(leave.transform.GetSiblingIndex(), Is.Zero);
                 FindButton(dialogue, "일을 맡는다").onClick.Invoke();
                 Assert.That(game.State.Job, Is.EqualTo(JobStatus.Active));
                 Assert.That(body.text, Does.Contain("계약서를 챙겨 가"));
+                Assert.That(card.gameObject.activeSelf, Is.False);
+                Assert.That(leave.transform.parent.GetComponentsInChildren<Button>(), Is.EqualTo(new[] { leave }));
+                leave.onClick.Invoke();
+                Assert.That(game.Hud.HasModal, Is.False);
             }
             finally
             {
@@ -1834,7 +1844,9 @@ namespace Workerborn.Tests
             Assert.That(previousDay.interactable, Is.False);
             var fullRow = map.GetComponentInChildren<PartTimeScheduleRowView>();
             var fullMarker = map.GetComponentInChildren<VillageMapView>().transform.Find("Job location");
-            var workplace = game.FindInteraction(VillageRole.Farmer).transform;
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            var workplace = farmer.transform;
+            var guide = game.Hud.GetComponentInChildren<GroundTrackingGuide>();
             Vector3 position = workplace.position;
             try
             {
@@ -1849,22 +1861,27 @@ namespace Workerborn.Tests
                 fullRow.OnPointerClick(pointer);
                 yield return Until(() => miniMarker.gameObject.activeSelf && fullMarker.gameObject.activeSelf, 2f);
                 Assert.That(miniMarker.Find("Direction arrow").gameObject.activeSelf, Is.True);
-                var waypoint = UnityEngine.Object.FindFirstObjectByType<JobWaypointView>();
-                var pin = waypoint.GetComponentInChildren<Image>(true);
-                Assert.That(pin.gameObject.activeSelf, Is.False);
-                Assert.That(waypoint.GetComponent<Canvas>().sortingOrder, Is.GreaterThan(game.Hud.GetComponent<Canvas>().sortingOrder));
+                Assert.That(guide.Visible, Is.True);
+                var ground = GameObject.Find("Ground tracking guide").GetComponent<MeshRenderer>();
+                Assert.That(ground.GetComponentInParent<Canvas>(), Is.Null);
+                Assert.That(ground.sharedMaterial.color.a, Is.LessThan(1f));
                 Vector3 direction = Vector3.ProjectOnPlane(workplace.position - game.Worker.StandingPosition, Vector3.up).normalized;
-                Assert.That(Vector3.Distance(waypoint.Direction, direction), Is.LessThan(.001f));
+                Assert.That(Vector3.Distance(guide.Direction, direction), Is.LessThan(.001f));
                 Vector3 right = Vector3.ProjectOnPlane(game.WorldCamera.transform.right, Vector3.up).normalized;
                 workplace.position = game.Worker.StandingPosition + right;
                 yield return null;
                 yield return null;
-                Assert.That(pin.gameObject.activeSelf, Is.True);
-                Assert.That(Vector3.Distance(waypoint.Direction, right), Is.LessThan(.001f));
+                var nameplate = names.GetComponentsInChildren<WorldNameplateView>().Single(view => view.Subject == farmer);
+                Assert.That(nameplate.transform.Find("Tracking left").gameObject.activeInHierarchy, Is.True);
+                Assert.That(nameplate.transform.Find("Tracking right").gameObject.activeInHierarchy, Is.True);
+                Assert.That(Vector3.Distance(guide.Direction, right), Is.LessThan(.001f));
                 Assert.That(fullMarker.gameObject.activeSelf, Is.True);
                 fullRow.transform.Find("Job tracking").GetComponent<Button>().onClick.Invoke();
                 yield return Until(() => !miniMarker.gameObject.activeSelf && !fullMarker.gameObject.activeSelf, 2f);
-                Assert.That(waypoint.gameObject.activeSelf, Is.False);
+                Assert.That(guide.Visible, Is.False);
+                Assert.That(nameplate.transform.Find("Tracking left").gameObject.activeSelf, Is.False);
+                fullRow.transform.Find("Job tracking").GetComponent<Button>().onClick.Invoke();
+                yield return Until(() => guide.Visible, 2f);
             }
             finally
             {
@@ -1873,11 +1890,36 @@ namespace Workerborn.Tests
 
             var state = game.State;
             state.AdvanceTime((state.Rules.JobEnd - state.Minute + 10) / state.Rules.MinutesPerSecond);
-            yield return null;
+            yield return Until(() => !guide.Visible && !miniMarker.gameObject.activeSelf && !fullMarker.gameObject.activeSelf, 2f);
+            Assert.That(game.Hud.Jobs.IsPinned(game.Hud.Jobs.Jobs.Single(job => job.Id == state.Rules.JobId)), Is.True);
             Assert.That(miniRow.gameObject.activeInHierarchy, Is.False);
             Assert.That(miniSchedule.transform.Find("Empty schedule").GetComponent<TMP_Text>().text, Is.EqualTo("오늘 일정 종료"));
             Assert.That(fullRow.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Job status").text,
                 Is.EqualTo("마감"));
+        }
+
+        [UnityTest]
+        public IEnumerator QuestTrackingFollowsTheAvailableObjectiveAndHidesWhenWorkCloses()
+        {
+            var state = game.State;
+            Assert.That(state.TryAcceptJob(), Is.True);
+            game.Hud.OpenQuestDetail(VillageQuestPage.FarmJob);
+            var detail = UnityEngine.Object.FindFirstObjectByType<QuestDetailWindowView>();
+            FindButton(detail, "추적하기").onClick.Invoke();
+            yield return Until(() => game.Hud.TrackedTarget is HarvestableCrop, 2f);
+            Assert.That(state.Inventory.TryAdd(state.Rules.JobItemId, state.JobRequirement), Is.True);
+            yield return Until(() => game.Hud.TrackedTarget == game.FindInteraction(VillageRole.Farmer), 2f);
+
+            state.AdvanceTime((state.Rules.JobEnd - state.Minute + 10) / state.Rules.MinutesPerSecond);
+            yield return Until(() => game.Hud.TrackedTarget == null, 2f);
+            FindButton(detail, "추적 해제").onClick.Invoke();
+            Assert.That(game.Hud.IsTrackingQuest(VillageQuestPage.FarmJob), Is.False);
+
+            game.Hud.OpenQuestDetail(VillageQuestPage.LegendFounding);
+            FindButton(detail, "추적하기").onClick.Invoke();
+            yield return null;
+            Assert.That(game.Hud.IsTrackingQuest(VillageQuestPage.LegendFounding), Is.True);
+            Assert.That(game.Hud.TrackedTarget, Is.Null);
         }
 
         [UnityTest]

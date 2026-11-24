@@ -355,19 +355,23 @@ namespace Workerborn
 
         private int BaseWorkCost(CropDefinition work) => work.StaminaCost > 0 ? work.StaminaCost : State.Rules.HarvestEnergy;
 
-        public bool CanHarvest(HarvestableCrop target)
+        public bool CanHarvest(HarvestableCrop target) => CanHarvest(target, showNotice: true);
+
+        private bool CanHarvest(HarvestableCrop target, bool showNotice)
         {
             if (State.AwaitingIncarnation)
                 return false;
             var work = target.Definition;
             if (work.RequiredTool != null && !State.HasTool(work.RequiredTool.Id))
             {
-                hud.ShowToast(work.RequiredTool.DisplayName + "을 주무기에 장착해 주세요.");
+                if (showNotice)
+                    hud.ShowToast(work.RequiredTool.DisplayName + "을 주무기에 장착해 주세요.");
                 return false;
             }
             if (State.Energy >= State.WorkEnergyCost(work.Skill, work.ItemId, BaseWorkCost(work)))
                 return true;
-            hud.ShowToast("스태미나가 부족합니다.");
+            if (showNotice)
+                hud.ShowToast("스태미나가 부족합니다.");
             return false;
         }
 
@@ -431,6 +435,12 @@ namespace Workerborn
 
         internal void PlayCorpseDespawn(Vector3 position) => effects?.PlayCorpseDespawn(position);
 
+        internal void ShowCombatHit(Transform visual, Vector3 point)
+        {
+            effects?.PlayCombatHit(point);
+            HitFlash.PlayOn(visual);
+        }
+
         internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount)
         {
             var prefab = reward != null ? reward.GroundPrefab : null;
@@ -457,6 +467,7 @@ namespace Workerborn
             int applied = State.TakeHit(damage);
             if (applied <= 0)
                 return;
+            ShowCombatHit(player.VisualRoot, worker.transform.position + Vector3.up * 1.1f);
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "-" + applied, new Color(1f, .52f, .42f));
             if (State.Health <= 0)
                 worker.Cancel();

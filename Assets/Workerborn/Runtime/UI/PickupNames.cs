@@ -25,6 +25,7 @@ namespace Workerborn
                 return;
             bool alt = WorkerbornInput.Held("Gameplay/Names");
             var canvas = (RectTransform)transform;
+            var tracked = game.Hud.TrackedTarget;
 
             removed.Clear();
             foreach (var pair in names)
@@ -41,7 +42,7 @@ namespace Workerborn
             foreach (var target in WorldInteractable.Active)
             {
                 if (!CanDisplay(target) || !game.SharesMap(target.transform.position) ||
-                    !target.ShowNameByDefault && !alt || names.ContainsKey(target))
+                    (!target.ShowNameByDefault && !alt && target != tracked) || names.ContainsKey(target))
                     continue;
                 var view = nameplates.Rent();
                 view.Bind(target, game.Targeting);
@@ -52,7 +53,7 @@ namespace Workerborn
             {
                 var target = pair.Key;
                 var view = pair.Value;
-                if ((!alt && !target.ShowNameByDefault) ||
+                if ((!alt && !target.ShowNameByDefault && target != tracked) ||
                     !TryProject(game, canvas, target.transform.position, target.NamePosition, out var point, out float depth))
                 {
                     view.gameObject.SetActive(false);
@@ -65,6 +66,7 @@ namespace Workerborn
                         targeting != null && (targeting.CurrentTarget == monster || targeting.IsOverNameplate(view));
                     view.SetHealth(showHealth, monster.Health, monster.Combat.Health);
                 }
+                view.SetTracked(target == tracked);
                 view.SetBox(alt);
                 view.PlaceAt(point);
                 IncludeDepth(view.transform, depth);
