@@ -5,14 +5,16 @@ using UnityEngine.UI;
 
 namespace Workerborn
 {
-    // A pointer proxy for the same WorldInteractable as its 3D collider.
+    // An interactive name can act as a pointer proxy for its 3D target.
     [DefaultExecutionOrder(-40)]
-    public class WorldNameplateView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
+    public sealed class WorldNameplateView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
     {
         [SerializeField]
         private TMP_Text label;
         [SerializeField]
         private Image background;
+        [SerializeField] private RectTransform healthBar;
+        [SerializeField] private Image healthFill;
         [SerializeField]
         private Vector2 padding = new Vector2(14f, 6f);
         [SerializeField]
@@ -28,9 +30,11 @@ namespace Workerborn
         [SerializeField] private Color itemName = Color.white;
         [SerializeField] private Color enemyName = new Color(1f, .63f, .35f);
         private bool boxVisible, pointerInside, pointerDown;
+        private float nameWidth, nameHeight;
         private PointerTargeting targeting;
         private WorldTargetReference target;
         public WorldInteractable Target => target.Target;
+        internal WorldInteractable Subject => target.Subject;
         public bool Hovered => boxVisible && pointerInside;
         public RectTransform Rect => (RectTransform)transform;
         internal NameplateSlot LayoutSlot { get; } = new NameplateSlot();
@@ -40,7 +44,9 @@ namespace Workerborn
         {
             this.target = new WorldTargetReference(target);
             targeting = controller;
-            SetText(text ?? target.DisplayName);
+            SetText(text ?? (target is GroundPickup { Quantity: > 1 } item
+                ? $"{item.DisplayName} ×{item.Quantity}" : target.DisplayName));
+            SetHealth(false);
             SetBox(false);
         }
 
@@ -61,14 +67,37 @@ namespace Workerborn
         {
             target = default;
             targeting = null;
+            SetHealth(false);
             SetBox(false);
         }
 
         public void SetText(string text)
         {
             label.text = text;
-            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(48, label.preferredWidth + padding.x));
-            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(22, label.preferredHeight + padding.y));
+            nameWidth = Mathf.Max(48, label.preferredWidth + padding.x);
+            nameHeight = Mathf.Max(22, label.preferredHeight + padding.y);
+            Resize();
+        }
+
+        internal void SetHealth(bool visible, int health = 0, int maximum = 0)
+        {
+            visible &= maximum > 0;
+            if (visible)
+                healthFill.fillAmount = Mathf.Clamp01((float)health / maximum);
+            if (healthBar.gameObject.activeSelf == visible)
+                return;
+            healthBar.gameObject.SetActive(visible);
+            Resize();
+        }
+
+        private void Resize()
+        {
+            bool showHealth = healthBar.gameObject.activeSelf;
+            float healthHeight = showHealth ? healthBar.sizeDelta.y + 4f : 0f;
+            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                showHealth ? Mathf.Max(nameWidth, healthBar.sizeDelta.x + 10f) : nameWidth);
+            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, nameHeight + healthHeight);
+            label.rectTransform.offsetMin = new Vector2(0f, healthHeight);
         }
 
         public void SetBox(bool visible)
@@ -87,7 +116,7 @@ namespace Workerborn
             bool alt = boxVisible && WorkerbornInput.Held("Gameplay/Names");
             var current = alt ? Target : null;
             background.raycastTarget = current != null;
-            label.color = !alt ? nameColor : current switch
+            label.color = !alt ? nameColor : Subject switch
             {
                 MonsterInteractable => enemyName,
                 GroundPickup => itemName,

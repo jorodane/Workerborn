@@ -6,7 +6,7 @@ namespace Workerborn
 {
     public sealed class PlayerOverheadView : MonoBehaviour
     {
-        [SerializeField] private TMP_Text playerName;
+        [SerializeField] private WorldNameplateView playerName;
         [SerializeField] private TMP_Text speech;
         [SerializeField] private RectTransform bubble;
         [SerializeField, Min(80f)] private float bubbleWidth = 300f;
@@ -26,7 +26,8 @@ namespace Workerborn
         private bool resizing;
         private RectTransform Rect => (RectTransform)transform;
 
-        internal void SetName(string name) => playerName.text = name;
+        internal WorldNameplateView Nameplate => playerName;
+        internal void SetName(string name) => playerName.SetText(name);
 
         internal void Say(string message)
         {
@@ -103,7 +104,7 @@ namespace Workerborn
         private void SetSize(Vector2 size)
         {
             bubble.sizeDelta = size;
-            playerName.rectTransform.anchoredPosition = size.y > 0f ? Vector2.up * (size.y + NameGap) : Vector2.zero;
+            playerName.Rect.anchoredPosition = size.y > 0f ? Vector2.up * (size.y + NameGap) : Vector2.zero;
         }
 
         private void TrimEarlierText(int offset)

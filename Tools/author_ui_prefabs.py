@@ -135,11 +135,6 @@ def author():
     _,fallback=b.text('Fallback',root,'',(28,28),(2,-2),10,align=4)
     pointer=b.script(root,'Village/InventoryItemDrag.cs')
     item=b.script(root,'UI/UiItemView.cs',icon=ref(ic),count=ref(count),fallback=ref(fallback),background=ref(background),button=ref(button),pointer=ref(pointer));save(b,'ItemTile',item)
-    b=UIBuilder();root=b.ui('Pickup name',None,(74,26),(0,0),(.5,.5),(.5,.5),(0,0,0,0));background=b.image_component(root)
-    _,label=b.text('Name',root,'감자',(74,26),(0,0),13,align=4,anchor=(.5,.5),pivot=(.5,.5))
-    label_transform=next(v for c,i,k,v,st in b.docs if k=='RectTransform' and v['m_GameObject']['fileID']==next(v for c,i,k,v,st in b.docs if i==label)['m_GameObject']['fileID'])
-    label_transform.update(m_AnchorMin=vec(0,0),m_AnchorMax=vec(1,1),m_SizeDelta=vec(0,0),m_AnchoredPosition=vec(0,0))
-    view=b.script(root,'UI/PickupNameView.cs',label=ref(label),background=ref(background),padding=vec(14,6),normalColor=color(0,0,0,.65),hoverColor=color(.23,.29,.32,.85),pressedColor=color(.42,.31,.12,.95));save(b,'PickupName',view)
     b=UIBuilder();root=b.ui('Target link',None,(0,0),(0,0),(.5,.5),(.5,.5));line=b.ui('Line',root,(100,1.5),(0,0),(.5,.5),(0,.5),(1,.88,.36,1));line_id=b.image_component(line);next(v for c,i,k,v,st in b.docs if i==line_id).update(m_RaycastTarget=0,m_Material=assetref(BASE/'Materials/TargetLink.mat'))
     view=b.script(root,'UI/TargetLinkView.cs',line=ref(line_id),thickness=1.5);save(b,'TargetLink',view)
 
@@ -154,11 +149,11 @@ def author():
     _,label=b.text('Action',root,'',(136,28),(0,0),13,align=0)
     view=b.script(root,'UI/WorldTooltipView.cs',label=ref(label),cursorOffset=vec(18,-22))
     save(b,'WorldTooltip',view)
-    b=UIBuilder();root=b.ui('NPC name',None,(160,28),(0,0),(0,0),(.5,0),(0,0,0,0));background=b.image_component(root)
-    _,label=b.text('Name',root,'',(160,28),(0,0),13,align=4)
-    label_transform=next(v for c,i,k,v,st in b.docs if k=='RectTransform' and v['m_GameObject']['fileID']==next(v for c,i,k,v,st in b.docs if i==label)['m_GameObject']['fileID'])
-    label_transform.update(m_AnchorMin=vec(0,0),m_AnchorMax=vec(1,1),m_SizeDelta=vec(0,0),m_AnchoredPosition=vec(0,0),m_Pivot=vec(.5,.5))
-    view=b.script(root,'UI/WorldNameplateView.cs',label=ref(label),background=ref(background),padding=vec(14,6),normalColor=color(0,0,0,.65),hoverColor=color(.23,.29,.32,.85),pressedColor=color(.42,.31,.12,.95));save(b,'NpcName',view)
+    for name, script in (('WorldNameplate', 'WorldNameplateView'), ('PlayerOverhead', 'PlayerOverheadView'), ('VillageChat', 'VillageChatView')):
+        path = PREFABS / f'{name}.prefab'
+        script_guid = guid(BASE / 'Runtime/UI' / f'{script}.cs')
+        component = next(d['_id'] for d in geo.documents(ROOT/path) if d.get('MonoBehaviour', {}).get('m_Script', {}).get('guid') == script_guid)
+        results[name] = (path, component)
     b=UIBuilder();root,text=b.text('FloatingText',None,'',(260,42),(0,0),21,align=4,anchor=(0,0),pivot=(.5,0));save(b,'FloatingText',text)
 
     # Real window content is saved in each prefab, rather than reconstructed by a window factory.
@@ -258,7 +253,7 @@ def author():
     view=b.script(root,'UI/ConversationWindowView.cs',**fields,speaker=ref(speaker),occupation=ref(occupation),bodyTitle=ref(body_title),body=ref(body_text),keywords=ref(keywords['t']),actions=ref(actions['t']),leave=ref(leave),portrait=ref(portrait));save(b,'ConversationWindow',view)
 
     window_names=['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','SystemWindow','ItemTooltip','ItemContext','ShopWindow','QuantityWindow','ConversationWindow']
-    fields=dict(windows=[source(n) for n in window_names],item=source('ItemTile'),inventoryCell=source('InventoryCell'),actionButton=source('ActionButton'),listRow=source('ListRow'),pickupName=source('PickupName'),skillBalloon=source('SkillBalloon'),worldTooltip=source('WorldTooltip'),npcName=source('NpcName'),floatingText=source('FloatingText'))
+    fields=dict(windows=[source(n) for n in window_names],item=source('ItemTile'),inventoryCell=source('InventoryCell'),actionButton=source('ActionButton'),listRow=source('ListRow'),skillBalloon=source('SkillBalloon'),worldTooltip=source('WorldTooltip'),nameplate=source('WorldNameplate'),floatingText=source('FloatingText'),playerOverhead=source('PlayerOverhead'),chat=source('VillageChat'))
     write(BASE/'Data/VillageUI.asset',[(114,11400000,'MonoBehaviour',mono('UI/VillageUiLibrary.cs',name='VillageUI',**fields),False)])
     (ROOT/'Tools/ui-prefab-manifest.json').write_text(json.dumps({name:dict(path=str(path),component=identifier) for name,(path,identifier) in results.items()},indent=2)+'\n')
     print('Authored',len(results),'UI prefabs with complete editable layouts and a shared prefab library.')

@@ -8,6 +8,7 @@ namespace Workerborn
     {
         private VillageChatView chat;
         private PlayerOverheadView localOverhead;
+        private float playerHealthVisibleUntil;
         internal bool IsChatTyping => chat != null && chat.IsTyping;
 
         private void InitializeChat()
@@ -27,6 +28,20 @@ namespace Workerborn
         internal void PositionPlayerOverhead(PlayerOverheadView overhead, Vector3 position)
         {
             overhead.Position(game.WorldCamera, (RectTransform)overhead.transform.parent, position, game.SharesMap(position));
+        }
+
+        internal void ShowPlayerHealthUntil(float until) => playerHealthVisibleUntil = until;
+
+        private void UpdatePlayerOverhead()
+        {
+            if (localOverhead == null)
+                return;
+            PositionPlayerOverhead(localOverhead, game.PlayerActor.NamePosition);
+            var targeting = game.Targeting;
+            var state = game.State;
+            bool show = !state.AwaitingIncarnation && (game.Worker.IsFighting || Time.unscaledTime < playerHealthVisibleUntil ||
+                targeting != null && (targeting.IsHoveringPlayer || targeting.IsOverNameplate(localOverhead.Nameplate)));
+            localOverhead.Nameplate.SetHealth(show, state.Health, state.HealthLimit);
         }
 
         internal void ShowChat(string speaker, string message, bool local)

@@ -167,6 +167,49 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator AHenWalkingAwayInterruptsHarvestWithoutSpendingACharge()
+        {
+            var hen = UnityEngine.Object.FindFirstObjectByType<AnimalNpc>();
+            var wander = hen.GetComponent<AnimalWander>();
+            var rest = typeof(AnimalWander).GetField("restSeconds",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            rest.SetValue(wander, Vector2.one * .5f);
+            wander.SetSuspended(true);
+            Assert.That(NavMesh.SamplePosition(hen.transform.position + Vector3.right, out var stand, .8f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(stand.position), Is.True);
+
+            int charges = hen.Remaining;
+            int energy = game.State.Energy;
+            int drops = game.GroundItemCount;
+            string notice = null;
+            void Capture(string message) => notice = message;
+            game.Worker.Message += Capture;
+            try
+            {
+                game.Worker.CommandHarvest(hen);
+                yield return Until(() => game.Worker.ActiveCrop == hen, 2f);
+                Vector3 home = hen.transform.position;
+                wander.SetSuspended(false);
+                yield return Until(() => wander.IsWalking, 2f);
+                Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
+                Assert.That(hen.Progress, Is.Zero);
+                Assert.That(hen.Remaining, Is.EqualTo(charges));
+                Assert.That(game.State.Energy, Is.EqualTo(energy));
+                Assert.That(game.GroundItemCount, Is.EqualTo(drops));
+                Assert.That(notice, Does.Contain("채집에 실패"));
+                yield return Until(() => Vector3.Distance(home, hen.transform.position) > .12f, 2f);
+                yield return Until(() => !wander.IsWalking, 8f);
+                Vector3 offset = hen.transform.position - home;
+                offset.y = 0f;
+                Assert.That(offset.magnitude, Is.LessThanOrEqualTo(3.1f));
+            }
+            finally
+            {
+                game.Worker.Message -= Capture;
+            }
+        }
+
+        [UnityTest]
         public IEnumerator RabbitRequiresAFreshClickForEachStrikeAndDropsLootOnDefeat()
         {
             var rabbit = UnityEngine.Object.FindObjectsByType<MonsterInteractable>(FindObjectsSortMode.None)
@@ -174,16 +217,30 @@ namespace Workerborn.Tests
             var approach = rabbit.transform.position + Vector3.right * .75f;
             Assert.That(NavMesh.SamplePosition(approach, out var at, .4f, NavMesh.AllAreas), Is.True);
             game.Worker.WarpTo(at.position);
+            game.CameraRig.SnapToTarget();
+            WorldNameplateView nameplate = null;
+            yield return Until(() =>
+            {
+                nameplate = UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None)
+                    .SingleOrDefault(view => view.Subject == rabbit);
+                return nameplate != null;
+            }, 2f);
+            var healthBar = nameplate.transform.Find("Health bar");
             int health = rabbit.Health;
             int stamina = game.State.Energy;
             int drops = game.GroundItemCount;
             rabbit.RequestInteraction(game.Worker);
+            yield return Until(() => healthBar.gameObject.activeSelf, 2f);
             yield return Until(() => rabbit.Health < health, 3f);
+            Assert.That(rabbit.HealthVisibleUntil - Time.unscaledTime, Is.InRange(59f, 60f));
             int remaining = rabbit.Health;
             Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Attacking));
             rabbit.RequestInteraction(game.Worker);
             yield return Until(() => game.State.Energy < stamina && game.Worker.Action == WorkerAction.Idle, 3f);
             Assert.That(rabbit.Health, Is.EqualTo(remaining), "A click during the delay must not queue a strike.");
+            Assert.That(healthBar.gameObject.activeSelf, Is.True);
+            var fill = healthBar.Find("Health fill").GetComponent<Image>();
+            Assert.That(fill.fillAmount, Is.EqualTo((float)remaining / rabbit.Combat.Health).Within(.01f));
 
             while (!rabbit.IsDefeated)
             {
@@ -193,6 +250,8 @@ namespace Workerborn.Tests
             }
             Assert.That(rabbit.LootTaken, Is.True);
             Assert.That(rabbit.CanInteract, Is.False);
+            Assert.That(nameplate.Target, Is.Null);
+            Assert.That(fill.fillAmount, Is.Zero);
             Assert.That(game.GroundItemCount, Is.EqualTo(drops + rabbit.Combat.LootCount));
             rabbit.RequestInteraction(game.Worker);
             Assert.That(game.GroundItemCount, Is.EqualTo(drops + rabbit.Combat.LootCount));
@@ -364,8 +423,8 @@ namespace Workerborn.Tests
                 UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.LeftAlt));
                 yield return null;
                 yield return null;
-                PickupNameView view = null;
-                foreach (var candidate in UnityEngine.Object.FindObjectsByType<PickupNameView>(FindObjectsSortMode.None))
+                WorldNameplateView view = null;
+                foreach (var candidate in UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None))
                     if (candidate.Target == item)
                         view = candidate;
                 Assert.That(view, Is.Not.Null);
@@ -559,7 +618,7 @@ namespace Workerborn.Tests
         public IEnumerator NameplateColorsAndPointerAreaOnlyActivateWithAlt()
         {
             var keyboard = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
-            var view = UnityEngine.Object.Instantiate(game.Hud.Library.NpcName, game.Hud.transform);
+            var view = UnityEngine.Object.Instantiate(game.Hud.Library.Nameplate, game.Hud.transform);
             try
             {
                 view.Bind(game.FindInteraction(VillageRole.Farmer), null);
@@ -629,8 +688,8 @@ namespace Workerborn.Tests
                 second.Initialize(game.Crops[0].Definition, at, at, true);
                 yield return null;
                 yield return null;
-                PickupNameView one = null, two = null;
-                foreach (var view in UnityEngine.Object.FindObjectsByType<PickupNameView>(FindObjectsSortMode.None))
+                WorldNameplateView one = null, two = null;
+                foreach (var view in UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None))
                 {
                     if (view.Target == first)
                         one = view;
@@ -753,7 +812,7 @@ namespace Workerborn.Tests
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftAlt));
                 yield return null;
                 yield return null;
-                var name = UnityEngine.Object.FindObjectsByType<PickupNameView>(FindObjectsSortMode.None).Single(v => v.Target == item);
+                var name = UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None).Single(v => v.Target == item);
                 Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, name.Rect.TransformPoint(name.Rect.rect.center));
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = screen, buttons = 2 });
                 yield return null;
@@ -1573,7 +1632,11 @@ namespace Workerborn.Tests
             try
             {
                 Canvas.ForceUpdateCanvases();
+                var playerHealth = overhead.Nameplate.transform.Find("Health bar");
+                yield return MovePointer(overhead.Nameplate.Rect);
+                Assert.That(playerHealth.gameObject.activeSelf, Is.True);
                 yield return MovePointer(historyViewport);
+                Assert.That(playerHealth.gameObject.activeSelf, Is.False);
                 Assert.That(inputFrame.alpha, Is.Zero);
                 Assert.That(historyFrame.enabled, Is.False);
                 yield return MovePointer((RectTransform)inputFrame.transform);
@@ -1608,7 +1671,7 @@ namespace Workerborn.Tests
                 var history = chat.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Messages");
                 Assert.That(history.text, Does.Contain(game.LegendPlayerName + " : 첫 번째"));
                 Assert.That(bubble.text, Is.EqualTo("두 번째\n세 번째\n네 번째"));
-                Assert.That(label.rectTransform.anchoredPosition.y, Is.GreaterThan(0));
+                Assert.That(label.GetComponentInParent<WorldNameplateView>().Rect.anchoredPosition.y, Is.GreaterThan(0));
 
                 input.text = new string('W', 225) + "끝";
                 yield return TapEnter();
@@ -1915,8 +1978,8 @@ namespace Workerborn.Tests
             return WorldInteractable.Active.OfType<GroundPickup>().Single(item => item.ItemId == itemId);
         }
 
-        private static PickupNameView FindPickupName(GroundPickup item) =>
-            UnityEngine.Object.FindObjectsByType<PickupNameView>(FindObjectsSortMode.None).SingleOrDefault(view => view.Target == item);
+        private static WorldNameplateView FindPickupName(GroundPickup item) =>
+            UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None).SingleOrDefault(view => view.Target == item);
 
         private Vector3 NearbyDestination()
         {

@@ -47,6 +47,7 @@ namespace Workerborn
         private System.Action onInteractionArrival;
         private InventoryEntry pendingDrop;
         private Vector3 dropPoint;
+        private Vector3 approachTargetPosition;
         private VillagePrototype village;
         private int collectedCount;
         private bool walkPath;
@@ -70,6 +71,10 @@ namespace Workerborn
         public HarvestableCrop ActiveCrop => Action == WorkerAction.Harvesting ? cropTarget : null;
         public HarvestableCrop FocusCrop => HoveredCrop != null ? HoveredCrop : cropTarget != null ? cropTarget : LastCrop;
         public int TotalCollected => village != null ? village.State.Inventory.Count(ItemIds.Potato) : collectedCount;
+        internal bool IsFighting => strikeTarget is MonsterInteractable { Combat: not null } ||
+            interactionTarget is MonsterInteractable { Combat: not null };
+        internal bool IsInteractingWith(WorldInteractable target) =>
+            target == interactionTarget || target == strikeTarget || target == cropTarget;
 
         public event Action<string> Message;
         public void BindVillage(VillagePrototype game) => village = game;
@@ -438,7 +443,10 @@ namespace Workerborn
                 return false;
 
             var path = new NavMeshPath();
-            return agent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete && FollowPath(path, walk);
+            if (!agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete || !FollowPath(path, walk))
+                return false;
+            approachTargetPosition = target;
+            return true;
         }
 
         private bool FollowPath(NavMeshPath path, bool walk = false)
@@ -491,6 +499,8 @@ namespace Workerborn
 
             if (agent.remainingDistance > agent.stoppingDistance + 0.06f)
                 return;
+            if (RetryAnimalApproach())
+                return;
             agent.isStopped = true;
             agent.ResetPath();
             if (pendingDrop != null)
@@ -526,6 +536,26 @@ namespace Workerborn
                 Action = WorkerAction.Idle;
         }
 
+        private bool RetryAnimalApproach()
+        {
+            WorldInteractable target = cropTarget != null ? cropTarget : interactionTarget;
+            if (target == null || !target.CanInteract || !target.TryGetComponent<AnimalWander>(out _) ||
+                InReach(target.transform.position, target.InteractionDistance) ||
+                (target.transform.position - approachTargetPosition).sqrMagnitude < .2f * .2f)
+                return false;
+            var crop = cropTarget;
+            var arrival = onInteractionArrival;
+            if (!NavigateNear(target.transform.position, target.InteractionDistance * .7f))
+                return false;
+            cropTarget = crop;
+            if (crop == null)
+            {
+                interactionTarget = target;
+                onInteractionArrival = arrival;
+            }
+            return true;
+        }
+
         private bool FinishDrop()
         {
             var requested = pendingDrop;
@@ -546,9 +576,10 @@ namespace Workerborn
             }
             if (!InReach(HarvestPoint, cropTarget.InteractionDistance + .15f) || !cropTarget.TryBegin(this))
             {
-                bool fishing = FishingPoint.HasValue;
+                string message = FishingPoint.HasValue ? "지금 이곳에서는 낚시할 수 없어요." : cropTarget is AnimalNpc { IsWalking: true }
+                    ? "동물이 멈춘 뒤 다시 채집해 주세요." : "이 작물에서는 지금 수확할 수 없어요.";
                 Cancel();
-                Message?.Invoke(fishing ? "지금 이곳에서는 낚시할 수 없어요." : "이 작물에서는 지금 수확할 수 없어요.");
+                Message?.Invoke(message);
                 return;
             }
 
@@ -586,6 +617,14 @@ namespace Workerborn
             cropTarget = null;
             ClearFishingCast();
             Action = WorkerAction.Idle;
+        }
+
+        internal void HarvestInterrupted(HarvestableCrop crop, string message)
+        {
+            if (ActiveCrop != crop)
+                return;
+            Cancel();
+            Message?.Invoke(message);
         }
 
         internal bool InReach(Vector3 position, float range)
@@ -652,6 +691,7 @@ namespace Workerborn
             inventory.Clear();
             collectedCount = 0;
             nextStrikeAt = 0;
+            village?.Hud.ShowPlayerHealthUntil(0f);
             LastCrop = null;
             HoveredCrop = null;
             HoveredPickup = null;

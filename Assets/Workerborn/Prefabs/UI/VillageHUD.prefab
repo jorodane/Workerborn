@@ -3141,7 +3141,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b0c04d6651b55ecb86fe0d5ad57f9d97, type: 3}
   m_Name: ''
   m_EditorClassIdentifier: ''
-  namePrefab: {fileID: 100009, guid: 2822bb6d0a0b5ecd8364935424ead97c, type: 3}
   spacing: 3
   edgeMargin: 8
 --- !u!1001 &832576575

@@ -17,26 +17,23 @@ namespace Workerborn
         [SerializeField]
         private UiListRow listRow;
         [SerializeField]
-        private PickupNameView pickupName;
-        [SerializeField]
         private SkillBalloonView skillBalloon;
         [SerializeField]
         private WorldTooltipView worldTooltip;
         [SerializeField]
-        private WorldNameplateView npcName;
+        private WorldNameplateView nameplate;
         [SerializeField]
         private TMP_Text floatingText;
         [SerializeField] private PlayerOverheadView playerOverhead;
         [SerializeField] private VillageChatView chat;
         public SkillBalloonView SkillBalloon => skillBalloon;
         public WorldTooltipView WorldTooltip => worldTooltip;
-        public WorldNameplateView NpcName => npcName;
+        public WorldNameplateView Nameplate => nameplate;
         public TMP_Text FloatingText => floatingText;
         public UiItemView Item => item;
         public RectTransform InventoryCell => inventoryCell;
         public UiActionView ActionButton => actionButton;
         public UiListRow ListRow => listRow;
-        public PickupNameView PickupName => pickupName;
         public PlayerOverheadView PlayerOverhead => playerOverhead;
         public VillageChatView Chat => chat;
 

@@ -15,10 +15,6 @@
     "path": "Assets/Workerborn/Prefabs/UI/ItemTile.prefab",
     "component": 100023
   },
-  "PickupName": {
-    "path": "Assets/Workerborn/Prefabs/UI/PickupName.prefab",
-    "component": 100009
-  },
   "TargetLink": {
     "path": "Assets/Workerborn/Prefabs/UI/TargetLink.prefab",
     "component": 100007
@@ -31,8 +27,8 @@
     "path": "Assets/Workerborn/Prefabs/UI/WorldTooltip.prefab",
     "component": 100009
   },
-  "NpcName": {
-    "path": "Assets/Workerborn/Prefabs/UI/NpcName.prefab",
+  "WorldNameplate": {
+    "path": "Assets/Workerborn/Prefabs/UI/WorldNameplate.prefab",
     "component": 100014
   },
   "FloatingText": {

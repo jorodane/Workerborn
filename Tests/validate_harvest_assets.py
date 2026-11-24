@@ -210,6 +210,11 @@ animals=behaviours(scene,'Village/AnimalNpc.cs')
 assert len(animals)==2 and all(a['keepVisualWhenDepleted'] for a in animals)
 encounters=[a for a in behaviours(scene,'Interaction/MonsterInteractable.cs') if a.get('combat',{}).get('fileID')]
 assert len(encounters)==1 and encounters[0]['persistentId']
+wanderers = behaviours(scene, 'World/AnimalWander.cs')
+assert {w['m_GameObject']['fileID'] for w in wanderers} == {a['m_GameObject']['fileID'] for a in animals + encounters}
+for wanderer in wanderers:
+    agent = next(d['NavMeshAgent'] for d in scene if d.get('NavMeshAgent', {}).get('m_GameObject') == wanderer['m_GameObject'])
+    assert not agent['m_Enabled'] and agent['m_Speed'] > 0 and wanderer['radius'] > 0
 rabbit_profile=docs(resolve(encounters[0]['combat']))[0]['MonoBehaviour']
 assert rabbit_profile['health']>0 and rabbit_profile['counterDelay']>0
 assert resolve(rabbit_profile['loot']).stem=='rabbit_meat' and rabbit_profile['lootCount']>0
@@ -344,17 +349,16 @@ for p in (CONTENT/'Prefabs/UI').glob('*.prefab'):
         assert v['m_fontAsset']['guid']==guid_for(CONTENT/'Fonts/WorkerbornKorean-SDF.asset')
         assert v['m_sharedMaterial']['fileID'] and not v['m_RaycastTarget'];texts+=1
 
-def nameplate_label(prefab, view, field):
-    rows = docs(CONTENT / 'Prefabs/UI' / f'{prefab}.prefab')
-    component = behaviours(rows, f'UI/{view}.cs')[0]
-    return next(row['MonoBehaviour'] for row in rows if row['_id'] == component[field]['fileID'])
-
-npc_label = nameplate_label('NpcName', 'WorldNameplateView', 'label')
-for label in (nameplate_label('PickupName', 'PickupNameView', 'label'),
-              nameplate_label('PlayerOverhead', 'PlayerOverheadView', 'playerName')):
-    for field in ('m_fontAsset', 'm_sharedMaterial', 'm_fontSize', 'm_fontWeight', 'm_fontStyle',
-                  'm_characterSpacing', 'm_enableAutoSizing', 'm_TextWrappingMode', 'm_fontColor'):
-        assert label[field] == npc_label[field], field
+library = docs(CONTENT / 'Data/VillageUI.asset')[0]['MonoBehaviour']
+nameplate = library['nameplate']
+nameplate_rows = docs(resolve(nameplate))
+nameplate_view = next(row['MonoBehaviour'] for row in nameplate_rows if row['_id'] == nameplate['fileID'])
+health = next(row['MonoBehaviour'] for row in nameplate_rows if row['_id'] == nameplate_view['healthFill']['fileID'])
+assert health['m_Type'] == 3 and health['m_FillMethod'] == 0 and not health['m_RaycastTarget']
+overhead_rows = docs(resolve(library['playerOverhead']))
+overhead = behaviours(overhead_rows, 'UI/PlayerOverheadView.cs')[0]
+nested_name = next(row['MonoBehaviour'] for row in overhead_rows if row['_id'] == overhead['playerName']['fileID'])
+assert nested_name['m_CorrespondingSourceObject'] == nameplate
 
 font=next(d['MonoBehaviour']for d in docs(CONTENT/'Fonts/WorkerbornKorean-SDF.asset')if 'MonoBehaviour'in d)
 assert font['m_AtlasPopulationMode']==1 and font['m_IsMultiAtlasTexturesEnabled']==1 and font['m_SourceFontFile']['fileID']==12800000

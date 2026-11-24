@@ -5,8 +5,6 @@ namespace Workerborn
 {
     public sealed class PickupNames : MonoBehaviour
     {
-        [SerializeField]
-        private PickupNameView namePrefab;
         [SerializeField, Min(0f)]
         private float spacing = 3f;
         [SerializeField, Min(0f)]
@@ -15,8 +13,7 @@ namespace Workerborn
         private readonly List<WorldInteractable> removed = new List<WorldInteractable>();
         private readonly List<NameplateSlot> slots = new List<NameplateSlot>();
         private readonly List<WorldNameplateView> visible = new List<WorldNameplateView>();
-        private PrefabPool<PickupNameView> pickupViews;
-        private PrefabPool<WorldNameplateView> worldViews;
+        private PrefabPool<WorldNameplateView> nameplates;
         private VillagePrototype game;
         private float scroll;
         private long? scrollOrder;
@@ -24,53 +21,36 @@ namespace Workerborn
         public void Initialize(VillagePrototype owner, int prewarm)
         {
             game = owner;
-            if (namePrefab != null)
-            {
-                pickupViews = new PrefabPool<PickupNameView>(namePrefab, transform);
-                pickupViews.Prewarm(prewarm);
-            }
-            worldViews = new PrefabPool<WorldNameplateView>(game.Hud.Library.NpcName, transform);
+            nameplates = new PrefabPool<WorldNameplateView>(game.Hud.Library.Nameplate, transform);
+            nameplates.Prewarm(prewarm);
         }
 
         private void LateUpdate()
         {
-            if (game == null || pickupViews == null)
+            if (game == null)
                 return;
             bool alt = WorkerbornInput.Held("Gameplay/Names");
             var canvas = (RectTransform)transform;
 
             removed.Clear();
             foreach (var pair in names)
-                if (pair.Value.Target == null)
+                if (!CanDisplay(pair.Value.Subject))
                     removed.Add(pair.Key);
             foreach (var item in removed)
             {
                 var view = names[item];
                 view.Unbind();
-                if (view is PickupNameView pickupView)
-                    pickupViews.Return(pickupView);
-                else
-                    worldViews.Return(view);
+                nameplates.Return(view);
                 names.Remove(item);
             }
 
             foreach (var target in WorldInteractable.Active)
             {
-                if (target == null || !target.CanInteract || !game.SharesMap(target.transform.position) ||
+                if (!CanDisplay(target) || !game.SharesMap(target.transform.position) ||
                     !target.ShowNameByDefault && !alt || names.ContainsKey(target))
                     continue;
-                WorldNameplateView view;
-                if (target is GroundPickup pickup)
-                {
-                    var pickupView = pickupViews.Rent();
-                    pickupView.Bind(pickup, game.Worker);
-                    view = pickupView;
-                }
-                else
-                {
-                    view = worldViews.Rent();
-                    view.Bind(target, game.Targeting);
-                }
+                var view = nameplates.Rent();
+                view.Bind(target, game.Targeting);
                 names.Add(target, view);
             }
 
@@ -80,7 +60,7 @@ namespace Workerborn
             foreach (var pair in names)
             {
                 var screen = game.WorldCamera.WorldToScreenPoint(pair.Key.NamePosition);
-                bool onScreen = pair.Key.CanInteract && game.SharesMap(pair.Key.transform.position) && (alt || pair.Key.ShowNameByDefault) &&
+                bool onScreen = game.SharesMap(pair.Key.transform.position) && (alt || pair.Key.ShowNameByDefault) &&
                     screen.z > game.WorldCamera.nearClipPlane && screen.x >= 0 && screen.x <= Screen.width && screen.y >= 0 && screen.y <= Screen.height;
                 if (!onScreen)
                 {
@@ -88,6 +68,13 @@ namespace Workerborn
                     continue;
                 }
                 pair.Value.SetBox(alt);
+                if (pair.Key is MonsterInteractable { Combat: not null } monster)
+                {
+                    var targeting = game.Targeting;
+                    bool showHealth = monster.WasRecentlyHit || game.Worker.IsInteractingWith(monster) ||
+                        targeting != null && (targeting.CurrentTarget == monster || targeting.IsOverNameplate(pair.Value));
+                    pair.Value.SetHealth(showHealth, monster.Health, monster.Combat.Health);
+                }
                 if (pair.Value.Hovered)
                     hoveredOrder = pair.Key.NameplateOrder;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, null, out var point);
@@ -128,5 +115,8 @@ namespace Workerborn
             foreach (var view in visible)
                 view.ApplyLayout();
         }
+
+        private static bool CanDisplay(WorldInteractable target) => target != null && target.isActiveAndEnabled &&
+            (target.CanInteract || target is MonsterInteractable { WasRecentlyHit: true });
     }
 }

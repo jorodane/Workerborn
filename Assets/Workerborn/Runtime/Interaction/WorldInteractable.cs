@@ -29,7 +29,8 @@ namespace Workerborn
         }
 
         public bool IsAssigned => !ReferenceEquals(target, null);
-        public WorldInteractable Target => target != null && target.NameplateOrder == order && target.CanInteract ? target : null;
+        internal WorldInteractable Subject => target != null && target.NameplateOrder == order ? target : null;
+        public WorldInteractable Target => Subject is { CanInteract: true } current ? current : null;
     }
 
     // Shared click/selection contract. Subclasses own their gameplay behavior.

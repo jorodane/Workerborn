@@ -125,14 +125,10 @@ namespace Workerborn.Tests
             }
 
             var library = AssetDatabase.LoadAssetAtPath<VillageUiLibrary>("Assets/Workerborn/Data/VillageUI.asset");
-            foreach (var name in new WorldNameplateView[]
-            {
-                library.PickupName,
-                library.NpcName
-            }
-
-            )
-                Assert.That(name.GetComponentInChildren<TMP_Text>().fontSharedMaterial.GetFloat("_OutlineWidth"), Is.GreaterThan(0));
+            Assert.That(library.Nameplate.GetComponentInChildren<TMP_Text>().fontSharedMaterial.GetFloat("_OutlineWidth"),
+                Is.GreaterThan(0));
+            Assert.That(PrefabUtility.GetCorrespondingObjectFromSource(library.PlayerOverhead.Nameplate),
+                Is.SameAs(library.Nameplate));
         }
 
         [Test]

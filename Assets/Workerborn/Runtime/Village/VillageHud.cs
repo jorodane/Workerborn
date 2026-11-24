@@ -254,8 +254,7 @@ namespace Workerborn
                     if (view.IsFloating && view.IsOpen)
                         WindowDragHandle.KeepOnScreen(view.Rect);
             }
-            if (localOverhead != null)
-                PositionPlayerOverhead(localOverhead, game.PlayerActor.NamePosition);
+            UpdatePlayerOverhead();
             int stamina = state.StaminaLimit;
             energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;

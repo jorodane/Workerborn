@@ -12,7 +12,9 @@ namespace Workerborn
         [SerializeField] private string idleState = "Base Layer.Idle_A";
         [SerializeField] private string attackState = "Base Layer.Attack";
         [SerializeField] private string defeatedState = "Base Layer.Death";
+        private const float VisibleHealthSeconds = 60f;
         private Animator animator;
+        private AnimalWander wander;
         private HarvestWorker opponent;
         private float nextCounterAt;
         private bool counterAnimation;
@@ -28,6 +30,8 @@ namespace Workerborn
         public int Health { get; private set; }
         public bool IsDefeated => combat != null && Health == 0;
         public bool LootTaken => lootTaken;
+        internal float HealthVisibleUntil { get; private set; }
+        internal bool WasRecentlyHit => Time.unscaledTime < HealthVisibleUntil;
         internal override bool CanReceiveStrike => combat != null && CanInteract;
 
         private void Awake()
@@ -35,6 +39,7 @@ namespace Workerborn
             if (combat == null)
                 return;
             animator = GetComponentInChildren<Animator>(true);
+            wander = GetComponent<AnimalWander>();
             if (animator != null)
                 animator.applyRootMotion = false;
             ResetEncounter();
@@ -52,9 +57,11 @@ namespace Workerborn
             if (combat == null)
                 return;
             Health = Mathf.Clamp(health, 0, combat.Health);
+            HealthVisibleUntil = 0f;
             lootTaken = IsDefeated && gathered;
             opponent = null;
             counterAnimation = false;
+            wander?.SetSuspended(IsDefeated);
             if (IsDefeated)
                 Play(defeatedState, keepDefeatedPose ? 1f : 0f);
             else
@@ -85,7 +92,9 @@ namespace Workerborn
         {
             if (!CanReceiveStrike || worker.Village == null)
                 return;
-            int applied = Mathf.Min(Health, damage);
+            int applied = Mathf.Min(Health, Mathf.Max(0, damage));
+            if (applied == 0)
+                return;
             Health -= applied;
             worker.Village.Hud.ShowFloatingText(NamePosition + Vector3.up * .2f, "-" + applied, new Color(1f, .85f, .56f));
             if (IsDefeated)
@@ -97,8 +106,11 @@ namespace Workerborn
             else if (opponent != worker)
             {
                 opponent = worker;
+                wander?.SetSuspended(true);
                 nextCounterAt = Time.time + combat.CounterDelay;
             }
+            HealthVisibleUntil = Time.unscaledTime + VisibleHealthSeconds;
+            worker.Village.Hud.ShowPlayerHealthUntil(HealthVisibleUntil);
         }
 
         private void Update()
@@ -112,8 +124,13 @@ namespace Workerborn
                     Play(idleState);
                 }
             }
-            if (opponent == null || IsDefeated || Time.time < nextCounterAt ||
-                !opponent.InReach(transform.position, InteractionDistance))
+            if (opponent == null || !opponent.InReach(transform.position, InteractionDistance + .75f))
+            {
+                opponent = null;
+                wander?.SetSuspended(IsDefeated);
+                return;
+            }
+            if (IsDefeated || Time.time < nextCounterAt || !opponent.InReach(transform.position, InteractionDistance))
                 return;
             var village = opponent.Village;
             if (village == null || village.Hud.WorldActionsLocked || village.State.Health <= 0 || village.State.Energy <= 0)

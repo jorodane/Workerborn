@@ -33,6 +33,10 @@ namespace Workerborn
         private CameraVisibility visibility;
         private Terrain terrain;
         private Mesh terrainMask;
+        private CapsuleCollider playerCollider;
+        private Vector2 worldPointer;
+        private bool pointerOnWorld;
+        internal bool IsHoveringPlayer { get; private set; }
         public bool IsPressed => CurrentTarget != null && CurrentTarget == pressTarget.Target && WorkerbornInput.Held("Gameplay/Interact");
 
         private VillagePrototype game;
@@ -64,6 +68,7 @@ namespace Workerborn
         {
             game = owner;
             link = targetLink;
+            playerCollider = game.Worker.GetComponent<CapsuleCollider>();
             visibility = game.WorldCamera.GetComponent<CameraVisibility>();
             drawCommands = new CommandBuffer();
             if (outlineFilter != null && maskMaterial != null)
@@ -153,6 +158,8 @@ namespace Workerborn
         private WorldTargetReference rightTarget;
 
         public bool OverUi(Vector2 position) => UiAt(position) != null;
+        internal bool IsOverNameplate(WorldNameplateView view) => pointerOnWorld && view.isActiveAndEnabled &&
+            RectTransformUtility.RectangleContainsScreenPoint(view.Rect, worldPointer);
 
         public GameObject UiAt(Vector2 position)
         {
@@ -178,6 +185,7 @@ namespace Workerborn
 
         private void Update()
         {
+            pointerOnWorld = IsHoveringPlayer = false;
             if (game == null)
                 return;
             if (!WorkerbornInput.TryGetPointerPosition(out var cursor) || !WorkerbornInput.IsInView(game.WorldCamera, cursor))
@@ -189,6 +197,8 @@ namespace Workerborn
             var ui = UiAt(cursor);
             var plate = ui != null ? ui.GetComponentInParent<WorldNameplateView>() : null;
             bool overUi = ui != null && plate == null;
+            worldPointer = cursor;
+            pointerOnWorld = !overUi && game.Hud.AllowsGroundItems && !game.Hud.IsHoldingItem;
             bool control = WorkerbornInput.Held("Gameplay/Target");
             bool pressed = WorkerbornInput.Pressed("Gameplay/Interact");
             bool rightPressed = WorkerbornInput.Pressed("Camera/OrbitRight");
@@ -204,6 +214,12 @@ namespace Workerborn
             if (target != null && (!target.CanInteract || !game.SharesMap(target.transform.position) ||
                 game.ControlsBlocked && !(target is GroundPickup)))
                 target = null;
+            if (pointerOnWorld && target == null && playerCollider != null)
+            {
+                Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
+                IsHoveringPlayer = playerCollider.Raycast(ray, out var playerHit, PointerDistance) &&
+                    (!TryWorldHit(ray, out var cover) || cover.distance >= playerHit.distance);
+            }
             if (rightPressed)
             {
                 rightTarget = new WorldTargetReference(target);

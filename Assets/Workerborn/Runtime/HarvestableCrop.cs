@@ -29,6 +29,7 @@ namespace Workerborn
         public override bool CanInteract => base.CanInteract && !IsDepleted;
         public override string InteractionVerb => definition != null ? definition.InteractionVerb : base.InteractionVerb;
         public float Progress => cycle?.Progress ?? 0f;
+        protected virtual bool CanStartHarvest => true;
 
         public event Action<HarvestableCrop> Harvested;
         protected void Awake() => EnsureInitialized();
@@ -60,7 +61,7 @@ namespace Workerborn
 
         public bool TryBegin(HarvestWorker worker)
         {
-            if (!isActiveAndEnabled || worker == null || owner != null || cycle == null || !cycle.TryBegin())
+            if (!isActiveAndEnabled || !CanStartHarvest || worker == null || owner != null || cycle == null || !cycle.TryBegin())
                 return false;
             owner = worker;
             return true;
@@ -85,6 +86,15 @@ namespace Workerborn
             owner = null;
             if (visual != null)
                 visual.localScale = restScale;
+        }
+
+        protected void InterruptHarvest(string message)
+        {
+            var worker = owner;
+            if (worker == null)
+                return;
+            Cancel(worker);
+            worker.HarvestInterrupted(this, message);
         }
 
         public void ResetHarvests()
