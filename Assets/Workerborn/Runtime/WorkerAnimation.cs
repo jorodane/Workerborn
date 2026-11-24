@@ -35,6 +35,19 @@ namespace Workerborn
         private float loopCycles, loopImpact, lastLoopPosition;
         private bool timedWork;
         private int target;
+
+        internal void UseDefaultGestures(WorkerAnimation source)
+        {
+            if (source == null || source == this)
+                return;
+            if (jump == null)
+                jump = source.jump;
+            if (gatherSuccess == null)
+                gatherSuccess = source.gatherSuccess;
+            if (gatherFailure == null)
+                gatherFailure = source.gatherFailure;
+        }
+
         public void Initialize(Animator animator, AnimationClip idle, AnimationClip move, AnimationClip work, AnimationClip walk = null)
         {
             if (graph.IsValid())

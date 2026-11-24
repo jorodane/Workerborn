@@ -117,13 +117,13 @@ namespace Workerborn
                 worker.CommandAttack(this);
         }
 
-        internal bool TryDropLoot(VillagePrototype village)
+        internal bool TryDropLoot(VillagePrototype village, HarvestWorker source = null)
         {
             if (!IsDefeated || lootTaken || village == null)
                 return false;
             lootTaken = true;
-            int count = village.State.ScaledYield(SkillId.Carving, combat.LootCount);
-            if (village.DropStrikeLoot(transform, combat.Loot, count))
+            int count = (source?.CharacterState ?? village.State).ScaledYield(SkillId.Carving, combat.LootCount);
+            if (village.DropStrikeLoot(transform, combat.Loot, count, source))
                 return true;
             lootTaken = false;
             return false;
@@ -147,7 +147,7 @@ namespace Workerborn
                 Play(defeatedState);
                 corpseVillage = worker.Village;
                 despawnAt = Time.time + combat.CorpseSeconds;
-                TryDropLoot(worker.Village);
+                TryDropLoot(worker.Village, worker);
                 worker.Village.SaveGame(false);
             }
             else if (opponent != worker)
@@ -194,8 +194,8 @@ namespace Workerborn
 
             var village = opponent.Village;
             Vector3 destination = opponent.StandingPosition;
-            if (village == null || !village.SharesMap(transform.position) || village.State.AwaitingIncarnation ||
-                village.State.Health <= 0 ||
+            if (village == null || !opponent.SharesMap(transform.position) || opponent.CharacterState.AwaitingIncarnation ||
+                opponent.CharacterState.Health <= 0 ||
                 !WithinHome(destination, combat.ChaseRadius) || !WithinHome(transform.position, combat.ChaseRadius + .2f))
             {
                 ReturnHome();
@@ -213,7 +213,7 @@ namespace Workerborn
             }
 
             wander?.StopCombatMovement();
-            if (Time.time < nextCounterAt || village.Hud.WorldActionsLocked)
+            if (Time.time < nextCounterAt || !opponent.AcceptsInteractionCommands)
                 return;
             nextCounterAt = Time.time + combat.CounterDelay;
             Vector3 facing = destination - transform.position;
@@ -221,7 +221,7 @@ namespace Workerborn
             if (facing.sqrMagnitude > .001f)
                 transform.rotation = Quaternion.LookRotation(facing);
             counterAnimation = Play(attackState);
-            village.ReceiveAnimalHit(combat.CounterDamage);
+            village.ReceiveAnimalHit(opponent, combat.CounterDamage);
         }
 
         private bool WithinHome(Vector3 point, float radius)

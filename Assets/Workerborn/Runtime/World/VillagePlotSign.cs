@@ -12,6 +12,10 @@ namespace Workerborn
 
         internal void Bind(VillagePlot owner) => plot = owner;
         protected override void Interact(HarvestWorker worker) => worker.CommandApproach(this);
-        protected override void OnArrived(VillagePrototype village, HarvestWorker worker) => village.Hud.OpenPlot(plot);
+        protected override void OnArrived(VillagePrototype village, HarvestWorker worker)
+        {
+            if (worker.IsLocallyControlled)
+                village.Hud.OpenPlot(plot);
+        }
     }
 }

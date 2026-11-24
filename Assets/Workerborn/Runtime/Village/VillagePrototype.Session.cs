@@ -138,10 +138,16 @@ namespace Workerborn
             if (worker != null && worker.OccupiesSeat(position))
                 return true;
             // En-route NPCs coordinate with each other. A player can still sit before they arrive.
-            foreach (var routine in npcRoutines)
-                if (routine != null && routine != searchingNpc && routine.isActiveAndEnabled &&
-                    (routine.IsSeated || searchingNpc != null) && routine.ReservesSeat(position))
+            foreach (var character in villageCharacters.Values)
+            {
+                if (character == null || !character.isActiveAndEnabled)
+                    continue;
+                if (character.OccupiesSeat(position))
                     return true;
+                if (searchingNpc != null && character.TryGetComponent<NpcRoutine>(out var routine) &&
+                    routine != searchingNpc && routine.isActiveAndEnabled && routine.ReservesSeat(position))
+                    return true;
+            }
             foreach (var peer in peers.Values)
                 if (peer != null && peer.OccupiesSeat(position))
                     return true;
@@ -201,7 +207,7 @@ namespace Workerborn
             if (save != null && (!transition || save.life != life || save.awaitingIncarnation != wasAwaitingIncarnation))
             {
                 State = VillageState.Restore(save, State.Rules);
-                equipmentVersion = -1;
+                worker.SetCharacterState(State);
             }
             State.ApplyWorld(world);
             bool reborn = life != State.Life;

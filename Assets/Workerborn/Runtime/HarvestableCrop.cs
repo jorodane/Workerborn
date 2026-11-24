@@ -27,6 +27,7 @@ namespace Workerborn
         public int Remaining => cycle?.Remaining ?? 0;
         public int Capacity => cycle?.Capacity ?? 0;
         public bool IsDepleted => cycle == null || cycle.IsDepleted;
+        internal bool IsBeingHarvested => cycle?.IsWorking == true;
         public override bool CanInteract => base.CanInteract && !IsDepleted;
         public override string InteractionVerb => definition != null ? definition.InteractionVerb : base.InteractionVerb;
         public float Progress => cycle?.Progress ?? 0f;
@@ -56,9 +57,11 @@ namespace Workerborn
             ResetHarvests();
         }
 
-        public bool TryBegin(HarvestWorker worker)
+        public bool TryBegin(HarvestWorker worker) => TryBegin(worker, 0f);
+
+        internal bool TryBegin(HarvestWorker worker, float progress)
         {
-            if (!isActiveAndEnabled || worker == null || owner != null || cycle == null || !cycle.TryBegin())
+            if (!isActiveAndEnabled || worker == null || owner != null || cycle == null || !cycle.TryBegin(progress))
                 return false;
             owner = worker;
             return true;
@@ -78,7 +81,7 @@ namespace Workerborn
             return true;
         }
 
-        private bool TryGather() => owner.Village == null || owner.Village.TryGatherFrom(this);
+        private bool TryGather() => owner.Village == null || owner.Village.TryGatherFrom(owner, this);
 
         public void Cancel(HarvestWorker worker)
         {

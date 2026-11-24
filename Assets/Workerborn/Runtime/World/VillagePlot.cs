@@ -82,10 +82,19 @@ namespace Workerborn
             {
                 Vector3 position = npc.transform.position;
                 npc.transform.position = village.SurfacePosition(position.x, position.z);
-                village.BindNpcCharacter(npc);
             }
             navigationChanged |= contents.GetComponentInChildren<VillageNavigationBlocker>() != null;
             return true;
+        }
+
+        internal void BindCharacters(VillagePrototype village)
+        {
+            if (contents == null || InstalledFacility == null)
+                return;
+
+            var inhabitants = contents.GetComponentsInChildren<CharacterActor>(true);
+            for (int i = 0; i < inhabitants.Length; i++)
+                village.BindNpcCharacter(inhabitants[i], $"plot/{plotId}/{InstalledFacility.Id}/character/{i}");
         }
 
         private void PlantField(VillagePrototype village, PlotFacilityDefinition facility, string resourceId)

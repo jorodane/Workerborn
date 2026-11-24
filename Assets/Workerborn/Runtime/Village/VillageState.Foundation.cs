@@ -125,7 +125,7 @@ namespace Workerborn
             return Result(true, $"{siteName}에 농장을 짓기로 했어요. 기억의 우물에서 시대 전환을 진행하세요.");
         }
 
-        private static FarmFoundationStage RestoreFoundationStage(VillageSave save, VillageRules rules)
+        private static FarmFoundationStage RestoreFoundationStage(CharacterSave save, VillageRules rules)
         {
             // A save from the original village already has a working farm.
             if (rules.Foundation == null || save.schema < 3)

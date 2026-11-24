@@ -86,7 +86,6 @@ namespace Workerborn
         private bool initialized;
         private bool IsAppearanceTrial { get; set; }
         private bool usesSelectedWorld;
-        private int equipmentVersion = -1;
         public VillageState State { get; private set; }
         public VillageSettings Settings => settings;
         public CharacterActor PlayerActor => player;
@@ -198,14 +197,13 @@ namespace Workerborn
             BindBuildingDoors();
             bool plotBlocksNavigation = RenderPlots();
             navigation.Activate(useBakedData: !plotBlocksNavigation && State.FarmAvailable && string.IsNullOrEmpty(State.FarmSiteId));
-            rebirthZone?.Initialize();
+            rebirthZone?.Initialize(this);
             var agent = worker.GetComponent<NavMeshAgent>();
             agent.enabled = true;
             if (NavMesh.SamplePosition(SurfacePosition(spawnPoint.position.x, spawnPoint.position.z), out var initialPosition, 2f, NavMesh.AllAreas))
                 agent.Warp(initialPosition.position);
-            BindCharacter(player, false);
-            worker.Initialize(worldCamera, player.GetComponent<WorkerAnimation>());
-            worker.BindVillage(this);
+            BindWorker(player, worker, State, LocalCharacterId, worldCamera);
+            BindBuiltCharacters();
             foreach (var npc in npcs)
             {
                 var actor = npc.GetComponent<CharacterActor>();
@@ -229,6 +227,7 @@ namespace Workerborn
             worldCamera.GetComponent<CameraVisibility>()?.Initialize(player.transform);
             cameraRig.Initialize(worker.transform, this);
             RestoreWorldObjects();
+            RestoreVillageCharacters();
             lighting?.SetDate(State.Day, State.Minute);
             initialized = true;
             if (reloading)
@@ -277,7 +276,7 @@ namespace Workerborn
                 EnterClouds();
         }
 
-        internal static void BindCharacter(CharacterActor actor, bool idleOnly)
+        internal static void BindCharacter(CharacterActor actor)
         {
             var definition = actor.Appearance;
             var driver = actor.GetComponent<WorkerAnimation>();
@@ -287,8 +286,7 @@ namespace Workerborn
                 return;
             }
 
-            driver.Initialize(actor.Animator, definition.Idle, idleOnly ? definition.Idle : definition.Run,
-                idleOnly ? definition.Idle : definition.Work, idleOnly ? definition.Idle : definition.Walk);
+            driver.Initialize(actor.Animator, definition.Idle, definition.Run, definition.Work, definition.Walk);
         }
 
         private void ApplyWorldStage()
@@ -338,76 +336,87 @@ namespace Workerborn
 
         public void OpenConversation(VillageInteractable target, DialogueAction? topic = null)
         {
-            PrepareConversation(target);
+            PrepareConversation(worker, target);
             hud.OpenDialogue(target, topic);
         }
 
         internal void OpenConversationTopic(VillageInteractable target, DialogueTopicDefinition topic)
         {
-            PrepareConversation(target);
+            PrepareConversation(worker, target);
             hud.OpenDialogueTopic(target, topic);
         }
 
-        private void PrepareConversation(VillageInteractable target)
+        internal void BeginConversation(HarvestWorker speaker, VillageInteractable target)
         {
-            worker.Cancel();
+            PrepareConversation(speaker, target);
+            if (speaker.IsLocallyControlled)
+                hud.OpenDialogue(target, null);
+        }
+
+        private void PrepareConversation(HarvestWorker speaker, VillageInteractable target)
+        {
+            speaker.Cancel();
             if (target.Role == VillageRole.Farmer)
-                State.MeetFarmer();
-            if (target.Routine?.IsSeated != true && target.GetComponent<CharacterActor>() != null)
+                speaker.CharacterState.MeetFarmer();
+            if (target.GetComponent<HarvestWorker>()?.OccupiedSeat == null && target.GetComponent<CharacterActor>() != null)
             {
-                Vector3 forward = worker.transform.position - target.transform.position;
+                Vector3 forward = speaker.transform.position - target.transform.position;
                 forward.y = 0f;
                 if (forward.sqrMagnitude > 0.01f)
                     target.transform.rotation = Quaternion.LookRotation(forward);
             }
         }
 
-        private int BaseWorkCost(CropDefinition work) => work.StaminaCost > 0 ? work.StaminaCost : State.Rules.HarvestEnergy;
+        private static int BaseWorkCost(VillageState state, CropDefinition work) =>
+            work.StaminaCost > 0 ? work.StaminaCost : state.Rules.HarvestEnergy;
 
-        public bool CanHarvest(HarvestableCrop target) => CanHarvest(target, showNotice: true);
+        public bool CanHarvest(HarvestableCrop target) => CanHarvest(worker, target);
+        private bool CanHarvest(HarvestableCrop target, bool showNotice) => CanHarvest(worker, target, showNotice);
 
-        private bool CanHarvest(HarvestableCrop target, bool showNotice)
+        internal bool CanHarvest(HarvestWorker source, HarvestableCrop target, bool showNotice = true)
         {
-            if (State.AwaitingIncarnation)
+            var state = source.CharacterState;
+            if (state.AwaitingIncarnation || state.Health <= 0 || target.Definition == null || !source.SharesMap(target.transform.position))
                 return false;
             var work = target.Definition;
-            if (work.RequiredTool != null && !State.HasTool(work.RequiredTool.Id))
+            if (work.RequiredTool != null && !state.HasTool(work.RequiredTool.Id))
             {
-                if (showNotice)
+                if (showNotice && source.IsLocallyControlled)
                     hud.ShowToast(work.RequiredTool.DisplayName + "을 주무기에 장착해 주세요.");
                 return false;
             }
-            if (State.Energy >= State.WorkEnergyCost(work.Skill, work.ItemId, BaseWorkCost(work)))
+            if (state.Energy >= state.WorkEnergyCost(work.Skill, work.ItemId, BaseWorkCost(state, work)))
                 return true;
-            if (showNotice)
+            if (showNotice && source.IsLocallyControlled)
                 hud.ShowToast("스태미나가 부족합니다.");
             return false;
         }
 
-        internal bool TryGatherFrom(HarvestableCrop crop)
+        internal bool TryGatherFrom(HarvestWorker sourceWorker, HarvestableCrop crop)
         {
+            var state = sourceWorker.CharacterState;
             var work = crop.Definition;
             var skill = work.Skill;
-            var outcome = work.RollOutcome(State.RankOf(skill), UnityEngine.Random.value, UnityEngine.Random.value,
-                State.SkillBonus(skill, SkillEffect.LuckyChance) * .01f,
-                State.SkillBonus(skill, SkillEffect.GreatLuckyChance) * .01f);
-            int level = State.Level;
-            if (!CanHarvest(crop))
+            if (!CanHarvest(sourceWorker, crop))
                 return false;
+            var outcome = work.RollOutcome(state.RankOf(skill), UnityEngine.Random.value, UnityEngine.Random.value,
+                state.SkillBonus(skill, SkillEffect.LuckyChance) * .01f,
+                state.SkillBonus(skill, SkillEffect.GreatLuckyChance) * .01f);
+            int level = state.Level;
             var water = crop as FishingWater;
-            Vector3 source = water != null ? worker.FishingPoint ?? crop.transform.position : crop.transform.position;
-            if (!State.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(work), outcome, out int count))
+            Vector3 source = water != null ? sourceWorker.FishingPoint ?? crop.transform.position : crop.transform.position;
+            if (!state.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(state, work), outcome, out int count))
             {
-                worker.ShowGatherResult(false);
+                sourceWorker.ShowGatherResult(false);
                 hud.ShowFloatingText(source + Vector3.up, "실패", new Color(1f, .65f, .55f));
                 return false;
             }
-            worker.ShowGatherResult(true);
+            sourceWorker.ShowGatherResult(true);
             var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
             if (pickupPool.CanSpawn(prefab))
             {
-                Vector3 direction = worker.transform.position - source;
-                Vector3 landingOrigin = water != null ? worker.transform.position : source;
+                Vector3 direction = sourceWorker.transform.position - source;
+                Vector3 landingOrigin = water != null ? sourceWorker.transform.position : source;
                 int piles = Mathf.Min(count, work.MaxVisibleDrops);
                 for (int i = 0; i < piles; i++)
                 {
@@ -417,7 +426,7 @@ namespace Workerborn
                         end = NavMesh.SamplePosition(end, out var shore, .4f, NavMesh.AllAreas) && !water.CoversGround(shore.position)
                             ? shore.position : landingOrigin;
                     int quantity = count / piles + (i < count % piles ? 1 : 0);
-                    SpawnPickup(prefab, work, quantity, source + Vector3.up * .5f, end + Vector3.up * .08f);
+                    SpawnPickup(prefab, work, quantity, source + Vector3.up * .5f, end + Vector3.up * .08f).HarvestedBy = sourceWorker.CharacterId;
                 }
             }
             else
@@ -425,12 +434,13 @@ namespace Workerborn
 
             if (outcome == WorkOutcome.Lucky || outcome == WorkOutcome.GreatLucky)
                 hud.ShowFloatingText(source + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
-            hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "+" + State.Rules.HarvestExperience + " EXP", Color.white);
-            ShowLevelUp(level);
+            if (sourceWorker.IsLocallyControlled)
+                hud.ShowFloatingText(sourceWorker.transform.position + Vector3.up * 1.8f, "+" + state.Rules.HarvestExperience + " EXP", Color.white);
+            ShowLevelUp(sourceWorker, level);
             return true;
         }
 
-        private void SpawnPickup(GroundPickup source, CropDefinition definition, int quantity, Vector3 start, Vector3 end, bool settled = false)
+        private GroundPickup SpawnPickup(GroundPickup source, CropDefinition definition, int quantity, Vector3 start, Vector3 end, bool settled = false)
         {
             var item = pickupPool.Spawn(source, definition, quantity, start, end, settled);
             pickups.Add(item);
@@ -439,6 +449,7 @@ namespace Workerborn
                 item.Landed += playLanding;
                 effects.PlayDropTrail(item);
             }
+            return item;
         }
 
         private void RemovePickup(GroundPickup pickup) => pickups.Remove(pickup);
@@ -451,13 +462,13 @@ namespace Workerborn
             HitFlash.PlayOn(visual);
         }
 
-        internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount)
+        internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount, HarvestWorker sourceWorker = null)
         {
             var prefab = reward != null ? reward.GroundPrefab : null;
             if (amount < 1 || !pickupPool.CanSpawn(prefab) || prefab.ItemId != reward.Id)
                 return false;
             Vector3 source = origin.position;
-            Vector3 forward = worker.transform.position - source;
+            Vector3 forward = (sourceWorker ?? worker).transform.position - source;
             forward.y = 0;
             forward = forward.sqrMagnitude > .001f ? forward.normalized : origin.forward;
             Vector3 right = Vector3.Cross(Vector3.up, forward);
@@ -472,72 +483,79 @@ namespace Workerborn
             return true;
         }
 
-        internal void ReceiveAnimalHit(int damage)
+        internal void ReceiveAnimalHit(HarvestWorker target, int damage)
         {
-            int applied = State.TakeHit(damage);
+            int applied = target.CharacterState.TakeHit(damage);
             if (applied <= 0)
                 return;
-            ShowCombatHit(player.VisualRoot, worker.transform.position + Vector3.up * 1.1f);
-            hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.8f, "-" + applied, new Color(1f, .52f, .42f));
-            if (State.Health <= 0)
-                worker.Cancel();
+            ShowCombatHit(target.Actor.VisualRoot, target.transform.position + Vector3.up * 1.1f);
+            hud.ShowFloatingText(target.transform.position + Vector3.up * 1.8f, "-" + applied, new Color(1f, .52f, .42f));
+            if (target.CharacterState.Health <= 0)
+                target.Cancel();
         }
 
         public void ShowClick(Vector3 position) => effects?.PlayClick(SurfacePosition(position.x, position.z) + Vector3.up * .04f);
 
-        internal GroundPickup DropPrefabFor(InventoryEntry entry)
+        internal GroundPickup DropPrefabFor(InventoryEntry entry, HarvestWorker source = null)
         {
             if (entry != null &&
                 settings.FindItem(entry.ItemId)?.GroundPrefab is GroundPickup prefab &&
                 prefab.ItemId == entry.ItemId && pickupPool.CanSpawn(prefab))
                 return prefab;
-            hud.ShowToast("이 아이템은 바닥에 놓을 수 없어요.");
+            if ((source ?? worker).IsLocallyControlled)
+                hud.ShowToast("이 아이템은 바닥에 놓을 수 없어요.");
             return null;
         }
 
-        internal bool PlaceInventoryDrop(InventoryEntry request, Vector3 destination)
+        internal bool PlaceInventoryDrop(HarvestWorker source, InventoryEntry request, Vector3 destination)
         {
-            var entry = State.CarriedItem(request.Id);
+            var state = source.CharacterState;
+            var entry = state.CarriedItem(request.Id);
             if (entry == null || entry.ItemId != request.ItemId || entry.Quantity != request.Quantity)
             {
-                hud.ShowToast("아이템 수량이 바뀌었습니다. 다시 놓아 주세요.");
+                if (source.IsLocallyControlled)
+                    hud.ShowToast("아이템 수량이 바뀌었습니다. 다시 놓아 주세요.");
                 return false;
             }
-            var prefab = DropPrefabFor(entry);
-            if (prefab == null || !State.TryRemoveCarriedItem(entry.Id, entry.Quantity))
+            var prefab = DropPrefabFor(entry, source);
+            if (prefab == null || !source.SharesMap(destination) || !state.TryRemoveCarriedItem(entry.Id, entry.Quantity))
                 return false;
 
             var end = SurfacePosition(destination.x, destination.z) + Vector3.up * .08f;
             SpawnPickup(prefab, null, request.Quantity,
-                worker.transform.position + Vector3.up * .45f, end);
+                source.transform.position + Vector3.up * .45f, end);
             hud.RefreshWindows();
             SaveGame(false);
             return true;
         }
 
-        public bool TryCollectPickup(GroundPickup item)
+        public bool TryCollectPickup(GroundPickup item) => TryCollectPickup(worker, item);
+
+        internal bool TryCollectPickup(HarvestWorker collector, GroundPickup item)
         {
-            if (State.AwaitingIncarnation || item == null || !item.CanCollect || !worker.IsInPickupRange(item))
+            var state = collector.CharacterState;
+            if (state.AwaitingIncarnation || item == null || !item.CanCollect || !collector.SharesMap(item.LandingPosition) || !collector.IsInPickupRange(item))
                 return false;
             string id = item.ItemId;
             int quantity = item.Quantity;
-            if (!State.Inventory.CanAdd(id, quantity))
+            if (!state.Inventory.CanAdd(id, quantity))
             {
-                hud.ShowToast("소지품 공간이 부족합니다.");
+                if (collector.IsLocallyControlled)
+                    hud.ShowToast("소지품 공간이 부족합니다.");
                 return false;
             }
 
             Vector3 itemPosition = item.VisualPosition + Vector3.up * .08f;
             string displayName = item.DisplayName;
             string persistentId = item.PersistentId;
-            if (!item.TryCollect(() => State.Inventory.TryAdd(id, quantity)))
+            if (!item.TryCollect(() => state.Inventory.TryAdd(id, quantity)))
                 return false;
             if (!item.IsPooled)
                 RemovePickup(item);
             if (!string.IsNullOrEmpty(persistentId))
                 collectedPickups.Add(persistentId);
-            effects?.PlayPickupTrail(itemPosition, worker.transform);
-            hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.5f, displayName + " +" + quantity, Color.white);
+            effects?.PlayPickupTrail(itemPosition, collector.transform);
+            hud.ShowFloatingText(collector.transform.position + Vector3.up * 1.5f, displayName + " +" + quantity, Color.white);
             return true;
         }
 
@@ -559,21 +577,31 @@ namespace Workerborn
             return success;
         }
 
-        private void ShowLevelUp(int previousLevel)
+        private void ShowLevelUp(int previousLevel) => ShowLevelUp(worker, previousLevel);
+
+        private void ShowLevelUp(HarvestWorker source, int previousLevel)
         {
-            if (State.Level <= previousLevel)
+            if (source.CharacterState.Level <= previousLevel)
                 return;
-            effects?.PlayLevelUp(worker.transform.position);
-            hud.ShowFloatingText(worker.transform.position + Vector3.up * 2.1f, "LEVEL UP", new Color(1f, 0.88f, 0.5f));
+            effects?.PlayLevelUp(source.transform.position);
+            hud.ShowFloatingText(source.transform.position + Vector3.up * 2.1f, "LEVEL UP", new Color(1f, 0.88f, 0.5f));
         }
 
         public void Sleep(bool paidRoom) => SleepInBed(CurrentInterior?.Bed, paidRoom);
 
-        internal void SleepInBed(VillageBed bed, bool paidRoom)
+        internal void SleepInBed(VillageBed bed, bool paidRoom) => SleepInBed(worker, bed, paidRoom);
+
+        internal void SleepInBed(HarvestWorker sleeper, VillageBed bed, bool paidRoom)
         {
-            if (ControlsBlocked || State.AwaitingIncarnation || bed == null || !bed.CanInteract ||
-                CurrentInterior?.Bed != bed || !worker.InReach(bed.Approach.position, .9f))
+            var state = sleeper.CharacterState;
+            if (!sleeper.AcceptsInteractionCommands || state.AwaitingIncarnation || bed == null || !bed.CanInteract ||
+                !sleeper.SharesMap(bed.transform.position) || !sleeper.InReach(bed.Approach.position, .9f))
                 return;
+            if (!sleeper.IsLocallyControlled)
+            {
+                state.TrySleep(paidRoom, sharedClock: true);
+                return;
+            }
             if (paidRoom && State.Gold < State.Rules.RoomPrice)
             {
                 State.TrySleep(paidRoom, IsOnline);
@@ -686,6 +714,7 @@ namespace Workerborn
                 agent.enabled = false;
                 navigation.Activate(useBakedData: false);
                 agent.enabled = true;
+                BindBuiltCharacters();
             }
             ResetDailyResources();
             hud.CloseDialogue();
@@ -808,13 +837,9 @@ namespace Workerborn
                     item.Despawn();
             pickups.RemoveAll(item => item == null || !item.CanCollect);
 
-            bool restoredInterior = !State.AwaitingIncarnation &&
-                TryRestoreInterior(restoredWorld.interior, out var room, out var interiorPosition) &&
-                TryWarpToMap(interiorPosition, room);
-            if (restoredInterior)
+            RestoreCharacterPosition(worker, restoredWorld);
+            if (CurrentInterior != null)
                 cameraRig.SnapToTarget();
-            else if (float.IsFinite(restoredWorld.playerX) && float.IsFinite(restoredWorld.playerZ))
-                TryWarpToMap(new Vector3(restoredWorld.playerX, 0f, restoredWorld.playerZ));
             if (restoredWorld.cropStates != null && restoredWorld.cropStates.Length > 0)
             {
                 var saved = new Dictionary<string, int>();
@@ -864,8 +889,9 @@ namespace Workerborn
 
                     var source = settings.FindItem(drop.itemId)?.GroundPrefab;
                     if (pickupPool.CanSpawn(source))
-                        SpawnPickup(source, drop.itemId == potato.ItemId ? potato : null, drop.quantity, end, end, settled: true);
+                        SpawnPickup(source, drop.itemId == potato.ItemId ? potato : null, drop.quantity, end, end, settled: true).HarvestedBy = drop.harvestedBy;
                 }
+            RestoreCharacterAction(worker, restoredWorld);
         }
 
         public bool SaveGame(bool notify)
@@ -922,17 +948,8 @@ namespace Workerborn
 
         internal VillageSave CaptureSave()
         {
-            var save = State.Export();
-            Vector3 position = worker.StandingPosition;
-            if (State.AwaitingIncarnation)
-                position = spawnPoint.position;
-            else if (CurrentInterior != null)
-            {
-                save.interior = CurrentInterior.CapturePosition(position);
-                position = ExteriorPosition(CurrentInterior);
-            }
-            save.playerX = position.x;
-            save.playerZ = position.z;
+            var save = CaptureCharacter<VillageSave>(worker);
+            save.characters = CaptureVillageCharacters();
             if (State.AwaitingIncarnation)
                 return save;
             save.cropStates = new CropStateSave[allCrops.Count];
@@ -956,7 +973,7 @@ namespace Workerborn
                     Vector3 exterior = room != null ? ExteriorPosition(room) : landing;
                     ground.Add(new GroundDropSave
                     {
-                        id = item.PersistentId, quantity = item.Quantity, itemId = item.ItemId,
+                        id = item.PersistentId, quantity = item.Quantity, itemId = item.ItemId, harvestedBy = item.HarvestedBy,
                         x = exterior.x, z = exterior.z, interior = room != null ? room.CapturePosition(landing) : default
                     });
                 }
@@ -972,11 +989,6 @@ namespace Workerborn
             hud.SetCommandPending(AwaitingWorldCommand);
             if (IsWorldTransitioning || AwaitingWorldCommand)
                 return;
-            if (equipmentVersion != State.Version)
-            {
-                equipmentVersion = State.Version;
-                player.ShowEquipment(State.Equipment, settings);
-            }
 
             float elapsed = Time.deltaTime;
             bool paused = hud.HasModal;
@@ -986,6 +998,7 @@ namespace Workerborn
                 return;
             }
             TickClock(elapsed, paused);
+            UpdateVillageCharacters();
 
             if (Time.unscaledTime >= nextSave && (IsOnline || usesSelectedWorld || loadSavedGame && !IsAppearanceTrial))
                 SaveGame(false);

@@ -39,6 +39,9 @@ namespace Workerborn
         private Camera worldCamera;
         private NavMeshAgent agent;
         private WorkerAnimation animationDriver;
+        private CharacterActor actor;
+        private VillageState characterState;
+        private int equipmentVersion = -1;
         private HarvestableCrop cropTarget;
         private WorldTargetReference pickupTarget;
         private WorldInteractable interactionTarget;
@@ -50,11 +53,14 @@ namespace Workerborn
         private Vector3 dropPoint;
         private Vector3 approachTargetPosition;
         private Vector3 harvestOrigin;
+        private float savedHarvestProgress;
         private VillagePrototype village;
         private int collectedCount;
         private bool walkPath;
         private bool manualMoving;
+        private bool manualWalking;
         private bool onSeat;
+        private SeatSlot occupiedSeat;
         private float nextCollect;
         private int consecutiveCollections;
         private Transform jumpingVisual;
@@ -64,12 +70,18 @@ namespace Workerborn
         private Transform restingVisual;
         private Vector3 restBase;
         private Quaternion restRotation;
-        public bool AcceptsInteractionCommands => village == null || !village.ControlsBlocked;
-        public bool AcceptsGroundItemCommands => village == null || village.Hud.AllowsGroundItems && !village.State.AwaitingIncarnation;
-        public PointerTargeting Targeting => village != null ? village.Targeting : null;
+        internal bool IsLocallyControlled => worldCamera != null;
+        public bool AcceptsInteractionCommands => village == null || !IsLocallyControlled || !village.ControlsBlocked;
+        public bool AcceptsGroundItemCommands => village == null || !CharacterState.AwaitingIncarnation &&
+            (!IsLocallyControlled || village.Hud.AllowsGroundItems);
+        public PointerTargeting Targeting => village != null && IsLocallyControlled ? village.Targeting : null;
         internal VillagePrototype Village => village;
+        internal VillageState CharacterState => characterState;
+        internal CharacterActor Actor => actor;
+        internal string CharacterId { get; private set; }
+        internal SeatSlot OccupiedSeat => occupiedSeat;
         public bool IsWalking => Action == WorkerAction.Moving &&
-            (manualMoving ? WorkerbornInput.Held("Gameplay/Walk") : walkPath);
+            (manualMoving ? manualWalking : walkPath);
         public bool HasPendingDrop => pendingDrop != null;
         internal float VisualJumpOffset { get; private set; }
         internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
@@ -79,8 +91,10 @@ namespace Workerborn
         public VillageInteractable HoveredInteraction { get; private set; }
         public HarvestableCrop LastCrop { get; private set; }
         public HarvestableCrop ActiveCrop => Action == WorkerAction.Harvesting ? cropTarget : null;
+        internal HarvestableCrop PlannedCrop => cropTarget;
+        internal float HarvestProgress => ActiveCrop != null ? ActiveCrop.Progress : savedHarvestProgress;
         public HarvestableCrop FocusCrop => HoveredCrop != null ? HoveredCrop : cropTarget != null ? cropTarget : LastCrop;
-        public int TotalCollected => village != null ? village.State.Inventory.Count(ItemIds.Potato) : collectedCount;
+        public int TotalCollected => characterState?.Inventory.Count(ItemIds.Potato) ?? collectedCount;
         internal bool IsFighting => strikeTarget is MonsterInteractable { Combat: not null } ||
             interactionTarget is MonsterInteractable { Combat: not null };
         internal bool IsInteractingWith(WorldInteractable target) =>
@@ -88,11 +102,45 @@ namespace Workerborn
         internal bool OccupiesSeat(Vector3 position) => onSeat && (transform.position - position).sqrMagnitude < .04f;
 
         public event Action<string> Message;
-        public void BindVillage(VillagePrototype game) => village = game;
+        internal void BindVillage(VillagePrototype game, VillageState state, string id)
+        {
+            village = game;
+            CharacterId = id;
+            SetCharacterState(state);
+        }
+
+        internal void SetCharacterState(VillageState state)
+        {
+            characterState = state;
+            equipmentVersion = -1;
+            if (state.LifeLook.HasValue)
+                actor?.ApplyProfileLook(state.LifeLook.Value);
+            RefreshEquipment();
+        }
+
+        internal void SetInputCamera(Camera camera)
+        {
+            if (worldCamera == camera)
+                return;
+            if (manualMoving)
+                Cancel();
+            ResetCollectHold();
+            worldCamera = camera;
+        }
+
+        internal void UseActionPresentation(HarvestWorker source)
+        {
+            if (attackClip == null)
+                attackClip = source.attackClip;
+            if (fishingBobberPrefab == null)
+                fishingBobberPrefab = source.fishingBobberPrefab;
+        }
+
         public void Initialize(Camera camera, WorkerAnimation animations)
         {
-            worldCamera = camera;
+            SetInputCamera(camera);
             animationDriver = animations;
+            actor = GetComponent<CharacterActor>();
             agent = GetComponent<NavMeshAgent>();
             agent.speed = runSpeed;
             agent.angularSpeed = 540f;
@@ -106,17 +154,17 @@ namespace Workerborn
 
         private void Update()
         {
-            if (worldCamera == null || agent == null || !agent.isOnNavMesh)
+            if (agent == null || !agent.isOnNavMesh && (village == null || !EnsureNavigation()))
                 return;
-            ReadInput();
-            if (village != null && village.Hud.WorldActionsLocked && Action != WorkerAction.Idle)
+            RefreshEquipment();
+            if (IsLocallyControlled)
+                ReadLocalControls();
+            if (onSeat && (occupiedSeat == null || !occupiedSeat.isActiveAndEnabled ||
+                (occupiedSeat.Position - transform.position).sqrMagnitude > .0004f ||
+                Quaternion.Angle(occupiedSeat.Facing, transform.rotation) > .5f))
                 Cancel();
-            if (AcceptsInteractionCommands && WorkerbornInput.Pressed("Gameplay/Sit"))
-                ToggleSit();
             UpdateVisualJump();
-            bool movingByKeys = UpdateManualMovement();
-            UpdateNearbyCollection();
-            if (!movingByKeys && Action == WorkerAction.Moving)
+            if (!manualMoving && Action == WorkerAction.Moving)
                 UpdateMovement();
             else if (Action == WorkerAction.Harvesting)
                 UpdateHarvest();
@@ -130,6 +178,27 @@ namespace Workerborn
                 _ => WorkerMotion.Idle
             };
             animationDriver?.SetAction((int)motion);
+        }
+
+        private void RefreshEquipment()
+        {
+            if (actor == null || characterState == null || equipmentVersion == characterState.Version)
+                return;
+            equipmentVersion = characterState.Version;
+            actor.ShowEquipment(characterState.Equipment, village.Settings);
+        }
+
+        private void ReadLocalControls()
+        {
+            ReadInput();
+            if (village != null && village.Hud.WorldActionsLocked && Action != WorkerAction.Idle)
+                Cancel();
+            if (WorkerbornInput.Pressed("Gameplay/Sit"))
+                ToggleSit();
+            if (WorkerbornInput.Pressed("Gameplay/Jump"))
+                CommandJump();
+            UpdateManualMovement();
+            UpdateNearbyCollection();
         }
 
         private void UpdateVisualJump()
@@ -147,17 +216,19 @@ namespace Workerborn
                         jumpingVisual.localPosition = jumpBase + Vector3.up * VisualJumpOffset;
                 }
             }
-            else if (AcceptsInteractionCommands && (Action == WorkerAction.Idle || Action == WorkerAction.Moving) &&
-                WorkerbornInput.Pressed("Gameplay/Jump"))
-            {
-                jumpingVisual = village?.PlayerActor?.VisualRoot;
-                if (jumpingVisual == null)
-                    return;
-                jumpBase = jumpingVisual.localPosition;
-                jumpStartedAt = Time.time;
-                animationDriver?.SetGesture(WorkerGesture.Jump);
-                jumpUsesClip = animationDriver?.Gesture == WorkerGesture.Jump;
-            }
+        }
+
+        internal void CommandJump()
+        {
+            if (jumpingVisual != null || !AcceptsInteractionCommands || Action is not (WorkerAction.Idle or WorkerAction.Moving))
+                return;
+            jumpingVisual = actor?.VisualRoot;
+            if (jumpingVisual == null)
+                return;
+            jumpBase = jumpingVisual.localPosition;
+            jumpStartedAt = Time.time;
+            animationDriver?.SetGesture(WorkerGesture.Jump);
+            jumpUsesClip = animationDriver?.Gesture == WorkerGesture.Jump;
         }
 
         private void FinishVisualJump()
@@ -170,24 +241,25 @@ namespace Workerborn
                 animationDriver.SetGesture(WorkerGesture.None);
         }
 
-        internal void ToggleSit()
+        internal bool ToggleSit(SeatSlot preferred = null)
         {
             if (!AcceptsInteractionCommands || agent == null || !agent.isOnNavMesh)
-                return;
+                return false;
             if (Action == WorkerAction.Sitting)
             {
                 Cancel();
-                return;
+                return true;
             }
             if (Action == WorkerAction.Harvesting || Action == WorkerAction.Attacking)
-                return;
+                return false;
 
             Cancel();
             SeatSlot nearest = null;
             float bestDistance = float.PositiveInfinity;
             foreach (var seat in FindObjectsByType<SeatSlot>(FindObjectsSortMode.None))
             {
-                if (!seat.isActiveAndEnabled || !seat.Covers(transform.position) || village?.SeatInUse(seat.Position) == true)
+                if (preferred != null && preferred != seat || !seat.isActiveAndEnabled || !seat.Covers(transform.position) ||
+                    village?.SeatInUse(seat.Position) == true)
                     continue;
                 float distance = (seat.Position - transform.position).sqrMagnitude;
                 if (distance < bestDistance)
@@ -196,13 +268,18 @@ namespace Workerborn
                     bestDistance = distance;
                 }
             }
+            if (preferred != null && nearest == null)
+                return false;
             onSeat = nearest != null;
+            occupiedSeat = nearest;
             if (onSeat)
             {
                 agent.updatePosition = false;
+                agent.updateRotation = false;
                 transform.SetPositionAndRotation(nearest.Position, nearest.Facing);
             }
             Action = WorkerAction.Sitting;
+            return true;
         }
 
         private bool UpdateManualMovement()
@@ -222,6 +299,7 @@ namespace Workerborn
                 agent.updateRotation = false;
             }
             manualMoving = true;
+            manualWalking = WorkerbornInput.Held("Gameplay/Walk");
             Action = WorkerAction.Moving;
             Vector3 right = worldCamera.transform.right;
             right.y = 0f;
@@ -365,7 +443,7 @@ namespace Workerborn
                 Message?.Invoke("이 작물은 수확을 모두 마쳤어요. 다른 작물을 선택해 주세요.");
                 return;
             }
-            if (village != null && (village.ControlsBlocked || !village.CanHarvest(crop)))
+            if (village != null && (!AcceptsInteractionCommands || !village.CanHarvest(this, crop)))
                 return;
 
             if (!NavigateNear(crop.transform.position, crop.InteractionDistance * 0.85f))
@@ -374,6 +452,21 @@ namespace Workerborn
             LastCrop = crop;
             if (village == null)
                 Message?.Invoke($"{crop.Definition.DisplayName} 밭으로 이동해요.");
+        }
+
+        internal void RestoreHarvest(HarvestableCrop crop, float progress, Vector3? castPoint)
+        {
+            if (crop is FishingWater water)
+            {
+                if (castPoint is Vector3 point && water.CanInteract && water.CoversGround(point))
+                    CommandFish(water, point, progress);
+            }
+            else
+            {
+                crop.RequestInteraction(this);
+                if (cropTarget == crop)
+                    savedHarvestProgress = progress;
+            }
         }
 
         public bool IsInPickupRange(GroundPickup item) => item != null && InReach(item.LandingPosition, pickupDistance);
@@ -400,7 +493,7 @@ namespace Workerborn
             if (!IsInPickupRange(item) || !item.CanCollect)
                 return false;
             if (village != null)
-                return village.TryCollectPickup(item);
+                return village.TryCollectPickup(this, item);
             CropDefinition definition = item.Definition;
             int quantity = item.Quantity;
             string displayName = item.DisplayName;
@@ -419,9 +512,9 @@ namespace Workerborn
 
         public void CommandMove(Vector3 destination, bool walk = false)
         {
-            if (village != null && village.ControlsBlocked)
+            if (!AcceptsInteractionCommands)
                 return;
-            if (NavigateNear(destination, 0f, walk))
+            if (NavigateNear(destination, 0f, walk) && IsLocallyControlled)
                 village?.ShowClick(destination);
         }
 
@@ -430,7 +523,7 @@ namespace Workerborn
         public void CommandAttack(WorldInteractable target)
         {
             if (village == null || !AcceptsInteractionCommands || target == null || !target.CanReceiveStrike ||
-                (village.State.Energy <= 0 || village.State.Health <= 0) || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
+                (CharacterState.Energy <= 0 || CharacterState.Health <= 0) || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
                 return;
             if (InReach(target.transform.position, target.InteractionDistance))
                 StartAttack(target);
@@ -440,8 +533,8 @@ namespace Workerborn
 
         private void StartAttack(WorldInteractable target)
         {
-            if (target == null || !target.CanReceiveStrike || village.State.Energy <= 0 || village.State.Health <= 0 ||
-                !AcceptsInteractionCommands || !village.SharesMap(target.transform.position) ||
+            if (target == null || !target.CanReceiveStrike || CharacterState.Energy <= 0 || CharacterState.Health <= 0 ||
+                !AcceptsInteractionCommands || !SharesMap(target.transform.position) ||
                 !InReach(target.transform.position, target.InteractionDistance))
                 return;
             Cancel();
@@ -457,8 +550,8 @@ namespace Workerborn
 
         private void UpdateAttack()
         {
-            if (strikeTarget == null || !AcceptsInteractionCommands || village.State.Health <= 0 ||
-                !village.SharesMap(strikeTarget.transform.position))
+            if (strikeTarget == null || !AcceptsInteractionCommands || CharacterState.Health <= 0 ||
+                !SharesMap(strikeTarget.transform.position))
             {
                 Cancel();
                 return;
@@ -472,8 +565,8 @@ namespace Workerborn
                 struck = true;
                 if (strikeTarget.CanReceiveStrike)
                 {
-                    int bonus = village.State.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : village.State.UnarmedDamageBonus;
-                    strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus + village.State.Strength));
+                    int bonus = CharacterState.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : CharacterState.UnarmedDamageBonus;
+                    strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus + CharacterState.Strength));
                 }
             }
             if (progress >= 1f)
@@ -491,7 +584,7 @@ namespace Workerborn
 
         private void Approach(WorldInteractable target, Vector3 point, float offset, System.Action arrival)
         {
-            if (village == null || target == null || village.ControlsBlocked ||
+            if (village == null || target == null || !AcceptsInteractionCommands || !SharesMap(target.transform.position) ||
                 !NavigateNear(point, offset))
                 return;
             interactionTarget = target;
@@ -502,11 +595,11 @@ namespace Workerborn
         {
             if (village == null || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
                 return false;
-            var entry = village.State.CarriedItem(entryId);
-            if (village.DropPrefabFor(entry) == null)
+            var entry = CharacterState.CarriedItem(entryId);
+            if (village.DropPrefabFor(entry, this) == null)
                 return false;
             bool inReach = InReach(destination, pickupDistance);
-            if (!inReach && village.Hud.WorldActionsLocked)
+            if (!inReach && !AcceptsInteractionCommands)
             {
                 Message?.Invoke("아이템을 손이 닿는 바닥에 놓아 주세요.");
                 return false;
@@ -517,17 +610,31 @@ namespace Workerborn
             dropPoint = destination;
             if (inReach)
                 return FinishDrop();
-            village.ShowClick(destination);
+            if (IsLocallyControlled)
+                village.ShowClick(destination);
             return true;
         }
 
         private bool NavigateNear(Vector3 target, float offset, bool walk = false)
         {
-            if (agent == null || !agent.isOnNavMesh)
-                return false;
             if (Action == WorkerAction.Sitting)
                 Cancel();
-            Vector3 direction = transform.position - target;
+            if (!TryApproachPath(target, offset, out var path, out _) || !FollowPath(path, walk))
+                return false;
+            approachTargetPosition = target;
+            return true;
+        }
+
+        internal bool TryGetReachablePoint(Vector3 target, float offset, out Vector3 point) =>
+            TryApproachPath(target, offset, out _, out point);
+
+        private bool TryApproachPath(Vector3 target, float offset, out NavMeshPath path, out Vector3 point)
+        {
+            path = null;
+            point = default;
+            if (agent == null || !agent.isOnNavMesh || !SharesMap(target))
+                return false;
+            Vector3 direction = StandingPosition - target;
             direction.y = 0f;
             if (direction.sqrMagnitude < 0.01f)
                 direction = Vector3.back;
@@ -537,12 +644,12 @@ namespace Workerborn
             if (!NavMesh.SamplePosition(approach, out NavMeshHit hit, 0.8f, NavMesh.AllAreas))
                 return false;
 
-            var path = new NavMeshPath();
-            if (!agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete || !FollowPath(path, walk))
-                return false;
-            approachTargetPosition = target;
-            return true;
+            point = hit.position;
+            path = new NavMeshPath();
+            return agent.CalculatePath(point, path) && path.status == NavMeshPathStatus.PathComplete;
         }
+
+        internal bool SharesMap(Vector3 point) => village == null || village.SharesMap(StandingPosition, point);
 
         private bool FollowPath(NavMeshPath path, bool walk = false)
         {
@@ -657,19 +764,19 @@ namespace Workerborn
             var position = dropPoint;
             Cancel();
             Face(position);
-            return village.PlaceInventoryDrop(requested, position);
+            return village.PlaceInventoryDrop(this, requested, position);
         }
 
         private Vector3 HarvestPoint => FishingPoint ?? cropTarget.transform.position;
 
         private void BeginHarvesting()
         {
-            if (village != null && !village.CanHarvest(cropTarget))
+            if (village != null && !village.CanHarvest(this, cropTarget))
             {
                 Cancel();
                 return;
             }
-            if (!InReach(HarvestPoint, cropTarget.InteractionDistance + .15f) || !cropTarget.TryBegin(this))
+            if (!InReach(HarvestPoint, cropTarget.InteractionDistance + .15f) || !cropTarget.TryBegin(this, savedHarvestProgress))
             {
                 bool fishing = FishingPoint.HasValue;
                 Cancel();
@@ -678,10 +785,12 @@ namespace Workerborn
             }
 
             Action = WorkerAction.Harvesting;
+            savedHarvestProgress = 0f;
             FinishVisualJump();
             harvestOrigin = HarvestPoint;
             Face(harvestOrigin);
             animationDriver?.BeginWork(cropTarget.Definition.WorkAnimation, cropTarget.Definition.HarvestSeconds);
+            animationDriver?.SampleWork(cropTarget.Progress);
             if (FishingPoint is Vector3 spot)
                 ShowFishingCast(spot);
             if (village == null)
@@ -702,7 +811,7 @@ namespace Workerborn
                 Message?.Invoke("동물이 너무 멀리 움직여서 채집에 실패했어요.");
                 return;
             }
-            if (village != null && !village.CanHarvest(cropTarget))
+            if (village != null && !village.CanHarvest(this, cropTarget))
             {
                 Cancel();
                 return;
@@ -720,6 +829,7 @@ namespace Workerborn
                 Message?.Invoke($"수확 완료! 바닥의 {cropTarget.Definition.DisplayName}를 클릭해서 주워 주세요.");
             }
             cropTarget = null;
+            savedHarvestProgress = 0f;
             ClearFishingCast();
             Action = WorkerAction.Idle;
         }
@@ -749,7 +859,9 @@ namespace Workerborn
                 if (agent.isOnNavMesh)
                     transform.position = agent.nextPosition;
                 agent.updatePosition = true;
+                agent.updateRotation = true;
                 onSeat = false;
+                occupiedSeat = null;
             }
             if (manualMoving && agent != null)
                 agent.updateRotation = true;
@@ -758,6 +870,7 @@ namespace Workerborn
             if (cropTarget != null)
                 cropTarget.Cancel(this);
             cropTarget = null;
+            savedHarvestProgress = 0f;
             ClearFishingCast();
             pickupTarget = default;
             interactionTarget = null;
@@ -797,7 +910,8 @@ namespace Workerborn
             inventory.Clear();
             collectedCount = 0;
             nextStrikeAt = 0;
-            village?.Hud.ShowPlayerHealthUntil(0f);
+            if (IsLocallyControlled)
+                village?.Hud.ShowPlayerHealthUntil(0f);
             LastCrop = null;
             HoveredCrop = null;
             HoveredPickup = null;
@@ -812,10 +926,26 @@ namespace Workerborn
             return agent.Warp(position);
         }
 
+        internal bool EnsureNavigation()
+        {
+            if (agent == null)
+                return false;
+            if (agent.isOnNavMesh)
+                return true;
+            Vector3 position = village.SurfacePosition(transform.position.x, transform.position.z);
+            if ((!NavMesh.SamplePosition(position, out var hit, 1.5f, NavMesh.AllAreas) &&
+                !NavMesh.SamplePosition(position, out hit, VillagePlot.CellSide * 2f, NavMesh.AllAreas)) || !SharesMap(hit.position))
+                return false;
+            agent.enabled = false;
+            transform.position = hit.position;
+            agent.enabled = true;
+            return agent.isOnNavMesh;
+        }
+
         internal void LieOnBed(Transform pose)
         {
             FinishVisualJump();
-            restingVisual = village?.PlayerActor?.VisualRoot;
+            restingVisual = actor?.VisualRoot;
             if (restingVisual == null)
                 return;
             restBase = restingVisual.localPosition;

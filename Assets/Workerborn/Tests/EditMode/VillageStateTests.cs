@@ -7,6 +7,38 @@ namespace Workerborn.Tests
     public sealed class VillageStateTests
     {
         [Test]
+        public void VillageAndResidentRecordsUseTheSameCharacterProgressAndEquipmentRules()
+        {
+            var resident = new VillageState();
+            Assert.That(resident.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
+            Assert.That(resident.TryEquip(resident.Inventory.Entries.Single().Id), Is.True);
+            Assert.That(resident.TryGather(ItemIds.Potato, 1, 5, WorkOutcome.Success, out int quantity), Is.True);
+            Assert.That(resident.Inventory.TryAdd(ItemIds.Potato, quantity), Is.True);
+
+            var world = new VillageState().Export();
+            var saved = resident.Export<CharacterSave>();
+            saved.characterId = "farmer";
+            saved.playerX = -5f;
+            saved.harvestTargetId = "farm-01";
+            saved.harvestProgress = .6f;
+            world.characters = new[] { saved };
+
+            var restored = VillageState.Restore(world.characters.Single());
+            Assert.That(restored.Equipment[EquipmentSlot.MainHand], Is.EqualTo(ItemIds.Axe));
+            Assert.That(restored.Inventory.Count(ItemIds.Potato), Is.EqualTo(quantity));
+            Assert.That(restored.Energy, Is.EqualTo(resident.Energy));
+            Assert.That(restored.LifetimeHarvests, Is.EqualTo(1));
+            Assert.That(VillageState.Restore(world).LifetimeHarvests, Is.Zero);
+
+            var resumed = restored.Export<VillageSave>();
+            resumed.CopyPoseAndAction(saved);
+            Assert.That(resumed.characterId, Is.EqualTo("farmer"));
+            Assert.That(resumed.playerX, Is.EqualTo(-5f));
+            Assert.That(resumed.harvestTargetId, Is.EqualTo("farm-01"));
+            Assert.That(resumed.harvestProgress, Is.EqualTo(.6f));
+        }
+
+        [Test]
         public void ItemShortcutsKeepTheirBindingWhenAStackRunsOutAndIsReplaced()
         {
             var state = new VillageState();

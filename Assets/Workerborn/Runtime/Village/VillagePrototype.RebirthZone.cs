@@ -16,7 +16,6 @@ namespace Workerborn
         {
             if (!State.AwaitingIncarnation)
                 return;
-            equipmentVersion = -1;
             player.ShowEquipment(State.Equipment, settings);
             IncarnationLook = player.CurrentLook.Validated();
             if (rebirthZone != null && rebirthZone.Spawn != null && Travel(rebirthZone.Spawn.position, toClouds: true))

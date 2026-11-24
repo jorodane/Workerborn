@@ -18,7 +18,7 @@ namespace Workerborn
             worker.CommandApproachAt(this, approach.position);
 
         protected override void OnArrived(VillagePrototype village, HarvestWorker worker) =>
-            village.SleepInBed(this, paidRoom: false);
+            village.SleepInBed(worker, this, paidRoom: false);
 
         public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
         {
@@ -27,7 +27,7 @@ namespace Workerborn
             {
                 var worker = village.Worker;
                 if (BeginInteraction(worker))
-                    worker.CommandApproachAt(this, approach.position, () => village.SleepInBed(this, paidRoom: true));
+                    worker.CommandApproachAt(this, approach.position, () => village.SleepInBed(worker, this, paidRoom: true));
             }));
         }
     }

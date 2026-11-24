@@ -421,8 +421,8 @@ namespace Workerborn
             if (!VillageSaveStore.TryLoad(out var state, out var existing, out _, rules, repairBackup: false))
                 throw new InvalidDataException("The previous single-player world could not be read.");
             var save = state.Export();
-            save.playerX = existing.playerX;
-            save.playerZ = existing.playerZ;
+            save.CopyPoseAndAction(existing);
+            save.characters = existing.characters;
             save.cropRemaining = existing.cropRemaining;
             save.cropStates = existing.cropStates;
             save.animalStates = existing.animalStates;

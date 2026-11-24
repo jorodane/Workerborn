@@ -83,11 +83,11 @@ namespace Workerborn
 
         protected override void Interact(HarvestWorker worker)
         {
-            if (!village.SharesMap(transform.position))
+            if (!worker.SharesMap(transform.position))
                 return;
             if (!IsOpen)
             {
-                ShowClosedNotice();
+                ShowClosedNotice(worker);
                 return;
             }
 
@@ -103,12 +103,16 @@ namespace Workerborn
         {
             if (!IsOpen)
             {
-                ShowClosedNotice();
+                ShowClosedNotice(worker);
                 return;
             }
-            game.UseBuildingDoor(this);
+            game.UseBuildingDoor(worker, this);
         }
 
-        private void ShowClosedNotice() => village.Hud.ShowToast($"문이 닫혀 있어요. {opensAt:00}:00에 열어요.");
+        private void ShowClosedNotice(HarvestWorker worker)
+        {
+            if (worker.IsLocallyControlled)
+                village.Hud.ShowToast($"문이 닫혀 있어요. {opensAt:00}:00에 열어요.");
+        }
     }
 }

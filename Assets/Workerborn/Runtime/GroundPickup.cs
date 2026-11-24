@@ -27,6 +27,7 @@ namespace Workerborn
         public CropDefinition Definition => definition;
         internal Transform Visual => visual;
         internal GroundPickup AppearanceSource { get; set; }
+        internal string HarvestedBy { get; set; }
         internal bool IsPooled => returnToPool != null;
         public string ItemId => item != null ? item.Id : definition != null ? definition.ItemId : string.Empty;
         public int Quantity => quantity;
@@ -76,6 +77,7 @@ namespace Workerborn
         public void Initialize(CropDefinition crop, Vector3 start, Vector3 end, bool settled = false) => Initialize(crop, visual, start, end, settled);
         public void Initialize(CropDefinition crop, Transform model, Vector3 start, Vector3 end, bool settled = false)
         {
+            HarvestedBy = null;
             initialized = true;
             collected = false;
             definition = crop;

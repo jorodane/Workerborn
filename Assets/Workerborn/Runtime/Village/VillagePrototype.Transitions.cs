@@ -19,7 +19,8 @@ namespace Workerborn
             if (IsWorldTransitioning)
                 return false;
             IsWorldTransitioning = true;
-            worker.Cancel();
+            if (commit != null)
+                worker.Cancel();
             hud.SetWorldFade(commit == null ? 1f : 0f, true);
             StartCoroutine(PlayWorldTransition(commit, coverDelay));
             return true;

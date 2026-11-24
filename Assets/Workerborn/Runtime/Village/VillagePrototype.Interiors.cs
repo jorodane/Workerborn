@@ -104,22 +104,25 @@ namespace Workerborn
             return true;
         }
 
-        internal bool UseBuildingDoor(VillageBuildingDoor door)
+        internal bool UseBuildingDoor(VillageBuildingDoor door) => UseBuildingDoor(worker, door);
+
+        internal bool UseBuildingDoor(HarvestWorker traveler, VillageBuildingDoor door)
         {
-            if (door == null || !door.CanInteract || !door.IsOpen || ControlsBlocked ||
-                State.AwaitingIncarnation || !SharesMap(door.transform.position) ||
-                !worker.InReach(door.Approach.position, 1f))
+            if (door == null || !door.CanInteract || !door.IsOpen || !traveler.AcceptsInteractionCommands ||
+                traveler.CharacterState.AwaitingIncarnation || !traveler.SharesMap(door.transform.position) ||
+                !traveler.InReach(door.Approach.position, 1f))
                 return false;
 
             var room = door.Interior;
             bool exiting = door.IsExit;
-            if (CurrentInterior != (exiting ? room : room.Lobby))
+            Vector3 origin = traveler.StandingPosition;
+            if (InteriorAt(origin.x, origin.z) != (exiting ? room : room.Lobby))
                 return false;
             var destination = exiting ? room.Lobby : room;
             Transform arrival = room.Arrival;
             if (exiting)
                 arrival = destination != null ? destination.GuestRoomDoor?.Approach ?? destination.Arrival : room.Entrance.Approach;
-            return TravelToInterior(arrival, destination);
+            return traveler.IsLocallyControlled ? TravelToInterior(arrival, destination) : ArriveAtInterior(traveler, arrival, destination);
         }
 
         internal bool CanEnterGuestRoom(VillageInteractable keeper) => keeper != null &&
@@ -138,15 +141,22 @@ namespace Workerborn
         {
             return TryWorldTransition(() =>
             {
-                if (arrival == null || !TryWarpToMap(arrival.position, destination))
+                if (!ArriveAtInterior(worker, arrival, destination))
                 {
                     hud.ShowToast("반대편에 설 수 있는 곳이 없어요.");
                     return;
                 }
-                worker.transform.rotation = arrival.rotation;
                 RefreshAfterTravel();
                 SaveGame(false);
             });
+        }
+
+        private bool ArriveAtInterior(HarvestWorker traveler, Transform arrival, VillageInteriorMap destination)
+        {
+            if (arrival == null || !TryWarpCharacter(traveler, arrival.position, destination))
+                return false;
+            traveler.transform.rotation = arrival.rotation;
+            return true;
         }
 
         private VillageInteriorMap GuestRoomForRecovery()
@@ -181,18 +191,31 @@ namespace Workerborn
             return InRebirthZone ? clouds : !clouds && InteriorAt(position.x, position.z) == null;
         }
 
-        private bool TryWarpToMap(Vector3 destination, VillageInteriorMap room = null, bool toClouds = false)
+        internal bool SharesMap(Vector3 first, Vector3 second)
+        {
+            if (rebirthZone != null && rebirthZone.Contains(first.x, first.z) != rebirthZone.Contains(second.x, second.z))
+                return false;
+            return InteriorAt(first.x, first.z) == InteriorAt(second.x, second.z);
+        }
+
+        private bool TryWarpToMap(Vector3 destination, VillageInteriorMap room = null, bool toClouds = false) =>
+            TryWarpCharacter(worker, destination, room, toClouds);
+
+        private bool TryWarpCharacter(HarvestWorker character, Vector3 destination, VillageInteriorMap room = null, bool toClouds = false)
         {
             Vector3 surface = SurfacePosition(destination.x, destination.z);
             if (!NavMesh.SamplePosition(surface, out var landing, 2f, NavMesh.AllAreas))
                 return false;
             Vector3 point = landing.position;
             bool cloudPosition = rebirthZone?.Contains(point.x, point.z) == true;
-            if (toClouds != cloudPosition || InteriorAt(point.x, point.z) != room || !worker.WarpTo(point))
+            if (toClouds != cloudPosition || InteriorAt(point.x, point.z) != room || !character.WarpTo(point))
                 return false;
-            CurrentInterior = room;
-            InRebirthZone = toClouds;
-            lighting?.SetInteriorBackground(room != null);
+            if (character == worker)
+            {
+                CurrentInterior = room;
+                InRebirthZone = toClouds;
+                lighting?.SetInteriorBackground(room != null);
+            }
             return true;
         }
 

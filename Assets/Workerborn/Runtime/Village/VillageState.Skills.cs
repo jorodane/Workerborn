@@ -105,7 +105,7 @@ namespace Workerborn
             return result;
         }
 
-        private void RestoreSkills(VillageSave save)
+        private void RestoreSkills(CharacterSave save)
         {
             // Older characters already had access to every practice-rank skill.
             if (save.schema < LearnedSkillSaveSchema)

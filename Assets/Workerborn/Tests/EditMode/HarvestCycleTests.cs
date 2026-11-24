@@ -38,6 +38,19 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void ResumedWorkSpendsOneChargeOnlyWhenItFinishes()
+        {
+            var cycle = new HarvestCycle(3, 2f);
+            cycle.RestoreRemaining(2);
+            Assert.That(cycle.TryBegin(.75f), Is.True);
+            Assert.That(cycle.Advance(.25f), Is.False);
+            Assert.That(cycle.Remaining, Is.EqualTo(2));
+            Assert.That(cycle.Advance(.25f), Is.True);
+            Assert.That(cycle.Remaining, Is.EqualTo(1));
+            Assert.That(cycle.Advance(2f), Is.False);
+        }
+
+        [Test]
         public void CancelPreservesChargesAndNextAttemptStartsFresh()
         {
             var cycle = new HarvestCycle(3, 2f);

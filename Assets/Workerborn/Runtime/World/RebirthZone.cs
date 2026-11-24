@@ -17,12 +17,12 @@ namespace Workerborn
         internal Bounds Area => Floor.bounds;
         internal bool IsGround(Collider hit) => navigation != null && navigation.IsGround(hit);
 
-        internal void Initialize()
+        internal void Initialize(VillagePrototype village)
         {
             if (navigation != null)
                 navigation.Activate(useBakedData: false);
             if (guide != null && guide.TryGetComponent<CharacterActor>(out var actor))
-                VillagePrototype.BindCharacter(actor, idleOnly: true);
+                village.BindNpcCharacter(actor, inClouds: true);
         }
 
         internal bool Contains(float x, float z)

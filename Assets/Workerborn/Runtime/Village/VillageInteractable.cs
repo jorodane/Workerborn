@@ -34,7 +34,7 @@ namespace Workerborn
         public override string InteractionVerb => Role == VillageRole.NoticeBoard ? "게시판 보기" : Role == VillageRole.Shrine ? "기도하기" : "대화하기";
 
         protected override void Interact(HarvestWorker worker) => worker.CommandInteract(this);
-        protected override void OnArrived(VillagePrototype village, HarvestWorker worker) => village?.OpenConversation(this);
+        protected override void OnArrived(VillagePrototype village, HarvestWorker worker) => village?.BeginConversation(worker, this);
 
         public bool IsTopicAvailable(VillagePrototype village, DialogueAction action) => village.FindDialogueTopic(this, action) != null;
 

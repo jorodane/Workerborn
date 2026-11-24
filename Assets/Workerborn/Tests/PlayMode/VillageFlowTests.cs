@@ -36,6 +36,8 @@ namespace Workerborn.Tests
             Assert.That(game.Crops.Count, Is.EqualTo(12));
             Assert.That(game.Interactables.Count, Is.EqualTo(5));
             Assert.That(game.InRebirthZone, Is.False);
+            // Most tests isolate the player and world action under test from concurrent farm work.
+            game.FindInteraction(VillageRole.Farmer).Routine.enabled = false;
         }
 
         [UnityTearDown]
@@ -381,7 +383,7 @@ namespace Workerborn.Tests
             var change = health.Find("Health change").GetComponent<Image>();
             var stamina = status.Find("Stamina bar background/Stamina bar").GetComponent<Image>();
             float staminaBefore = stamina.fillAmount;
-            game.ReceiveAnimalHit(potion.HealthRestore + 10);
+            game.ReceiveAnimalHit(game.Worker, potion.HealthRestore + 10);
             yield return Until(() => change.fillAmount > fill.fillAmount + .05f, 1f);
             Assert.That(change.color.r, Is.GreaterThan(change.color.g));
             float damaged = (float)state.Health / state.HealthLimit;
@@ -446,7 +448,7 @@ namespace Workerborn.Tests
                 first.OnPointerClick(new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left });
                 Assert.That(state.Equipment[EquipmentSlot.MainHand], Is.EqualTo(ItemIds.Axe));
 
-                game.ReceiveAnimalHit(40);
+                game.ReceiveAnimalHit(game.Worker, 40);
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Enter));
                 yield return Until(() => game.Hud.IsChatTyping, 1f);
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Digit0));
@@ -680,12 +682,20 @@ namespace Workerborn.Tests
         public IEnumerator MiraWorksNearTheFarmAndRestsOnAFreeSeatAfterClosing()
         {
             var farmer = game.FindInteraction(VillageRole.Farmer);
-            int[] charges = game.Crops.Select(crop => crop.Remaining).ToArray();
+            var character = farmer.GetComponent<HarvestWorker>();
+            int charges = game.RemainingHarvests;
+            int playerHarvests = game.State.LifetimeHarvests;
+            int playerEnergy = game.State.Energy;
+            farmer.Routine.enabled = true;
             yield return Until(() => farmer.CurrentActivity == NpcActivity.Harvesting, 3f);
             Assert.That(game.Crops.Any(crop => Vector3.Distance(crop.transform.position, farmer.transform.position) < 2f), Is.True);
             Assert.That(game.DialogueTopicsFor(farmer).Any(entry => entry.Topic.keyword == "밭일은 어때요?"), Is.True);
             yield return Until(() => farmer.GetComponent<WorkerAnimation>().CurrentAction == (int)WorkerMotion.Work, 3f);
-            Assert.That(game.Crops.Select(crop => crop.Remaining), Is.EqualTo(charges));
+            yield return Until(() => character.CharacterState.Inventory.Count(ItemIds.Potato) > 0, 12f);
+            Assert.That(game.RemainingHarvests, Is.LessThan(charges));
+            Assert.That(character.CharacterState.LifetimeHarvests, Is.GreaterThan(0));
+            Assert.That(game.State.LifetimeHarvests, Is.EqualTo(playerHarvests));
+            Assert.That(game.State.Energy, Is.EqualTo(playerEnergy));
 
             var state = game.State;
             state.AdvanceTime((state.Rules.JobEnd - state.Minute + 1f) / state.Rules.MinutesPerSecond);
@@ -699,6 +709,7 @@ namespace Workerborn.Tests
         public IEnumerator RestingNpcWaitsForVacantSeatsAndFollowsAvailableFacilities()
         {
             var farmer = game.FindInteraction(VillageRole.Farmer);
+            farmer.Routine.enabled = true;
             yield return Until(() => farmer.CurrentActivity == NpcActivity.Harvesting, 3f);
             var restType = farmer.Definition.DailySchedule.Single(entry => entry.Activity == NpcActivity.Resting).Facility;
             var benches = UnityEngine.Object.FindObjectsByType<VillageFacility>(FindObjectsSortMode.None)
@@ -743,6 +754,48 @@ namespace Workerborn.Tests
             game.Worker.ToggleSit();
             yield return Until(() => farmer.Routine.IsSeated, 32f);
             Assert.That(farmer.Routine.ReservesSeat(firstSeat.Position), Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator CharacterEquipmentAndWorkSurviveReloadWhileThePlayerIsInsideTheInn()
+        {
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            var character = farmer.GetComponent<HarvestWorker>();
+            const string coat = "field_coat";
+            var slot = ItemCatalog.Get(coat).EquipmentSlot;
+            Assert.That(character.CharacterState.Inventory.TryAdd(coat, 1), Is.True);
+            var entry = character.CharacterState.Inventory.Entries.Single(item => item.ItemId == coat);
+            Assert.That(character.CharacterState.TryEquip(entry.Id), Is.True);
+            Assert.That(game.State.Equipment.Values, Does.Not.Contain(coat));
+
+            var inn = WorldInteractable.Active.OfType<VillageBuildingDoor>().Single(door => door.BuildingId == "inn");
+            Vector3 approach = inn.Approach.position;
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(approach.x, approach.z), out var standing, .8f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(standing.position), Is.True);
+            inn.RequestInteraction(game.Worker);
+            yield return Until(() => game.CurrentInterior == inn.Interior && !game.IsWorldTransitioning, 3f);
+
+            farmer.Routine.enabled = true;
+            yield return Until(() => character.CharacterState.Inventory.Count(ItemIds.Potato) > 0, 12f);
+            yield return Until(() => character.ActiveCrop != null && character.HarvestProgress >= .4f, 6f);
+            Vector3 workPosition = character.StandingPosition;
+            string cropId = character.ActiveCrop.PersistentId;
+            float savedProgress = character.HarvestProgress;
+            int harvested = character.CharacterState.LifetimeHarvests;
+            Assert.That(game.SaveGame(false), Is.True);
+            farmer.Routine.enabled = false;
+
+            yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
+            game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
+            Assert.That(game.CurrentInterior?.Id, Is.EqualTo("inn"));
+            farmer = game.FindInteraction(VillageRole.Farmer);
+            character = farmer.GetComponent<HarvestWorker>();
+            Assert.That(Vector3.Distance(character.StandingPosition, workPosition), Is.LessThan(.75f));
+            Assert.That(character.CharacterState.Equipment[slot], Is.EqualTo(coat));
+            Assert.That(character.CharacterState.Inventory.Count(ItemIds.Potato), Is.GreaterThan(0));
+            yield return Until(() => character.ActiveCrop?.PersistentId == cropId && character.HarvestProgress >= savedProgress, 3f);
+            yield return Until(() => character.CharacterState.LifetimeHarvests > harvested, 12f);
+            Assert.That(game.CurrentInterior?.Id, Is.EqualTo("inn"));
         }
 
         [UnityTest]

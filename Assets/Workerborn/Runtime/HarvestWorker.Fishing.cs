@@ -8,13 +8,13 @@ namespace Workerborn
         private FishingBobber bobber;
         internal Vector3? FishingPoint { get; private set; }
 
-        internal void CommandFish(FishingWater water, Vector3 point)
+        internal void CommandFish(FishingWater water, Vector3 point, float progress = 0f)
         {
             if (village == null || water == null || !water.CanInteract || !AcceptsInteractionCommands || agent == null || !agent.isOnNavMesh)
                 return;
             if (cropTarget == water && FishingPoint is Vector3 pending && (pending - point).sqrMagnitude < .01f)
                 return;
-            if (!village.CanHarvest(water))
+            if (!SharesMap(point) || !village.CanHarvest(this, water))
                 return;
             if (!TryFindCastPath(water, point, out var path, out var stand))
             {
@@ -30,6 +30,7 @@ namespace Workerborn
 
             cropTarget = LastCrop = water;
             FishingPoint = point;
+            savedHarvestProgress = progress;
             if (alreadyThere)
                 BeginHarvesting();
         }
@@ -103,7 +104,7 @@ namespace Workerborn
                 return;
             if (bobber == null)
                 bobber = Instantiate(fishingBobberPrefab, transform);
-            var animator = village.PlayerActor.Animator;
+            var animator = Actor?.Animator;
             var hand = animator != null && animator.avatar != null && animator.avatar.isValid && animator.isHuman
                 ? animator.GetBoneTransform(HumanBodyBones.RightHand) : null;
             var from = hand != null ? hand.position : transform.TransformPoint(new Vector3(.28f, 1.25f, .28f));

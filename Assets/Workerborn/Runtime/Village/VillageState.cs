@@ -42,6 +42,7 @@ namespace Workerborn
         public string id;
         public int quantity = 1;
         public string itemId;
+        public string harvestedBy;
         public float x;
         public float z;
         public InteriorPositionSave interior;
@@ -55,8 +56,9 @@ namespace Workerborn
     }
 
     [Serializable]
-    public sealed class VillageSave
+    public class CharacterSave
     {
+        public string characterId;
         public int schema = 1;
         public int day = 1;
         public int lifeDay = 1;
@@ -107,18 +109,50 @@ namespace Workerborn
         public InventoryEntrySave[] inventory = Array.Empty<InventoryEntrySave>();
         public string[] itemShortcuts = Array.Empty<string>();
         public PendingPurchaseSave pendingPurchase;
-        public int[] cropRemaining = Array.Empty<int>();
-        public CropStateSave[] cropStates = Array.Empty<CropStateSave>();
-        public AnimalStateSave[] animalStates = Array.Empty<AnimalStateSave>();
-        public string[] collectedPickupIds = Array.Empty<string>();
-        public GroundDropSave[] drops = Array.Empty<GroundDropSave>();
         public float playerX;
         public float playerZ = -4.4f;
+        public float yaw;
+        public bool sitting;
+        public string harvestTargetId;
+        public float harvestProgress;
+        public bool casting;
+        public float castX;
+        public float castY;
+        public float castZ;
         public InteriorPositionSave interior;
         public bool awaitingIncarnation;
         public bool hasLifeLook;
         public CharacterLook lifeLook;
         public EquipmentEntrySave[] equipment = Array.Empty<EquipmentEntrySave>();
+
+        internal void CopyPoseAndAction(CharacterSave source, bool teleport = false)
+        {
+            characterId = source.characterId;
+            playerX = source.playerX;
+            playerZ = source.playerZ;
+            if (teleport)
+                return;
+            interior = source.interior;
+            yaw = source.yaw;
+            sitting = source.sitting;
+            harvestTargetId = source.harvestTargetId;
+            harvestProgress = source.harvestProgress;
+            casting = source.casting;
+            castX = source.castX;
+            castY = source.castY;
+            castZ = source.castZ;
+        }
+    }
+
+    [Serializable]
+    public sealed class VillageSave : CharacterSave
+    {
+        public int[] cropRemaining = Array.Empty<int>();
+        public CropStateSave[] cropStates = Array.Empty<CropStateSave>();
+        public AnimalStateSave[] animalStates = Array.Empty<AnimalStateSave>();
+        public string[] collectedPickupIds = Array.Empty<string>();
+        public GroundDropSave[] drops = Array.Empty<GroundDropSave>();
+        public CharacterSave[] characters = Array.Empty<CharacterSave>();
     }
 
     // Unity-independent rules, shared by the playable village and its NUnit tests.
@@ -730,12 +764,14 @@ namespace Workerborn
             return Result(true, $"{Rules.JobStart / 60:00}:{Rules.JobStart % 60:00}까지 기다렸습니다.");
         }
 
-        public VillageSave Export()
+        public VillageSave Export() => Export<VillageSave>();
+
+        internal T Export<T>() where T : CharacterSave, new()
         {
             var worn = new List<EquipmentEntrySave>();
             foreach (var entry in equipment)
                 worn.Add(new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value });
-            return new VillageSave
+            return new T
             {
                 schema = CurrentSaveSchema,
                 awaitingIncarnation = AwaitingIncarnation,
@@ -794,7 +830,7 @@ namespace Workerborn
             };
         }
 
-        public static VillageState Restore(VillageSave save, VillageRules rules = null)
+        public static VillageState Restore(CharacterSave save, VillageRules rules = null)
         {
             rules = rules ?? new VillageRules();
             // An earlier era may have collected more than the current era requires.
@@ -932,7 +968,7 @@ namespace Workerborn
             }
 
             if (state.AwaitingIncarnation && (state.HasVillageProgress || save.gold != 0 ||
-                (save.drops?.Length ?? 0) > 0 || !string.IsNullOrEmpty(save.interior.id)))
+                save is VillageSave { drops: { Length: > 0 } } || !string.IsNullOrEmpty(save.interior.id)))
                 throw new ArgumentException("An incarnation waiting on the clouds cannot carry possessions or progress from the village.");
 
             if (state.Job == JobStatus.Active && state.Minute >= rules.JobEnd)

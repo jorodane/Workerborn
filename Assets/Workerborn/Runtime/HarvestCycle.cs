@@ -23,10 +23,12 @@ namespace Workerborn
             Duration = duration;
         }
 
-        public bool TryBegin()
+        public bool TryBegin() => TryBegin(0f);
+
+        internal bool TryBegin(float progress)
         {
-            if (IsWorking || IsDepleted) return false;
-            Elapsed = 0f;
+            if (IsWorking || IsDepleted || float.IsNaN(progress) || float.IsInfinity(progress)) return false;
+            Elapsed = Duration * Math.Min(.999f, Math.Max(0f, progress));
             IsWorking = true;
             return true;
         }

@@ -64,16 +64,24 @@ namespace Workerborn
 
         private void RefreshBuiltPlots()
         {
-            if (!RenderPlots())
-                return;
-            worker.Cancel();
-            var agent = worker.GetComponent<NavMeshAgent>();
-            agent.enabled = false;
-            navigation.Activate(useBakedData: false);
-            if (NavMesh.SamplePosition(worker.transform.position, out var point, VillagePlot.CellSide * 2f, NavMesh.AllAreas) ||
-                NavMesh.SamplePosition(spawnPoint.position, out point, 2f, NavMesh.AllAreas))
-                worker.transform.position = point.position;
-            agent.enabled = true;
+            if (RenderPlots())
+            {
+                worker.Cancel();
+                var agent = worker.GetComponent<NavMeshAgent>();
+                agent.enabled = false;
+                navigation.Activate(useBakedData: false);
+                if (NavMesh.SamplePosition(worker.transform.position, out var point, VillagePlot.CellSide * 2f, NavMesh.AllAreas) ||
+                    NavMesh.SamplePosition(spawnPoint.position, out point, 2f, NavMesh.AllAreas))
+                    worker.transform.position = point.position;
+                agent.enabled = true;
+            }
+            BindBuiltCharacters();
+        }
+
+        private void BindBuiltCharacters()
+        {
+            foreach (var plot in buildPlots.Values)
+                plot.BindCharacters(this);
         }
 
         internal void RegisterPlotCrop(HarvestableCrop crop, string id)

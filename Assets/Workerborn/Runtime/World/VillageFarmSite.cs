@@ -13,6 +13,10 @@ namespace Workerborn
         public override string InteractionVerb => siteName + " 지정하기";
 
         protected override void Interact(HarvestWorker worker) => worker.CommandApproach(this);
-        protected override void OnArrived(VillagePrototype village, HarvestWorker worker) => village.ChooseFarmSite(this);
+        protected override void OnArrived(VillagePrototype village, HarvestWorker worker)
+        {
+            if (worker.IsLocallyControlled)
+                village.ChooseFarmSite(this);
+        }
     }
 }
