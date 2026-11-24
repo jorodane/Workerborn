@@ -1,12 +1,13 @@
 """Static prefab field/type contracts, kept separate from Unity import/PlayMode tests."""
 from pathlib import Path
+from functools import cache
 import json
 import re
 import sys
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'Tools'))
 from unity_asset_geometry import documents,GUIDS
-from resolve_owned_prefabs import expand
+from resolve_owned_prefabs import body, expand
 CONTENT=ROOT/'Assets/Workerborn'
 UI_GUIDS=json.loads((ROOT/'Tools/unity_ui_guids.json').read_text())
 CLASSES={}
@@ -29,6 +30,36 @@ def subclass(name,parent):
     return name==parent
 
 def kind(doc):return next(k for k in doc if not k.startswith('_'))
+
+
+@cache
+def check_nested_file_ids(path):
+    # expand() uses namespaced IDs, so it cannot detect collisions during Unity import.
+    rows = documents(path)
+    used = {row['_id'] for row in rows}
+    assert len(used) == len(rows), f'{path.name}: duplicate serialized fileID'
+    for row in rows:
+        if 'PrefabInstance' not in row:
+            continue
+        guid = row['PrefabInstance']['m_SourcePrefab']['guid']
+        source = GUIDS.get(guid)
+        if source is None or not source.is_relative_to(CONTENT / 'Prefabs'):
+            continue
+
+        instance = row['_id']
+        aliases = {value['m_CorrespondingSourceObject']['fileID'] for value in map(body, rows)
+                   if value.get('m_PrefabInstance', {}).get('fileID') == instance
+                   and value.get('m_CorrespondingSourceObject', {}).get('guid') == guid}
+        for source_id in check_nested_file_ids(source):
+            combined = (instance ^ source_id) & ((1 << 63) - 1)
+            assert combined != 0, f'{path.name}: instance {instance} conflicts with a fileID in {source.name}'
+            if source_id in aliases:
+                continue  # A stripped object already has a local fileID in this asset.
+            assert combined not in used, f'{path.name}: duplicate nested fileID {combined} from {source.name}'
+            used.add(combined)
+    return used
+
+
 def validate(path):
     docs=expand(path) if path.suffix=='.prefab' else documents(path)
     objects={d['_id']:d for d in docs};checked=0
@@ -69,6 +100,7 @@ def validate(path):
     return checked
 
 count=0
+check_nested_file_ids(CONTENT / 'Prefabs/UI/VillageHUD.prefab')
 for path in [*(CONTENT/'Prefabs').rglob('*.prefab'),*(CONTENT/'Data').rglob('*.asset')]:count+=validate(path)
 for child in ['VillageInteractable','HarvestableCrop','GroundPickup','MonsterInteractable','AnimalNpc','LoggingTree','VillagePlotSign']:assert subclass(child,'WorldInteractable')
 assert subclass('FishingWater','HarvestableCrop')

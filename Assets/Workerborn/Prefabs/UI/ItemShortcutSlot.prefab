@@ -281,7 +281,7 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
---- !u!1001 &100020
+--- !u!1001 &281474976710656
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -341,12 +341,12 @@ PrefabInstance:
 --- !u!224 &100021 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 100002, guid: b25d2df002c55a0082970f072fcd1039, type: 3}
-  m_PrefabInstance: {fileID: 100020}
+  m_PrefabInstance: {fileID: 281474976710656}
   m_PrefabAsset: {fileID: 0}
 --- !u!114 &100022 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 100023, guid: b25d2df002c55a0082970f072fcd1039, type: 3}
-  m_PrefabInstance: {fileID: 100020}
+  m_PrefabInstance: {fileID: 281474976710656}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 0}
   m_Enabled: 1
