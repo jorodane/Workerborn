@@ -12,14 +12,27 @@ namespace Workerborn
         [SerializeField, Min(.1f)] private float approachWidth = .8f;
         [SerializeField, Min(.1f)] private float approachDepth = 1.1f;
         [SerializeField, Min(.1f)] private float heightTolerance = .65f;
+        [SerializeField, Tooltip("Allows sitting from any side and faces the direction of approach.")]
+        private bool radial;
 
         internal Vector3 Position => transform.position + Facing * seatOffset;
         internal Quaternion Facing => Quaternion.Euler(0f, transform.eulerAngles.y + facingDegrees, 0f);
         internal Vector3 ApproachPosition => Position + Facing * Vector3.forward * (approachDepth * .75f);
 
+        internal Quaternion FacingFor(Vector3 approach, Quaternion fallback)
+        {
+            if (!radial)
+                return Facing;
+            Vector3 direction = approach - Position;
+            direction.y = 0f;
+            return direction.sqrMagnitude > .0025f ? Quaternion.LookRotation(direction) : fallback;
+        }
+
         internal bool Covers(Vector3 position)
         {
             Vector3 local = Quaternion.Inverse(Facing) * (position - Position);
+            if (radial)
+                return Mathf.Abs(local.y) <= heightTolerance && new Vector2(local.x, local.z).sqrMagnitude <= approachDepth * approachDepth;
             return Mathf.Abs(local.x) <= approachWidth * .5f && Mathf.Abs(local.y) <= heightTolerance &&
                 local.z >= 0f && local.z <= approachDepth;
         }
@@ -30,8 +43,13 @@ namespace Workerborn
             var color = Gizmos.color;
             Gizmos.matrix = Matrix4x4.TRS(Position, Facing, Vector3.one);
             Gizmos.color = Color.yellow;
-            Gizmos.DrawWireCube(Vector3.forward * (approachDepth * .5f), new Vector3(approachWidth, heightTolerance * 2f, approachDepth));
-            Gizmos.DrawLine(Vector3.zero, Vector3.forward * approachDepth);
+            if (radial)
+                Gizmos.DrawWireSphere(Vector3.zero, approachDepth);
+            else
+            {
+                Gizmos.DrawWireCube(Vector3.forward * (approachDepth * .5f), new Vector3(approachWidth, heightTolerance * 2f, approachDepth));
+                Gizmos.DrawLine(Vector3.zero, Vector3.forward * approachDepth);
+            }
             Gizmos.DrawSphere(Vector3.zero, .06f);
             Gizmos.matrix = matrix;
             Gizmos.color = color;

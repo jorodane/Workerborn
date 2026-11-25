@@ -28,6 +28,7 @@ namespace Workerborn
         [SerializeField]
         private TMP_FontAsset interfaceFont;
         [SerializeField] private VillageCursorSet cursors;
+        [SerializeField] private TimberAssets timber;
         [Header("Time and rest")]
         [SerializeField, Min(0.1f)]
         private float minutesPerSecond = 3f;
@@ -57,6 +58,7 @@ namespace Workerborn
         public CharacterDefinition Player => player;
         public TMP_FontAsset InterfaceFont => interfaceFont;
         internal VillageCursorSet Cursors => cursors;
+        internal TimberAssets Timber => timber;
         public PartTimeJobDefinition DefaultJob => defaultJob;
         public QuestDefinition IntroQuest => introQuest;
         public QuestDefinition ExpansionQuest => expansionQuest;

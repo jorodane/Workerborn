@@ -241,6 +241,8 @@ namespace Workerborn
                 return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
+                if (!HasModal && !IsHoldingItem && game.Worker.TryCancelTimberSkill())
+                    return;
                 if (IsShopOpen)
                     TryLeaveDialogue();
                 else if (!CloseFocusedWindow())
@@ -360,11 +362,12 @@ namespace Workerborn
         {
             var worker = game.Worker;
             var active = worker.ActiveCrop;
-            skillBubble.gameObject.SetActive(active != null && !HasModal);
-            if (active != null && !HasModal)
+            SkillId? skill = worker.TimberSkill ?? active?.Definition.Skill;
+            skillBubble.gameObject.SetActive(skill.HasValue && !HasModal);
+            if (skill.HasValue && !HasModal)
             {
-                skillBalloon.SetIcon(game.Settings.FindSkill(active.Definition.Skill)?.Icon ?? active.Definition.SkillIcon);
-                skillBalloon.SetProgress(active.Progress);
+                skillBalloon.SetIcon(game.Settings.FindSkill(skill.Value)?.Icon ?? active?.Definition.SkillIcon);
+                skillBalloon.SetProgress(active?.Progress ?? 1f);
                 PlaceWorld(skillBubble, worker.transform.position + Vector3.up * skillWorldHeight);
             }
 

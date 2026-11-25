@@ -66,7 +66,23 @@ namespace Workerborn.Tests
             Assert.That(game.Perform(() => state.TryBuy(ItemIds.Axe)), Is.True);
             Assert.That(game.Perform(() => state.TryEquip(state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Axe).Id)), Is.True);
 
-            yield return Gather(ItemIds.Timber, state.Rules.Foundation.TimberCount);
+            state.LearnSkill(SkillId.Woodcutting, SkillProgression.MaxRank);
+            var tree = UnityEngine.Object.FindFirstObjectByType<LoggingTree>();
+            tree.RequestInteraction(game.Worker);
+            yield return Until(() => tree.Felled);
+            var stump = WorldInteractable.Active.OfType<TimberPiece>().Single(piece => piece.Part == TimberPart.Stump);
+            stump.RequestInteraction(game.Worker);
+            yield return Until(() => WorldInteractable.Active.OfType<TimberPiece>().Any(piece => piece.Part == TimberPart.Log));
+            var log = WorldInteractable.Active.OfType<TimberPiece>().Single(piece => piece.Part == TimberPart.Log);
+            yield return Until(() => game.Worker.Action == WorkerAction.Idle);
+            log.RequestInteraction(game.Worker);
+            yield return Until(() => WorldInteractable.Active.OfType<GroundPickup>().Any(item => item.ItemId == ItemIds.Timber));
+            foreach (var item in WorldInteractable.Active.OfType<GroundPickup>().Where(item => item.ItemId == ItemIds.Timber).ToArray())
+            {
+                game.Worker.CommandPickup(item);
+                yield return Until(() => item == null || !item.CanCollect);
+            }
+            Assert.That(state.Inventory.Count(ItemIds.Timber), Is.GreaterThanOrEqualTo(state.Rules.Foundation.TimberCount));
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Farmer));
             yield return Until(() => game.Hud.HasModal);
             Assert.That(game.Perform(state.TryDeliverTimber), Is.True);

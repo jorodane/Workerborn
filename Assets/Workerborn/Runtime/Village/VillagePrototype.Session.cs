@@ -59,6 +59,7 @@ namespace Workerborn
             farmSites = mapRoot.GetComponentsInChildren<VillageFarmSite>(true);
             npcs.AddRange(mapRoot.GetComponentsInChildren<VillageInteractable>(true));
             Session.InitializeAuthority(CreateVillageRules(), AuthoredSites(), spawnPoint.position, rebirthZone);
+            Session.ConfigureTimber(TimberSites(), IsTimberGround, TimberSurfaceHeight);
             foreach (var root in gameObject.scene.GetRootGameObjects())
                 root.SetActive(false);
         }
@@ -131,7 +132,8 @@ namespace Workerborn
             var animation = player.GetComponent<WorkerAnimation>();
             return new SessionAvatar { x = pose.position.x, y = pose.position.y, z = pose.position.z,
                 yaw = pose.eulerAngles.y, motion = animation.CurrentAction, jumpOffset = worker.VisualJumpOffset,
-                gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress };
+                gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress,
+                timberSwing = (int)worker.CurrentTimberSwing, timberProgress = worker.CurrentTimberProgress };
         }
 
         internal bool SeatInUse(Vector3 position, NpcRoutine searchingNpc = null)
@@ -261,6 +263,7 @@ namespace Workerborn
                     if (pendingSpeech.Remove(avatar.id, out var speech) && Time.unscaledTime < speech.Until)
                         peer.Say(speech.Text);
                 }
+                peer.ShowTimberCarry(settings.Timber, CarriedLogCount(avatar.id) > 0);
                 peer.SetPose(avatar, SurfacePosition(avatar.x, avatar.z).y);
             }
             departedPeers.Clear();

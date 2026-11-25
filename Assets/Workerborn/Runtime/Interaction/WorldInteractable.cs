@@ -63,6 +63,8 @@ namespace Workerborn
         public virtual string InteractionVerbFor(HarvestWorker worker) => InteractionVerb;
         internal virtual InteractionCursor CursorFor(HarvestWorker worker) => InteractionCursor.Inspect;
         internal virtual bool CanReceiveStrike => false;
+        internal virtual AnimationClip StrikeClip(HarvestWorker worker) => null;
+        internal virtual float StrikeImpact => .36f;
         internal virtual void ReceiveStrike(HarvestWorker worker, int damage)
         {
         }

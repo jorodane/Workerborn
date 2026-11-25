@@ -1,0 +1,155 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a09a5b790f945a1daebccac355675f25, type: 3}
+  m_Name: Lifting
+  m_EditorClassIdentifier: ''
+  skill: 10
+  displayName: 들어 올리기
+  icon: {fileID: 21300000, guid: b488c9406d3e34d96be0e3642b6d8372, type: 3}
+  firstUpgradeCost: 1
+  costIncreasePerGrade: 1
+  rankEffects:
+  - fromRank: 0
+    throughRank: 0
+    effect: 15
+    amount: 65
+    increasePerRank: 0
+  - fromRank: 1
+    throughRank: 1
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 11
+    throughRank: 11
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 21
+    throughRank: 21
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 31
+    throughRank: 31
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 41
+    throughRank: 41
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 51
+    throughRank: 51
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 61
+    throughRank: 61
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 71
+    throughRank: 71
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 81
+    throughRank: 81
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 91
+    throughRank: 91
+    effect: 15
+    amount: 3
+    increasePerRank: 0
+  - fromRank: 0
+    throughRank: 0
+    effect: 16
+    amount: 0
+    increasePerRank: 0
+  - fromRank: 1
+    throughRank: 1
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 11
+    throughRank: 11
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 21
+    throughRank: 21
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 31
+    throughRank: 31
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 41
+    throughRank: 41
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 51
+    throughRank: 51
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 61
+    throughRank: 61
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 71
+    throughRank: 71
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 81
+    throughRank: 81
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 91
+    throughRank: 91
+    effect: 16
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 0
+    throughRank: 0
+    effect: 14
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 11
+    throughRank: 11
+    effect: 14
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 31
+    throughRank: 31
+    effect: 14
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 51
+    throughRank: 51
+    effect: 14
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 71
+    throughRank: 71
+    effect: 14
+    amount: 1
+    increasePerRank: 0

@@ -23,6 +23,7 @@ namespace Workerborn
         [SerializeField] private WorkAnimationDefinition workAnimation;
         [SerializeField, Min(0), Tooltip("0 uses the village's default stamina cost.")] private int staminaCost;
         [SerializeField, Range(0, 1)] private float successChance = 1f;
+        internal float SuccessChance => successChance;
         [Header("Loot Scatter")]
         [SerializeField] private bool scatterTowardWorker;
         [SerializeField, Range(0, 360)] private float scatterAngle = 360f;

@@ -17,6 +17,8 @@ namespace Workerborn
         private int lookSelection;
         private Vector3 visualBase;
         private float jumpOffset, shownJumpOffset;
+        private TimberAssets timber;
+        private TimberSwing timberSwing;
 
         internal void Bind(CharacterDefinition appearance, VillageHud display, string name, CharacterLook look)
         {
@@ -41,6 +43,12 @@ namespace Workerborn
         }
 
         internal void Say(string message) => label?.Say(message);
+        internal void ShowTimberCarry(TimberAssets assets, bool carrying)
+        {
+            timber = assets;
+            animationDriver?.ConfigureTimberToss(assets?.Toss);
+            animationDriver?.SetCarrying(assets?.Carry, carrying);
+        }
         internal bool OccupiesSeat(Vector3 position) => hasPose && animationDriver != null &&
             animationDriver.CurrentAction == (int)WorkerMotion.SeatSit && (position - destination).sqrMagnitude < .04f;
 
@@ -57,11 +65,41 @@ namespace Workerborn
             if (!hasPose || Vector3.SqrMagnitude(destination - transform.position) > 64f)
                 transform.SetPositionAndRotation(destination, yaw);
             hasPose = true;
+            PresentTimberSwing(avatar);
             animationDriver?.SetAction(avatar.motion);
             if (animationDriver != null && float.IsFinite(avatar.gestureProgress))
                 animationDriver.SetGesture((WorkerGesture)avatar.gesture, avatar.gestureProgress);
             jumpOffset = animationDriver?.Gesture != WorkerGesture.Jump && float.IsFinite(avatar.jumpOffset)
                 ? Mathf.Clamp(avatar.jumpOffset, 0f, .6f) : 0f;
+        }
+
+        private void PresentTimberSwing(SessionAvatar avatar)
+        {
+            if (animationDriver == null || timber == null)
+                return;
+            var swing = (TimberSwing)avatar.timberSwing;
+            if (swing != timberSwing)
+            {
+                timberSwing = swing;
+                switch (swing)
+                {
+                    case TimberSwing.Fell:
+                        animationDriver.BeginWork(timber.Felling.WorkAnimation, timber.Felling.HarvestSeconds);
+                        break;
+                    case TimberSwing.Split:
+                    case TimberSwing.Strike:
+                        animationDriver.BeginStrike(swing == TimberSwing.Split ? timber.Split : timber.Strike);
+                        break;
+                    default:
+                        if (avatar.motion == (int)WorkerMotion.Work)
+                            animationDriver.BeginWork(null, 1f);
+                        break;
+                }
+            }
+            if (swing == TimberSwing.Fell)
+                animationDriver.SampleWork(avatar.timberProgress);
+            else if (swing is TimberSwing.Split or TimberSwing.Strike)
+                animationDriver.SampleStrike(avatar.timberProgress);
         }
 
         private void LateUpdate()

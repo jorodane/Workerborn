@@ -82,7 +82,9 @@ namespace Workerborn
             return true;
         }
 
-        private bool TryGather() => owner.Village == null || owner.Village.TryGatherFrom(owner, this);
+        private bool TryGather() => Gather(owner);
+
+        protected virtual bool Gather(HarvestWorker worker) => worker.Village == null || worker.Village.TryGatherFrom(worker, this);
 
         public void Cancel(HarvestWorker worker)
         {
@@ -109,14 +111,7 @@ namespace Workerborn
         private void RefreshVisuals()
         {
             bool available = !IsDepleted;
-            var colliders = interactionColliders != null && interactionColliders.Length > 0 ? interactionColliders : GetComponents<Collider>();
-            foreach (var collider in colliders)
-                collider.enabled = available;
-            hoverAssistColliders ??= Array.FindAll(GetComponentsInChildren<Collider>(true),
-                collider => collider.enabled && collider.isTrigger && collider.gameObject.layer == PointerTargeting.HoverAssistLayer);
-            foreach (var collider in hoverAssistColliders)
-                if (collider != null)
-                    collider.enabled = available;
+            SetInteractionGeometryActive(available);
             if (visual != null)
                 visual.gameObject.SetActive(keepVisualWhenDepleted || !IsDepleted);
             if (depletedVisual != null)
@@ -126,6 +121,18 @@ namespace Workerborn
                 return;
             for (int i = 0; i < charges.Length; i++)
                 charges[i].enabled = i < Remaining;
+        }
+
+        protected void SetInteractionGeometryActive(bool available)
+        {
+            var colliders = interactionColliders != null && interactionColliders.Length > 0 ? interactionColliders : GetComponents<Collider>();
+            foreach (var collider in colliders)
+                collider.enabled = available;
+            hoverAssistColliders ??= Array.FindAll(GetComponentsInChildren<Collider>(true),
+                collider => collider.enabled && collider.isTrigger && collider.gameObject.layer == PointerTargeting.HoverAssistLayer);
+            foreach (var collider in hoverAssistColliders)
+                if (collider != null)
+                    collider.enabled = available;
         }
 
         protected override void OnDisable()

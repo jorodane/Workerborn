@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: woodcutting_primer
   m_EditorClassIdentifier: ''
   id: woodcutting_primer
-  displayName: 벌목 입문서
-  description: 읽으면 벌목 스킬을 배웁니다.
+  displayName: 나무 약탈 입문서
+  description: 읽으면 나무 약탈 스킬을 배웁니다.
   icon: {fileID: 21300000, guid: 4b0e66002b1cf4f94af2dbf91766a5c0, type: 3}
   worldPrefab: {fileID: 412048366482316108, guid: ea0aa594ce6eb804da99471897f183c5, type: 3}
   width: 1

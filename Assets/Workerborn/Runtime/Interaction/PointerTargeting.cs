@@ -217,6 +217,7 @@ namespace Workerborn
                 game.ControlsBlocked && !(target is GroundPickup)))
                 target = null;
             ShowCursor(game.CameraRig.IsOrbiting ? InteractionCursor.Orbit :
+                !overUi && !game.ControlsBlocked && game.Worker.AimingTimberThrow ? InteractionCursor.Throw :
                 target != null ? target.CursorFor(game.Worker) : InteractionCursor.Default);
             if (pointerOnWorld && target == null && playerCollider != null)
             {
@@ -259,6 +260,8 @@ namespace Workerborn
                     game.Hud.DropHeldOnGround(cursor);
                 return;
             }
+            if (!overUi && game.Worker.HandleTimberClick(target, cursor))
+                return;
             if (target != null)
                 target.RequestInteraction(game.Worker, game.WorldCamera.ScreenPointToRay(cursor));
             else if (!game.ControlsBlocked && !overUi && !control && (HasMask || maskMaterial == null) &&

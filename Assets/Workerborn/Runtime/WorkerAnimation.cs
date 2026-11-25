@@ -25,6 +25,12 @@ namespace Workerborn
         [SerializeField] private AnimationClip gatherFailure;
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
+        private AnimationPlayableOutput animationOutput;
+        private AnimationLayerMixerPlayable carryLayer;
+        private AnimationClipPlayable carryPose;
+        private AvatarMask carryMask;
+        private AnimationClip timberToss;
+        private bool humanoid, carrying;
         private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[GestureInput + 1];
         private readonly float[] lengths = new float[GestureInput + 1];
         private readonly float[] weights = new float[GestureInput + 1];
@@ -52,6 +58,7 @@ namespace Workerborn
         {
             if (graph.IsValid())
                 graph.Destroy();
+            ClearCarryLayer();
             if (animator == null || idle == null)
                 return;
             move = move != null ? move : idle;
@@ -65,11 +72,12 @@ namespace Workerborn
             animator.runtimeAnimatorController = null;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            humanoid = animator.isHuman;
             graph = PlayableGraph.Create("Workerborn existing character animations");
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
             mixer = AnimationMixerPlayable.Create(graph, clips.Length);
-            var output = AnimationPlayableOutput.Create(graph, "Character", animator);
-            output.SetSourcePlayable(mixer);
+            animationOutput = AnimationPlayableOutput.Create(graph, "Character", animator);
+            animationOutput.SetSourcePlayable(mixer);
             AnimationClip[] source =
             {
                 idle,
@@ -225,6 +233,7 @@ namespace Workerborn
                 WorkerGesture.Jump => jump,
                 WorkerGesture.GatherSuccess => gatherSuccess,
                 WorkerGesture.GatherFailure => gatherFailure,
+                WorkerGesture.TimberToss => timberToss,
                 _ => null
             };
             if (clip == null)
@@ -239,6 +248,38 @@ namespace Workerborn
             float duration = gesture == WorkerGesture.Jump ? JumpSeconds : Mathf.Min(1.15f, lengths[GestureInput]);
             clips[GestureInput].SetTime(Mathf.Clamp(progress, 0f, .999f) * lengths[GestureInput]);
             clips[GestureInput].SetSpeed(lengths[GestureInput] / duration);
+        }
+
+        internal void ConfigureTimberToss(AnimationClip clip) => timberToss = clip;
+
+        internal void PlayTimberToss(AnimationClip clip)
+        {
+            ConfigureTimberToss(clip);
+            SetGesture(WorkerGesture.TimberToss);
+        }
+
+        internal void SetCarrying(AnimationClip clip, bool active)
+        {
+            carrying = active;
+            if (!active || !graph.IsValid() || !humanoid || clip == null || carryLayer.IsValid())
+                return;
+            carryMask = new AvatarMask();
+            for (int i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++)
+            {
+                var part = (AvatarMaskBodyPart)i;
+                carryMask.SetHumanoidBodyPartActive(part, part is AvatarMaskBodyPart.Body or
+                    AvatarMaskBodyPart.LeftArm or AvatarMaskBodyPart.RightArm or
+                    AvatarMaskBodyPart.LeftFingers or AvatarMaskBodyPart.RightFingers);
+            }
+            carryLayer = AnimationLayerMixerPlayable.Create(graph, 2);
+            carryPose = AnimationClipPlayable.Create(graph, clip);
+            carryPose.SetApplyFootIK(false);
+            graph.Connect(mixer, 0, carryLayer, 0);
+            graph.Connect(carryPose, 0, carryLayer, 1);
+            carryLayer.SetLayerMaskFromAvatarMask(1, carryMask);
+            carryLayer.SetInputWeight(0, 1f);
+            carryLayer.SetInputWeight(1, 0f);
+            animationOutput.SetSourcePlayable(carryLayer);
         }
 
         private void PlaySitTransition(int input, AnimationClip clip)
@@ -278,12 +319,30 @@ namespace Workerborn
 
             for (int i = 0; i < clips.Length; i++)
                 mixer.SetInputWeight(i, weights[i] / Mathf.Max(0.001f, total));
+            if (carryLayer.IsValid())
+            {
+                float targetWeight = carrying && Gesture == WorkerGesture.None ? 1f : 0f;
+                carryLayer.SetInputWeight(1, Mathf.MoveTowards(carryLayer.GetInputWeight(1), targetWeight, Time.deltaTime * 9f));
+                double duration = carryPose.GetAnimationClip().length;
+                if (duration > 0d && carryPose.GetTime() >= duration)
+                    carryPose.SetTime(carryPose.GetTime() % duration);
+            }
+        }
+
+        private void ClearCarryLayer()
+        {
+            if (carryMask != null)
+                Destroy(carryMask);
+            carryMask = null;
+            carryLayer = default;
+            carrying = false;
         }
 
         private void OnDestroy()
         {
             if (graph.IsValid())
                 graph.Destroy();
+            ClearCarryLayer();
         }
     }
 }

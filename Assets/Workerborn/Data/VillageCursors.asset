@@ -49,3 +49,6 @@ MonoBehaviour:
   - kind: 12
     texture: {fileID: 2800000, guid: 4faec36259b65a1385609c6cfbe9bbce, type: 3}
     hotspot: {x: 2, y: 2}
+  - kind: 13
+    texture: {fileID: 2800000, guid: a8e942cd8b75505ebf0b8498a3c2b037, type: 3}
+    hotspot: {x: 16, y: 16}

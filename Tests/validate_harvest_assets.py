@@ -222,7 +222,8 @@ rabbit_profile=docs(resolve(encounters[0]['combat']))[0]['MonoBehaviour']
 assert rabbit_profile['health']>0 and rabbit_profile['counterDelay']>0 and rabbit_profile['corpseSeconds']>0
 assert resolve(rabbit_profile['loot']).stem=='rabbit_meat' and rabbit_profile['lootCount']>0
 logging_trees=behaviours(scene,'LoggingTree.cs')
-assert len(logging_trees)==3 and all(resolve(tree['branch']).stem=='branch' for tree in logging_trees)
+assert len(logging_trees)==3
+assert all({resolve(row['item']).stem for row in tree['products']}=={'branch','pine_cone','pine_sapling'} for tree in logging_trees)
 crops=behaviours(scene,'HarvestableCrop.cs')+animals+logging_trees
 assert Counter(docs(resolve(c['definition']))[0]['MonoBehaviour']['itemId'] for c in crops)=={'potato':24,'egg':2,'timber':3}
 assert len(set(c['persistentId'] for c in crops))==len(crops),'Duplicated crop save IDs'
@@ -259,13 +260,14 @@ assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values
 
 settings=docs(resolve(controller[0]['settings']))[0]['MonoBehaviour']
 skills=[docs(resolve(pointer))[0]['MonoBehaviour'] for pointer in settings['skills']]
-assert {skill['skill'] for skill in skills}==set(range(10))
+assert {skill['skill'] for skill in skills}==set(range(12))
 assert all(0<=row['fromRank']<=row['throughRank']<=100 for skill in skills for row in skill['rankEffects'])
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
 wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
 primers={'woodcutting_primer':1,'carving_primer':2,'unarmed_combat_primer':3,'egg_gathering_primer':4,
-         'fishing_primer':5,'harvest_acquisition_primer':6,'lucky_bonus_primer':7,'soul_growth_primer':8,'critical_hit_primer':9}
-assert {i['id'] for i in itemdefs}=={'potato','bread','health_potion','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch','fishing_rod','pond_fish'} | set(wardrobe) | set(primers)
+         'fishing_primer':5,'harvest_acquisition_primer':6,'lucky_bonus_primer':7,'soul_growth_primer':8,'critical_hit_primer':9,
+         'lifting_primer':10,'throwing_primer':11}
+assert {i['id'] for i in itemdefs}=={'potato','bread','health_potion','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch','fishing_rod','pond_fish','scrap_wood','pine_cone','pine_sapling'} | set(wardrobe) | set(primers)
 assert all(i['icon']['fileID'] for i in itemdefs)
 potion = next(i for i in itemdefs if i['id'] == 'health_potion')
 assert potion['healthRestore'] > 0 and potion['maxStack'] > 1

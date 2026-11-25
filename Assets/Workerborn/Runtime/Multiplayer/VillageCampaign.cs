@@ -10,7 +10,7 @@ namespace Workerborn
 {
     public enum SessionKind { SteamFriends = 1, Dedicated = 2 }
     internal enum WorkerMotion { Idle, Run, Work, Walk, GroundSit, SeatSit }
-    internal enum WorkerGesture { None, Jump, GatherSuccess, GatherFailure }
+    internal enum WorkerGesture { None, Jump, GatherSuccess, GatherFailure, TimberToss }
 
     public enum CampaignAction
     {
@@ -26,7 +26,9 @@ namespace Workerborn
         public string name;
         public CharacterLook look;
         public float x, y, z, yaw, jumpOffset, gestureProgress;
+        public float timberProgress;
         public int motion, gesture;
+        public int timberSwing;
     }
 
     [Serializable]
@@ -52,6 +54,7 @@ namespace Workerborn
         public VillageWorldRecord world;
         public CampaignProfile[] profiles = Array.Empty<CampaignProfile>();
         public GroundDropSave[] groundDrops = Array.Empty<GroundDropSave>();
+        public WoodlandSave woodland;
         public double deadline;
     }
 
@@ -106,6 +109,7 @@ namespace Workerborn
             WorldId = Guid.TryParseExact(saved?.worldId, "N", out var id) ? id.ToString("N") : Guid.NewGuid().ToString("N");
             World = saved?.world ?? new VillageState(rules).ExportWorld();
             deadline = saved?.deadline ?? 0;
+            storedWoodland = saved?.woodland ?? saved?.profiles?.FirstOrDefault(profile => profile?.character?.woodland != null)?.character.woodland;
             if (saved == null)
             {
                 World.characterLimit = initialCharacterLimit;
@@ -203,7 +207,10 @@ namespace Workerborn
         public void Disconnect(string identity)
         {
             if (connected.Remove(identity) && profiles.TryGetValue(identity, out var profile))
+            {
+                DropCarriedTimber(profile);
                 profile.lastDisconnectedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            }
             votes.Remove(identity);
             avatars.Remove(identity);
         }
@@ -356,9 +363,12 @@ namespace Workerborn
             target.yaw = pose.yaw;
             target.motion = pose.motion;
             target.jumpOffset = float.IsNaN(pose.jumpOffset) ? 0f : Math.Max(0f, Math.Min(.6f, pose.jumpOffset));
-            target.gesture = pose.gesture >= (int)WorkerGesture.None && pose.gesture <= (int)WorkerGesture.GatherFailure
+            target.gesture = pose.gesture >= (int)WorkerGesture.None && pose.gesture <= (int)WorkerGesture.TimberToss
                 ? pose.gesture : (int)WorkerGesture.None;
             target.gestureProgress = float.IsNaN(pose.gestureProgress) ? 0f : Math.Max(0f, Math.Min(1f, pose.gestureProgress));
+            target.timberSwing = pose.motion == (int)WorkerMotion.Work && pose.timberSwing is >= 0 and <= (int)TimberSwing.Strike
+                ? pose.timberSwing : 0;
+            target.timberProgress = float.IsFinite(pose.timberProgress) ? Math.Clamp(pose.timberProgress, 0f, 1f) : 0f;
         }
 
         private static bool FiniteCoordinate(float value) => !float.IsNaN(value) && Math.Abs(value) <= 10000f;
@@ -418,6 +428,8 @@ namespace Workerborn
             message = state.LastMessage;
             if (!success)
                 return false;
+            if (action == CampaignAction.Rebirth)
+                DropCarriedTimber(profile);
             World = state.ExportWorld();
             SaveCharacter(profile, state, action is CampaignAction.Rebirth or CampaignAction.Incarnate);
             return true;
@@ -449,7 +461,10 @@ namespace Workerborn
 
         public bool Tick(float seconds)
         {
+            int day = World.day;
             World.AddMinutes(seconds * rules.MinutesPerSecond);
+            if (day != World.day)
+                timber?.StartDay(World.day);
             bool unanimous = connected.Count > 0 && connected.SetEquals(votes);
             if (!CanAdvance || !unanimous && (deadline <= 0 || World.Clock < deadline))
                 return false;
@@ -464,6 +479,7 @@ namespace Workerborn
                 if (connected.Contains(profile.identity))
                 {
                     var state = VillageState.Restore(profile.character, rules);
+                    DropCarriedTimber(profile);
                     if (unanimous || profile.optedIn)
                         state.RebirthPersonalLife();
                     SaveCharacter(profile, state, teleport: true);
@@ -482,6 +498,7 @@ namespace Workerborn
             profile.character = state.Export();
             profile.character.CopyPoseAndAction(previous, teleport);
             profile.character.characters = previous.characters;
+            profile.character.woodland = previous.woodland;
             profile.character.cropRemaining = teleport ? Array.Empty<int>() : previous.cropRemaining;
             profile.character.cropStates = teleport ? Array.Empty<CropStateSave>() : previous.cropStates;
             profile.character.animalStates = teleport ? Array.Empty<AnimalStateSave>() : previous.animalStates;
@@ -506,6 +523,8 @@ namespace Workerborn
             avatar.jumpOffset = 0f;
             avatar.gesture = (int)WorkerGesture.None;
             avatar.gestureProgress = 0f;
+            avatar.timberSwing = 0;
+            avatar.timberProgress = 0f;
             if (character.hasLifeLook)
                 avatar.look = character.lifeLook.Validated();
         }
@@ -545,7 +564,7 @@ namespace Workerborn
             return new CampaignRecord
             {
                 worldId = WorldId, world = World, deadline = deadline, profiles = profiles.Values.ToArray(),
-                groundDrops = SharedGroundDrops.ToArray()
+                groundDrops = SharedGroundDrops.ToArray(), woodland = CaptureWoodlandForSave()
             };
         }
     }

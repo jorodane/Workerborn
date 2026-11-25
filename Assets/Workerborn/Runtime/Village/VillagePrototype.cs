@@ -227,6 +227,7 @@ namespace Workerborn
             targeting?.Initialize(this, hud.TargetLink);
             worldCamera.GetComponent<CameraVisibility>()?.Initialize(player.transform);
             cameraRig.Initialize(worker.transform, this);
+            InitializeTimber();
             RestoreWorldObjects();
             RestoreVillageCharacters();
             SettleLegacyNpcDrops();
@@ -379,6 +380,8 @@ namespace Workerborn
         {
             var state = source.CharacterState;
             if (state.AwaitingIncarnation || state.Health <= 0 || target.Definition == null || !source.SharesMap(target.transform.position))
+                return false;
+            if (source.CarriedLogs > 0 || target is LoggingTree { Felled: true })
                 return false;
             var work = target.Definition;
             if (work.RequiredTool != null && !state.HasTool(work.RequiredTool.Id))
@@ -692,7 +695,9 @@ namespace Workerborn
         private void ResetDailyResources()
         {
             foreach (var crop in allCrops)
-                crop.ResetHarvests();
+                if (crop is not LoggingTree)
+                    crop.ResetHarvests();
+            RefreshTimberDay();
             foreach (var animal in animals)
                 if (animal != null)
                     animal.ResetEncounter();
@@ -785,6 +790,14 @@ namespace Workerborn
         }
 
         public void HarvestNearest() => UseGatheringSkill(SkillId.Harvesting);
+
+        internal void UseSkill(SkillId skill)
+        {
+            if (SkillProgression.IsTimberActive(skill))
+                worker.PrepareTimberSkill(skill);
+            else
+                UseGatheringSkill(skill);
+        }
 
         internal void UseGatheringSkill(SkillId skill)
         {
@@ -892,7 +905,7 @@ namespace Workerborn
                     if (crop != null && !string.IsNullOrEmpty(crop.id))
                         saved[crop.id] = crop.remaining;
                 foreach (var crop in allCrops)
-                    if (saved.TryGetValue(crop.PersistentId, out int remaining))
+                    if (crop is not LoggingTree && saved.TryGetValue(crop.PersistentId, out int remaining))
                         crop.RestoreRemaining(remaining);
             }
             else if (restoredWorld.cropRemaining != null)
@@ -1012,6 +1025,7 @@ namespace Workerborn
         {
             var save = CaptureCharacter<VillageSave>(worker);
             save.characters = CaptureVillageCharacters();
+            save.woodland = CaptureSoloWoodland();
             if (State.AwaitingIncarnation)
                 return save;
             save.cropStates = new CropStateSave[allCrops.Count];
@@ -1058,6 +1072,11 @@ namespace Workerborn
             hud.SetCommandPending(AwaitingWorldCommand);
             if (IsWorldTransitioning || AwaitingWorldCommand)
                 return;
+            if (State.NeedsRest && worker.CarriedLogs > 0)
+            {
+                if (worker.TryCancelTimberSkill() && AwaitingWorldCommand)
+                    return;
+            }
 
             State.CollectReadyHarvests(now, showAcquiredHarvest ??= ShowAcquiredHarvest);
             CollectNearbyHarvests(now);

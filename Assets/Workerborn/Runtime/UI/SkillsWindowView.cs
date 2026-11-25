@@ -24,7 +24,7 @@ namespace Workerborn
             base.Bind(game, hud);
             foreach (var skill in SkillProgression.All)
                 rows.Add(skill, Instantiate(hud.Library.ListRow, skillRows));
-            use.onClick.AddListener(() => game.UseGatheringSkill(selected));
+            use.onClick.AddListener(() => game.UseSkill(selected));
             advance.onClick.AddListener(() => game.UpgradeSkill(selected));
             advanceGrade.onClick.AddListener(() => game.UpgradeSkillToNextGrade(selected));
         }
@@ -57,12 +57,12 @@ namespace Workerborn
             advanceGradeText.text = !learned ? "다음 급수" : gradeRank == 0
                 ? "최고 급수" : $"{SkillProgression.GradeAtRank(gradeRank)}급까지  AP {gradeCost}";
             advanceGrade.interactable = gradeRank > 0 && state.AP >= gradeCost;
-            use.gameObject.SetActive(SkillProgression.IsGathering(selected));
-            use.interactable = learned && !state.AwaitingIncarnation;
+            use.gameObject.SetActive(SkillProgression.IsGathering(selected) || SkillProgression.IsTimberActive(selected));
+            use.interactable = learned && !state.AwaitingIncarnation && (selected != SkillId.Throwing || Game.Worker.CarriedLogs > 0);
             details.text = learned ? Describe(state, selected) : selected switch
             {
                 SkillId.Harvesting => "첫 일자리 퀘스트를 완료하면 배울 수 있어요.",
-                SkillId.Woodcutting => "목재 납품을 마치거나 잡화점의 벌목 입문서를 읽으면 배울 수 있어요.",
+                SkillId.Woodcutting => "목재 납품을 마치거나 잡화점의 나무 약탈 입문서를 읽으면 배울 수 있어요.",
                 SkillId.SoulGrowth => "운명의 인도자와 환생을 마치면 배울 수 있어요.",
                 _ => $"잡화점의 {state.Rules.Skill(selected).Name} 입문서를 읽으면 배울 수 있어요."
             };
@@ -82,6 +82,12 @@ namespace Workerborn
                 return $"경험치 획득량 {state.ExperienceGainPercent}%";
             if (skill == SkillId.CriticalHit)
                 return $"치명타 확률 {state.CriticalChance:P1} · 피해 ×{state.CriticalDamagePercent / 100f:0.##}";
+            if (skill == SkillId.Woodcutting)
+                return $"생산물 슬롯 +{state.TreeExtraSlots}\n작업 성공률 +{state.TreeChanceBonus / 100f:0.#}%p · 생산량 +{state.TreeYieldBonus}%";
+            if (skill == SkillId.Lifting)
+                return $"통나무 최대 {state.LiftCapacity}개 · 이동 속도 {state.LiftSpeedPercent}%\n사용 후 통나무를 클릭하세요. Esc로 앞에 내려놓습니다.";
+            if (skill == SkillId.Throwing)
+                return $"던지기 범위 {state.ThrowRange:0.#}m\n통나무를 든 채 사용하고 바닥을 클릭하세요.";
 
             var lines = new List<string>();
             if (SkillProgression.IsGathering(skill))

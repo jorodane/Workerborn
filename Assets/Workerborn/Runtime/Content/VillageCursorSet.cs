@@ -17,7 +17,8 @@ namespace Workerborn
         Enter = 9,
         Rest = 10,
         Manage = 11,
-        Pray = 12
+        Pray = 12,
+        Throw = 13
     }
 
     [CreateAssetMenu(menuName = "Workerborn/UI/Cursors", fileName = "VillageCursors")]

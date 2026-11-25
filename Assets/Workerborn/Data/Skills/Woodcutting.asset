@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Woodcutting
   m_EditorClassIdentifier: ''
   skill: 1
-  displayName: 벌목
+  displayName: 나무 약탈
   icon: {fileID: 21300000, guid: 3a6c1825591d530f82d7c3fa599990e3, type: 3}
   firstUpgradeCost: 1
   costIncreasePerGrade: 1
@@ -42,4 +42,69 @@ MonoBehaviour:
     throughRank: 20
     effect: 1
     amount: 1
+    increasePerRank: 0
+  - fromRank: 0
+    throughRank: 0
+    effect: 11
+    amount: 0
+    increasePerRank: 0
+  - fromRank: 1
+    throughRank: 1
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 11
+    throughRank: 11
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 21
+    throughRank: 21
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 31
+    throughRank: 31
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 41
+    throughRank: 41
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 51
+    throughRank: 51
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 61
+    throughRank: 61
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 71
+    throughRank: 71
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 81
+    throughRank: 81
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 91
+    throughRank: 91
+    effect: 11
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 1
+    throughRank: 100
+    effect: 12
+    amount: 50
+    increasePerRank: 0
+  - fromRank: 1
+    throughRank: 100
+    effect: 13
+    amount: 4
     increasePerRank: 0

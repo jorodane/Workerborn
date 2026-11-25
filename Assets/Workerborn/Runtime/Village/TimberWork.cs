@@ -1,0 +1,508 @@
+using System;
+using System.Collections.Generic;
+
+namespace Workerborn
+{
+    public enum TimberPart { Stump, Lower, Upper, Log }
+    internal enum TimberAction { Strike, Fell, Split, Lift, Place, Throw }
+    internal enum TimberResult { Rejected, Failed, Succeeded }
+    internal enum TimberSwing { None, Fell, Split, Strike }
+
+    [Serializable]
+    public struct TimberPoint
+    {
+        public float x, z;
+
+        internal TimberPoint(float x, float z)
+        {
+            this.x = x;
+            this.z = z;
+        }
+
+        internal bool IsFinite => float.IsFinite(x) && float.IsFinite(z);
+        internal float DistanceSquared(TimberPoint other) =>
+            (x - other.x) * (x - other.x) + (z - other.z) * (z - other.z);
+
+        internal TimberPoint Offset(float yaw, float distance)
+        {
+            double radians = yaw * Math.PI / 180d;
+            return new TimberPoint(x + (float)Math.Sin(radians) * distance, z + (float)Math.Cos(radians) * distance);
+        }
+
+        internal float HeadingFrom(TimberPoint origin, float fallback)
+        {
+            if (DistanceSquared(origin) < .01f)
+                return fallback;
+            return (float)(Math.Atan2(x - origin.x, z - origin.z) * 180d / Math.PI);
+        }
+    }
+
+    [Serializable]
+    public sealed class TimberTreeSave
+    {
+        public string id;
+        public int productDay, usedSlots, felledDay, parts;
+        public float fallYaw;
+
+        internal bool Has(TimberPart part) => felledDay > 0 && (parts & (1 << (int)part)) != 0;
+        internal TimberTreeSave Copy() => (TimberTreeSave)MemberwiseClone();
+    }
+
+    [Serializable]
+    public sealed class TimberLogSave
+    {
+        public string id, carrier;
+        public TimberPoint point, throwOrigin;
+        public float yaw;
+        public bool thrown;
+
+        internal TimberLogSave Copy() => (TimberLogSave)MemberwiseClone();
+    }
+
+    [Serializable]
+    public sealed class WoodlandSave
+    {
+        public int revision;
+        public TimberTreeSave[] trees = Array.Empty<TimberTreeSave>();
+        public TimberLogSave[] logs = Array.Empty<TimberLogSave>();
+    }
+
+    [Serializable]
+    internal sealed class TimberOrder
+    {
+        public TimberAction action;
+        public string target;
+        public TimberPart part;
+        public TimberPoint destination;
+    }
+
+    internal readonly struct TreeProduct
+    {
+        internal readonly string Item;
+        internal readonly int Weight, Quantity;
+
+        internal TreeProduct(string item, int weight, int quantity)
+        {
+            Item = item;
+            Weight = weight;
+            Quantity = quantity;
+        }
+    }
+
+    internal sealed class TimberSite
+    {
+        internal readonly string Id;
+        internal readonly TimberPoint Point;
+        internal readonly string Tool;
+        internal readonly int Slots, Energy;
+        internal readonly float Reach, StrikeChance, FellChance, LowerDistance, UpperDistance;
+        internal readonly TreeProduct[] Products;
+        internal readonly int TotalWeight;
+
+        internal TimberSite(string id, TimberPoint point, string tool, int slots, int energy, float reach,
+            float strikeChance, float fellChance, float lowerDistance, float upperDistance, TreeProduct[] products)
+        {
+            Id = id;
+            Point = point;
+            Tool = tool;
+            Slots = Math.Clamp(slots, 1, 32);
+            Energy = energy;
+            Reach = reach;
+            StrikeChance = strikeChance;
+            FellChance = fellChance;
+            LowerDistance = lowerDistance;
+            UpperDistance = upperDistance;
+            Products = Array.FindAll(products, row => ItemCatalog.Contains(row.Item) && row.Weight > 0 && row.Quantity > 0);
+            foreach (var product in Products)
+                TotalWeight += product.Weight;
+        }
+
+        internal TimberPoint PartPoint(TimberPart part, float yaw) => part switch
+        {
+            TimberPart.Lower => Point.Offset(yaw, LowerDistance),
+            TimberPart.Upper => Point.Offset(yaw, UpperDistance),
+            _ => Point
+        };
+    }
+
+    [Serializable]
+    internal struct TimberYield
+    {
+        public string itemId;
+        public int quantity;
+        public TimberPoint point;
+
+        internal TimberYield(string item, int quantity, TimberPoint point)
+        {
+            itemId = item;
+            this.quantity = quantity;
+            this.point = point;
+        }
+    }
+
+    internal sealed class TimberWork
+    {
+        internal const float PieceReach = 1.8f;
+        internal const int MaximumLogs = 512;
+        private readonly Dictionary<string, TimberSite> sites = new Dictionary<string, TimberSite>();
+        private readonly Dictionary<string, TimberTreeSave> trees = new Dictionary<string, TimberTreeSave>();
+        private readonly Dictionary<string, TimberLogSave> logs = new Dictionary<string, TimberLogSave>();
+        private readonly Func<float> roll;
+        private WoodlandSave snapshot;
+        private int revision;
+
+        internal TimberWork(IEnumerable<TimberSite> sites, Func<float> roll, WoodlandSave saved = null)
+        {
+            foreach (var site in sites)
+                if (!string.IsNullOrEmpty(site.Id))
+                    this.sites[site.Id] = site;
+            this.roll = roll;
+            if (saved == null)
+                return;
+            foreach (var tree in saved.trees ?? Array.Empty<TimberTreeSave>())
+                if (tree != null && !string.IsNullOrEmpty(tree.id) && this.sites.ContainsKey(tree.id) &&
+                    tree.productDay >= 0 && tree.felledDay >= 0 && tree.usedSlots is >= 0 and <= 64 &&
+                    tree.parts is >= 0 and <= 7 && float.IsFinite(tree.fallYaw))
+                    trees[tree.id] = tree.Copy();
+            foreach (var log in saved.logs ?? Array.Empty<TimberLogSave>())
+                if (log != null && !string.IsNullOrEmpty(log.id) && log.point.IsFinite &&
+                    Math.Abs(log.point.x) <= 10000f && Math.Abs(log.point.z) <= 10000f &&
+                    float.IsFinite(log.yaw) && logs.Count < MaximumLogs)
+                {
+                    var copy = log.Copy();
+                    copy.carrier = null;
+                    copy.thrown = false;
+                    logs[log.id] = copy;
+                }
+        }
+
+        internal WoodlandSave Capture()
+        {
+            if (snapshot != null)
+                return snapshot;
+            var treeRecords = new TimberTreeSave[trees.Count];
+            int i = 0;
+            foreach (var tree in trees.Values)
+                treeRecords[i++] = tree.Copy();
+            var logRecords = new TimberLogSave[logs.Count];
+            i = 0;
+            foreach (var log in logs.Values)
+                logRecords[i++] = log.Copy();
+            return snapshot = new WoodlandSave { revision = revision, trees = treeRecords, logs = logRecords };
+        }
+
+        internal WoodlandSave CaptureForSave(Func<string, (TimberPoint Point, float Yaw)?> carrierPose, Func<TimberPoint, bool> canPlace)
+        {
+            var current = Capture();
+            var carried = Array.Find(current.logs, log => log.carrier != null);
+            if (carried == null)
+                return current;
+            var savedLogs = new TimberLogSave[current.logs.Length];
+            var indices = new Dictionary<string, int>();
+            for (int i = 0; i < savedLogs.Length; i++)
+            {
+                var log = current.logs[i];
+                savedLogs[i] = log;
+                if (log.carrier == null)
+                    continue;
+                var saved = log.Copy();
+                savedLogs[i] = saved;
+                saved.carrier = null;
+                saved.thrown = false;
+                if (carrierPose(log.carrier) is not { } pose)
+                    continue;
+                indices.TryGetValue(log.carrier, out int index);
+                indices[log.carrier] = index + 1;
+                var point = pose.Point.Offset(pose.Yaw, 1.25f)
+                    .Offset(pose.Yaw + 90f, (index - (CountCarried(log.carrier) - 1) * .5f) * .48f);
+                if (canPlace(point))
+                    saved.point = point;
+                else if (canPlace(pose.Point))
+                    saved.point = pose.Point;
+                saved.yaw = pose.Yaw;
+            }
+            return new WoodlandSave { revision = current.revision, trees = current.trees, logs = savedLogs };
+        }
+
+        internal void StartDay(int day)
+        {
+            var expired = new List<string>();
+            foreach (var tree in trees.Values)
+                if (tree.felledDay == 0 && tree.productDay < day || tree.felledDay > 0 && tree.felledDay < day && tree.parts == 0)
+                    expired.Add(tree.id);
+            if (expired.Count == 0)
+                return;
+            foreach (string id in expired)
+                trees.Remove(id);
+            Changed();
+        }
+
+        internal int CountCarried(string workerId)
+        {
+            int count = 0;
+            foreach (var log in logs.Values)
+                if (log.carrier == workerId)
+                    count++;
+            return count;
+        }
+
+        internal TimberResult Perform(TimberOrder order, VillageState worker, string workerId, TimberPoint at, float facing,
+            int day, Func<TimberPoint, bool> occupied, Func<TimberPoint, bool> canPlace,
+            Func<List<TimberYield>, bool> deliver, out string message)
+        {
+            message = "지금은 이 나무 작업을 할 수 없어요.";
+            if (order == null || worker == null || string.IsNullOrEmpty(workerId) || !at.IsFinite || !float.IsFinite(facing) ||
+                worker.AwaitingIncarnation)
+                return TimberResult.Rejected;
+
+            if (order.action == TimberAction.Place || order.action == TimberAction.Throw)
+                return MoveHeld(order, worker, workerId, at, facing, canPlace, out message);
+            if (worker.Health <= 0 || worker.Energy <= 0 || string.IsNullOrEmpty(order.target))
+                return TimberResult.Rejected;
+
+            if (order.action == TimberAction.Lift || order.action == TimberAction.Split && order.part == TimberPart.Log)
+                return WorkLog(order, worker, workerId, at, deliver, out message);
+            if (!sites.TryGetValue(order.target, out var site) || CountCarried(workerId) > 0)
+                return TimberResult.Rejected;
+
+            if (!trees.TryGetValue(site.Id, out var tree))
+                tree = new TimberTreeSave { id = site.Id };
+            if (tree.felledDay == 0 && (order.action == TimberAction.Strike || order.action == TimberAction.Fell))
+                return WorkStanding(order, worker, site, tree, at, facing, day, deliver, out message);
+            if (order.action == TimberAction.Split && order.part is >= TimberPart.Stump and <= TimberPart.Upper && tree.Has(order.part))
+                return SplitPart(order.part, worker, site, tree, at, occupied, deliver, out message);
+            return TimberResult.Rejected;
+        }
+
+        private TimberResult WorkStanding(TimberOrder order, VillageState worker, TimberSite site, TimberTreeSave tree,
+            TimberPoint at, float facing, int day, Func<List<TimberYield>, bool> deliver, out string message)
+        {
+            bool fell = order.action == TimberAction.Fell;
+            int available = Math.Max(0, site.Slots + worker.TreeExtraSlots - (tree.productDay == day ? tree.usedSlots : 0));
+            int cost = worker.WorkEnergyCost(SkillId.Woodcutting, ItemIds.Timber, fell ? site.Energy : 1);
+            message = null;
+            if (at.DistanceSquared(site.Point) > Square(site.Reach + .2f))
+                message = "나무에 조금 더 가까이 가야 해요.";
+            else if (fell && !worker.HasTool(site.Tool))
+                message = "도끼를 주무기에 장착해 주세요.";
+            else if (!fell && (available == 0 || site.TotalWeight == 0))
+                message = "나무에 남은 생산물이 없어요.";
+            else if (worker.Energy < cost)
+                message = "스태미나가 부족해요.";
+            if (message != null)
+                return TimberResult.Rejected;
+
+            if (!Succeeds(worker, fell ? site.FellChance : site.StrikeChance))
+                return Finish(worker, cost, false, 0, fell ? "나무를 베지 못했어요." : "이번에는 아무것도 떨어지지 않았어요.", out message);
+
+            var products = new List<TimberYield>();
+            float yaw = site.Point.HeadingFrom(at, facing);
+            if (fell)
+            {
+                var crown = site.PartPoint(TimberPart.Upper, yaw);
+                for (int i = 0; i < available && site.TotalWeight > 0; i++)
+                    if (Succeeds(worker, site.StrikeChance))
+                        AddProduct(products, worker, site, crown);
+            }
+            else
+                AddProduct(products, worker, site, site.Point);
+
+            if (products.Count > 0 && !deliver(products))
+                return NoSpace(out message);
+
+            if (tree.productDay != day)
+                tree.usedSlots = 0;
+            tree.productDay = day;
+            tree.usedSlots += products.Count;
+            if (fell)
+            {
+                tree.felledDay = day;
+                tree.parts = 7;
+                tree.fallYaw = yaw;
+            }
+            trees[site.Id] = tree;
+            Changed();
+            return Finish(worker, cost, true, 0, fell ? "나무를 베었어요." : "나무에서 생산물이 떨어졌어요.", out message);
+        }
+
+        private TimberResult SplitPart(TimberPart part, VillageState worker, TimberSite site, TimberTreeSave tree,
+            TimberPoint at, Func<TimberPoint, bool> occupied, Func<List<TimberYield>, bool> deliver, out string message)
+        {
+            TimberPoint point = site.PartPoint(part, tree.fallYaw);
+            if (!CanSplit(worker, site.Tool, at, point, out int cost, out message))
+                return TimberResult.Rejected;
+            if (part == TimberPart.Stump && occupied(point))
+            {
+                message = "누군가 밑동에 앉아 있어요.";
+                return TimberResult.Rejected;
+            }
+
+            bool success = Succeeds(worker, .85f);
+            int count = part == TimberPart.Stump ? 1 : 2;
+            if (success && logs.Count > MaximumLogs - count ||
+                !success && !deliver(new List<TimberYield> { new TimberYield(ItemIds.ScrapWood, 10, point) }))
+                return NoSpace(out message);
+
+            tree.parts &= ~(1 << (int)part);
+            if (success)
+                for (int i = 0; i < count; i++)
+                {
+                    string id = Guid.NewGuid().ToString("N");
+                    float yaw = tree.fallYaw;
+                    TimberPoint landing = point.Offset(yaw + 90f, count == 1 ? .08f : (i == 0 ? -.46f : .46f));
+                    logs.Add(id, new TimberLogSave { id = id, point = landing, yaw = yaw });
+                }
+            Changed();
+            return Finish(worker, cost, success, 0, success ? $"통나무 {count}개를 얻었어요." : "못 쓰게 된 목재 10개가 남았어요.", out message);
+        }
+
+        private TimberResult WorkLog(TimberOrder order, VillageState worker, string workerId, TimberPoint at,
+            Func<List<TimberYield>, bool> deliver, out string message)
+        {
+            message = "지금은 이 통나무를 사용할 수 없어요.";
+            if (!logs.TryGetValue(order.target, out var log) || log.carrier != null || at.DistanceSquared(log.point) > Square(PieceReach + .2f))
+                return TimberResult.Rejected;
+            int carried = CountCarried(workerId);
+            if (order.action == TimberAction.Lift)
+            {
+                int liftCost = Math.Max(1, 4 - worker.LiftStaminaSaving);
+                if (carried >= worker.LiftCapacity || worker.Energy < liftCost)
+                {
+                    message = carried >= worker.LiftCapacity ? "지금은 통나무를 더 들 수 없어요." : "스태미나가 부족해요.";
+                    return TimberResult.Rejected;
+                }
+                worker.SpendTimberEnergy(liftCost);
+                log.carrier = workerId;
+                log.thrown = false;
+                Changed();
+                message = "통나무를 들어 올렸어요.";
+                return TimberResult.Succeeded;
+            }
+            if (carried > 0 || !CanSplit(worker, ItemIds.Axe, at, log.point, out int cost, out message))
+                return TimberResult.Rejected;
+
+            bool success = Succeeds(worker, .85f);
+            int quantity = success ? worker.TreeYield(2, roll()) : 5;
+            if (!deliver(new List<TimberYield> { new TimberYield(success ? ItemIds.Timber : ItemIds.ScrapWood, quantity, log.point) }))
+                return NoSpace(out message);
+            logs.Remove(log.id);
+            Changed();
+            return Finish(worker, cost, success, success ? quantity : 0,
+                success ? $"목재 {quantity}개를 얻었어요." : "못 쓰게 된 목재 5개가 남았어요.", out message);
+        }
+
+        private TimberResult MoveHeld(TimberOrder order, VillageState worker, string workerId, TimberPoint at, float facing,
+            Func<TimberPoint, bool> canPlace, out string message)
+        {
+            bool throwing = order.action == TimberAction.Throw;
+            int count = CountCarried(workerId);
+            int cost = throwing ? Math.Max(1, count + 2 - worker.LiftStaminaSaving) : 0;
+            message = "들고 있는 통나무가 없어요.";
+            if (count == 0)
+                return TimberResult.Rejected;
+            if (throwing && (worker.ThrowRange <= 0f || !order.destination.IsFinite ||
+                at.DistanceSquared(order.destination) > Square(worker.ThrowRange + .04f) || worker.Energy < cost))
+            {
+                message = worker.Energy < cost ? "스태미나가 부족해요." : "던질 수 있는 범위를 벗어났어요.";
+                return TimberResult.Rejected;
+            }
+            var point = throwing ? order.destination : at.Offset(facing, 1.25f);
+            if (!canPlace(point))
+            {
+                if (throwing)
+                {
+                    message = "통나무를 던질 수 있는 바닥을 선택해 주세요.";
+                    return TimberResult.Rejected;
+                }
+                point = at;
+            }
+            float yaw = throwing ? point.HeadingFrom(at, facing) : facing;
+            Release(workerId, point, at, yaw, throwing, canPlace);
+            if (cost > 0)
+                worker.SpendTimberEnergy(cost);
+            message = throwing ? "통나무를 던졌어요." : "통나무를 내려놓았어요.";
+            return TimberResult.Succeeded;
+        }
+
+        internal void Release(string workerId, TimberPoint? point = null, float yaw = 0f)
+        {
+            if (point.HasValue && point.Value.IsFinite)
+            {
+                Release(workerId, point.Value, point.Value, yaw, false, _ => true);
+                return;
+            }
+            bool changed = false;
+            foreach (var log in logs.Values)
+                if (log.carrier == workerId)
+                {
+                    log.carrier = null;
+                    changed = true;
+                }
+            if (changed)
+                Changed();
+        }
+
+        private void Release(string workerId, TimberPoint point, TimberPoint origin, float yaw, bool throwing, Func<TimberPoint, bool> canPlace)
+        {
+            int count = CountCarried(workerId);
+            int index = 0;
+            foreach (var log in logs.Values)
+                if (log.carrier == workerId)
+                {
+                    var spread = point.Offset(yaw + 90f, (index++ - (count - 1) * .5f) * .48f);
+                    log.carrier = null;
+                    log.yaw = yaw;
+                    log.point = canPlace(spread) ? spread : point;
+                    log.throwOrigin = origin;
+                    log.thrown = throwing;
+                }
+            if (count > 0)
+                Changed();
+        }
+
+        private static bool CanSplit(VillageState worker, string tool, TimberPoint at, TimberPoint point, out int cost, out string message)
+        {
+            cost = worker.WorkEnergyCost(SkillId.Woodcutting, ItemIds.Timber, 3);
+            message = worker.HasTool(tool) ? worker.Energy < cost ? "스태미나가 부족해요." : null
+                : "도끼를 주무기에 장착해 주세요.";
+            if (message == null && at.DistanceSquared(point) > Square(PieceReach + .2f))
+                message = "나무에 조금 더 가까이 가야 해요.";
+            return message == null;
+        }
+
+        private void AddProduct(List<TimberYield> rewards, VillageState worker, TimberSite site, TimberPoint point)
+        {
+            float pick = Math.Min(.999999f, roll()) * site.TotalWeight;
+            foreach (var product in site.Products)
+            {
+                pick -= product.Weight;
+                if (pick >= 0f)
+                    continue;
+                rewards.Add(new TimberYield(product.Item, worker.TreeYield(product.Quantity, roll()), point));
+                return;
+            }
+        }
+
+        private bool Succeeds(VillageState worker, float chance) => worker.TreeWorkSucceeds(chance, roll());
+        private static float Square(float value) => value * value;
+
+        private static TimberResult Finish(VillageState worker, int cost, bool success, int timber, string text, out string message)
+        {
+            worker.FinishTimberWork(cost, success, timber);
+            message = text;
+            return success ? TimberResult.Succeeded : TimberResult.Failed;
+        }
+
+        private static TimberResult NoSpace(out string message)
+        {
+            message = "결과물을 둘 공간이 부족해요.";
+            return TimberResult.Rejected;
+        }
+
+        private void Changed()
+        {
+            snapshot = null;
+            revision++;
+        }
+    }
+}

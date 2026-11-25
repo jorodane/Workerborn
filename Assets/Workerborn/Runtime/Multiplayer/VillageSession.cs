@@ -15,7 +15,7 @@ namespace Workerborn
     internal enum SessionMessage
     {
         Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave, Chat, Ping, Pong,
-        RemoveClient, DiscoverWorld, Administration, GroundTransfer, GatheredDrops, GroundItems
+        RemoveClient, DiscoverWorld, Administration, GroundTransfer, GatheredDrops, GroundItems, TimberWork
     }
 
     [Serializable]
@@ -29,6 +29,9 @@ namespace Workerborn
         public CampaignAction action;
         public VillageSave character;
         public VillageWorldRecord world;
+        public WoodlandSave woodland;
+        public TimberOrder timberOrder;
+        public TimberYield[] timberAcquired;
         public CampaignStatus status;
         public PortableCharacter appearance;
         public SessionAvatar avatar;
@@ -49,7 +52,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 17;
+        public const int ProtocolVersion = 18;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -72,6 +75,7 @@ namespace Workerborn
             public float PingSentAt;
             public int PingMilliseconds = -1;
             public float NextAdminSnapshot;
+            public int TimberRevision = -1;
             public readonly HashSet<string> PendingGroundDrops = new HashSet<string>();
         }
 
@@ -440,6 +444,7 @@ namespace Workerborn
             save.CopyPoseAndAction(existing);
             save.characters = existing.characters;
             save.cropRemaining = existing.cropRemaining;
+            save.woodland = existing.woodland;
             save.cropStates = existing.cropStates;
             save.animalStates = existing.animalStates;
             save.collectedPickupIds = existing.collectedPickupIds;
@@ -447,6 +452,7 @@ namespace Workerborn
             return new CampaignRecord
             {
                 world = state.ExportWorld(),
+                woodland = existing.woodland,
                 profiles = new[] { new CampaignProfile
                 {
                     identity = localIdentity, id = "single-player", name = joinName,
@@ -519,7 +525,11 @@ namespace Workerborn
             InitialCharacter = null;
             Busy = false;
             if (Online)
+            {
                 game.RefreshSharedGroundPickups();
+                game.PresentWoodland(StartingWoodland);
+            }
+            initialWoodland = null;
             if (inviteWhenReady)
             {
                 inviteWhenReady = false;
@@ -592,6 +602,8 @@ namespace Workerborn
             {
                 if (packet.type == SessionMessage.GroundTransfer)
                     GroundTransfer(localIdentity, packet, null);
+                else if (packet.type == SessionMessage.TimberWork)
+                    TimberCommand(localIdentity, packet, null);
                 else
                     CampaignCommand(localIdentity, packet, null);
                 PublishWorld();
@@ -904,6 +916,9 @@ namespace Workerborn
                 case SessionMessage.GroundTransfer:
                     GroundTransfer(connection.Identity, packet, connection);
                     break;
+                case SessionMessage.TimberWork:
+                    TimberCommand(connection.Identity, packet, connection);
+                    break;
                 case SessionMessage.GatheredDrops:
                     PublishGatheredDrops(connection.Identity, packet.character, packet.groundDrops);
                     break;
@@ -987,7 +1002,7 @@ namespace Workerborn
             var profile = authority.Profile(connection.Identity);
             Send(connection, new SessionPacket
             {
-                type = SessionMessage.Welcome, character = profile.character, player = profile.id, token = token,
+                type = SessionMessage.Welcome, character = profile.character, player = profile.id, token = token, woodland = authority.Woodland,
                 status = authority.Status(connection.Identity, CanManageProfile(connection.Identity)), name = profile.name
             });
         }
@@ -1021,7 +1036,7 @@ namespace Workerborn
 
         private void SendProfile(string identity, Connection connection, string message, int request, bool includeCharacter, bool transition,
             string collectedDropId = null, int collectedQuantity = 0, GroundDropSave remainder = null,
-            HarvestPickupResult[] automaticHarvests = null)
+            HarvestPickupResult[] automaticHarvests = null, TimberYield[] timberAcquired = null)
         {
             var packet = new SessionPacket
             {
@@ -1029,7 +1044,8 @@ namespace Workerborn
                 status = authority.Status(identity, CanManageProfile(identity)), world = authority.World, message = message,
                 request = request, value = transition ? 1 : 0, collectedDropId = collectedDropId,
                 collectedQuantity = collectedQuantity, groundDrop = remainder,
-                automaticHarvest = automaticHarvests != null, automaticHarvests = automaticHarvests
+                automaticHarvest = automaticHarvests != null, automaticHarvests = automaticHarvests,
+                timberAcquired = timberAcquired
             };
             if (connection == null)
                 ApplyProfile(packet);
@@ -1040,23 +1056,29 @@ namespace Workerborn
         private void PublishWorld()
         {
             var avatars = authority.Avatars();
+            var woodland = authority.Woodland;
             long now = GroundDropSave.UtcNow;
             authority.ReleaseExpiredDrops(now, SyncGroundChange);
             foreach (var connection in connections)
             {
                 if (connection.Identity == null || connection.Leaving)
                     continue;
-                Send(connection, new SessionPacket
+                bool receiveTimber = woodland != null && woodland.revision != connection.TimberRevision;
+                bool sent = Send(connection, new SessionPacket
                 {
                     type = SessionMessage.World, world = authority.World, avatars = avatars, pickupUtc = now,
+                    woodland = receiveTimber ? woodland : null,
                     status = authority.Status(connection.Identity, CanManageProfile(connection.Identity))
                 });
+                if (sent && receiveTimber)
+                    connection.TimberRevision = woodland.revision;
                 SendGroundChanges(connection);
             }
             if (village != null && localIdentity != null)
             {
                 UpdateStatus(authority.Status(localIdentity, CanManageProfile(localIdentity)));
                 village.ApplySharedWorld(authority.World, avatars);
+                village.PresentWoodland(woodland);
             }
         }
 
@@ -1087,6 +1109,7 @@ namespace Workerborn
                 LocalPlayerId = packet.player;
                 joinName = packet.name;
                 InitialCharacter = packet.character;
+                initialWoodland = packet.woodland;
                 Status = packet.status;
                 if (connection.Tcp != null && !string.IsNullOrEmpty(packet.token))
                 {
@@ -1137,7 +1160,12 @@ namespace Workerborn
                 SynchronizePickupClock(packet.pickupUtc);
                 UpdateStatus(packet.status);
                 if (village != null)
+                {
                     village.ApplySharedWorld(packet.world, packet.avatars);
+                    village.PresentWoodland(packet.woodland);
+                }
+                else if (packet.woodland != null)
+                    initialWoodland = packet.woodland;
             }
             else if (packet.type == SessionMessage.GroundItems && LocalPlayerId != null)
                 ReceiveGroundChanges(packet);
@@ -1171,6 +1199,8 @@ namespace Workerborn
                 if (harvests != null)
                     ApplyAutomaticHarvestLedger(harvests);
                 village.ApplySessionProfile(packet.character, packet.world, packet.message, packet.value == 1, harvests);
+                if (packet.timberAcquired is { Length: > 0 })
+                    village.PlayTimberAcquisitions(village.Worker, packet.timberAcquired);
                 if (!string.IsNullOrEmpty(packet.collectedDropId))
                     ApplyGroundPickupReply(packet);
                 if (!packet.automaticHarvest && packet.request != 0 && packet.request == requestSequence)
@@ -1368,6 +1398,7 @@ namespace Workerborn
             LocalPlayerId = null;
             InitialCharacter = null;
             Status = null;
+            initialWoodland = null;
             pendingSoloReload = null;
             reloadNotice = null;
             Administration = null;

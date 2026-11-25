@@ -121,6 +121,11 @@ namespace Workerborn
 
         internal bool UseBuildingDoor(HarvestWorker traveler, VillageBuildingDoor door)
         {
+            if (traveler.CarriedLogs > 0)
+            {
+                TimberNotice(traveler, "통나무를 내려놓은 뒤 건물에 들어갈 수 있어요.");
+                return false;
+            }
             if (door == null || !door.CanInteract || !door.IsOpen || !traveler.AcceptsInteractionCommands ||
                 traveler.CharacterState.AwaitingIncarnation || !traveler.SharesMap(door.transform.position) ||
                 !traveler.InReach(door.Approach.position, 1f))

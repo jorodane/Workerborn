@@ -227,8 +227,19 @@ MonoBehaviour:
   depletedVisual: {fileID: 100221}
   interactionColliders:
   - {fileID: 100120}
-  branch: {fileID: 11400000, guid: 0b6aea990be9511cb653eaa17255d689, type: 2}
-  branchesPerStrike: 1
+  strikeChance: 0.6
+  lowerDistance: 1.54
+  upperDistance: 4.56
+  products:
+  - item: {fileID: 11400000, guid: 0b6aea990be9511cb653eaa17255d689, type: 2}
+    weight: 70
+    quantity: 1
+  - item: {fileID: 11400000, guid: feee03b5bca45bcfae68b29fde87657b, type: 2}
+    weight: 24
+    quantity: 1
+  - item: {fileID: 11400000, guid: 08b4780e253a506183f8f3851d6db3f8, type: 2}
+    weight: 6
+    quantity: 1
 --- !u!1 &100008
 GameObject:
   m_ObjectHideFlags: 0

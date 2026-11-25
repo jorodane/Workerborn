@@ -61,7 +61,8 @@ namespace Workerborn
                     description.text = (Game.Settings.FindItem(quest.DocumentItemId)?.DisplayName ?? quest.Title) + "\n\n농장 건설에 필요한 목재를 미라에게 납품하세요.";
                     rewards.text = $"보상\n{quest.RewardGold} Gold\nAP {quest.RewardAP}\n경험치 {s.ScaledExperience(quest.RewardExperience)}";
                     objectives.text = $"누적 납품  {s.TimberDelivered:N0}/{s.TimberRequired:N0}\n\n" +
-                        (delivered ? "납품 완료" : s.CanConfirmTimberDelivery ? "요구량을 채웠어요. 미라에게 납품 완료를 확인하세요." : "달걀을 팔아 도끼를 구하고 주무기에 장착하세요.");
+                        (delivered ? "납품 완료" : s.CanConfirmTimberDelivery ? "요구량을 채웠어요. 미라에게 납품 완료를 확인하세요." :
+                            "도끼를 장착해 나무를 베세요. 밑동이나 줄기를 내려찍어 통나무를 만들고, 통나무를 한 번 더 내려찍으면 목재를 얻을 수 있어요.");
                 }
                 else
                 {

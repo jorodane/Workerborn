@@ -61,6 +61,7 @@ namespace Workerborn
         private bool manualWalking;
         private bool onSeat;
         private SeatSlot occupiedSeat;
+        private Quaternion occupiedSeatFacing;
         private float nextCollect;
         private int consecutiveCollections;
         private Transform jumpingVisual;
@@ -167,7 +168,7 @@ namespace Workerborn
                 ReadLocalControls();
             if (onSeat && (occupiedSeat == null || !occupiedSeat.isActiveAndEnabled ||
                 (occupiedSeat.Position - transform.position).sqrMagnitude > .0004f ||
-                Quaternion.Angle(occupiedSeat.Facing, transform.rotation) > .5f))
+                Quaternion.Angle(occupiedSeatFacing, transform.rotation) > .5f))
                 Cancel();
             UpdateVisualJump();
             bool awaitingAutomaticHarvest = IsLocallyControlled && village?.AwaitingAutomaticHarvest == true;
@@ -177,6 +178,7 @@ namespace Workerborn
                 UpdateHarvest();
             else if (Action == WorkerAction.Attacking && !awaitingAutomaticHarvest)
                 UpdateAttack();
+            UpdateTimberCarry();
             var motion = Action switch
             {
                 WorkerAction.Moving => IsWalking ? WorkerMotion.Walk : WorkerMotion.Run,
@@ -227,7 +229,7 @@ namespace Workerborn
 
         internal void CommandJump()
         {
-            if (jumpingVisual != null || !AcceptsInteractionCommands || Action is not (WorkerAction.Idle or WorkerAction.Moving))
+            if (jumpingVisual != null || CarriedLogs > 0 || !AcceptsInteractionCommands || Action is not (WorkerAction.Idle or WorkerAction.Moving))
                 return;
             jumpingVisual = actor?.VisualRoot;
             if (jumpingVisual == null)
@@ -250,7 +252,7 @@ namespace Workerborn
 
         internal bool ToggleSit(SeatSlot preferred = null)
         {
-            if (!AcceptsInteractionCommands || agent == null || !agent.isOnNavMesh)
+            if (CarriedLogs > 0 || !AcceptsInteractionCommands || agent == null || !agent.isOnNavMesh)
                 return false;
             if (Action == WorkerAction.Sitting)
             {
@@ -283,7 +285,8 @@ namespace Workerborn
             {
                 agent.updatePosition = false;
                 agent.updateRotation = false;
-                transform.SetPositionAndRotation(nearest.Position, nearest.Facing);
+                occupiedSeatFacing = nearest.FacingFor(StandingPosition, transform.rotation);
+                transform.SetPositionAndRotation(nearest.Position, occupiedSeatFacing);
             }
             Action = WorkerAction.Sitting;
             return true;
@@ -313,7 +316,7 @@ namespace Workerborn
             right.Normalize();
             Vector3 forward = Vector3.Cross(right, Vector3.up);
             Vector3 direction = Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
-            agent.speed = IsWalking ? walkSpeed : runSpeed;
+            agent.speed = (IsWalking ? walkSpeed : runSpeed) * CarrySpeed;
             MoveWithWorldCollision(direction * (agent.speed * Time.deltaTime));
             if (direction.sqrMagnitude > .001f)
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(direction),
@@ -534,7 +537,7 @@ namespace Workerborn
 
         public void CommandAttack(WorldInteractable target)
         {
-            if (village == null || !AcceptsInteractionCommands || target == null || !target.CanReceiveStrike ||
+            if (village == null || CarriedLogs > 0 || !AcceptsInteractionCommands || target == null || !target.CanReceiveStrike ||
                 (CharacterState.Energy <= 0 || CharacterState.Health <= 0) || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
                 return;
             if (InReach(target.transform.position, target.InteractionDistance))
@@ -545,7 +548,7 @@ namespace Workerborn
 
         private void StartAttack(WorldInteractable target)
         {
-            if (target == null || !target.CanReceiveStrike || CharacterState.Energy <= 0 || CharacterState.Health <= 0 ||
+            if (target == null || !target.CanReceiveStrike || CarriedLogs > 0 || CharacterState.Energy <= 0 || CharacterState.Health <= 0 ||
                 !AcceptsInteractionCommands || !SharesMap(target.transform.position) ||
                 !InReach(target.transform.position, target.InteractionDistance))
                 return;
@@ -557,7 +560,7 @@ namespace Workerborn
             strikeStartedAt = Time.time;
             nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, attackDelay);
             struck = false;
-            animationDriver?.BeginStrike(attackClip);
+            animationDriver?.BeginStrike(target.StrikeClip(this) ?? attackClip);
         }
 
         private void UpdateAttack()
@@ -572,7 +575,7 @@ namespace Workerborn
             animationDriver?.SampleStrike(progress);
             if (!struck)
                 Face(strikeTarget.transform.position);
-            if (!struck && progress >= .36f)
+            if (!struck && progress >= strikeTarget.StrikeImpact)
             {
                 struck = true;
                 if (strikeTarget.CanReceiveStrike)
@@ -674,7 +677,7 @@ namespace Workerborn
 
             ClearInteractionTargets();
             walkPath = walk;
-            agent.speed = walk ? walkSpeed : runSpeed;
+            agent.speed = (walk ? walkSpeed : runSpeed) * CarrySpeed;
             agent.isStopped = false;
             Action = WorkerAction.Moving;
             return true;
@@ -920,6 +923,7 @@ namespace Workerborn
 
         internal void ResetLifeActivity()
         {
+            FinishTimberTravel();
             Cancel();
             FinishVisualJump();
             StandUpFromBed();
@@ -937,6 +941,7 @@ namespace Workerborn
 
         public bool WarpTo(Vector3 position)
         {
+            FinishTimberTravel();
             Cancel();
             FinishVisualJump();
             StandUpFromBed();

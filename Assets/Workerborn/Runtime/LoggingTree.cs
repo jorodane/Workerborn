@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -5,39 +6,58 @@ namespace Workerborn
 {
     public sealed class LoggingTree : HarvestableCrop
     {
+        [Serializable]
+        private struct Product
+        {
+            public ItemDefinition item;
+            [Min(1)] public int weight;
+            [Min(1)] public int quantity;
+        }
+
         private const float ImpactDuration = .24f;
         private const float ImpactDegrees = 4f;
-        [SerializeField] private ItemDefinition branch;
-        [SerializeField, Range(1, 8)] private int branchesPerStrike = 1;
+        [SerializeField] private Product[] products = Array.Empty<Product>();
+        [SerializeField, Range(0f, 1f)] private float strikeChance = .60f;
+        [SerializeField, Min(.4f)] private float lowerDistance = 1.35f;
+        [SerializeField, Min(.8f)] private float upperDistance = 3.55f;
         private Quaternion restRotation;
         private Vector3 impactAxis;
         private float impactStartedAt;
         private bool shaking;
-        public ItemDefinition Branch => branch;
-        internal override bool CanReceiveStrike => CanInteract && branch != null && branch.GroundPrefab != null;
+        private bool felled;
+
+        public override bool CanInteract => base.CanInteract && !felled;
+        internal override bool CanReceiveStrike => CanInteract;
+        internal bool Felled => felled;
+
+        internal TimberSite Site() => new TimberSite(PersistentId, TimberLocation.Planar(transform.position),
+            Definition.RequiredTool.Id, Definition.HarvestsPerPlant, Definition.StaminaCost, InteractionDistance,
+            strikeChance, Definition.SuccessChance, lowerDistance, upperDistance, Array.ConvertAll(products ?? Array.Empty<Product>(),
+                product => new TreeProduct(product.item != null ? product.item.Id : "", product.weight, product.quantity)));
 
         public override string InteractionVerbFor(HarvestWorker worker) =>
-            StrikesByDefault(worker) ? "때리기" : InteractionVerb;
+            HasAxe(worker) ? "나무 베기" : "나무 때리기";
         internal override InteractionCursor CursorFor(HarvestWorker worker) =>
-            StrikesByDefault(worker) ? InteractionCursor.Attack : InteractionCursor.Chop;
+            HasAxe(worker) ? InteractionCursor.Chop : InteractionCursor.Attack;
 
         protected override void Interact(HarvestWorker worker)
         {
-            if (StrikesByDefault(worker))
-                worker.CommandAttack(this);
+            if (HasAxe(worker))
+                worker.CommandHarvest(this);
             else
-                base.Interact(worker);
+                worker.CommandAttack(this);
         }
 
         public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
         {
-            if (CanReceiveStrike)
-                actions.Add(new WorldContextAction("때리기", () =>
-                {
-                    if (BeginInteraction(village.Worker))
-                        village.Worker.CommandAttack(this);
-                }));
-            actions.Add(new WorldContextAction(InteractionVerb, () =>
+            if (!CanInteract)
+                return;
+            actions.Add(new WorldContextAction("나무 때리기", () =>
+            {
+                if (BeginInteraction(village.Worker))
+                    village.Worker.CommandAttack(this);
+            }));
+            actions.Add(new WorldContextAction("나무 베기", () =>
             {
                 if (BeginInteraction(village.Worker))
                     village.Worker.CommandHarvest(this);
@@ -49,8 +69,27 @@ namespace Workerborn
             if (!CanReceiveStrike || worker.Village == null)
                 return;
             ShowImpact(worker);
-            if (worker.Village.DropStrikeLoot(transform, branch, Mathf.Clamp(branchesPerStrike, 1, 8), worker))
+            if (worker.Village.RequestTimberWork(worker, new TimberOrder { action = TimberAction.Strike, target = PersistentId }))
                 NotifyInteractionCompleted();
+        }
+
+        protected override bool Gather(HarvestWorker worker)
+        {
+            worker.Village?.RequestTimberWork(worker, new TimberOrder { action = TimberAction.Fell, target = PersistentId });
+            // The work cycle times the swing. The woodland record owns the remaining products and the cut state.
+            return false;
+        }
+
+        internal void Present(bool isFelled)
+        {
+            if (isFelled == felled)
+                return;
+            felled = isFelled;
+            ResetImpact();
+            if (Visual != null)
+                Visual.gameObject.SetActive(!felled);
+            SetInteractionGeometryActive(!felled);
+            RenewInteractionGeneration();
         }
 
         internal void ShowImpact(HarvestWorker worker)
@@ -75,10 +114,7 @@ namespace Workerborn
             if (phase >= 1f)
                 ResetImpact();
             else
-            {
-                float degrees = ImpactDegrees * Mathf.Sin(phase * (2f * Mathf.PI)) * (1f - phase);
-                Visual.localRotation = Quaternion.AngleAxis(degrees, impactAxis) * restRotation;
-            }
+                Visual.localRotation = Quaternion.AngleAxis(ImpactDegrees * Mathf.Sin(phase * (2f * Mathf.PI)) * (1f - phase), impactAxis) * restRotation;
         }
 
         private void ResetImpact()
@@ -94,10 +130,6 @@ namespace Workerborn
             base.OnDisable();
         }
 
-        private bool StrikesByDefault(HarvestWorker worker)
-        {
-            var tool = Definition?.RequiredTool;
-            return CanReceiveStrike && tool != null && worker.Village != null && !worker.CharacterState.HasTool(tool.Id);
-        }
+        private bool HasAxe(HarvestWorker worker) => worker.CharacterState?.HasTool(Definition.RequiredTool.Id) == true;
     }
 }

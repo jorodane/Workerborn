@@ -503,28 +503,26 @@ namespace Workerborn.Tests
             Vector3 approach = tree.transform.position + Vector3.right * 1.75f;
             Assert.That(NavMesh.SamplePosition(approach, out var at, .4f, NavMesh.AllAreas), Is.True);
             game.Worker.WarpTo(at.position);
-            int remaining = tree.Remaining;
             var visual = tree.transform.Find("Visual");
             Quaternion rest = visual.localRotation;
             Vector3 scale = visual.localScale;
-            Assert.That(tree.InteractionVerbFor(game.Worker), Is.EqualTo("때리기"));
+            Assert.That(tree.InteractionVerbFor(game.Worker), Is.EqualTo("나무 때리기"));
             tree.RequestInteraction(game.Worker);
-            yield return Until(() => WorldInteractable.Active.OfType<GroundPickup>().Any(item => item.ItemId == tree.Branch.Id), 3f);
-            var branch = WorldInteractable.Active.OfType<GroundPickup>().Single(item => item.ItemId == tree.Branch.Id);
-            Assert.That(tree.Remaining, Is.EqualTo(remaining));
-            Assert.That(branch.Quantity, Is.EqualTo(1));
-            yield return Until(() => Quaternion.Angle(visual.localRotation, rest) > .2f, .25f);
+            yield return Until(() => Quaternion.Angle(visual.localRotation, rest) > .2f, 3f);
             Assert.That(visual.localScale, Is.EqualTo(scale));
             yield return Until(() => Quaternion.Angle(visual.localRotation, rest) < .01f, .5f);
 
             Assert.That(game.State.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
             Assert.That(game.State.TryEquip(game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Axe).Id), Is.True);
+            game.State.LearnSkill(SkillId.Woodcutting, SkillProgression.MaxRank);
             tree.RequestInteraction(game.Worker);
             yield return Until(() => game.Worker.ActiveCrop == tree, 3f);
             Assert.That(Quaternion.Angle(visual.localRotation, rest), Is.LessThan(.01f));
             yield return Until(() => Quaternion.Angle(visual.localRotation, rest) > .2f, tree.Definition.HarvestSeconds);
             Assert.That(game.Worker.ActiveCrop, Is.SameAs(tree));
             Assert.That(visual.localScale, Is.EqualTo(scale));
+            yield return Until(() => tree.Felled, tree.Definition.HarvestSeconds + 1f);
+            Assert.That(WorldInteractable.Active.OfType<TimberPiece>().Count(piece => piece.TargetId == tree.PersistentId), Is.EqualTo(3));
         }
 
         [UnityTest]

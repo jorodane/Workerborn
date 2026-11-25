@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 74ae562b5e225296a9eed3fbc416eab3, type: 3}
+  m_Name: TimberAssets
+  m_EditorClassIdentifier: ''
+  stump: {fileID: 100009, guid: a17d1e7c8f605a21a7543a55dbdddfee, type: 3}
+  lower: {fileID: 100008, guid: 9ab5fbd4c3bd5a61a3bf9c137e579129, type: 3}
+  upper: {fileID: 100008, guid: 41f41d04352e5db9bf027cae944d53ff, type: 3}
+  log: {fileID: 100008, guid: 6ebb0b405345571ea2bfaf0a187f195d, type: 3}
+  split: {fileID: 3094330708855449807, guid: bc322ece381c20f449a86c75eb204295, type: 3}
+  carry: {fileID: 3094330708855449807, guid: aabebd9211db3d540bacf22aeaab6299, type: 3}
+  toss: {fileID: 3094330708855449807, guid: 562bded4075988e4286c5c2c026d0db7, type: 3}
+  felling: {fileID: 11400000, guid: ef506ebca5fa5cdca2fd7517887fcc6f, type: 2}
+  strike: {fileID: 992911294148604404, guid: dddab171c4921bd4aa92cfec58cc6a53, type: 3}
