@@ -71,10 +71,9 @@ namespace Workerborn
         {
             if (skill == SkillId.HarvestAcquisition)
             {
-                int delay = state.HarvestAcquisitionDelayMilliseconds;
-                return delay == 0
-                    ? "수확 즉시 수확물이 소지품에 들어옵니다."
-                    : $"수확 후 {delay / 1000f:0.##}초 뒤에 수확물이 소지품에 들어옵니다.";
+                return state.HasInstantHarvestAcquisition
+                    ? "수확물을 즉시 얻고, 주변의 떨어진 수확물도 즉시 주웁니다."
+                    : $"2m 안에 떨어진 수확물을 초당 최대 {state.HarvestItemsPerSecond:N0}개 줍습니다.";
             }
 
             var lines = new List<string>();

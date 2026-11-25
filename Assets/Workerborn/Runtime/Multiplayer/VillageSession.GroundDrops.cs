@@ -28,6 +28,11 @@ namespace Workerborn
             type = SessionMessage.GroundTransfer, argument = dropId
         });
 
+        internal bool SubmitAutomaticHarvestPickup(string[] ids) => SubmitCommand(new SessionPacket
+        {
+            type = SessionMessage.GroundTransfer, automaticHarvest = true, automaticHarvestIds = ids
+        });
+
         internal bool SubmitGatheredDrops(GroundDropSave[] drops)
         {
             if (!Online || village == null || Submitting || authority == null && host == null ||
@@ -59,6 +64,15 @@ namespace Workerborn
 
         private void GroundTransfer(string identity, SessionPacket packet, Connection connection)
         {
+            if (packet.automaticHarvest)
+            {
+                var harvests = authority.CollectAutomaticHarvests(identity, packet.character, packet.automaticHarvestIds, GroundDropSave.UtcNow);
+                SendProfile(identity, connection, null, packet.request, harvests.Length > 0, transition: false, automaticHarvests: harvests);
+                foreach (var result in harvests)
+                    SyncGroundChange(result.id);
+                return;
+            }
+
             string message = "현재 상태를 저장하지 못했어요. 다시 시도해 주세요.";
             string collected = null;
             GroundDropSave placed = null;
@@ -99,6 +113,17 @@ namespace Workerborn
             else if (authority == null)
                 receivedGroundDrops[id] = packet.groundDrop;
             village.ApplySharedGroundPickup(id, packet.collectedQuantity, packet.groundDrop);
+        }
+
+        private void ApplyAutomaticHarvestLedger(HarvestPickupResult[] harvests)
+        {
+            foreach (var result in harvests)
+            {
+                if (result.remaining == 0)
+                    receivedGroundDrops.Remove(result.id);
+                else if (receivedGroundDrops.TryGetValue(result.id, out var drop))
+                    drop.quantity = result.remaining;
+            }
         }
 
         private void QueueCreatedDrops(GroundDropSave[] drops)

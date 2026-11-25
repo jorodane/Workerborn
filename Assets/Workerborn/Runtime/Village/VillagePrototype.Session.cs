@@ -14,6 +14,7 @@ namespace Workerborn
         private bool wasOnline;
         public bool IsOnline => wasOnline || Session?.Online == true;
         public bool AwaitingWorldCommand => IsOnline && Session?.Submitting == true;
+        internal bool AwaitingAutomaticHarvest => IsOnline && Session?.AwaitingAutomaticHarvest == true;
         public bool CanInviteFriends => Session?.SteamHost == true;
         public bool CanManageServer => Session?.CanManage == true;
         internal DedicatedAdminStatus ServerAdministration => Session?.Administration;
@@ -186,16 +187,18 @@ namespace Workerborn
                 SetPeers(avatars);
         }
 
-        internal void ApplySessionProfile(VillageSave save, VillageWorldRecord world, string message, bool transition)
+        internal void ApplySessionProfile(VillageSave save, VillageWorldRecord world, string message, bool transition,
+            HarvestPickupResult[] harvests = null)
         {
             if (!initialized || world?.legend == null)
                 return;
             PresentWorldUpdate(() => ChangesDateOrEra(world) || save != null &&
                 (save.life != State.Life || save.awaitingIncarnation != State.AwaitingIncarnation),
-                () => ApplySessionProfileNow(save, world, message, transition));
+                () => ApplySessionProfileNow(save, world, message, transition, harvests));
         }
 
-        private void ApplySessionProfileNow(VillageSave save, VillageWorldRecord world, string message, bool transition)
+        private void ApplySessionProfileNow(VillageSave save, VillageWorldRecord world, string message, bool transition,
+            HarvestPickupResult[] harvests)
         {
             if (world.era < State.Era)
                 return;
@@ -206,8 +209,13 @@ namespace Workerborn
             int day = State.Day;
             if (save != null && (!transition || save.life != life || save.awaitingIncarnation != wasAwaitingIncarnation))
             {
-                State = VillageState.Restore(save, State.Rules);
-                worker.SetCharacterState(State);
+                if (harvests != null && save.life == life && save.awaitingIncarnation == wasAwaitingIncarnation)
+                    State.Inventory.ReplaceWith(GridInventory.Restore(save.inventoryColumns, save.inventoryRows, save.inventory));
+                else
+                {
+                    State = VillageState.Restore(save, State.Rules);
+                    worker.SetCharacterState(State);
+                }
             }
             State.ApplyWorld(world);
             bool reborn = life != State.Life;
@@ -227,6 +235,8 @@ namespace Workerborn
                 ShowLevelUp(level);
                 hud.RefreshWindows();
             }
+            if (harvests is { Length: > 0 } && save?.life == State.Life && !State.AwaitingIncarnation)
+                FinishAutomaticHarvestPickup(harvests);
             hud.ShowToast(message);
         }
 

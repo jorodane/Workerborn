@@ -642,6 +642,41 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator PracticeRankHarvestLandsAndCollectsOneItemPerSecond()
+        {
+            var worker = game.Worker;
+            var crop = game.Crops[0];
+            Vector3 start = crop.transform.position;
+            Assert.That(NavMesh.SamplePosition(start, out var standing, 1.4f, NavMesh.AllAreas), Is.True);
+            Assert.That(worker.WarpTo(standing.position), Is.True);
+            Assert.That(game.State.LearnSkill(SkillId.HarvestAcquisition), Is.True);
+            var definition = crop.Definition;
+            string original = JsonUtility.ToJson(definition);
+            int drops = game.GroundItemCount;
+            try
+            {
+                JsonUtility.FromJsonOverwrite("{\"successChance\":1,\"luckyChance\":0,\"greatLuckyChance\":0,\"itemsPerHarvest\":3," +
+                    "\"scatterRadius\":{\"x\":0.1,\"y\":0.15}}", definition);
+                Assert.That(crop.TryBegin(worker), Is.True);
+                Assert.That(crop.Advance(worker, definition.HarvestSeconds), Is.True);
+                Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.Zero);
+                Assert.That(game.GroundItemCount, Is.GreaterThan(drops));
+                Assert.That(game.CaptureSave().pendingHarvests, Is.Empty);
+            }
+            finally
+            {
+                JsonUtility.FromJsonOverwrite(original, definition);
+            }
+
+            yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) == 1, 3f);
+            yield return new WaitForSecondsRealtime(.5f);
+            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(1));
+            Assert.That(game.GroundItemCount, Is.GreaterThan(drops));
+            yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) == 3, 4f);
+            Assert.That(game.GroundItemCount, Is.EqualTo(drops));
+        }
+
+        [UnityTest]
         public IEnumerator MaxRankHarvestAcquisitionDeliversThroughThePlayerHarvestAction()
         {
             var crop = game.Crops[0];

@@ -36,6 +36,9 @@ namespace Workerborn
         public GroundDropSave groundDrop;
         public GroundDropSave[] groundDrops;
         public string[] removedGroundDrops;
+        public bool automaticHarvest;
+        public string[] automaticHarvestIds;
+        public HarvestPickupResult[] automaticHarvests;
         public string collectedDropId;
         public int collectedQuantity;
         public long pickupUtc;
@@ -46,7 +49,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 15;
+        public const int ProtocolVersion = 16;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -97,6 +100,7 @@ namespace Workerborn
         public VillageSave InitialCharacter { get; private set; }
         public CampaignStatus Status { get; private set; }
         public bool Submitting => waitingForRequest != 0 || leaveBy > 0;
+        internal bool AwaitingAutomaticHarvest => waitingForRequest != 0 && waitingForAutomaticHarvest;
         public string SessionLabel => kind switch
         {
             SessionKind.SteamFriends => "Steam 친구 방",
@@ -125,6 +129,7 @@ namespace Workerborn
         private LocalWorld selectedWorld;
         private float lastHostMessage, nextNetwork, nextSave, connectBy, requestBy, nextHello, leaveBy;
         private int requestSequence, waitingForRequest, operationGeneration;
+        private bool waitingForAutomaticHarvest;
         private bool inviteWhenReady, exitRequested;
         private string exitMessage;
         private ulong pendingInvite;
@@ -598,6 +603,7 @@ namespace Workerborn
                 return false;
             }
             waitingForRequest = packet.request;
+            waitingForAutomaticHarvest = packet.automaticHarvest;
             requestBy = Time.unscaledTime + ConnectionTimeout;
             return true;
         }
@@ -1014,14 +1020,16 @@ namespace Workerborn
         }
 
         private void SendProfile(string identity, Connection connection, string message, int request, bool includeCharacter, bool transition,
-            string collectedDropId = null, int collectedQuantity = 0, GroundDropSave remainder = null)
+            string collectedDropId = null, int collectedQuantity = 0, GroundDropSave remainder = null,
+            HarvestPickupResult[] automaticHarvests = null)
         {
             var packet = new SessionPacket
             {
                 type = SessionMessage.Profile, character = includeCharacter ? authority.Profile(identity).character : null,
                 status = authority.Status(identity, CanManageProfile(identity)), world = authority.World, message = message,
                 request = request, value = transition ? 1 : 0, collectedDropId = collectedDropId,
-                collectedQuantity = collectedQuantity, groundDrop = remainder
+                collectedQuantity = collectedQuantity, groundDrop = remainder,
+                automaticHarvest = automaticHarvests != null, automaticHarvests = automaticHarvests
             };
             if (connection == null)
                 ApplyProfile(packet);
@@ -1153,13 +1161,19 @@ namespace Workerborn
         {
             UpdateStatus(packet.status);
             if (packet.request != 0 && packet.request == waitingForRequest)
+            {
                 waitingForRequest = 0;
+                waitingForAutomaticHarvest = false;
+            }
             if (village != null)
             {
-                village.ApplySessionProfile(packet.character, packet.world, packet.message, packet.value == 1);
+                var harvests = packet.automaticHarvest ? packet.automaticHarvests ?? Array.Empty<HarvestPickupResult>() : null;
+                if (harvests != null)
+                    ApplyAutomaticHarvestLedger(harvests);
+                village.ApplySessionProfile(packet.character, packet.world, packet.message, packet.value == 1, harvests);
                 if (!string.IsNullOrEmpty(packet.collectedDropId))
                     ApplyGroundPickupReply(packet);
-                if (packet.request != 0 && packet.request == requestSequence)
+                if (!packet.automaticHarvest && packet.request != 0 && packet.request == requestSequence)
                     village.Hud.FinishDialogueWorldReply(packet.character != null, packet.message);
             }
             else if (InitialCharacter != null && packet.character != null)
@@ -1362,6 +1376,7 @@ namespace Workerborn
             kind = null;
             Busy = false;
             waitingForRequest = 0;
+            waitingForAutomaticHarvest = false;
             receivedGroundDrops.Clear();
             pendingGatheredDrops.Clear();
             pickupClockAtSync = 0;

@@ -3,6 +3,15 @@ using System.Collections.Generic;
 
 namespace Workerborn
 {
+    [Serializable]
+    internal sealed class HarvestPickupResult
+    {
+        public string id;
+        public string itemId;
+        public int quantity;
+        public int remaining;
+    }
+
     internal sealed class GroundDropPiles
     {
         private const float MergeDistance = GroundDropSave.PickupDistance;
@@ -35,6 +44,32 @@ namespace Workerborn
                 if (pile.Count == 0)
                     cells.Remove(cell);
             }
+        }
+
+        internal HarvestPickupResult[] CollectHarvests(VillageState state, string playerId, long now, IReadOnlyList<string> ids,
+            Func<GroundDropSave, bool> isInReach = null)
+        {
+            int remainingBudget = state.HasInstantHarvestAcquisition ? int.MaxValue : state.HarvestItemsPerSecond;
+            if (state.AwaitingIncarnation || remainingBudget <= 0 || ids.Count == 0)
+                return Array.Empty<HarvestPickupResult>();
+            var collected = new List<HarvestPickupResult>();
+            foreach (string id in ids)
+            {
+                if (string.IsNullOrEmpty(id) || !TryGet(id, out var drop) || !drop.CanAutoCollect(playerId, now) ||
+                    isInReach != null && !isInReach(drop))
+                    continue;
+                int taken = state.Inventory.TryAddUpTo(drop.itemId, Math.Min(drop.quantity, remainingBudget), drop.condition);
+                if (taken <= 0)
+                    continue;
+                drop.quantity -= taken;
+                if (drop.quantity == 0)
+                    Remove(id);
+                remainingBudget -= taken;
+                collected.Add(new HarvestPickupResult { id = id, itemId = drop.itemId, quantity = taken, remaining = drop.quantity });
+                if (remainingBudget == 0)
+                    break;
+            }
+            return collected.ToArray();
         }
 
         internal void ReleaseExpired(long now, Action<string> changed = null)
@@ -78,7 +113,8 @@ namespace Workerborn
                         float dx = drop.MapX - candidate.MapX;
                         float dz = drop.MapZ - candidate.MapZ;
                         float distance = dx * dx + dz * dz;
-                        if (distance <= bestDistance && candidate.condition.Equals(drop.condition) && candidate.quantity <= int.MaxValue - drop.quantity)
+                        if (distance <= bestDistance && candidate.harvestYield == drop.harvestYield &&
+                            candidate.condition.Equals(drop.condition) && candidate.quantity <= int.MaxValue - drop.quantity)
                         {
                             bestDistance = distance;
                             nearest = candidate;

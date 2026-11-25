@@ -58,6 +58,60 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void AutomaticHarvestPickupUsesNearbyLandedQuantitiesAtTheLearnedRate()
+        {
+            const long now = 100_000;
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 0f, -4.4f);
+            Assert.That(campaign.Connect("a", "하나", out var owner), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out var other), Is.True);
+            Incarnate(campaign, "a");
+            Incarnate(campaign, "b");
+            VillageState Learn(CampaignProfile profile, int rank)
+            {
+                var state = VillageState.Restore(profile.character, rules);
+                state.LearnSkill(SkillId.HarvestAcquisition, rank);
+                Assert.That(campaign.Checkpoint(profile.identity, state.Export()), Is.True);
+                return state;
+            }
+            var state = Learn(owner, 1);
+            Learn(other, 0);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, 4), Is.True);
+            Assert.That(campaign.Checkpoint("a", state.Export()), Is.True);
+            var manual = new GroundDropSave { itemId = ItemIds.Potato, z = -4.4f, quantity = 4, harvestYield = true };
+            Assert.That(campaign.TryPlaceGroundDrop("a", state.Inventory.Entries.Single().Id, manual, now, out var discarded, out _), Is.True);
+            var drafts = new[]
+            {
+                new GroundDropSave { itemId = ItemIds.Potato, z = -4.4f, quantity = 5, flightMilliseconds = 480 },
+                new GroundDropSave { itemId = ItemIds.Potato, x = 3f, z = -4.4f, quantity = 5 },
+                new GroundDropSave { itemId = ItemIds.Potato, x = -1f, z = -4.4f, quantity = 3 }
+            };
+            Assert.That(campaign.TryPublishGatheredDrops("a", owner.character, drafts, now, out var drops), Is.True);
+            var ids = new[] { discarded.id, drops[1].id, drops[0].id };
+            Assert.That(campaign.CollectAutomaticHarvests("a", owner.character, ids, now + 479), Is.Empty);
+            Assert.That(campaign.CollectAutomaticHarvests("b", other.character, ids, now + 480), Is.Empty);
+
+            var result = campaign.CollectAutomaticHarvests("a", owner.character, ids, now + 480).Single();
+            Assert.That(result.id, Is.EqualTo(drops[0].id));
+            Assert.That(result.quantity, Is.EqualTo(2));
+            Assert.That(result.remaining, Is.EqualTo(3));
+            Assert.That(campaign.CollectAutomaticHarvests("a", owner.character, ids, now + 1_479), Is.Empty);
+            Assert.That(campaign.CollectAutomaticHarvests("a", owner.character, ids, now + 1_480).Single().quantity, Is.EqualTo(2));
+            Assert.That(campaign.TryCollectGroundDrop("a", drops[0].id, now + 1_481, out int manualQuantity, out _), Is.True);
+            Assert.That(manualQuantity, Is.EqualTo(1));
+            Assert.That(VillageState.Restore(owner.character, rules).Inventory.Count(ItemIds.Potato), Is.EqualTo(5));
+            Assert.That(discarded.quantity, Is.EqualTo(4));
+
+            campaign.ReleaseExpiredDrops(now + GroundDropSave.ReservationMilliseconds, null);
+            var publicPiles = new[] { discarded.id, drops[2].id };
+            result = campaign.CollectAutomaticHarvests("b", other.character, publicPiles, now + GroundDropSave.ReservationMilliseconds).Single();
+            Assert.That(result.id, Is.EqualTo(drops[2].id));
+            Assert.That(result.quantity, Is.EqualTo(1));
+            Assert.That(result.remaining, Is.EqualTo(2));
+            Assert.That(discarded.quantity, Is.EqualTo(4));
+        }
+
+        [Test]
         public void DroppedEquipmentKeepsItsConditionAndDoesNotMergeWithNewEquipment()
         {
             const long now = 100_000;

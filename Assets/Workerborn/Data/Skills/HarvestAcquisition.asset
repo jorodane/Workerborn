@@ -20,11 +20,56 @@ MonoBehaviour:
   rankEffects:
   - fromRank: 0
     throughRank: 0
-    effect: 6
-    amount: 3000
+    effect: 7
+    amount: 1
     increasePerRank: 0
   - fromRank: 1
-    throughRank: 100
-    effect: 6
-    amount: -30
+    throughRank: 1
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 11
+    throughRank: 11
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 21
+    throughRank: 21
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 31
+    throughRank: 31
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 41
+    throughRank: 41
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 51
+    throughRank: 51
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 61
+    throughRank: 61
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 71
+    throughRank: 71
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 81
+    throughRank: 81
+    effect: 7
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 91
+    throughRank: 91
+    effect: 7
+    amount: 1
     increasePerRank: 0

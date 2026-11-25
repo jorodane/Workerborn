@@ -49,8 +49,24 @@ namespace Workerborn
 
             drops = new GroundDropSave[drafts.Length];
             for (int i = 0; i < drops.Length; i++)
-                drops[i] = AddGroundDrop(drafts[i], profile.id, now);
+                drops[i] = AddGroundDrop(drafts[i], profile.id, now, harvestYield: true);
             return true;
+        }
+
+        internal HarvestPickupResult[] CollectAutomaticHarvests(string identity, VillageSave character, string[] ids, long now)
+        {
+            if (!ConnectedProfile(identity, out var profile) || ids == null || ids.Length == 0 ||
+                ids.Length > GroundDropSave.MaximumGatheredDrops || !TryCheckpoint(identity, character, out var state) ||
+                (!state.HasInstantHarvestAcquisition && now < profile.NextHarvestPickupAt))
+                return Array.Empty<HarvestPickupResult>();
+
+            var collected = groundDrops.CollectHarvests(state, profile.id, now, ids, drop => InPickupRange(character, drop));
+            if (collected.Length > 0)
+            {
+                profile.NextHarvestPickupAt = now + GroundDropSave.AutoPickupPeriodMilliseconds;
+                SaveCharacter(profile, state, teleport: false);
+            }
+            return collected;
         }
 
         internal bool TryCollectGroundDrop(string identity, string dropId, long now, out int quantity, out string message)
@@ -87,6 +103,7 @@ namespace Workerborn
             profiles.TryGetValue(identity, out profile) && connected.Contains(identity) && !profile.character.awaitingIncarnation;
 
         private bool ValidGroundDrop(GroundDropSave drop) => drop != null && drop.quantity > 0 && ItemCatalog.Contains(drop.itemId) &&
+            drop.flightMilliseconds >= 0 &&
             FiniteCoordinate(drop.x) && FiniteCoordinate(drop.z) && isCloudPosition?.Invoke(drop.x, drop.z) != true &&
             FiniteCoordinate(drop.interior.localX) && FiniteCoordinate(drop.interior.localZ) &&
             (!drop.hasDropOrigin || FiniteCoordinate(drop.originX) && FiniteCoordinate(drop.originY) && FiniteCoordinate(drop.originZ));
@@ -101,13 +118,15 @@ namespace Workerborn
             return x * x + z * z <= GroundDropSave.PickupDistance * GroundDropSave.PickupDistance;
         }
 
-        private GroundDropSave AddGroundDrop(GroundDropSave draft, string owner, long now, EquipmentCondition condition = default)
+        private GroundDropSave AddGroundDrop(GroundDropSave draft, string owner, long now,
+            EquipmentCondition condition = default, bool harvestYield = false)
         {
             var drop = new GroundDropSave
             {
                 id = Guid.NewGuid().ToString("N"), itemId = draft.itemId, quantity = draft.quantity, condition = condition,
                 x = draft.x, z = draft.z, interior = draft.interior, hasDropOrigin = draft.hasDropOrigin,
-                originX = draft.originX, originY = draft.originY, originZ = draft.originZ
+                originX = draft.originX, originY = draft.originY, originZ = draft.originZ,
+                harvestYield = harvestYield, flightMilliseconds = harvestYield ? draft.flightMilliseconds : 0
             };
             drop.ReserveFor(owner, now);
             groundDrops.Add(drop);

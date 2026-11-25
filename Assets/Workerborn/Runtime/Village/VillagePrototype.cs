@@ -99,8 +99,9 @@ namespace Workerborn
         public IReadOnlyList<HarvestableCrop> Crops => crops;
         public IReadOnlyList<VillageInteractable> Interactables => npcs;
         internal int PrewarmGroundPickups => prewarmGroundPickups;
-        public bool ControlsBlocked => IsWorldTransitioning || AwaitingWorldCommand ||
+        internal bool MovementBlocked => IsWorldTransitioning || (AwaitingWorldCommand && !AwaitingAutomaticHarvest) ||
             hud != null && (hud.WorldActionsLocked || hud.IsHoldingItem || hud.IsChatTyping);
+        public bool ControlsBlocked => MovementBlocked || AwaitingWorldCommand;
 
         public int RemainingHarvests
         {
@@ -1061,6 +1062,9 @@ namespace Workerborn
                 return;
 
             State.CollectReadyHarvests(now, showAcquiredHarvest ??= ShowAcquiredHarvest);
+            CollectNearbyHarvests(now);
+            if (AwaitingWorldCommand)
+                return;
             float elapsed = Time.deltaTime;
             bool paused = hud.HasModal;
             if (IsOnline ? State.NeedsRest : State.WillAdvanceDay(elapsed, paused))

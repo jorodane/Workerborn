@@ -283,7 +283,8 @@ namespace Workerborn
 
         public void EndItemDrag(Vector2 screen)
         {
-            if (HasQuantityPrompt || !IsHoldingItem || !views.TryGetValue("inventory", out var window) || !(window is InventoryWindowView view)
+            if (game.AwaitingWorldCommand || HasQuantityPrompt || !IsHoldingItem ||
+                !views.TryGetValue("inventory", out var window) || !(window is InventoryWindowView view)
                 || !TryInventoryCell(screen, view, out var cell))
                 return;
             int next = 0;

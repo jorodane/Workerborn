@@ -41,6 +41,7 @@ namespace Workerborn
     public sealed class GroundDropSave
     {
         internal const long ReservationMilliseconds = 60_000;
+        internal const long AutoPickupPeriodMilliseconds = 1_000;
         internal const float PickupDistance = 2f;
         internal const int MaximumGatheredDrops = 48;
         internal static long UtcNow => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -59,9 +60,15 @@ namespace Workerborn
         public InteriorPositionSave interior;
         public bool hasDropOrigin;
         public float originX, originY, originZ;
+        public bool harvestYield;
+        public int flightMilliseconds;
 
         internal bool CanCollect(string playerId, long now) =>
             string.IsNullOrEmpty(ownerId) || now >= reservedUntilUtc || ownerId == playerId;
+
+        internal bool CanAutoCollect(string playerId, long now) => harvestYield &&
+            now >= reservedUntilUtc - ReservationMilliseconds + flightMilliseconds &&
+            IsVisibleTo(playerId) && CanCollect(playerId, now);
 
         internal bool IsVisibleTo(string playerId) => interior.id?.EndsWith("/guest", StringComparison.Ordinal) != true || ownerId == playerId;
 

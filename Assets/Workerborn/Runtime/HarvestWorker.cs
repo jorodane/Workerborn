@@ -85,6 +85,8 @@ namespace Workerborn
         public bool IsWalking => Action == WorkerAction.Moving &&
             (manualMoving ? manualWalking : walkPath);
         public bool HasPendingDrop => pendingDrop != null;
+        internal bool IsApproachingInteraction => Action == WorkerAction.Moving &&
+            (pendingDrop != null || pickupTarget.IsAssigned || interactionTarget != null);
         internal float VisualJumpOffset { get; private set; }
         internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
         public WorkerAction Action { get; private set; }
@@ -168,11 +170,12 @@ namespace Workerborn
                 Quaternion.Angle(occupiedSeat.Facing, transform.rotation) > .5f))
                 Cancel();
             UpdateVisualJump();
+            bool awaitingAutomaticHarvest = IsLocallyControlled && village?.AwaitingAutomaticHarvest == true;
             if (!manualMoving && Action == WorkerAction.Moving)
                 UpdateMovement();
-            else if (Action == WorkerAction.Harvesting)
+            else if (Action == WorkerAction.Harvesting && !awaitingAutomaticHarvest)
                 UpdateHarvest();
-            else if (Action == WorkerAction.Attacking)
+            else if (Action == WorkerAction.Attacking && !awaitingAutomaticHarvest)
                 UpdateAttack();
             var motion = Action switch
             {
@@ -288,7 +291,7 @@ namespace Workerborn
 
         private bool UpdateManualMovement()
         {
-            Vector2 input = AcceptsInteractionCommands ? WorkerbornInput.Move : Vector2.zero;
+            Vector2 input = village?.MovementBlocked == true ? Vector2.zero : WorkerbornInput.Move;
             if (input.sqrMagnitude < .001f)
             {
                 if (manualMoving)

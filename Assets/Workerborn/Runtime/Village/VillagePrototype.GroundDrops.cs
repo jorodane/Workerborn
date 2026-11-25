@@ -9,7 +9,11 @@ namespace Workerborn
         private readonly GroundDropPiles localGroundDrops = new GroundDropPiles();
         private readonly Dictionary<string, GroundPickup> dropViews = new Dictionary<string, GroundPickup>();
         private readonly List<GroundDropSave> legacyNpcDrops = new List<GroundDropSave>();
+        private readonly List<(GroundPickup Item, float Distance)> nearbyHarvests = new List<(GroundPickup, float)>();
+        private readonly List<string> autoPickupIds = new List<string>();
         private Action<HarvestAcquisitionSave> showAcquiredHarvest;
+        private float nextHarvestPickupScan;
+        private long nextHarvestPickupAt;
 
         internal long PickupUtcNow => IsOnline && Session != null ? Session.PickupUtcNow : GroundDropSave.UtcNow;
 
@@ -18,16 +22,15 @@ namespace Workerborn
         {
             var state = owner.CharacterState;
             long now = PickupUtcNow;
-            if (state.IsSkillLearned(SkillId.HarvestAcquisition))
+            if (state.HasInstantHarvestAcquisition)
             {
-                if (!state.TryAcquireHarvest(itemId, amount, now, (origin.x, origin.y, origin.z)))
+                if (!state.TryAcquireHarvestImmediately(itemId, amount))
                 {
                     if (owner.IsLocallyControlled)
                         hud.ShowToast("수확물을 넣을 소지품 공간이 부족해요.");
                     return false;
                 }
-                if (state.HarvestAcquisitionDelayMilliseconds == 0)
-                    PlayHarvestAcquisition(owner, origin, itemId, amount);
+                PlayHarvestAcquisition(owner, origin, itemId, amount);
                 return true;
             }
             if (!owner.HasPlayerOwner || amount <= 0 || !pickupPool.CanSpawn(prefab))
@@ -45,12 +48,93 @@ namespace Workerborn
                 }
                 int quantity = amount / piles + (i < amount % piles ? 1 : 0);
                 var drop = CaptureGroundDrop(itemId, quantity, origin, end);
+                drop.harvestYield = true;
+                drop.flightMilliseconds = prefab.FlightMilliseconds;
                 if (drafts != null)
                     drafts[i] = drop;
                 else
                     SpawnLocalPlayerDrop(drop, owner.PlayerId, now, prefab, definition, origin, end);
             }
             return drafts == null || Session?.SubmitGatheredDrops(drafts) == true;
+        }
+
+        private void CollectNearbyHarvests(long now)
+        {
+            if (State.AwaitingIncarnation || Time.unscaledTime < nextHarvestPickupScan ||
+                (IsOnline && worker.IsApproachingInteraction))
+                return;
+            bool instant = State.HasInstantHarvestAcquisition;
+            if (!instant && now < nextHarvestPickupAt)
+                return;
+            int budget = instant ? int.MaxValue : State.HarvestItemsPerSecond;
+            if (budget <= 0)
+                return;
+            nextHarvestPickupScan = Time.unscaledTime + .1f;
+            nearbyHarvests.Clear();
+            foreach (var item in pickups)
+            {
+                if (item == null || !item.CanCollect || !item.ReadyForAutoPickup ||
+                    item.DropRecord?.CanAutoCollect(worker.PlayerId, now) != true ||
+                    !worker.SharesMap(item.LandingPosition) || !worker.IsInPickupRange(item))
+                    continue;
+                Vector3 delta = worker.StandingPosition - item.LandingPosition;
+                nearbyHarvests.Add((item, delta.x * delta.x + delta.z * delta.z));
+            }
+            if (nearbyHarvests.Count == 0)
+                return;
+            nearbyHarvests.Sort((first, second) => first.Distance.CompareTo(second.Distance));
+            autoPickupIds.Clear();
+            GridInventory preview = IsOnline ? State.Inventory.Copy() : null;
+            foreach (var (item, _) in nearbyHarvests)
+            {
+                if (preview != null)
+                {
+                    int quantity = preview.TryAddUpTo(item.ItemId, Math.Min(budget, item.Quantity), item.Condition);
+                    if (quantity <= 0)
+                        continue;
+                    budget -= quantity;
+                }
+                autoPickupIds.Add(item.DropRecord.id);
+                if (budget == 0 || preview != null && autoPickupIds.Count == GroundDropSave.MaximumGatheredDrops)
+                    break;
+            }
+            if (autoPickupIds.Count == 0)
+                return;
+            if (IsOnline)
+            {
+                if (Session?.SubmitAutomaticHarvestPickup(autoPickupIds.ToArray()) == true && AwaitingWorldCommand)
+                    hud.SetCommandPending(true);
+            }
+            else
+                FinishAutomaticHarvestPickup(localGroundDrops.CollectHarvests(State, worker.PlayerId, now, autoPickupIds));
+        }
+
+        internal void FinishAutomaticHarvestPickup(HarvestPickupResult[] collected)
+        {
+            if (collected.Length == 0)
+                return;
+            nextHarvestPickupAt = PickupUtcNow + GroundDropSave.AutoPickupPeriodMilliseconds;
+            var acquired = new Dictionary<string, (Vector3? Position, int Quantity)>();
+            foreach (var result in collected)
+            {
+                Vector3? position = null;
+                if (dropViews.TryGetValue(result.id, out var item))
+                {
+                    position = item.VisualPosition;
+                    if (result.remaining > 0)
+                    {
+                        item.DropRecord.quantity = result.remaining;
+                        item.SetQuantity(result.remaining);
+                    }
+                    else
+                        item.CompleteCollection();
+                }
+                acquired.TryGetValue(result.itemId, out var total);
+                acquired[result.itemId] = (total.Position ?? position,
+                    (int)Math.Min(int.MaxValue, (long)total.Quantity + result.quantity));
+            }
+            foreach (var item in acquired)
+                PlayHarvestAcquisition(worker, item.Value.Position, item.Key, item.Value.Quantity);
         }
 
         private void ShowAcquiredHarvest(HarvestAcquisitionSave harvest)

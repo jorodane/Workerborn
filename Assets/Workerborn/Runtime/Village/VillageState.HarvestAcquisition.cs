@@ -16,36 +16,20 @@ namespace Workerborn
     public sealed partial class VillageState
     {
         private const int HarvestAcquisitionSaveSchema = 10;
+        // Receives saved harvests from before automatic pickup used ground drops.
         private readonly List<HarvestAcquisitionSave> pendingHarvests = new List<HarvestAcquisitionSave>();
         private long nextHarvestReadyAt = long.MaxValue;
         private int lastAcquisitionInventoryVersion = -1;
 
-        public int HarvestAcquisitionDelayMilliseconds => RankOf(SkillId.HarvestAcquisition) == SkillProgression.MaxRank
-            ? 0
-            : Math.Max(1, SkillBonus(SkillId.HarvestAcquisition, SkillEffect.HarvestAcquisitionDelayMilliseconds));
+        public bool HasInstantHarvestAcquisition => IsSkillLearned(SkillId.HarvestAcquisition) &&
+            RankOf(SkillId.HarvestAcquisition) == SkillProgression.MaxRank;
 
-        internal bool TryAcquireHarvest(string itemId, int quantity, long now, (float X, float Y, float Z)? source = null)
-        {
-            if (AwaitingIncarnation || !IsSkillLearned(SkillId.HarvestAcquisition))
-                return false;
-            int delay = HarvestAcquisitionDelayMilliseconds;
-            if (delay == 0)
-                return Inventory.TryAdd(itemId, quantity);
+        public int HarvestItemsPerSecond => IsSkillLearned(SkillId.HarvestAcquisition)
+            ? Math.Max(1, SkillBonus(SkillId.HarvestAcquisition, SkillEffect.HarvestItemsPerSecond))
+            : 0;
 
-            // Check the new harvest and all undelivered harvests against the same bag space.
-            var preview = pendingHarvests.Count == 0 ? Inventory : Inventory.Copy();
-            foreach (var pending in pendingHarvests)
-                if (!preview.TryAdd(pending.itemId, pending.quantity))
-                    return false;
-            if (!preview.CanAdd(itemId, quantity))
-                return false;
-            QueueHarvestAcquisition(new HarvestAcquisitionSave
-            {
-                itemId = itemId, quantity = quantity, readyAtUtc = now + delay,
-                hasSource = source.HasValue, sourceX = source?.X ?? 0f, sourceY = source?.Y ?? 0f, sourceZ = source?.Z ?? 0f
-            });
-            return true;
-        }
+        internal bool TryAcquireHarvestImmediately(string itemId, int quantity) =>
+            !AwaitingIncarnation && HasInstantHarvestAcquisition && Inventory.TryAdd(itemId, quantity);
 
         internal void CollectReadyHarvests(long now, Action<HarvestAcquisitionSave> onCollect = null)
         {

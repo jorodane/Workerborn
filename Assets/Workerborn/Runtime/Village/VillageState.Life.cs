@@ -39,7 +39,7 @@ namespace Workerborn
 
     public sealed partial class VillageState
     {
-        public const int CurrentSaveSchema = 12;
+        public const int CurrentSaveSchema = 13;
         public const int LevelLimit = 200;
         private double lifeStartedAt;
         public bool AwaitingIncarnation { get; private set; }

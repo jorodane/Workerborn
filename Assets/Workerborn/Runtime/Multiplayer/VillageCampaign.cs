@@ -42,6 +42,7 @@ namespace Workerborn
         public VillageSave character;
         public int enteredEra;
         public bool optedIn;
+        internal long NextHarvestPickupAt { get; set; }
     }
 
     [Serializable]
@@ -312,8 +313,11 @@ namespace Workerborn
             requirementCharacters = World.requirementCharacters
         };
 
-        public bool Checkpoint(string identity, VillageSave save)
+        public bool Checkpoint(string identity, VillageSave save) => TryCheckpoint(identity, save, out _);
+
+        private bool TryCheckpoint(string identity, VillageSave save, out VillageState state)
         {
+            state = null;
             var profile = profiles[identity];
             if (save == null || save.schema != VillageState.CurrentSaveSchema ||
                 save.era != World.era || save.life != profile.character.life ||
@@ -327,7 +331,7 @@ namespace Workerborn
             ApplyWorld(save);
             try
             {
-                VillageState.Restore(save, rules);
+                state = VillageState.Restore(save, rules);
                 profile.character = save;
                 return true;
             }

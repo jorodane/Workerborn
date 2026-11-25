@@ -18,6 +18,7 @@ namespace Workerborn
         private float flightSeconds = .48f;
         private Vector3 origin, landing;
         private float age;
+        private int landedFrame = -1;
         private bool collected, initialized, respawnable;
         private Vector3 authoredPosition;
         private int authoredQuantity;
@@ -38,6 +39,8 @@ namespace Workerborn
         protected override float DefaultDistance => HarvestWorker.DefaultPickupDistance;
         public bool CanCollect => !collected && isActiveAndEnabled;
         public bool IsInFlight => initialized && age < flightSeconds;
+        internal bool ReadyForAutoPickup => !IsInFlight && landedFrame != Time.frameCount;
+        internal int FlightMilliseconds => Mathf.CeilToInt(flightSeconds * 1_000f);
         public override bool CanInteract => CanCollect;
         public override string InteractionVerb => "줍기";
         public override string InteractionVerbFor(HarvestWorker worker) => CanCollectFor(worker) ? InteractionVerb : "소유자 보호 중";
@@ -101,6 +104,7 @@ namespace Workerborn
             origin = start;
             landing = end;
             age = settled ? flightSeconds : 0f;
+            landedFrame = -1;
             transform.position = settled ? end : start;
         }
 
@@ -112,7 +116,10 @@ namespace Workerborn
             float t = age / flightSeconds;
             transform.position = t < 1f ? Vector3.Lerp(origin, landing, t) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * 1.25f) : landing;
             if (t >= 1f)
+            {
+                landedFrame = Time.frameCount;
                 Landed?.Invoke(landing);
+            }
         }
 
         public bool TryCollect(Func<bool> receive = null) => TryCollect(null, receive);
