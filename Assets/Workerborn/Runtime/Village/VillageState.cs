@@ -137,6 +137,7 @@ namespace Workerborn
         public InventoryEntrySave[] inventory = Array.Empty<InventoryEntrySave>();
         public string[] itemShortcuts = Array.Empty<string>();
         public PendingPurchaseSave pendingPurchase;
+        public HarvestAcquisitionSave[] pendingHarvests = Array.Empty<HarvestAcquisitionSave>();
         public float playerX;
         public float playerZ = -4.4f;
         public float yaw;
@@ -863,6 +864,7 @@ namespace Workerborn
                 inventoryRows = Inventory.Rows,
                 inventory = Inventory.Export(),
                 itemShortcuts = (string[])itemShortcuts.Clone(),
+                pendingHarvests = pendingHarvests.ToArray(),
                 pendingPurchase = PendingPurchase == null ? null :
                     new PendingPurchaseSave { itemId = PendingPurchase.ItemId, quantity = PendingPurchase.Quantity }
             };
@@ -969,6 +971,7 @@ namespace Workerborn
                 Inventory = inventory
             };
             state.RestoreSkills(save);
+            state.RestoreHarvestAcquisitions(save);
             if (save.itemShortcuts != null)
                 for (int index = 0; index < Math.Min(save.itemShortcuts.Length, ItemShortcutCount); index++)
                 {

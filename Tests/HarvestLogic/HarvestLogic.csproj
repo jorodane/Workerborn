@@ -29,6 +29,7 @@
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/InteractionPresentationTests.cs" Link="InteractionPresentationTests.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/SkillProgression.cs" Link="SkillProgression.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Skills.cs" Link="VillageState.Skills.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.HarvestAcquisition.cs" Link="VillageState.HarvestAcquisition.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Life.cs" Link="VillageState.Life.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Legends.cs" Link="VillageState.Legends.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.cs" Link="VillageCampaign.cs" />

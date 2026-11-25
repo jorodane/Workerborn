@@ -3,7 +3,11 @@ using System.Collections.Generic;
 
 namespace Workerborn
 {
-    public enum SkillId { Harvesting = 0, Woodcutting = 1, Carving = 2, UnarmedCombat = 3, EggGathering = 4, Fishing = 5 }
+    public enum SkillId
+    {
+        Harvesting = 0, Woodcutting = 1, Carving = 2, UnarmedCombat = 3, EggGathering = 4, Fishing = 5,
+        HarvestAcquisition = 6
+    }
 
     public enum SkillEffect
     {
@@ -12,7 +16,8 @@ namespace Workerborn
         MaxStamina,
         UnarmedDamage,
         LuckyChance,
-        GreatLuckyChance
+        GreatLuckyChance,
+        HarvestAcquisitionDelayMilliseconds
     }
 
     [Serializable]
@@ -39,7 +44,8 @@ namespace Workerborn
         public const int MaxRank = 100;
         public static IReadOnlyList<SkillId> All { get; } = Array.AsReadOnly(new[]
         {
-            SkillId.Harvesting, SkillId.Woodcutting, SkillId.Carving, SkillId.UnarmedCombat, SkillId.EggGathering, SkillId.Fishing
+            SkillId.Harvesting, SkillId.Woodcutting, SkillId.Carving, SkillId.UnarmedCombat, SkillId.EggGathering, SkillId.Fishing,
+            SkillId.HarvestAcquisition
         });
         private static readonly SkillProgression[] defaults =
         {
@@ -48,7 +54,12 @@ namespace Workerborn
             new SkillProgression(SkillId.Carving, "갈무리", new[] { new SkillRankEffect(1, 100, SkillEffect.YieldMultiplier, 1) }),
             new SkillProgression(SkillId.UnarmedCombat, "맨손전투", new[] { new SkillRankEffect(1, 100, SkillEffect.UnarmedDamage, 1), new SkillRankEffect(20, 20, SkillEffect.MaxStamina, 5) }),
             new SkillProgression(SkillId.EggGathering, "달걀 채집", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.LuckyChance, 5))),
-            new SkillProgression(SkillId.Fishing, "낚시", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.LuckyChance, 5)))
+            new SkillProgression(SkillId.Fishing, "낚시", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.LuckyChance, 5))),
+            new SkillProgression(SkillId.HarvestAcquisition, "수확물 자동 습득", new[]
+            {
+                new SkillRankEffect(0, 0, SkillEffect.HarvestAcquisitionDelayMilliseconds, 3_000),
+                new SkillRankEffect(1, MaxRank, SkillEffect.HarvestAcquisitionDelayMilliseconds, -30)
+            })
         };
 
         private readonly SkillRankEffect[] effects;

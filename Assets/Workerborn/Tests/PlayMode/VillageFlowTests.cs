@@ -634,6 +634,32 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator MaxRankHarvestAcquisitionDeliversThroughThePlayerHarvestAction()
+        {
+            var crop = game.Crops[0];
+            var definition = crop.Definition;
+            string original = JsonUtility.ToJson(definition);
+            try
+            {
+                JsonUtility.FromJsonOverwrite("{\"successChance\":1,\"luckyChance\":0,\"greatLuckyChance\":0}", definition);
+                int charges = crop.Remaining;
+                int drops = game.GroundItemCount;
+                int potatoes = game.State.Inventory.Count(ItemIds.Potato);
+                Assert.That(game.State.LearnSkill(SkillId.HarvestAcquisition, SkillProgression.MaxRank), Is.True);
+                Assert.That(crop.TryBegin(game.Worker), Is.True);
+                Assert.That(crop.Advance(game.Worker, definition.HarvestSeconds), Is.True);
+                Assert.That(crop.Remaining, Is.EqualTo(charges - 1));
+                Assert.That(game.GroundItemCount, Is.EqualTo(drops));
+                Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(potatoes + definition.ItemsPerHarvest));
+            }
+            finally
+            {
+                JsonUtility.FromJsonOverwrite(original, definition);
+            }
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator HarvestPickUpDeliverClaimQuestAndRebirth()
         {
             Assert.That(game.Perform(game.State.TryAcceptJob), Is.True);
@@ -683,6 +709,7 @@ namespace Workerborn.Tests
         {
             var farmer = game.FindInteraction(VillageRole.Farmer);
             var character = farmer.GetComponent<HarvestWorker>();
+            Assert.That(character.CharacterState.RankOf(SkillId.HarvestAcquisition), Is.EqualTo(SkillProgression.MaxRank));
             int charges = game.RemainingHarvests;
             int playerHarvests = game.State.LifetimeHarvests;
             int playerEnergy = game.State.Energy;
@@ -792,6 +819,7 @@ namespace Workerborn.Tests
             Assert.That(game.CurrentInterior?.Id, Is.EqualTo("inn"));
             farmer = game.FindInteraction(VillageRole.Farmer);
             character = farmer.GetComponent<HarvestWorker>();
+            Assert.That(character.CharacterState.RankOf(SkillId.HarvestAcquisition), Is.EqualTo(SkillProgression.MaxRank));
             Assert.That(Vector3.Distance(character.StandingPosition, workPosition), Is.LessThan(.75f));
             Assert.That(character.CharacterState.Equipment[slot], Is.EqualTo(coat));
             Assert.That(character.CharacterState.Inventory.Count(ItemIds.Potato), Is.GreaterThan(0));

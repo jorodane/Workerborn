@@ -65,4 +65,7 @@ MonoBehaviour:
   - fileID: 11400000
     guid: b88151912b855ae89b248fd099ca72d4
     type: 2
+  - fileID: 11400000
+    guid: 805ede2a1c565156af85c6bb860e6cc7
+    type: 2
   interactionDistance: 1.8

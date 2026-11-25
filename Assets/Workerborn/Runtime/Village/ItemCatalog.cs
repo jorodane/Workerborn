@@ -33,6 +33,7 @@ namespace Workerborn
         public const string CombatBook = "unarmed_combat_primer";
         public const string EggGatheringBook = "egg_gathering_primer";
         public const string FishingBook = "fishing_primer";
+        public const string HarvestAcquisitionBook = "harvest_acquisition_primer";
     }
 
     public sealed class ItemSpec
@@ -80,7 +81,8 @@ namespace Workerborn
             new ItemSpec(ItemIds.CarvingBook, "갈무리 입문서", "읽으면 갈무리 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Carving),
             new ItemSpec(ItemIds.CombatBook, "맨손전투 입문서", "읽으면 맨손전투 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.UnarmedCombat),
             new ItemSpec(ItemIds.EggGatheringBook, "달걀 채집 입문서", "읽으면 달걀 채집 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.EggGathering),
-            new ItemSpec(ItemIds.FishingBook, "낚시 입문서", "읽으면 낚시 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Fishing)
+            new ItemSpec(ItemIds.FishingBook, "낚시 입문서", "읽으면 낚시 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Fishing),
+            new ItemSpec(ItemIds.HarvestAcquisitionBook, "수확물 자동 습득 입문서", "읽으면 수확물 자동 습득 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.HarvestAcquisition)
         };
         private static readonly Dictionary<string, ItemSpec> configured = new Dictionary<string, ItemSpec>();
 

@@ -61,6 +61,14 @@ namespace Workerborn
 
         private static string Describe(VillageState state, SkillId skill)
         {
+            if (skill == SkillId.HarvestAcquisition)
+            {
+                int delay = state.HarvestAcquisitionDelayMilliseconds;
+                return delay == 0
+                    ? "수확 즉시 수확물이 소지품에 들어옵니다."
+                    : $"수확 후 {delay / 1000f:0.##}초 뒤에 수확물이 소지품에 들어옵니다.";
+            }
+
             var lines = new List<string>();
             if (SkillProgression.IsGathering(skill))
             {

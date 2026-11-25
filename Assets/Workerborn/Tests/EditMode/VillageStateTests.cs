@@ -382,6 +382,71 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void HarvestAcquisitionIsLearnedFromItsBookAndGetsFasterWithRank()
+        {
+            const long now = 100_000;
+            var state = VillageState.Restore(new VillageSave { schema = 8, inventoryColumns = VillageState.InventoryColumns, ap = 10_000 });
+            var skill = SkillId.HarvestAcquisition;
+            Assert.That(state.IsSkillLearned(skill), Is.False);
+            Assert.That(state.TryAcquireHarvest(ItemIds.Potato, 2, now), Is.False);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Gold, ItemCatalog.Get(ItemIds.HarvestAcquisitionBook).Price), Is.True);
+            Assert.That(state.TryBuy(ItemIds.HarvestAcquisitionBook), Is.True);
+            Assert.That(state.TryReadSkillBook(state.Inventory.Entries.Single().Id), Is.True);
+            Assert.That(state.HarvestAcquisitionDelayMilliseconds, Is.EqualTo(3_000));
+
+            Assert.That(state.TryAcquireHarvest(ItemIds.Potato, 2, now), Is.True);
+            state = VillageState.Restore(state.Export());
+            state.CollectReadyHarvests(now + 2_999);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.Zero);
+            state.CollectReadyHarvests(now + 3_000);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(2));
+            Assert.That(state.Export().pendingHarvests, Is.Empty);
+
+            Assert.That(state.TryUpgradeSkill(skill), Is.True);
+            Assert.That(state.HarvestAcquisitionDelayMilliseconds, Is.EqualTo(2_970));
+            for (int rank = 2; rank <= SkillProgression.MaxRank; rank++)
+                Assert.That(state.TryUpgradeSkill(skill), Is.True);
+            Assert.That(state.HarvestAcquisitionDelayMilliseconds, Is.Zero);
+            Assert.That(state.TryAcquireHarvest(ItemIds.Potato, 3, now + 3_001), Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(5));
+            Assert.That(state.Export().pendingHarvests, Is.Empty);
+        }
+
+        [Test]
+        public void PendingHarvestsKeepTheirYieldWhenBagSpaceFillsUpAndClearOnRebirth()
+        {
+            const long now = 100_000;
+            var state = new VillageState();
+            state.LearnSkill(SkillId.HarvestAcquisition);
+            int goldStack = ItemCatalog.Get(ItemIds.Gold).MaxStack;
+            int gold = (state.Inventory.Columns * state.Inventory.Rows - 1) * goldStack;
+            int potatoStack = ItemCatalog.Get(ItemIds.Potato).MaxStack;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Gold, gold), Is.True);
+            Assert.That(state.TryAcquireHarvest(ItemIds.Potato, potatoStack, now), Is.True);
+            Assert.That(state.TryAcquireHarvest(ItemIds.Potato, 1, now), Is.False);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Gold, goldStack), Is.True);
+
+            state = VillageState.Restore(state.Export());
+            state.CollectReadyHarvests(now + 3_000);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.Zero);
+            Assert.That(state.Export().pendingHarvests.Length, Is.EqualTo(1));
+
+            Assert.That(state.Inventory.TryRemove(ItemIds.Gold, goldStack), Is.True);
+            state.CollectReadyHarvests(now + 3_000);
+            state.CollectReadyHarvests(now + 3_001);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(potatoStack));
+            Assert.That(state.Export().pendingHarvests, Is.Empty);
+
+            Assert.That(state.Inventory.TryRemove(ItemIds.Gold, goldStack), Is.True);
+            Assert.That(state.TryAcquireHarvest(ItemIds.Potato, 1, now + 3_001), Is.True);
+            state.RebirthPersonalLife();
+            state.CollectReadyHarvests(now + 7_000);
+            Assert.That(state.Inventory.Entries, Is.Empty);
+            Assert.That(state.Export().pendingHarvests, Is.Empty);
+            Assert.That(state.IsSkillLearned(SkillId.HarvestAcquisition), Is.True);
+        }
+
+        [Test]
         public void SkillUpgradeSpendsApAndIncreasesYield()
         {
             var state = Funded();

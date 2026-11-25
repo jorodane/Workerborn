@@ -39,6 +39,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: cc2cf3e4077d533d8f15d3426b679c96, type: 2}
   - {fileID: 11400000, guid: 8ce3328d5bb650d88111ee7016c81d44, type: 2}
   - {fileID: 11400000, guid: a709da70b3fa54c8bd41c3b9c1e4b189, type: 2}
+  - {fileID: 11400000, guid: 805ede2a1c565156af85c6bb860e6cc7, type: 2}
   skills:
   - {fileID: 11400000, guid: 621d8bbd2e435add925d683cd1874aaf, type: 2}
   - {fileID: 11400000, guid: 5c5694c0fe18556f9615ee867a0e5668, type: 2}
@@ -46,6 +47,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 84e7f6cf7bd959c3953506d48d7c87f3, type: 2}
   - {fileID: 11400000, guid: 25b5046aa7015add94616f12cd701b28, type: 2}
   - {fileID: 11400000, guid: 74bc6cf72a29520a8df092968ca41d54, type: 2}
+  - {fileID: 11400000, guid: 0aead22c39ce5095824e2ccb4ab182a0, type: 2}
   plotFacilities:
   - {fileID: 11400000, guid: 8e24bbcf371c51b98b4206ac37ffc95a, type: 2}
   - {fileID: 11400000, guid: eea723dd4c3359bbbb9fd81e88a72d7b, type: 2}

@@ -37,6 +37,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: cc2cf3e4077d533d8f15d3426b679c96, type: 2}
   - {fileID: 11400000, guid: 8ce3328d5bb650d88111ee7016c81d44, type: 2}
   - {fileID: 11400000, guid: a709da70b3fa54c8bd41c3b9c1e4b189, type: 2}
+  - {fileID: 11400000, guid: 805ede2a1c565156af85c6bb860e6cc7, type: 2}
   interactionDistance: 1.8
   dailySchedule:
   - activity: 4

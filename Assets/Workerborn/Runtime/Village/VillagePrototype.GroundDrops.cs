@@ -9,19 +9,31 @@ namespace Workerborn
         private readonly GroundDropPiles localGroundDrops = new GroundDropPiles();
         private readonly Dictionary<string, GroundPickup> dropViews = new Dictionary<string, GroundPickup>();
         private readonly List<GroundDropSave> legacyNpcDrops = new List<GroundDropSave>();
+        private Action<string, int> showAcquiredHarvest;
 
         internal long PickupUtcNow => IsOnline && Session != null ? Session.PickupUtcNow : GroundDropSave.UtcNow;
 
         private bool DeliverYield(HarvestWorker owner, string itemId, int amount, GroundPickup prefab, CropDefinition definition,
             Vector3 origin, int maxVisibleDrops, Func<int, int, Vector3> landing)
         {
-            if (!owner.HasPlayerOwner)
-                return owner.CharacterState.Inventory.TryAdd(itemId, amount);
-            if (amount <= 0 || !pickupPool.CanSpawn(prefab))
+            var state = owner.CharacterState;
+            long now = PickupUtcNow;
+            if (state.IsSkillLearned(SkillId.HarvestAcquisition))
+            {
+                bool accepted = state.TryAcquireHarvest(itemId, amount, now);
+                if (owner.IsLocallyControlled)
+                {
+                    if (!accepted)
+                        hud.ShowToast("수확물을 넣을 소지품 공간이 부족해요.");
+                    else if (state.HarvestAcquisitionDelayMilliseconds == 0)
+                        ShowAcquiredHarvest(itemId, amount);
+                }
+                return accepted;
+            }
+            if (!owner.HasPlayerOwner || amount <= 0 || !pickupPool.CanSpawn(prefab))
                 return false;
 
             int piles = Mathf.Min(amount, maxVisibleDrops);
-            long now = PickupUtcNow;
             var drafts = IsOnline ? new GroundDropSave[piles] : null;
             for (int i = 0; i < piles; i++)
             {
@@ -39,6 +51,12 @@ namespace Workerborn
                     SpawnLocalPlayerDrop(drop, owner.PlayerId, now, prefab, definition, origin, end);
             }
             return drafts == null || Session?.SubmitGatheredDrops(drafts) == true;
+        }
+
+        private void ShowAcquiredHarvest(string itemId, int quantity)
+        {
+            string name = ItemCatalog.Get(itemId).Name;
+            hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.5f, $"{name} +{quantity:N0}", Color.white);
         }
 
         private GroundDropSave CaptureGroundDrop(string itemId, int quantity, Vector3 origin, Vector3 landing)
@@ -78,9 +96,9 @@ namespace Workerborn
                 localGroundDrops.Remove(id);
         }
 
-        private void ReleaseLocalGroundDrops()
+        private void ReleaseLocalGroundDrops(long now)
         {
-            localGroundDrops.ReleaseExpired(PickupUtcNow, id =>
+            localGroundDrops.ReleaseExpired(now, id =>
             {
                 if (!dropViews.TryGetValue(id, out var item))
                     return;

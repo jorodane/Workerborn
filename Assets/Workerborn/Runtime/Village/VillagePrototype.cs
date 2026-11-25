@@ -1037,11 +1037,13 @@ namespace Workerborn
         {
             if (!initialized)
                 return;
-            ReleaseLocalGroundDrops();
+            long now = PickupUtcNow;
+            ReleaseLocalGroundDrops(now);
             hud.SetCommandPending(AwaitingWorldCommand);
             if (IsWorldTransitioning || AwaitingWorldCommand)
                 return;
 
+            State.CollectReadyHarvests(now, showAcquiredHarvest ??= ShowAcquiredHarvest);
             float elapsed = Time.deltaTime;
             bool paused = hud.HasModal;
             if (IsOnline ? State.NeedsRest : State.WillAdvanceDay(elapsed, paused))
@@ -1050,7 +1052,7 @@ namespace Workerborn
                 return;
             }
             TickClock(elapsed, paused);
-            UpdateVillageCharacters();
+            UpdateVillageCharacters(now);
 
             if (Time.unscaledTime >= nextSave && (IsOnline || usesSelectedWorld || loadSavedGame && !IsAppearanceTrial))
                 SaveGame(false);

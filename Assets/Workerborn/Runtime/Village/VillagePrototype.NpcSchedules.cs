@@ -34,6 +34,7 @@ namespace Workerborn
             character.UseActionPresentation(worker);
             actor.GetComponent<WorkerAnimation>()?.UseDefaultGestures(player.GetComponent<WorkerAnimation>());
             var state = inClouds ? VillageState.BeforeFirstLife(State.Rules) : new VillageState(State.Rules);
+            state.LearnSkill(SkillId.HarvestAcquisition, SkillProgression.MaxRank);
             BindWorker(actor, character, state, id);
             character.EnsureNavigation();
             if (initialized)
@@ -63,7 +64,9 @@ namespace Workerborn
                 {
                     try
                     {
-                        character.SetCharacterState(VillageState.Restore(saved, State.Rules));
+                        var state = VillageState.Restore(saved, State.Rules);
+                        state.LearnSkill(SkillId.HarvestAcquisition, SkillProgression.MaxRank);
+                        character.SetCharacterState(state);
                         RestoreCharacterPosition(character, saved);
                         if (saved.day == State.Day && saved.era == State.Era)
                             RestoreCharacterAction(character, saved);
@@ -80,7 +83,7 @@ namespace Workerborn
             }
         }
 
-        private void UpdateVillageCharacters()
+        private void UpdateVillageCharacters(long now)
         {
             if (villageCharacters.Count == 0)
                 return;
@@ -90,6 +93,7 @@ namespace Workerborn
                 if (character == null || !character.isActiveAndEnabled)
                     continue;
                 var state = character.CharacterState;
+                state.CollectReadyHarvests(now);
                 if (state.Day < world.day && character.Action == WorkerAction.Sitting)
                     state.TrySleep(paidRoom: false, sharedClock: true);
                 state.ApplyWorld(world);

@@ -66,17 +66,17 @@ namespace Workerborn
             if (AP < cost)
                 return Result(false, $"승급하려면 AP {cost}가 필요해요.");
             AP -= cost;
-            skillRanks[(int)skill]++;
-            RefreshSkillStats();
-            Energy = Math.Min(Energy, StaminaLimit);
+            LearnSkill(skill, rank + 1);
             return Result(true, $"{profile.Name} {SkillProgression.RankLabel(rank + 1)} 승급!");
         }
 
-        private bool LearnSkill(SkillId skill)
+        internal bool LearnSkill(SkillId skill, int rank = 0)
         {
-            if (!SkillProgression.IsDefined(skill) || IsSkillLearned(skill))
+            if (!SkillProgression.IsDefined(skill) || rank < 0 || rank > SkillProgression.MaxRank ||
+                IsSkillLearned(skill) && RankOf(skill) >= rank)
                 return false;
             learnedSkills[(int)skill] = true;
+            skillRanks[(int)skill] = rank;
             RefreshSkillStats();
             Energy = Math.Min(Energy, StaminaLimit);
             return true;
@@ -107,9 +107,10 @@ namespace Workerborn
 
         private void RestoreSkills(CharacterSave save)
         {
-            // Older characters already had access to every practice-rank skill.
+            // Older characters already had access to the practice ranks available at the time.
             if (save.schema < LearnedSkillSaveSchema)
-                Array.Fill(learnedSkills, true);
+                foreach (var skill in SkillProgression.All)
+                    learnedSkills[(int)skill] = skill != SkillId.HarvestAcquisition;
             if (save.schema < 5)
             {
                 foreach (var skill in SkillProgression.All)
@@ -123,6 +124,8 @@ namespace Workerborn
             var seen = new bool[skillRanks.Length];
             foreach (var entry in save.skillRanks)
             {
+                if (save.schema < HarvestAcquisitionSaveSchema && entry?.skill == SkillId.HarvestAcquisition)
+                    continue;
                 if (entry == null || !SkillProgression.IsDefined(entry.skill) || entry.rank < 0 ||
                     entry.rank > SkillProgression.MaxRank || seen[(int)entry.skill] ||
                     save.schema >= LearnedSkillSaveSchema && entry.rank > 0 && !entry.learned)
