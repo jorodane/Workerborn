@@ -569,17 +569,20 @@ namespace Workerborn
             strikeTarget = target;
             Action = WorkerAction.Attacking;
             strikeStartedAt = Time.time;
-            nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, attackDelay);
+            var clip = target.StrikeClip(this) ?? attackClip;
+            float swingDuration = target is TimberPiece && clip != null ? clip.length : attackDelay;
+            nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, swingDuration);
             strikeStaminaCost = target.StrikeStaminaCost(CharacterState, attackStaminaCost);
             strikePaidProgress = 0d;
             struck = false;
-            animationDriver?.BeginStrike(target.StrikeClip(this) ?? attackClip);
+            animationDriver?.BeginStrike(clip);
         }
 
         private void UpdateAttack()
         {
-            if (strikeTarget == null || !AcceptsInteractionCommands || CharacterState.Health <= 0 ||
-                !SharesMap(strikeTarget.transform.position))
+            bool completingTimberSwing = struck && strikeTarget is TimberPiece;
+            if (CharacterState.Health <= 0 || !completingTimberSwing &&
+                (!AcceptsInteractionCommands || strikeTarget == null || !SharesMap(strikeTarget.transform.position)))
             {
                 Cancel();
                 return;

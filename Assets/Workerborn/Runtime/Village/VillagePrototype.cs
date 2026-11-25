@@ -800,23 +800,44 @@ namespace Workerborn
         {
             if (State.AwaitingIncarnation || hud.WorldActionsLocked || !State.IsSkillLearned(skill))
                 return;
-            HarvestableCrop nearest = null;
+            WorldInteractable nearest = null;
             float distance = float.MaxValue;
+            if (skill == SkillId.Woodcutting && State.HasTool(ItemIds.Axe))
+            {
+                if (Targeting?.CurrentTarget is TimberPiece selected && CanSplit(selected))
+                {
+                    selected.RequestInteraction(worker);
+                    return;
+                }
+                foreach (var target in WorldInteractable.Active)
+                    if (target is TimberPiece piece && CanSplit(piece))
+                        Consider(piece);
+            }
             foreach (var crop in allCrops)
             {
                 if (!crop.CanInteract || crop.Definition.Skill != skill || !SharesMap(crop.transform.position) ||
                     !State.HasTool(crop.Definition.RequiredTool?.Id))
                     continue;
-                float candidate = (crop.transform.position - worker.transform.position).sqrMagnitude;
+                Consider(crop);
+            }
+
+            if (nearest is HarvestableCrop cropTarget)
+                worker.CommandHarvest(cropTarget);
+            else
+                nearest?.RequestInteraction(worker);
+
+            bool CanSplit(TimberPiece piece) => piece.CanInteract && piece.gameObject.scene == gameObject.scene &&
+                SharesMap(piece.transform.position) && (piece.Seat == null || !SeatInUse(piece.Seat.Position));
+
+            void Consider(WorldInteractable target)
+            {
+                float candidate = (target.transform.position - worker.transform.position).sqrMagnitude;
                 if (candidate < distance)
                 {
-                    nearest = crop;
+                    nearest = target;
                     distance = candidate;
                 }
             }
-
-            if (nearest != null)
-                worker.CommandHarvest(nearest);
         }
 
         internal Vector3 SurfacePosition(float x, float z)

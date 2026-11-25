@@ -21,3 +21,4 @@ MonoBehaviour:
   toss: {fileID: 3094330708855449807, guid: 562bded4075988e4286c5c2c026d0db7, type: 3}
   felling: {fileID: 11400000, guid: ef506ebca5fa5cdca2fd7517887fcc6f, type: 2}
   strike: {fileID: 992911294148604404, guid: dddab171c4921bd4aa92cfec58cc6a53, type: 3}
+  cutSurface: {fileID: 2100000, guid: 25a4ca60f895431b8596b2891a1e28c6, type: 2}

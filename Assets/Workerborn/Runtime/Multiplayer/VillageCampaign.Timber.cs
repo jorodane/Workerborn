@@ -11,6 +11,8 @@ namespace Workerborn
         private Func<TimberPoint, float> timberHeight;
         internal WoodlandSave Woodland => timber?.Capture() ?? storedWoodland;
 
+        internal bool SettleTimberFall(string id, float angle) => timber?.SettleFall(id, angle) == true;
+
         private WoodlandSave CaptureWoodlandForSave() => timber?.CaptureForSave(CarrierPose, timberGround) ?? storedWoodland;
 
         private (TimberPoint Point, float Yaw)? CarrierPose(string id)

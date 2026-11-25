@@ -522,7 +522,22 @@ namespace Workerborn.Tests
             Assert.That(game.Worker.ActiveCrop, Is.SameAs(tree));
             Assert.That(visual.localScale, Is.EqualTo(scale));
             yield return Until(() => tree.Felled, tree.Definition.HarvestSeconds + 1f);
-            Assert.That(WorldInteractable.Active.OfType<TimberPiece>().Count(piece => piece.TargetId == tree.PersistentId), Is.EqualTo(3));
+            var parts = WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId).ToArray();
+            Assert.That(parts.Select(piece => piece.Part), Is.EquivalentTo(new[] { TimberPart.Stump, TimberPart.Trunk }));
+            var trunk = parts.Single(piece => piece.Part == TimberPart.Trunk);
+            Assert.That(trunk.CanInteract, Is.False);
+            Assert.That(UnityEngine.Object.FindFirstObjectByType<TimberFall>(), Is.Not.Null);
+            yield return Until(() => trunk.CanInteract, 6f);
+            Assert.That(Vector3.Angle(Vector3.up, trunk.transform.up), Is.GreaterThan(20f));
+
+            Vector3 besideTrunk = trunk.transform.position + trunk.transform.right * .85f;
+            Assert.That(NavMesh.SamplePosition(besideTrunk, out var splitAt, .8f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(splitAt.position), Is.True);
+            game.UseSkill(SkillId.Woodcutting);
+            yield return Until(() => game.Worker.CurrentTimberSwing == TimberSwing.Split, 2f);
+            yield return Until(() => trunk == null, 4f);
+            Assert.That(WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId)
+                .Select(piece => piece.Part), Is.EquivalentTo(new[] { TimberPart.Stump, TimberPart.Lower, TimberPart.Upper }));
         }
 
         [UnityTest]

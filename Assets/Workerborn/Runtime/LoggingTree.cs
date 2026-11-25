@@ -18,8 +18,13 @@ namespace Workerborn
         private const float ImpactDegrees = 4f;
         [SerializeField] private Product[] products = Array.Empty<Product>();
         [SerializeField, Range(0f, 1f)] private float strikeChance = .60f;
-        [SerializeField, Min(.4f)] private float lowerDistance = 1.35f;
+        [SerializeField, Min(.2f)] private float cutHeight = .44f;
+        [SerializeField, Min(.04f)] private float barkRadius = .19f;
         [SerializeField, Min(.8f)] private float upperDistance = 3.55f;
+        [SerializeField] private GameObject standingNavigation;
+        private TimberSite site;
+        private MeshFilter cutSource;
+        private TimberGeometry cuts;
         private Quaternion restRotation;
         private Vector3 impactAxis;
         private float impactStartedAt;
@@ -32,10 +37,36 @@ namespace Workerborn
             state.WorkEnergyCost(SkillId.Woodcutting, ItemIds.Timber, 2);
         internal bool Felled => felled;
 
-        internal TimberSite Site() => new TimberSite(PersistentId, TimberLocation.Planar(transform.position),
-            Definition.RequiredTool.Id, Definition.HarvestsPerPlant, InteractionDistance,
-            strikeChance, Definition.SuccessChance, lowerDistance, upperDistance, Array.ConvertAll(products ?? Array.Empty<Product>(),
-                product => new TreeProduct(product.item != null ? product.item.Id : "", product.weight, product.quantity)));
+        internal TimberSite Site()
+        {
+            if (site != null)
+                return site;
+            var lod = Visual != null ? Visual.GetComponentInChildren<LODGroup>(true) : null;
+            var levels = lod != null ? lod.GetLODs() : Array.Empty<LOD>();
+            cutSource = levels.Length > 0 && levels[0].renderers.Length > 0 && levels[0].renderers[0] != null
+                ? levels[0].renderers[0].GetComponent<MeshFilter>() : Visual?.GetComponentInChildren<MeshFilter>(true);
+            float top = cutHeight + 6f;
+            if (cutSource != null && cutSource.sharedMesh != null)
+            {
+                Bounds bounds = cutSource.sharedMesh.bounds;
+                Matrix4x4 world = cutSource.transform.localToWorldMatrix;
+                top = world.MultiplyPoint3x4(bounds.center).y - transform.position.y +
+                    Mathf.Abs(world.m10) * bounds.extents.x + Mathf.Abs(world.m11) * bounds.extents.y +
+                    Mathf.Abs(world.m12) * bounds.extents.z;
+            }
+            return site = new TimberSite(PersistentId, TimberLocation.Planar(transform.position),
+                Definition.RequiredTool.Id, Definition.HarvestsPerPlant, InteractionDistance, strikeChance, Definition.SuccessChance,
+                transform.position.y, cutHeight, Mathf.Max(cutHeight + .4f, top), barkRadius, upperDistance,
+                Array.ConvertAll(products ?? Array.Empty<Product>(),
+                    product => new TreeProduct(product.item != null ? product.item.Id : "", product.weight, product.quantity)));
+        }
+
+        internal TimberGeometry CutGeometry(Material surface)
+        {
+            if (cuts == null && cutSource != null && cutSource.sharedMesh != null && cutSource.sharedMesh.isReadable)
+                cuts = new TimberGeometry(cutSource, transform.position, surface);
+            return cuts;
+        }
 
         public override string InteractionVerbFor(HarvestWorker worker) =>
             HasAxe(worker) ? "나무 베기" : "나무 때리기";
@@ -90,6 +121,8 @@ namespace Workerborn
             ResetImpact();
             if (Visual != null)
                 Visual.gameObject.SetActive(!felled);
+            if (standingNavigation != null)
+                standingNavigation.SetActive(!felled);
             SetInteractionGeometryActive(!felled);
             RenewInteractionGeneration();
         }
@@ -131,6 +164,8 @@ namespace Workerborn
             ResetImpact();
             base.OnDisable();
         }
+
+        private void OnDestroy() => cuts?.Dispose();
 
         private bool HasAxe(HarvestWorker worker) => worker.CharacterState?.HasTool(Definition.RequiredTool.Id) == true;
     }

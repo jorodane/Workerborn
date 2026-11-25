@@ -7,7 +7,7 @@ namespace Workerborn.Tests
     public sealed class TimberWorkTests
     {
         private static TimberSite Pine() => new TimberSite("pine", new TimberPoint(0f, 0f), ItemIds.Axe,
-            4, 2.2f, .6f, .92f, 1.35f, 3.55f, new[]
+            4, 2.2f, .6f, .92f, 0f, .44f, 6.44f, .19f, 4.56f, new[]
             {
                 new TreeProduct("branch", 70, 1),
                 new TreeProduct(ItemIds.PineCone, 24, 1),
@@ -66,10 +66,15 @@ namespace Workerborn.Tests
             Assert.That(Perform(TimberAction.Strike), Is.EqualTo(TimberResult.Succeeded));
             Assert.That(Perform(TimberAction.Fell), Is.EqualTo(TimberResult.Succeeded));
             var tree = work.Capture().trees.Single();
-            Assert.That(tree.parts, Is.EqualTo(7));
+            Assert.That(tree.Has(TimberPart.Stump), Is.True);
+            Assert.That(tree.Has(TimberPart.Trunk), Is.True);
+            Assert.That(tree.Has(TimberPart.Upper), Is.False);
+            Assert.That(tree.falling, Is.True);
             Assert.That(tree.fallYaw, Is.EqualTo(0f));
             Assert.That(rewards.Count, Is.EqualTo(5));
-            Assert.That(rewards.All(reward => reward.point.z == site.UpperDistance), Is.True);
+            Assert.That(rewards.All(reward => reward.point.z == site.CrownDropDistance), Is.True);
+            Assert.That(Perform(TimberAction.Split), Is.EqualTo(TimberResult.Rejected));
+            Assert.That(work.SettleFall(site.Id, 85f), Is.True);
             Assert.That(Perform(TimberAction.Split), Is.EqualTo(TimberResult.Rejected));
             Assert.That(work.Capture().trees.Single().Has(TimberPart.Stump), Is.True);
 
@@ -78,11 +83,55 @@ namespace Workerborn.Tests
             Assert.That(work.Capture().logs.Length, Is.EqualTo(1));
             var loaded = new TimberWork(new[] { site }, () => 0f, work.Capture());
             Assert.That(loaded.Capture().trees.Single().Has(TimberPart.Stump), Is.False);
-            Assert.That(loaded.Capture().trees.Single().Has(TimberPart.Upper), Is.True);
+            Assert.That(loaded.Capture().trees.Single().Has(TimberPart.Trunk), Is.True);
+            Assert.That(loaded.Capture().trees.Single().RestAngle, Is.EqualTo(85f));
 
             TimberResult Perform(TimberAction action) => work.Perform(new TimberOrder { action = action, target = "pine" },
                 worker, "worker", new TimberPoint(0, -1), 0, 1, _ => occupied, _ => true,
                 yields => { rewards = yields; return true; }, out _);
+        }
+
+        [Test]
+        public void SplittingKeepsBothHalvesAndTheirLogsOnTheSettledTreeAxis()
+        {
+            const float angle = 83f;
+            float roll = 0f;
+            var site = Pine();
+            var worker = Worker();
+            var work = new TimberWork(new[] { site }, () => roll);
+            Assert.That(Perform(TimberAction.Fell, TimberPart.Trunk, new TimberPoint(-1f, 0f)), Is.EqualTo(TimberResult.Succeeded));
+            var middle = site.RestPoint(site.Section(TimberPart.Trunk).Center, 90f, angle);
+            Assert.That(Perform(TimberAction.Split, TimberPart.Trunk, middle), Is.EqualTo(TimberResult.Rejected));
+            work = new TimberWork(new[] { site }, () => roll, work.Capture());
+            Assert.That(work.Capture().trees.Single().falling, Is.True);
+            Assert.That(work.SettleFall(site.Id, angle), Is.True);
+            Assert.That(work.SettleFall(site.Id, 92f), Is.False);
+
+            roll = .98f;
+            Assert.That(Perform(TimberAction.Split, TimberPart.Trunk, middle), Is.EqualTo(TimberResult.Failed));
+            Assert.That(work.Capture().trees.Single().Has(TimberPart.Trunk), Is.True);
+            roll = 0f;
+            Assert.That(Perform(TimberAction.Split, TimberPart.Trunk, middle), Is.EqualTo(TimberResult.Succeeded));
+            Assert.That(work.Capture().logs, Is.Empty);
+
+            foreach (var part in new[] { TimberPart.Lower, TimberPart.Upper })
+            {
+                var section = site.Section(part);
+                Assert.That(Perform(TimberAction.Split, part, site.RestPoint(section.Center, 90f, angle)), Is.EqualTo(TimberResult.Succeeded));
+                var logs = work.Capture().logs.Where(log => log.sourcePart == part).OrderBy(log => log.half).ToArray();
+                Assert.That(logs.Length, Is.EqualTo(2));
+                Assert.That(logs.All(log => log.cutAngle == angle && log.sourceTree == site.Id && !log.moved), Is.True);
+                Assert.That(logs[0].point.x, Is.EqualTo(site.RestPoint(section.Half(0).Center, 90f, angle).x).Within(.001f));
+                Assert.That(logs[1].point.x, Is.EqualTo(site.RestPoint(section.Half(1).Center, 90f, angle).x).Within(.001f));
+                Assert.That(logs.All(log => System.Math.Abs(log.point.z) < .001f), Is.True);
+            }
+
+            var restored = new TimberWork(new[] { site }, () => roll, work.Capture());
+            Assert.That(restored.Capture().logs.All(log => log.sourceTree == site.Id && log.cutAngle == angle), Is.True);
+
+            TimberResult Perform(TimberAction action, TimberPart part, TimberPoint point) => work.Perform(
+                new TimberOrder { action = action, target = site.Id, part = part }, worker, "worker", point,
+                0f, 1, _ => false, _ => true, _ => true, out _);
         }
 
         [Test]
@@ -97,13 +146,16 @@ namespace Workerborn.Tests
             List<TimberYield> yields = null;
             var origin = new TimberPoint(0, -1);
             Assert.That(Perform(TimberAction.Fell, "pine", TimberPart.Stump, origin), Is.EqualTo(TimberResult.Succeeded));
+            Assert.That(work.SettleFall(site.Id, 90f), Is.True);
             roll = .97f;
             Assert.That(Perform(TimberAction.Split, "pine", TimberPart.Stump, origin), Is.EqualTo(TimberResult.Failed));
             Assert.That(yields.Single().quantity, Is.EqualTo(10));
             Assert.That(yields.Single().itemId, Is.EqualTo(ItemIds.ScrapWood));
 
             roll = 0f;
-            var lower = new TimberPoint(0, site.LowerDistance);
+            var middle = site.RestPoint(site.Section(TimberPart.Trunk).Center, 0f, 90f);
+            Assert.That(Perform(TimberAction.Split, "pine", TimberPart.Trunk, middle), Is.EqualTo(TimberResult.Succeeded));
+            var lower = site.RestPoint(site.Section(TimberPart.Lower).Center, 0f, 90f);
             Assert.That(Perform(TimberAction.Split, "pine", TimberPart.Lower, lower), Is.EqualTo(TimberResult.Succeeded));
             var logs = work.Capture().logs;
             Assert.That(logs.Length, Is.EqualTo(2));
@@ -153,6 +205,7 @@ namespace Workerborn.Tests
             var fell = new TimberOrder { action = TimberAction.Fell, target = site.Id };
             Assert.That(Perform("first", fell), Is.True);
             Assert.That(Perform("second", fell), Is.False);
+            Assert.That(campaign.SettleTimberFall(site.Id, 84f), Is.True);
             var split = new TimberOrder { action = TimberAction.Split, target = site.Id, part = TimberPart.Stump };
             campaign.Move("second", new SessionAvatar { x = 0, z = 0, motion = (int)WorkerMotion.SeatSit });
             Assert.That(Perform("first", split), Is.False);

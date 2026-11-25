@@ -228,7 +228,9 @@ MonoBehaviour:
   interactionColliders:
   - {fileID: 100120}
   strikeChance: 0.6
-  lowerDistance: 1.54
+  cutHeight: 0.44
+  barkRadius: 0.19
+  standingNavigation: {fileID: 100008}
   upperDistance: 4.56
   products:
   - item: {fileID: 11400000, guid: 0b6aea990be9511cb653eaa17255d689, type: 2}

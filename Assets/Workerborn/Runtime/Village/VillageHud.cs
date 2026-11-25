@@ -362,12 +362,13 @@ namespace Workerborn
         {
             var worker = game.Worker;
             var active = worker.ActiveCrop;
-            SkillId? skill = worker.TimberSkill ?? active?.Definition.Skill;
+            bool timberWork = worker.CurrentTimberSwing != TimberSwing.None;
+            SkillId? skill = worker.TimberSkill ?? active?.Definition.Skill ?? (timberWork ? SkillId.Woodcutting : null);
             skillBubble.gameObject.SetActive(skill.HasValue && !HasModal);
             if (skill.HasValue && !HasModal)
             {
                 skillBalloon.SetIcon(game.Settings.FindSkill(skill.Value)?.Icon ?? active?.Definition.SkillIcon);
-                skillBalloon.SetProgress(active?.Progress ?? 1f);
+                skillBalloon.SetProgress(active?.Progress ?? (timberWork ? worker.CurrentTimberProgress : 1f));
                 PlaceWorld(skillBubble, worker.transform.position + Vector3.up * skillWorldHeight);
             }
 

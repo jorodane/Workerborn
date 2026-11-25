@@ -107,6 +107,47 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void PineCutsPreserveTheBarkAndNeedleSubmeshesAndCloseTheCutFaces()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Workerborn/Prefabs/Gathering/TimberPine.prefab");
+            var instance = Object.Instantiate(prefab);
+            TimberGeometry geometry = null;
+            try
+            {
+                var tree = instance.GetComponent<LoggingTree>();
+                var site = tree.Site();
+                var cutSurface = AssetDatabase.LoadAssetAtPath<Material>("Assets/Workerborn/Materials/Forest/TimberCutSurface.mat");
+                var renderer = instance.GetComponentInChildren<LODGroup>().GetLODs()[0].renderers[0];
+                var filter = renderer.GetComponent<MeshFilter>();
+                Assert.That(filter.sharedMesh.isReadable, Is.True);
+                var materials = renderer.sharedMaterials;
+                Assert.That(materials[0], Is.Not.SameAs(materials[1]));
+                geometry = tree.CutGeometry(cutSurface);
+                Assert.That(geometry, Is.Not.Null);
+                Assert.That(geometry.Materials, Is.EqualTo(materials.Append(cutSurface).ToArray()));
+
+                foreach (var part in new[] { TimberPart.Lower, TimberPart.Upper })
+                {
+                    var range = site.Section(part);
+                    var mesh = geometry.Slice(range);
+                    Assert.That(mesh.subMeshCount, Is.EqualTo(3));
+                    Assert.That(mesh.GetIndexCount(0), Is.GreaterThan(0));
+                    Assert.That(mesh.GetIndexCount(1), Is.GreaterThan(0));
+                    Assert.That(mesh.GetIndexCount(2), Is.GreaterThan(0));
+                    Assert.That(mesh.uv.Length, Is.EqualTo(mesh.vertexCount));
+                    Assert.That(mesh.uv.Distinct().Count(), Is.GreaterThan(3));
+                    Assert.That(mesh.bounds.min.y, Is.EqualTo(-range.Length * .5f).Within(.001f));
+                    Assert.That(mesh.bounds.max.y, Is.EqualTo(range.Length * .5f).Within(.001f));
+                }
+            }
+            finally
+            {
+                geometry?.Dispose();
+                Object.DestroyImmediate(instance);
+            }
+        }
+
+        [Test]
         public void AuthoredUiUsesTmpWithTheKoreanFontAndOutlinedNameMaterial()
         {
             var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Workerborn/Fonts/WorkerbornKorean-SDF.asset");

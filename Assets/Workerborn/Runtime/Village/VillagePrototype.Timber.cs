@@ -9,6 +9,8 @@ namespace Workerborn
         private TimberWork soloTimber;
         private WoodlandSave presentedWoodland;
         private readonly Dictionary<string, LoggingTree> timberTrees = new Dictionary<string, LoggingTree>();
+        private readonly Dictionary<string, TimberFall> timberFalls = new Dictionary<string, TimberFall>();
+        private Transform headlessTimberPhysics;
         private readonly Dictionary<(string Tree, TimberPart Part), TimberPiece> felledPieces =
             new Dictionary<(string, TimberPart), TimberPiece>();
         private readonly Dictionary<string, TimberPiece> logModels = new Dictionary<string, TimberPiece>();
@@ -39,6 +41,48 @@ namespace Workerborn
             soloTimber = new TimberWork(sites, () => UnityEngine.Random.value, restoredWorld?.woodland);
             soloTimber.StartDay(State.Day);
             PresentWoodland(soloTimber.Capture());
+        }
+
+        private void StartHeadlessTimberPhysics()
+        {
+            headlessTimberPhysics = new GameObject("Server timber physics").transform;
+            var terrain = GroundTerrain;
+            if (terrain == null)
+                return;
+            var ground = new GameObject("Terrain collision");
+            ground.transform.SetParent(headlessTimberPhysics, false);
+            ground.transform.SetPositionAndRotation(terrain.transform.position, terrain.transform.rotation);
+            ground.AddComponent<TerrainCollider>().terrainData = terrain.terrainData;
+        }
+
+        internal void PresentTimberFalls(WoodlandSave snapshot)
+        {
+            if (snapshot == null)
+                return;
+            var pending = new HashSet<string>();
+            bool authority = !IsOnline || Session?.OwnsTimberPhysics == true;
+            foreach (var record in snapshot.trees)
+            {
+                if (!record.falling || !record.Has(TimberPart.Trunk) || !timberTrees.TryGetValue(record.id, out var tree))
+                    continue;
+                string id = record.id;
+                pending.Add(id);
+                if (!timberFalls.ContainsKey(id))
+                    timberFalls.Add(id, TimberFall.Begin(tree.Site(), record.fallYaw, headlessTimberPhysics ?? droppedItems,
+                        authority ? angle => FinishTimberFall(id, angle) : null));
+            }
+            RemoveMissing(timberFalls, pending);
+        }
+
+        private void FinishTimberFall(string id, float angle)
+        {
+            if (IsOnline)
+                Session?.FinishTimberFall(id, angle);
+            else if (soloTimber?.SettleFall(id, angle) == true)
+            {
+                PresentWoodland(soloTimber.Capture());
+                SaveGame(false);
+            }
         }
 
         internal bool IsTimberGround(TimberPoint point)
@@ -169,35 +213,32 @@ namespace Workerborn
                 return;
             bool animate = presentedWoodland != null;
             presentedWoodland = snapshot;
+            PresentTimberFalls(snapshot);
             var fallen = new HashSet<string>();
             var pieces = new HashSet<(string, TimberPart)>();
             foreach (var record in snapshot.trees)
             {
                 if (record.felledDay <= 0 || !timberTrees.TryGetValue(record.id, out var tree))
                     continue;
-                bool firstFall = !tree.Felled;
                 fallen.Add(record.id);
                 tree.Present(true);
                 var site = tree.Site();
-                for (int n = 0; n < 3; n++)
+                for (int n = 0; n <= (int)TimberPart.Trunk; n++)
                 {
                     var part = (TimberPart)n;
-                    if (!record.Has(part))
+                    if (part == TimberPart.Log || !record.Has(part))
                         continue;
                     var key = (record.id, part);
                     pieces.Add(key);
-                    if (felledPieces.ContainsKey(key))
-                        continue;
-
-                    var piece = Instantiate(assets.Prefab(part), droppedItems);
-                    piece.Bind(this, record.id);
-                    TimberPoint point = site.PartPoint(part, record.fallYaw);
-                    Vector3 landing = SurfacePosition(point.x, point.z);
-                    if (n > 0 && firstFall && animate)
-                        piece.Fall(tree.transform.position, n == 1 ? site.LowerDistance : site.UpperDistance, landing, record.fallYaw);
-                    else
-                        piece.Place(landing, record.fallYaw);
-                    felledPieces.Add(key, piece);
+                    if (!felledPieces.TryGetValue(key, out var piece))
+                    {
+                        piece = Instantiate(assets.Prefab(part), droppedItems);
+                        piece.Bind(this, record.id, part);
+                        piece.ShowCutMesh(tree.CutGeometry(assets.CutSurface), site, site.Section(part), record.fallYaw);
+                        felledPieces.Add(key, piece);
+                    }
+                    timberFalls.TryGetValue(record.id, out var body);
+                    piece.PresentSection(site, record, body);
                 }
             }
             foreach (var tree in timberTrees)
@@ -215,13 +256,20 @@ namespace Workerborn
                     index = CarriedLogCount(log.carrier);
                     carriedLogs[log.carrier] = index + 1;
                 }
+                LoggingTree sourceTree = null;
+                if (!string.IsNullOrEmpty(log.sourceTree))
+                    timberTrees.TryGetValue(log.sourceTree, out sourceTree);
+                var sourceSite = sourceTree != null ? sourceTree.Site() : null;
                 if (!logModels.TryGetValue(log.id, out var view))
                 {
                     view = Instantiate(assets.Prefab(TimberPart.Log), droppedItems);
-                    view.Bind(this, log.id);
+                    view.Bind(this, log.id, TimberPart.Log);
+                    if (sourceSite != null)
+                        view.ShowCutMesh(sourceTree.CutGeometry(assets.CutSurface), sourceSite,
+                            sourceSite.Section(log.sourcePart).Half(log.half), log.cutYaw);
                     logModels.Add(log.id, view);
                 }
-                view.PresentLog(log, index, animate);
+                view.PresentLog(log, index, animate, sourceSite);
             }
             RemoveMissing(logModels, logs);
             worker?.RefreshTimberSkill();
@@ -229,7 +277,7 @@ namespace Workerborn
                 hud.RefreshWindows();
         }
 
-        private static void RemoveMissing<TKey>(Dictionary<TKey, TimberPiece> objects, HashSet<TKey> current)
+        private static void RemoveMissing<TKey, T>(Dictionary<TKey, T> objects, HashSet<TKey> current) where T : Component
         {
             var removed = new List<TKey>();
             foreach (var pair in objects)

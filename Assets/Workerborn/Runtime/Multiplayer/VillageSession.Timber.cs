@@ -6,10 +6,22 @@ namespace Workerborn
     internal sealed partial class VillageSession
     {
         private WoodlandSave initialWoodland;
+        private VillagePrototype headlessTimber;
         internal WoodlandSave StartingWoodland => authority?.Woodland ?? initialWoodland;
+        internal bool OwnsTimberPhysics => authority != null;
 
-        internal void ConfigureTimber(TimberSite[] sites, Func<TimberPoint, bool> ground, Func<TimberPoint, float> height) =>
+        internal void ConfigureTimber(TimberSite[] sites, Func<TimberPoint, bool> ground, Func<TimberPoint, float> height,
+            VillagePrototype headless = null)
+        {
+            headlessTimber = headless;
             authority?.ConfigureTimber(sites, ground, height, () => UnityEngine.Random.value);
+        }
+
+        internal void FinishTimberFall(string id, float angle)
+        {
+            if (authority?.SettleTimberFall(id, angle) == true)
+                nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
+        }
 
         internal bool SubmitTimberWork(TimberOrder order) => SubmitCommand(new SessionPacket
         {

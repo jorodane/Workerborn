@@ -52,7 +52,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 19;
+        public const int ProtocolVersion = 20;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -1057,6 +1057,7 @@ namespace Workerborn
         {
             var avatars = authority.Avatars();
             var woodland = authority.Woodland;
+            headlessTimber?.PresentTimberFalls(woodland);
             long now = GroundDropSave.UtcNow;
             authority.ReleaseExpiredDrops(now, SyncGroundChange);
             foreach (var connection in connections)

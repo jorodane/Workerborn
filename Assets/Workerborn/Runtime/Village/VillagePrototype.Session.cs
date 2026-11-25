@@ -59,9 +59,10 @@ namespace Workerborn
             farmSites = mapRoot.GetComponentsInChildren<VillageFarmSite>(true);
             npcs.AddRange(mapRoot.GetComponentsInChildren<VillageInteractable>(true));
             Session.InitializeAuthority(CreateVillageRules(), AuthoredSites(), spawnPoint.position, rebirthZone);
-            Session.ConfigureTimber(TimberSites(), IsTimberGround, TimberSurfaceHeight);
+            Session.ConfigureTimber(TimberSites(), IsTimberGround, TimberSurfaceHeight, this);
             foreach (var root in gameObject.scene.GetRootGameObjects())
                 root.SetActive(false);
+            StartHeadlessTimberPhysics();
         }
 
         private Dictionary<string, string> AuthoredSites()

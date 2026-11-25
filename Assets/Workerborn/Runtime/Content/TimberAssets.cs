@@ -14,17 +14,19 @@ namespace Workerborn
         [SerializeField] private AnimationClip carry;
         [SerializeField] private AnimationClip toss;
         [SerializeField] private AnimationClip strike;
+        [SerializeField] private Material cutSurface;
 
         internal CropDefinition Felling => felling;
         internal AnimationClip Split => split;
         internal AnimationClip Carry => carry;
         internal AnimationClip Toss => toss;
         internal AnimationClip Strike => strike;
+        internal Material CutSurface => cutSurface;
 
         internal TimberPiece Prefab(TimberPart part) => part switch
         {
             TimberPart.Stump => stump,
-            TimberPart.Lower => lower,
+            TimberPart.Lower or TimberPart.Trunk => lower,
             TimberPart.Upper => upper,
             _ => log
         };
