@@ -6,6 +6,10 @@ namespace Workerborn
     internal static class TimberLocation
     {
         internal static TimberPoint Planar(Vector3 point) => new TimberPoint(point.x, point.z);
+        internal static TimberPose Pose(Vector3 point, Quaternion rotation) => new TimberPose(Planar(point), point.y,
+            new System.Numerics.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w));
+        internal static Vector3 Position(TimberPose pose) => new Vector3(pose.point.x, pose.height, pose.point.z);
+        internal static Quaternion Rotation(TimberPose pose) => new Quaternion(pose.rotationX, pose.rotationY, pose.rotationZ, pose.rotationW);
     }
 
     [DisallowMultipleComponent]
@@ -20,11 +24,11 @@ namespace Workerborn
         private string carrier;
         private int carryingIndex;
         private bool moving;
-        private float started, yaw, pitch, duration, dropHeight;
+        private float started, duration, dropHeight;
         private Vector3 from, landing;
+        private Quaternion landingRotation;
         private TimberFall fall;
-        private TimberSite sectionSite;
-        private float sectionCenter, groundClearance;
+        private float groundClearance;
         private bool hasCutMesh;
         public TimberPart Part => part;
         internal string Carrier => carrier;
@@ -86,15 +90,14 @@ namespace Workerborn
             }
         }
 
-        private void Place(Vector3 point, float facing, float tilt)
+        private void Place(Vector3 point, Quaternion rotation)
         {
             landing = point;
-            yaw = facing;
-            pitch = hasCutMesh ? tilt : 0f;
+            landingRotation = rotation;
             moving = false;
             fall = null;
             carrier = null;
-            transform.SetPositionAndRotation(point, Quaternion.Euler(pitch, yaw, 0f));
+            transform.SetPositionAndRotation(point, rotation);
             RefreshAppearance();
         }
 
@@ -102,36 +105,34 @@ namespace Workerborn
         {
             if (part == TimberPart.Stump)
             {
-                Place(new Vector3(site.Point.x, site.BaseHeight, site.Point.z), tree.fallYaw, 0f);
-                fall = body;
-                RefreshAppearance();
-                return;
+                Place(new Vector3(site.Point.x, site.BaseHeight, site.Point.z), Quaternion.Euler(0f, tree.fallYaw, 0f));
             }
-            sectionSite = site;
-            sectionCenter = site.Section(part).Center;
-            float angle = body != null ? body.Angle : tree.RestAngle;
-            Place(SectionPosition(site, sectionCenter, tree.fallYaw, angle), tree.fallYaw, angle);
+            else if (body != null)
+            {
+                Place(body.transform.position, SectionRotation(body.transform.rotation));
+            }
+            else
+            {
+                var pose = site.PoseAt(tree, site.Section(part).Center);
+                Place(TimberLocation.Position(pose), SectionRotation(TimberLocation.Rotation(pose)));
+            }
             fall = body;
             RefreshAppearance();
         }
 
-        private static Vector3 SectionPosition(TimberSite site, float center, float yaw, float tilt)
-        {
-            var point = site.RestPoint(center, yaw, tilt);
-            return new Vector3(point.x, site.RestHeight(center, tilt), point.z);
-        }
+        private Quaternion SectionRotation(Quaternion rotation) => hasCutMesh ? rotation : rotation * Quaternion.Euler(-90f, 0f, 0f);
 
-        internal void PresentLog(TimberLogSave log, int index, bool animate, TimberSite source)
+        internal void PresentLog(TimberLogSave log, int index, bool animate)
         {
             string previousCarrier = carrier;
             Vector3 point = village.SurfacePosition(log.point.x, log.point.z);
-            float angle = 90f;
+            Quaternion rotation = Quaternion.Euler(hasCutMesh ? 90f : 0f, log.yaw, 0f);
             if (hasCutMesh)
             {
-                if (!log.moved && source != null)
+                if (!log.moved && log.cutPose.IsValid)
                 {
-                    angle = log.cutAngle;
-                    point = SectionPosition(source, source.Section(log.sourcePart).Half(log.half).Center, log.yaw, angle);
+                    point = TimberLocation.Position(log.cutPose);
+                    rotation = TimberLocation.Rotation(log.cutPose);
                 }
                 else
                     point.y += groundClearance;
@@ -149,7 +150,7 @@ namespace Workerborn
                 from = transform.position;
                 if (!model.activeSelf)
                     from = village.SurfacePosition(log.throwOrigin.x, log.throwOrigin.z) + Vector3.up * 1.15f;
-                Place(point, log.yaw, angle);
+                Place(point, rotation);
                 dropHeight = Mathf.Clamp(Vector3.Distance(from, point) * .34f + .65f, 1.2f, 4f);
                 duration = Mathf.Clamp(Vector3.Distance(from, point) * .055f + .42f, .45f, 1.18f);
                 started = Time.time + .22f;
@@ -158,7 +159,7 @@ namespace Workerborn
                 RefreshAppearance();
             }
             else if (!moving || previousCarrier != null || (point - landing).sqrMagnitude > .0001f)
-                Place(point, log.yaw, angle);
+                Place(point, rotation);
         }
 
         protected override void Interact(HarvestWorker worker) => RequestSplit(worker);
@@ -198,13 +199,12 @@ namespace Workerborn
             if (carrier != null)
                 UpdateCarriedPose();
             else if (fall != null && part != TimberPart.Stump)
-                transform.SetPositionAndRotation(SectionPosition(sectionSite, sectionCenter, yaw, fall.Angle),
-                    Quaternion.Euler(fall.Angle, yaw, 0f));
+                transform.SetPositionAndRotation(fall.transform.position, SectionRotation(fall.transform.rotation));
             else if (moving)
             {
                 float progress = Mathf.Max(0f, (Time.time - started) / duration);
                 if (progress >= 1f)
-                    Place(landing, yaw, pitch);
+                    Place(landing, landingRotation);
                 else
                     UpdateFlight(progress);
             }
@@ -213,7 +213,7 @@ namespace Workerborn
         private void UpdateFlight(float progress)
         {
             var point = Vector3.Lerp(from, landing, progress) + Vector3.up * (dropHeight * 4f * progress * (1f - progress));
-            transform.SetPositionAndRotation(point, Quaternion.Euler(pitch, yaw, Mathf.Sin(progress * Mathf.PI) * 45f));
+            transform.SetPositionAndRotation(point, landingRotation * Quaternion.AngleAxis(Mathf.Sin(progress * Mathf.PI) * 45f, Vector3.forward));
         }
 
         private void UpdateCarriedPose()

@@ -10,7 +10,7 @@ namespace Workerborn
         private const float Epsilon = .00001f;
         private readonly Vertex[] vertices;
         private readonly int[][] triangles;
-        private readonly Dictionary<(float Start, float End), Mesh> sections = new Dictionary<(float, float), Mesh>();
+        private readonly Dictionary<(float Start, float End, bool BarkOnly), Mesh> sections = new Dictionary<(float, float, bool), Mesh>();
         internal Material[] Materials { get; }
 
         internal TimberGeometry(MeshFilter source, Vector3 foot, Material cutSurface)
@@ -50,9 +50,9 @@ namespace Workerborn
             }
         }
 
-        internal Mesh Slice(TimberSection section)
+        internal Mesh Slice(TimberSection section, bool barkOnly = false)
         {
-            var key = (section.Start, section.End);
+            var key = (section.Start, section.End, barkOnly);
             if (sections.TryGetValue(key, out var cached))
                 return cached;
 
@@ -61,13 +61,14 @@ namespace Workerborn
             var tangents = new List<Vector4>();
             var uvs = new List<Vector2>();
             var colors = new List<Color>();
-            var faces = new List<int>[Materials.Length];
+            int materialCount = barkOnly ? Math.Min(1, triangles.Length) : triangles.Length;
+            var faces = new List<int>[materialCount + 1];
             var bottom = new List<Vector3>();
             var top = new List<Vector3>();
             var input = new Vertex[6];
             var clipped = new Vertex[6];
 
-            for (int submesh = 0; submesh < triangles.Length; submesh++)
+            for (int submesh = 0; submesh < materialCount; submesh++)
             {
                 var output = faces[submesh] = new List<int>();
                 int[] indices = triangles[submesh];
@@ -84,7 +85,7 @@ namespace Workerborn
                 }
             }
 
-            var capFaces = faces[triangles.Length] = new List<int>();
+            var capFaces = faces[materialCount] = new List<int>();
             AddCap(bottom, Vector3.down);
             AddCap(top, Vector3.up);
             var mesh = new Mesh { name = "Pine cut section" };

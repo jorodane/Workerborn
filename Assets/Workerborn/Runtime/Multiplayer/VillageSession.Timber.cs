@@ -17,9 +17,9 @@ namespace Workerborn
             authority?.ConfigureTimber(sites, ground, height, () => UnityEngine.Random.value);
         }
 
-        internal void FinishTimberFall(string id, float angle)
+        internal void FinishTimberFall(string id, TimberPose pose)
         {
-            if (authority?.SettleTimberFall(id, angle) == true)
+            if (authority?.SettleTimberFall(id, pose) == true)
                 nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
         }
 

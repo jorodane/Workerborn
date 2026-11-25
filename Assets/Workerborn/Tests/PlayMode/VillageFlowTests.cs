@@ -527,7 +527,7 @@ namespace Workerborn.Tests
             var trunk = parts.Single(piece => piece.Part == TimberPart.Trunk);
             Assert.That(trunk.CanInteract, Is.False);
             Assert.That(UnityEngine.Object.FindFirstObjectByType<TimberFall>(), Is.Not.Null);
-            yield return Until(() => trunk.CanInteract, 6f);
+            yield return Until(() => trunk.CanInteract, 13f);
             Assert.That(Vector3.Angle(Vector3.up, trunk.transform.up), Is.GreaterThan(20f));
 
             Vector3 besideTrunk = trunk.transform.position + trunk.transform.right * .85f;
@@ -538,6 +538,45 @@ namespace Workerborn.Tests
             yield return Until(() => trunk == null, 4f);
             Assert.That(WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId)
                 .Select(piece => piece.Part), Is.EquivalentTo(new[] { TimberPart.Stump, TimberPart.Lower, TimberPart.Upper }));
+        }
+
+        [UnityTest]
+        public IEnumerator TreeFallAcceleratesThenReleasesTheTrunkOntoFlatGround()
+        {
+            var source = game.Crops.OfType<LoggingTree>().First();
+            var layout = source.Site();
+            var bark = source.CutGeometry(game.Settings.Timber.CutSurface).Slice(layout.Section(TimberPart.Trunk), barkOnly: true);
+            var platform = new GameObject("Tree fall test platform");
+            platform.transform.position = new Vector3(-120f, 12f, -120f);
+            var ground = platform.AddComponent<BoxCollider>();
+            ground.size = new Vector3(24f, .5f, 24f);
+            ground.center = Vector3.down * .25f;
+            try
+            {
+                var site = new TimberSite("test tree", TimberLocation.Planar(platform.transform.position), ItemIds.Axe,
+                    1, layout.Reach, 1f, 1f, platform.transform.position.y, layout.CutHeight, layout.TopHeight, layout.BarkRadius,
+                    layout.CrownDropDistance, layout.Products);
+                TimberPose resting = default;
+                var fall = TimberFall.Begin(site, 0f, bark, platform.transform, pose => resting = pose);
+                var body = fall.GetComponent<Rigidbody>();
+                yield return Until(() => Tilt() >= 8f, 2f);
+                float earlySpeed = body.angularVelocity.magnitude;
+                yield return Until(() => Tilt() >= 55f, 3f);
+                Assert.That(body.angularVelocity.magnitude, Is.GreaterThan(earlySpeed * 1.5f));
+                yield return Until(() => fall.GetComponent<HingeJoint>() == null, 2f);
+                TimberPoint releasedAt = TimberLocation.Planar(body.position);
+                yield return Until(() => resting.IsValid, 10f);
+
+                Assert.That(Mathf.Abs((TimberLocation.Rotation(resting) * Vector3.up).y), Is.LessThan(.15f));
+                Assert.That(resting.height - platform.transform.position.y, Is.InRange(0f, .35f));
+                Assert.That(resting.point.DistanceSquared(releasedAt), Is.GreaterThan(.0025f));
+
+                float Tilt() => Vector3.Angle(Vector3.up, body.rotation * Vector3.up);
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(platform);
+            }
         }
 
         [UnityTest]

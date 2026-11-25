@@ -68,17 +68,29 @@ namespace Workerborn
                 string id = record.id;
                 pending.Add(id);
                 if (!timberFalls.ContainsKey(id))
-                    timberFalls.Add(id, TimberFall.Begin(tree.Site(), record.fallYaw, headlessTimberPhysics ?? droppedItems,
-                        authority ? angle => FinishTimberFall(id, angle) : null));
+                {
+                    tree.Present(true);
+                    var site = tree.Site();
+                    var bark = tree.CutGeometry(settings.Timber?.CutSurface)?.Slice(site.Section(TimberPart.Trunk), barkOnly: true);
+                    timberFalls.Add(id, TimberFall.Begin(site, record.fallYaw, bark, headlessTimberPhysics ?? droppedItems,
+                        authority ? pose => FinishTimberFall(site, record.fallYaw, pose) : null));
+                }
             }
             RemoveMissing(timberFalls, pending);
         }
 
-        private void FinishTimberFall(string id, float angle)
+        private void FinishTimberFall(TimberSite site, float facing, TimberPose pose)
         {
+            if (!pose.IsValid || !IsTimberGround(pose.point) || pose.height < TimberSurfaceHeight(pose.point) - site.BarkRadius)
+            {
+                var recovery = site.Point.Offset(facing, site.Section(TimberPart.Trunk).Length * .5f);
+                if (!IsTimberGround(recovery))
+                    recovery = site.Point;
+                pose = TimberPose.AtTilt(recovery, TimberSurfaceHeight(recovery) + site.BarkRadius, facing, 90f);
+            }
             if (IsOnline)
-                Session?.FinishTimberFall(id, angle);
-            else if (soloTimber?.SettleFall(id, angle) == true)
+                Session?.FinishTimberFall(site.Id, pose);
+            else if (soloTimber?.SettleFall(site.Id, pose) == true)
             {
                 PresentWoodland(soloTimber.Capture());
                 SaveGame(false);
@@ -269,7 +281,7 @@ namespace Workerborn
                             sourceSite.Section(log.sourcePart).Half(log.half), log.cutYaw);
                     logModels.Add(log.id, view);
                 }
-                view.PresentLog(log, index, animate, sourceSite);
+                view.PresentLog(log, index, animate);
             }
             RemoveMissing(logModels, logs);
             worker?.RefreshTimberSkill();

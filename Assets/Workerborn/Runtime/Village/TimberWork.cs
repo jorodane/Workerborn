@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 
 namespace Workerborn
 {
@@ -38,11 +39,42 @@ namespace Workerborn
     }
 
     [Serializable]
+    public struct TimberPose
+    {
+        public TimberPoint point;
+        public float height, rotationX, rotationY, rotationZ, rotationW;
+
+        internal TimberPose(TimberPoint point, float height, Quaternion rotation)
+        {
+            this.point = point;
+            this.height = height;
+            rotationX = rotation.X;
+            rotationY = rotation.Y;
+            rotationZ = rotation.Z;
+            rotationW = rotation.W;
+        }
+
+        internal Quaternion Rotation => new Quaternion(rotationX, rotationY, rotationZ, rotationW);
+        internal bool IsValid => point.IsFinite && float.IsFinite(height) && Rotation.LengthSquared() is >= .99f and <= 1.01f;
+        private Vector3 Axis => Vector3.Transform(Vector3.UnitY, Rotation);
+
+        internal TimberPose ShiftAlongTrunk(float distance)
+        {
+            Vector3 offset = Axis * distance;
+            return new TimberPose(new TimberPoint(point.x + offset.X, point.z + offset.Z), height + offset.Y, Rotation);
+        }
+
+        internal static TimberPose AtTilt(TimberPoint point, float height, float yaw, float pitch) =>
+            new TimberPose(point, height, Quaternion.CreateFromYawPitchRoll(yaw * (MathF.PI / 180f), pitch * (MathF.PI / 180f), 0f));
+    }
+
+    [Serializable]
     public sealed class TimberTreeSave
     {
         public string id;
         public int productDay, usedSlots, felledDay, parts;
         public float fallYaw, fallAngle;
+        public TimberPose restingPose;
         public bool falling;
 
         internal float RestAngle => fallAngle > 0f ? fallAngle : 90f;
@@ -55,7 +87,8 @@ namespace Workerborn
     {
         public string id, carrier, sourceTree;
         public TimberPoint point, throwOrigin;
-        public float yaw, cutYaw, cutAngle;
+        public float yaw, cutYaw;
+        public TimberPose cutPose;
         public TimberPart sourcePart;
         public int half;
         public bool thrown, moved;
@@ -152,6 +185,10 @@ namespace Workerborn
 
         internal float RestHeight(float height, float angle) =>
             BaseHeight + CutHeight + (height - CutHeight) * (float)Math.Cos(angle * Math.PI / 180d);
+
+        internal TimberPose PoseAt(TimberTreeSave tree, float height) => tree.restingPose.IsValid
+            ? tree.restingPose.ShiftAlongTrunk(height - Section(TimberPart.Trunk).Center)
+            : TimberPose.AtTilt(RestPoint(height, tree.fallYaw, tree.RestAngle), RestHeight(height, tree.RestAngle), tree.fallYaw, tree.RestAngle);
     }
 
     [Serializable]
@@ -173,7 +210,6 @@ namespace Workerborn
     {
         internal const float PieceReach = 1.8f;
         internal const int MaximumLogs = 512;
-        internal const float MaximumFallAngle = 130f;
         private const int Trunk = 1 << (int)TimberPart.Trunk;
         private const int Stump = 1 << (int)TimberPart.Stump;
         private const int Halves = 1 << (int)TimberPart.Lower | 1 << (int)TimberPart.Upper;
@@ -197,7 +233,7 @@ namespace Workerborn
                     tree.productDay >= 0 && tree.felledDay >= 0 && tree.usedSlots is >= 0 and <= 64 &&
                     (tree.parts & ~(Stump | Trunk | Halves)) == 0 &&
                     ((tree.parts & Trunk) == 0 || (tree.parts & Halves) == 0) && float.IsFinite(tree.fallYaw) &&
-                    float.IsFinite(tree.fallAngle) && tree.fallAngle is >= 0f and <= MaximumFallAngle)
+                    float.IsFinite(tree.fallAngle) && tree.fallAngle is >= 0f and <= 130f)
                     trees[tree.id] = tree.Copy();
             foreach (var log in saved.logs ?? Array.Empty<TimberLogSave>())
                 if (log != null && !string.IsNullOrEmpty(log.id) && log.point.IsFinite &&
@@ -209,7 +245,7 @@ namespace Workerborn
                     copy.thrown = false;
                     if (string.IsNullOrEmpty(copy.sourceTree) || !this.sites.ContainsKey(copy.sourceTree) ||
                         copy.sourcePart is not (TimberPart.Lower or TimberPart.Upper) || copy.half is < 0 or > 1 ||
-                        !float.IsFinite(copy.cutYaw) || !float.IsFinite(copy.cutAngle) || copy.cutAngle is <= 0f or > MaximumFallAngle)
+                        !float.IsFinite(copy.cutYaw))
                         copy.sourceTree = null;
                     logs[log.id] = copy;
                 }
@@ -286,11 +322,11 @@ namespace Workerborn
             return count;
         }
 
-        internal bool SettleFall(string id, float angle)
+        internal bool SettleFall(string id, TimberPose pose)
         {
-            if (!float.IsFinite(angle) || !trees.TryGetValue(id, out var tree) || !tree.falling || !tree.Has(TimberPart.Trunk))
+            if (!pose.IsValid || !trees.TryGetValue(id, out var tree) || !tree.falling || !tree.Has(TimberPart.Trunk))
                 return false;
-            tree.fallAngle = Math.Clamp(angle, 1f, MaximumFallAngle);
+            tree.restingPose = pose;
             tree.falling = false;
             Changed();
             return true;
@@ -379,7 +415,7 @@ namespace Workerborn
             TimberPoint at, Func<TimberPoint, bool> occupied, Func<List<TimberYield>, bool> deliver, out string message)
         {
             var section = site.Section(part);
-            TimberPoint point = part == TimberPart.Stump ? site.Point : site.RestPoint(section.Center, tree.fallYaw, tree.RestAngle);
+            TimberPoint point = part == TimberPart.Stump ? site.Point : site.PoseAt(tree, section.Center).point;
             message = "나무가 멈춘 뒤에 내려찍어 주세요.";
             if (tree.falling)
                 return TimberResult.Rejected;
@@ -411,13 +447,14 @@ namespace Workerborn
                 for (int i = 0; i < count; i++)
                 {
                     string id = Guid.NewGuid().ToString("N");
-                    float yaw = tree.fallYaw;
+                    var cut = part == TimberPart.Stump ? default : site.PoseAt(tree, section.Half(i).Center);
                     logs.Add(id, new TimberLogSave
                     {
-                        id = id, yaw = yaw,
-                        point = part == TimberPart.Stump ? point : site.RestPoint(section.Half(i).Center, yaw, tree.RestAngle),
+                        id = id, yaw = tree.fallYaw,
+                        point = part == TimberPart.Stump ? point : cut.point,
                         sourceTree = part == TimberPart.Stump ? null : site.Id,
-                        sourcePart = part, half = i, cutAngle = tree.RestAngle, cutYaw = yaw
+                        sourcePart = part, half = i, cutYaw = tree.fallYaw,
+                        cutPose = tree.restingPose.IsValid ? cut : default
                     });
                 }
             Changed();
