@@ -260,13 +260,13 @@ assert not any('F1' in go['m_Name'] or 'F2' in go['m_Name'] for go in gos.values
 
 settings=docs(resolve(controller[0]['settings']))[0]['MonoBehaviour']
 skills=[docs(resolve(pointer))[0]['MonoBehaviour'] for pointer in settings['skills']]
-assert {skill['skill'] for skill in skills}==set(range(12))
+assert {skill['skill'] for skill in skills}==set(range(13))
 assert all(0<=row['fromRank']<=row['throughRank']<=100 for skill in skills for row in skill['rankEffects'])
 itemdefs=[docs(resolve(p))[0]['MonoBehaviour'] for p in settings['items']]
 wardrobe={'field_cap':1,'field_coat':2,'field_trousers':8,'field_boots':4,'field_gloves':3}
 primers={'woodcutting_primer':1,'carving_primer':2,'unarmed_combat_primer':3,'egg_gathering_primer':4,
          'fishing_primer':5,'harvest_acquisition_primer':6,'lucky_bonus_primer':7,'soul_growth_primer':8,'critical_hit_primer':9,
-         'lifting_primer':10,'throwing_primer':11}
+         'lifting_primer':10,'throwing_primer':11,'rest_master_primer':12}
 assert {i['id'] for i in itemdefs}=={'potato','bread','health_potion','iron_hoe','small_bag','gold','egg','timber','woodcutting_axe','legend_axe','timber_contract','farm_contract','rabbit_meat','branch','fishing_rod','pond_fish','scrap_wood','pine_cone','pine_sapling'} | set(wardrobe) | set(primers)
 assert all(i['icon']['fileID'] for i in itemdefs)
 potion = next(i for i in itemdefs if i['id'] == 'health_potion')

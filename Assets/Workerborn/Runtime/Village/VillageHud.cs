@@ -304,7 +304,7 @@ namespace Workerborn
             energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
             healthBar.SetValue(state.Health, state.HealthLimit);
-            energyFill.fillAmount = (float)state.Energy / stamina;
+            energyFill.fillAmount = state.StaminaFill;
             growthText.text = $"Lv.{state.Level}";
             experienceFill.fillAmount = state.Level == VillageState.LevelLimit ? 1f : (float)state.Experience / state.NextLevelExperience;
             if (state.NoticeSerial != seenNotice)

@@ -94,8 +94,6 @@ namespace Workerborn
                     continue;
                 var state = character.CharacterState;
                 state.CollectReadyHarvests(now);
-                if (state.Day < world.day && character.Action == WorkerAction.Sitting)
-                    state.TrySleep(paidRoom: false, sharedClock: true);
                 state.ApplyWorld(world);
             }
         }

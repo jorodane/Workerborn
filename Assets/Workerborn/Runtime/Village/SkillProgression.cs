@@ -6,7 +6,7 @@ namespace Workerborn
     public enum SkillId
     {
         Harvesting = 0, Woodcutting = 1, Carving = 2, UnarmedCombat = 3, EggGathering = 4, Fishing = 5,
-        HarvestAcquisition = 6, LuckyBonus = 7, SoulGrowth = 8, CriticalHit = 9, Lifting = 10, Throwing = 11
+        HarvestAcquisition = 6, LuckyBonus = 7, SoulGrowth = 8, CriticalHit = 9, Lifting = 10, Throwing = 11, RestMaster = 12
     }
 
     public enum SkillEffect
@@ -27,7 +27,8 @@ namespace Workerborn
         LiftCapacity,
         LiftSpeedPercent,
         LiftStaminaSaving,
-        ThrowRangeDecimeters
+        ThrowRangeDecimeters,
+        SeatedRecoveryPercent
     }
 
     [Serializable]
@@ -57,14 +58,20 @@ namespace Workerborn
         {
             SkillId.Harvesting, SkillId.Woodcutting, SkillId.Carving, SkillId.UnarmedCombat, SkillId.EggGathering, SkillId.Fishing,
             SkillId.HarvestAcquisition, SkillId.LuckyBonus, SkillId.SoulGrowth, SkillId.CriticalHit,
-            SkillId.Lifting, SkillId.Throwing
+            SkillId.Lifting, SkillId.Throwing, SkillId.RestMaster
         });
         private static readonly SkillProgression[] defaults =
         {
             new SkillProgression(SkillId.Harvesting, "수확", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.MaxStamina, 5))),
             new SkillProgression(SkillId.Woodcutting, "나무 약탈", TreeWorkRows()),
             new SkillProgression(SkillId.Carving, "갈무리", new[] { new SkillRankEffect(1, 100, SkillEffect.YieldMultiplier, 1) }),
-            new SkillProgression(SkillId.UnarmedCombat, "맨손전투", new[] { new SkillRankEffect(1, 100, SkillEffect.UnarmedDamage, 1), new SkillRankEffect(20, 20, SkillEffect.MaxStamina, 5) }),
+            new SkillProgression(SkillId.UnarmedCombat, "맨손전투", new[]
+            {
+                new SkillRankEffect(1, MaxRank, SkillEffect.UnarmedDamage, 1),
+                new SkillRankEffect(20, 20, SkillEffect.MaxStamina, 5),
+                new SkillRankEffect(10, 10, SkillEffect.StaminaSaving, 1),
+                new SkillRankEffect(40, 40, SkillEffect.StaminaSaving, 1)
+            }),
             new SkillProgression(SkillId.EggGathering, "달걀 채집", GatheringRows(1)),
             new SkillProgression(SkillId.Fishing, "낚시", GatheringRows(1)),
             new SkillProgression(SkillId.HarvestAcquisition, "수확물 자동 습득", GradeEffects(SkillEffect.HarvestItemsPerSecond, 1, 1)),
@@ -84,6 +91,11 @@ namespace Workerborn
             {
                 new SkillRankEffect(0, 0, SkillEffect.ThrowRangeDecimeters, 30),
                 new SkillRankEffect(1, MaxRank, SkillEffect.ThrowRangeDecimeters, 1)
+            }),
+            new SkillProgression(SkillId.RestMaster, "휴식의 달인", new[]
+            {
+                new SkillRankEffect(0, 0, SkillEffect.SeatedRecoveryPercent, 20),
+                new SkillRankEffect(1, MaxRank, SkillEffect.SeatedRecoveryPercent, 1)
             })
         };
 

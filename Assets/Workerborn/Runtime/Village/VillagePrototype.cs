@@ -370,13 +370,10 @@ namespace Workerborn
             }
         }
 
-        private static int BaseWorkCost(VillageState state, CropDefinition work) =>
-            work.StaminaCost > 0 ? work.StaminaCost : state.Rules.HarvestEnergy;
-
         public bool CanHarvest(HarvestableCrop target) => CanHarvest(worker, target);
         private bool CanHarvest(HarvestableCrop target, bool showNotice) => CanHarvest(worker, target, showNotice);
 
-        internal bool CanHarvest(HarvestWorker source, HarvestableCrop target, bool showNotice = true)
+        internal bool CanHarvest(HarvestWorker source, HarvestableCrop target, bool showNotice = true, bool requireStamina = true)
         {
             var state = source.CharacterState;
             if (state.AwaitingIncarnation || state.Health <= 0 || target.Definition == null || !source.SharesMap(target.transform.position))
@@ -390,7 +387,7 @@ namespace Workerborn
                     hud.ShowToast(work.RequiredTool.DisplayName + "을 주무기에 장착해 주세요.");
                 return false;
             }
-            if (state.Energy >= state.WorkEnergyCost(work.Skill, work.ItemId, BaseWorkCost(state, work)))
+            if (!requireStamina || state.Stamina > 0d)
                 return true;
             if (showNotice && source.IsLocallyControlled)
                 hud.ShowToast("스태미나가 부족합니다.");
@@ -402,13 +399,13 @@ namespace Workerborn
             var state = sourceWorker.CharacterState;
             var work = crop.Definition;
             var skill = work.Skill;
-            if (!CanHarvest(sourceWorker, crop))
+            if (!CanHarvest(sourceWorker, crop, requireStamina: false))
                 return false;
             var outcome = work.RollOutcome(state, UnityEngine.Random.value, UnityEngine.Random.value);
             int level = state.Level;
             var water = crop as FishingWater;
             Vector3 source = water != null ? sourceWorker.FishingPoint ?? crop.transform.position : crop.transform.position;
-            if (!state.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(state, work), outcome, ReceiveYield, out _, out int experience))
+            if (!state.CompleteGather(skill, work.ItemId, work.ItemsPerHarvest, outcome, ReceiveYield, out int experience))
             {
                 sourceWorker.ShowGatherResult(false);
                 hud.ShowFloatingText(source + Vector3.up, "실패", new Color(1f, .65f, .55f));

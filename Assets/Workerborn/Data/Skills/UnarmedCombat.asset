@@ -28,3 +28,13 @@ MonoBehaviour:
     effect: 2
     amount: 5
     increasePerRank: 0
+  - fromRank: 10
+    throughRank: 10
+    effect: 1
+    amount: 1
+    increasePerRank: 0
+  - fromRank: 40
+    throughRank: 40
+    effect: 1
+    amount: 1
+    increasePerRank: 0

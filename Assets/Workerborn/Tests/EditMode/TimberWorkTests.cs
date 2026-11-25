@@ -7,7 +7,7 @@ namespace Workerborn.Tests
     public sealed class TimberWorkTests
     {
         private static TimberSite Pine() => new TimberSite("pine", new TimberPoint(0f, 0f), ItemIds.Axe,
-            4, 4, 2.2f, .6f, .92f, 1.35f, 3.55f, new[]
+            4, 2.2f, .6f, .92f, 1.35f, 3.55f, new[]
             {
                 new TreeProduct("branch", 70, 1),
                 new TreeProduct(ItemIds.PineCone, 24, 1),
@@ -30,16 +30,18 @@ namespace Workerborn.Tests
             var worker = Worker();
             var order = new TimberOrder { action = TimberAction.Strike, target = "pine" };
             bool delivered = false;
+            Assert.That(worker.SpendWorkProgress(2, 0d, 1d), Is.True);
             Assert.That(Perform(order, Receive), Is.EqualTo(TimberResult.Failed));
             Assert.That(work.Capture().trees, Is.Empty);
             Assert.That(delivered, Is.False);
-            Assert.That(worker.Energy, Is.EqualTo(99));
+            Assert.That(worker.Energy, Is.EqualTo(98));
 
             roll = .4f;
             Assert.That(Perform(order, _ => false), Is.EqualTo(TimberResult.Rejected));
             Assert.That(work.Capture().trees, Is.Empty);
             Assert.That(Perform(order, Receive), Is.EqualTo(TimberResult.Succeeded));
             Assert.That(delivered, Is.True);
+            Assert.That(worker.Energy, Is.EqualTo(98));
             Assert.That(work.Capture().trees.Single().usedSlots, Is.EqualTo(1));
 
             TimberResult Perform(TimberOrder order, System.Func<List<TimberYield>, bool> deliver) =>

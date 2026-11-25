@@ -48,6 +48,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 08b4780e253a506183f8f3851d6db3f8, type: 2}
   - {fileID: 11400000, guid: 25f7591c3ee35ea68a3ad7e84afb1521, type: 2}
   - {fileID: 11400000, guid: d52e693d78bd589ca664958768b8bff1, type: 2}
+  - {fileID: 11400000, guid: e0196159af1e5d33914c4904c904ed11, type: 2}
   skills:
   - {fileID: 11400000, guid: 621d8bbd2e435add925d683cd1874aaf, type: 2}
   - {fileID: 11400000, guid: 5c5694c0fe18556f9615ee867a0e5668, type: 2}
@@ -61,6 +62,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 9996c48b6ea85c3199aa719806ab0677, type: 2}
   - {fileID: 11400000, guid: 0d926b31c45558049463906659b4e092, type: 2}
   - {fileID: 11400000, guid: 39d575d3a32b58e08b78ad510cfa0ed2, type: 2}
+  - {fileID: 11400000, guid: 2519854ec03f51f1a0f44a1884d67af8, type: 2}
   plotFacilities:
   - {fileID: 11400000, guid: 8e24bbcf371c51b98b4206ac37ffc95a, type: 2}
   - {fileID: 11400000, guid: eea723dd4c3359bbbb9fd81e88a72d7b, type: 2}
@@ -80,6 +82,8 @@ MonoBehaviour:
   roomPrice: 10
   freeRestEnergy: 70
   collapseEnergy: 45
+  staminaRecoveryPerSecond: 2
+  seatedRecoveryMultiplier: 2.5
   rebirthDays: 7
   healthPerLevel: 2
   staminaPerLevel: 1

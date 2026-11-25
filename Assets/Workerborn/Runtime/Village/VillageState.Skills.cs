@@ -115,7 +115,7 @@ namespace Workerborn
             learnedSkills[(int)skill] = true;
             skillRanks[(int)skill] = rank;
             RefreshSkillStats();
-            Energy = Math.Min(Energy, StaminaLimit);
+            SetStamina(Stamina);
             return true;
         }
 

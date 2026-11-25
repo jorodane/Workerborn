@@ -47,6 +47,8 @@ namespace Workerborn
         internal override bool CanReceiveStrike => CanInteract;
         internal override AnimationClip StrikeClip(HarvestWorker worker) => worker.Village.Settings.Timber.Split;
         internal override float StrikeImpact => .52f;
+        internal override int StrikeStaminaCost(VillageState state, int baseCost) =>
+            state.WorkEnergyCost(SkillId.Woodcutting, ItemIds.Timber, 3);
 
         internal void Bind(VillagePrototype owner, string id)
         {

@@ -88,6 +88,8 @@ namespace Workerborn
                 return $"통나무 최대 {state.LiftCapacity}개 · 이동 속도 {state.LiftSpeedPercent}%\n사용 후 통나무를 클릭하세요. Esc로 앞에 내려놓습니다.";
             if (skill == SkillId.Throwing)
                 return $"던지기 범위 {state.ThrowRange:0.#}m\n통나무를 든 채 사용하고 바닥을 클릭하세요.";
+            if (skill == SkillId.RestMaster)
+                return $"앉아서 초당 {state.StaminaRecoveryPerSecond(sitting: true):0.##} SP 회복\n앉아 있을 때 회복 효율 +{state.SeatedRecoveryBonus}%";
 
             var lines = new List<string>();
             if (SkillProgression.IsGathering(skill))
@@ -97,8 +99,11 @@ namespace Workerborn
 
             int damage = state.SkillBonus(skill, SkillEffect.UnarmedDamage);
             int stamina = state.SkillBonus(skill, SkillEffect.MaxStamina);
+            int savings = state.SkillBonus(skill, SkillEffect.StaminaSaving);
             if (skill == SkillId.UnarmedCombat || damage != 0)
                 lines.Add($"맨손 피해 {damage:+0;-0;0}");
+            if (skill == SkillId.UnarmedCombat && savings > 0)
+                lines.Add($"공격 스태미나 절약 {savings}");
             if (stamina != 0)
                 lines.Add($"최대 스태미나 {stamina:+0;-0;0}");
             return string.Join("\n", lines);

@@ -28,10 +28,12 @@ namespace Workerborn
 
         public override bool CanInteract => base.CanInteract && !felled;
         internal override bool CanReceiveStrike => CanInteract;
+        internal override int StrikeStaminaCost(VillageState state, int baseCost) =>
+            state.WorkEnergyCost(SkillId.Woodcutting, ItemIds.Timber, 2);
         internal bool Felled => felled;
 
         internal TimberSite Site() => new TimberSite(PersistentId, TimberLocation.Planar(transform.position),
-            Definition.RequiredTool.Id, Definition.HarvestsPerPlant, Definition.StaminaCost, InteractionDistance,
+            Definition.RequiredTool.Id, Definition.HarvestsPerPlant, InteractionDistance,
             strikeChance, Definition.SuccessChance, lowerDistance, upperDistance, Array.ConvertAll(products ?? Array.Empty<Product>(),
                 product => new TreeProduct(product.item != null ? product.item.Id : "", product.weight, product.quantity)));
 

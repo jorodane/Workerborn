@@ -75,6 +75,7 @@ namespace Workerborn
         public const string CriticalHitBook = "critical_hit_primer";
         public const string LiftingBook = "lifting_primer";
         public const string ThrowingBook = "throwing_primer";
+        public const string RestMasterBook = "rest_master_primer";
     }
 
     public sealed class ItemSpec
@@ -134,7 +135,8 @@ namespace Workerborn
             new ItemSpec(ItemIds.SoulGrowthBook, "영혼의 성장 입문서", "읽으면 경험치를 얻을 수 있습니다.", 1, 1, 1, 15, taughtSkill: SkillId.SoulGrowth),
             new ItemSpec(ItemIds.CriticalHitBook, "치명타 입문서", "읽으면 전투에서 치명타를 낼 수 있습니다.", 1, 1, 1, 15, taughtSkill: SkillId.CriticalHit),
             new ItemSpec(ItemIds.LiftingBook, "들어 올리기 입문서", "통나무를 들어 옮기는 방법을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Lifting),
-            new ItemSpec(ItemIds.ThrowingBook, "집어 던지기 입문서", "들고 있는 통나무를 던지는 방법을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Throwing)
+            new ItemSpec(ItemIds.ThrowingBook, "집어 던지기 입문서", "들고 있는 통나무를 던지는 방법을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Throwing),
+            new ItemSpec(ItemIds.RestMasterBook, "휴식의 달인 입문서", "앉아서 스태미나를 더 빠르게 회복하는 방법을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.RestMaster)
         };
         private static readonly Dictionary<string, ItemSpec> configured = new Dictionary<string, ItemSpec>();
 

@@ -39,7 +39,7 @@ namespace Workerborn
 
     public sealed partial class VillageState
     {
-        public const int CurrentSaveSchema = 15;
+        public const int CurrentSaveSchema = StaminaSaveSchema;
         public const int LevelLimit = 200;
         private double lifeStartedAt;
         public bool AwaitingIncarnation { get; private set; }
@@ -116,7 +116,7 @@ namespace Workerborn
             AttributePoints = Strength = Dexterity = Knowledge = 0;
             RefreshSkillStats();
             Health = HealthLimit;
-            Energy = StaminaLimit;
+            RestoreStamina(StaminaLimit);
             Inventory = new GridInventory(InventoryColumns, BaseInventoryRows);
             CursorItem = null;
             cursorItemWasSplit = false;
@@ -159,7 +159,7 @@ namespace Workerborn
             lifeStartedAt = WorldMinute;
             LifeDay = 1;
             Health = HealthLimit;
-            Energy = StaminaLimit;
+            RestoreStamina(StaminaLimit);
             LastGuideLife = Life;
             bool learnedSoulGrowth = LearnSkill(SkillId.SoulGrowth);
             return Result(true, $"{Life}번째 생이 시작됐어요." + (learnedSoulGrowth ? " 영혼의 성장을 배웠어요." : ""));
@@ -228,14 +228,14 @@ namespace Workerborn
             ApplyWorld(world);
         }
 
-        internal bool NeedsRest => !AwaitingIncarnation && (Health <= 0 || Energy <= 0);
+        internal bool NeedsRest => !AwaitingIncarnation && Health <= 0;
 
         internal bool RecoverInSharedWorld()
         {
             if (!NeedsRest)
                 return false;
             Health = HealthLimit;
-            Energy = Math.Min(StaminaLimit, Rules.CollapseEnergy);
+            RestoreStamina(Rules.CollapseEnergy);
             return Result(true, "숙소에서 깨어났습니다.");
         }
     }

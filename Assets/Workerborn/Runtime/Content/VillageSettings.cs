@@ -42,6 +42,10 @@ namespace Workerborn
         private int freeRestEnergy = 70;
         [SerializeField, Range(1, 100)]
         private int collapseEnergy = 45;
+        [SerializeField, Min(0f)]
+        private float staminaRecoveryPerSecond = 2f;
+        [SerializeField, Min(1f)]
+        private float seatedRecoveryMultiplier = 2.5f;
         [Header("Progression")]
         [SerializeField, Min(1)]
         private int rebirthDays = 7;
@@ -136,6 +140,8 @@ namespace Workerborn
                 RoomPrice = roomPrice,
                 FreeRestEnergy = freeRestEnergy,
                 CollapseEnergy = collapseEnergy,
+                StaminaRecoveryPerSecond = staminaRecoveryPerSecond,
+                SeatedRecoveryMultiplier = seatedRecoveryMultiplier,
                 RebirthDays = Mathf.Max(1, rebirthDays),
                 HealthPerLevel = Mathf.Clamp(healthPerLevel, 0, 1000),
                 StaminaPerLevel = Mathf.Clamp(staminaPerLevel, 0, 1000),

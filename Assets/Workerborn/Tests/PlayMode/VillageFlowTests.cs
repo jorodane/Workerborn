@@ -231,7 +231,7 @@ namespace Workerborn.Tests
             Assert.That(game.Worker.WarpTo(stand.position), Is.True);
 
             int charges = hen.Remaining;
-            int energy = game.State.Energy;
+            double stamina = game.State.Stamina;
             int drops = game.GroundItemCount;
             string notice = null;
             void Capture(string message) => notice = message;
@@ -250,7 +250,7 @@ namespace Workerborn.Tests
                 Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
                 Assert.That(hen.Progress, Is.Zero);
                 Assert.That(hen.Remaining, Is.EqualTo(charges));
-                Assert.That(game.State.Energy, Is.EqualTo(energy));
+                Assert.That(game.State.Stamina, Is.LessThan(stamina));
                 Assert.That(game.GroundItemCount, Is.EqualTo(drops));
                 Assert.That(notice, Does.Contain("채집에 실패"));
                 Assert.That(game.Worker.GetComponent<WorkerAnimation>().Gesture, Is.EqualTo(WorkerGesture.GatherFailure));
@@ -618,6 +618,32 @@ namespace Workerborn.Tests
                 first.action = firstAction;
                 second.action = secondAction;
             }
+        }
+
+        [UnityTest]
+        public IEnumerator ExhaustingStaminaStopsTheHarvestAndAllowsSitting()
+        {
+            var crop = game.Crops.First();
+            Vector3 point = crop.transform.position + Vector3.right * .9f;
+            Assert.That(NavMesh.SamplePosition(point, out var stand, .5f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(stand.position), Is.True);
+            int day = game.State.Day;
+            int slots = crop.Remaining;
+            int drops = game.GroundItemCount;
+            Assert.That(game.State.SpendWorkStamina(game.State.Stamina - 1d), Is.True);
+
+            game.Worker.CommandHarvest(crop);
+            yield return Until(() => game.Worker.ActiveCrop == crop, 2f);
+            yield return Until(() => game.Worker.Action == WorkerAction.Idle, 3f);
+            Assert.That(game.State.Stamina, Is.Zero);
+            Assert.That(game.State.Day, Is.EqualTo(day));
+            Assert.That(game.IsWorldTransitioning, Is.False);
+            Assert.That(game.Worker.GetComponent<WorkerAnimation>().Gesture, Is.EqualTo(WorkerGesture.GatherFailure));
+            Assert.That(crop.Remaining, Is.EqualTo(slots));
+            Assert.That(game.GroundItemCount, Is.EqualTo(drops));
+            Assert.That(game.Worker.ToggleSit(), Is.True);
+            yield return Until(() => game.State.Stamina > 0d, 2f);
+            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Sitting));
         }
 
         [UnityTest]

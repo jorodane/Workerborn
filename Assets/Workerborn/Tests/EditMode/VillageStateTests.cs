@@ -826,15 +826,66 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void ExhaustionForcesRestWithTheCollapsePenalty()
+        public void ExhaustionDoesNotCollapseTheCharacterOrAdvanceTheDay()
         {
             var state = new VillageState(new VillageRules { HarvestExperience = 0 });
             for (int i = 0; i < 20; i++) state.TryHarvest(2, false, out _);
             Assert.That(state.TryHarvest(2, false, out _), Is.False);
-            Assert.That(state.AdvanceTime(0f), Is.True);
-            Assert.That(state.Day, Is.EqualTo(2));
-            Assert.That(state.Energy, Is.EqualTo(45));
-            Assert.That(state.LastRestWasCollapse, Is.True);
+            Assert.That(state.WillAdvanceDay(0f, paused: false), Is.False);
+            Assert.That(state.AdvanceTime(0f), Is.False);
+            Assert.That(state.RecoverInSharedWorld(), Is.False);
+            Assert.That(state.Day, Is.EqualTo(1));
+            Assert.That(state.Energy, Is.Zero);
+            Assert.That(state.LastRestWasCollapse, Is.False);
+        }
+
+        [Test]
+        public void RunningOutDuringWorkFailsButPayingExactlyAtCompletionSucceeds()
+        {
+            var worker = new VillageState();
+            Assert.That(worker.SpendWorkStamina(98d), Is.True);
+            Assert.That(worker.SpendWorkProgress(4, 0d, .25d), Is.True);
+            Assert.That(worker.Stamina, Is.EqualTo(1d));
+            Assert.That(worker.SpendWorkProgress(4, .25d, .5d), Is.False);
+            Assert.That(worker.Stamina, Is.Zero);
+            worker.RecoverStamina(3f, sitting: false);
+            Assert.That(worker.Stamina, Is.EqualTo(4d));
+            Assert.That(worker.SpendWorkProgress(4, 0d, .75d), Is.True);
+            Assert.That(worker.SpendWorkProgress(4, .75d, 1d), Is.True);
+            Assert.That(worker.Stamina, Is.Zero);
+        }
+
+        [Test]
+        public void RecoveryDelayAndFractionSurviveSavingAndRestMasterOnlyAffectsSitting()
+        {
+            var worker = new VillageState();
+            Assert.That(worker.SpendWorkStamina(90.25d), Is.True);
+            worker.RecoverStamina(.5f, sitting: true);
+            Assert.That(worker.Stamina, Is.EqualTo(9.75d));
+            worker = VillageState.Restore(worker.Export());
+            Assert.That(worker.Stamina, Is.EqualTo(9.75d));
+            worker.RecoverStamina(.5f, sitting: false);
+            Assert.That(worker.Stamina, Is.EqualTo(9.75d));
+            worker.RecoverStamina(.5f, sitting: false);
+            Assert.That(worker.Stamina, Is.EqualTo(10.75d));
+            worker.RecoverStamina(.5f, sitting: true);
+            Assert.That(worker.Stamina, Is.EqualTo(13.25d));
+
+            Assert.That(worker.Inventory.TryAdd(ItemIds.RestMasterBook, 1), Is.True);
+            Assert.That(worker.TryReadSkillBook(worker.Inventory.Entries.Single().Id), Is.True);
+            worker.RecoverStamina(.5f, sitting: true);
+            Assert.That(worker.Stamina, Is.EqualTo(16.25d));
+            Assert.That(worker.LearnSkill(SkillId.RestMaster, 10), Is.True);
+            worker.RecoverStamina(.5f, sitting: false);
+            Assert.That(worker.Stamina, Is.EqualTo(17.25d));
+            worker.RecoverStamina(.5f, sitting: true);
+            Assert.That(worker.Stamina, Is.EqualTo(20.5d));
+
+            Assert.That(worker.SpendWorkStamina(.5d), Is.True);
+            worker.RecoverStamina(.5f, sitting: true);
+            Assert.That(worker.Stamina, Is.EqualTo(20d));
+            worker.RecoverStamina(60f, sitting: true);
+            Assert.That(worker.Stamina, Is.EqualTo(worker.StaminaLimit));
         }
 
         [Test]

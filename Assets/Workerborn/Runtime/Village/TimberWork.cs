@@ -94,19 +94,18 @@ namespace Workerborn
         internal readonly string Id;
         internal readonly TimberPoint Point;
         internal readonly string Tool;
-        internal readonly int Slots, Energy;
+        internal readonly int Slots;
         internal readonly float Reach, StrikeChance, FellChance, LowerDistance, UpperDistance;
         internal readonly TreeProduct[] Products;
         internal readonly int TotalWeight;
 
-        internal TimberSite(string id, TimberPoint point, string tool, int slots, int energy, float reach,
+        internal TimberSite(string id, TimberPoint point, string tool, int slots, float reach,
             float strikeChance, float fellChance, float lowerDistance, float upperDistance, TreeProduct[] products)
         {
             Id = id;
             Point = point;
             Tool = tool;
             Slots = Math.Clamp(slots, 1, 32);
-            Energy = energy;
             Reach = reach;
             StrikeChance = strikeChance;
             FellChance = fellChance;
@@ -257,9 +256,10 @@ namespace Workerborn
 
             if (order.action == TimberAction.Place || order.action == TimberAction.Throw)
                 return MoveHeld(order, worker, workerId, at, facing, canPlace, out message);
-            if (worker.Health <= 0 || worker.Energy <= 0 || string.IsNullOrEmpty(order.target))
+            if (worker.Health <= 0 || string.IsNullOrEmpty(order.target))
                 return TimberResult.Rejected;
 
+            // Timed strikes and felling reach this step after the worker has paid for the swing.
             if (order.action == TimberAction.Lift || order.action == TimberAction.Split && order.part == TimberPart.Log)
                 return WorkLog(order, worker, workerId, at, deliver, out message);
             if (!sites.TryGetValue(order.target, out var site) || CountCarried(workerId) > 0)
@@ -279,7 +279,6 @@ namespace Workerborn
         {
             bool fell = order.action == TimberAction.Fell;
             int available = Math.Max(0, site.Slots + worker.TreeExtraSlots - (tree.productDay == day ? tree.usedSlots : 0));
-            int cost = worker.WorkEnergyCost(SkillId.Woodcutting, ItemIds.Timber, fell ? site.Energy : 1);
             message = null;
             if (at.DistanceSquared(site.Point) > Square(site.Reach + .2f))
                 message = "나무에 조금 더 가까이 가야 해요.";
@@ -287,13 +286,11 @@ namespace Workerborn
                 message = "도끼를 주무기에 장착해 주세요.";
             else if (!fell && (available == 0 || site.TotalWeight == 0))
                 message = "나무에 남은 생산물이 없어요.";
-            else if (worker.Energy < cost)
-                message = "스태미나가 부족해요.";
             if (message != null)
                 return TimberResult.Rejected;
 
             if (!Succeeds(worker, fell ? site.FellChance : site.StrikeChance))
-                return Finish(worker, cost, false, 0, fell ? "나무를 베지 못했어요." : "이번에는 아무것도 떨어지지 않았어요.", out message);
+                return Finish(worker, false, 0, fell ? "나무를 베지 못했어요." : "이번에는 아무것도 떨어지지 않았어요.", out message);
 
             var products = new List<TimberYield>();
             float yaw = site.Point.HeadingFrom(at, facing);
@@ -322,14 +319,14 @@ namespace Workerborn
             }
             trees[site.Id] = tree;
             Changed();
-            return Finish(worker, cost, true, 0, fell ? "나무를 베었어요." : "나무에서 생산물이 떨어졌어요.", out message);
+            return Finish(worker, true, 0, fell ? "나무를 베었어요." : "나무에서 생산물이 떨어졌어요.", out message);
         }
 
         private TimberResult SplitPart(TimberPart part, VillageState worker, TimberSite site, TimberTreeSave tree,
             TimberPoint at, Func<TimberPoint, bool> occupied, Func<List<TimberYield>, bool> deliver, out string message)
         {
             TimberPoint point = site.PartPoint(part, tree.fallYaw);
-            if (!CanSplit(worker, site.Tool, at, point, out int cost, out message))
+            if (!CanSplit(worker, site.Tool, at, point, out message))
                 return TimberResult.Rejected;
             if (part == TimberPart.Stump && occupied(point))
             {
@@ -353,7 +350,7 @@ namespace Workerborn
                     logs.Add(id, new TimberLogSave { id = id, point = landing, yaw = yaw });
                 }
             Changed();
-            return Finish(worker, cost, success, 0, success ? $"통나무 {count}개를 얻었어요." : "못 쓰게 된 목재 10개가 남았어요.", out message);
+            return Finish(worker, success, 0, success ? $"통나무 {count}개를 얻었어요." : "못 쓰게 된 목재 10개가 남았어요.", out message);
         }
 
         private TimberResult WorkLog(TimberOrder order, VillageState worker, string workerId, TimberPoint at,
@@ -366,19 +363,19 @@ namespace Workerborn
             if (order.action == TimberAction.Lift)
             {
                 int liftCost = Math.Max(1, 4 - worker.LiftStaminaSaving);
-                if (carried >= worker.LiftCapacity || worker.Energy < liftCost)
+                if (carried >= worker.LiftCapacity || worker.Stamina < liftCost)
                 {
                     message = carried >= worker.LiftCapacity ? "지금은 통나무를 더 들 수 없어요." : "스태미나가 부족해요.";
                     return TimberResult.Rejected;
                 }
-                worker.SpendTimberEnergy(liftCost);
+                worker.SpendWorkStamina(liftCost);
                 log.carrier = workerId;
                 log.thrown = false;
                 Changed();
                 message = "통나무를 들어 올렸어요.";
                 return TimberResult.Succeeded;
             }
-            if (carried > 0 || !CanSplit(worker, ItemIds.Axe, at, log.point, out int cost, out message))
+            if (carried > 0 || !CanSplit(worker, ItemIds.Axe, at, log.point, out message))
                 return TimberResult.Rejected;
 
             bool success = Succeeds(worker, .85f);
@@ -387,7 +384,7 @@ namespace Workerborn
                 return NoSpace(out message);
             logs.Remove(log.id);
             Changed();
-            return Finish(worker, cost, success, success ? quantity : 0,
+            return Finish(worker, success, success ? quantity : 0,
                 success ? $"목재 {quantity}개를 얻었어요." : "못 쓰게 된 목재 5개가 남았어요.", out message);
         }
 
@@ -401,9 +398,9 @@ namespace Workerborn
             if (count == 0)
                 return TimberResult.Rejected;
             if (throwing && (worker.ThrowRange <= 0f || !order.destination.IsFinite ||
-                at.DistanceSquared(order.destination) > Square(worker.ThrowRange + .04f) || worker.Energy < cost))
+                at.DistanceSquared(order.destination) > Square(worker.ThrowRange + .04f) || worker.Stamina < cost))
             {
-                message = worker.Energy < cost ? "스태미나가 부족해요." : "던질 수 있는 범위를 벗어났어요.";
+                message = worker.Stamina < cost ? "스태미나가 부족해요." : "던질 수 있는 범위를 벗어났어요.";
                 return TimberResult.Rejected;
             }
             var point = throwing ? order.destination : at.Offset(facing, 1.25f);
@@ -418,8 +415,7 @@ namespace Workerborn
             }
             float yaw = throwing ? point.HeadingFrom(at, facing) : facing;
             Release(workerId, point, at, yaw, throwing, canPlace);
-            if (cost > 0)
-                worker.SpendTimberEnergy(cost);
+            worker.SpendWorkStamina(cost);
             message = throwing ? "통나무를 던졌어요." : "통나무를 내려놓았어요.";
             return TimberResult.Succeeded;
         }
@@ -460,11 +456,9 @@ namespace Workerborn
                 Changed();
         }
 
-        private static bool CanSplit(VillageState worker, string tool, TimberPoint at, TimberPoint point, out int cost, out string message)
+        private static bool CanSplit(VillageState worker, string tool, TimberPoint at, TimberPoint point, out string message)
         {
-            cost = worker.WorkEnergyCost(SkillId.Woodcutting, ItemIds.Timber, 3);
-            message = worker.HasTool(tool) ? worker.Energy < cost ? "스태미나가 부족해요." : null
-                : "도끼를 주무기에 장착해 주세요.";
+            message = worker.HasTool(tool) ? null : "도끼를 주무기에 장착해 주세요.";
             if (message == null && at.DistanceSquared(point) > Square(PieceReach + .2f))
                 message = "나무에 조금 더 가까이 가야 해요.";
             return message == null;
@@ -486,9 +480,10 @@ namespace Workerborn
         private bool Succeeds(VillageState worker, float chance) => worker.TreeWorkSucceeds(chance, roll());
         private static float Square(float value) => value * value;
 
-        private static TimberResult Finish(VillageState worker, int cost, bool success, int timber, string text, out string message)
+        private static TimberResult Finish(VillageState worker, bool success, int timber, string text, out string message)
         {
-            worker.FinishTimberWork(cost, success, timber);
+            if (success)
+                worker.RecordTimberWork(timber);
             message = text;
             return success ? TimberResult.Succeeded : TimberResult.Failed;
         }

@@ -9,6 +9,7 @@ namespace Workerborn
         private CropDefinition definition;
         private HarvestCycle cycle;
         private HarvestWorker owner;
+        private int workStaminaCost;
         private Func<bool> gatherAttempt;
         [SerializeField]
         private Transform visual;
@@ -65,12 +66,31 @@ namespace Workerborn
             if (!isActiveAndEnabled || worker == null || owner != null || cycle == null || !cycle.TryBegin(progress))
                 return false;
             owner = worker;
+            if (worker.CharacterState is { } state)
+            {
+                int baseCost = definition.StaminaCost > 0 ? definition.StaminaCost : state.Rules.HarvestEnergy;
+                workStaminaCost = state.WorkEnergyCost(definition.Skill, definition.ItemId, baseCost);
+            }
             return true;
         }
 
         public bool Advance(HarvestWorker worker, float seconds)
         {
-            if (owner != worker || owner == null || !cycle.Advance(seconds, gatherAttempt ??= TryGather, out bool gathered))
+            if (owner != worker || owner == null || !cycle.IsWorking)
+                return false;
+            if (worker.CharacterState is { } state && seconds > 0f && float.IsFinite(seconds))
+            {
+                double before = (double)cycle.Elapsed / cycle.Duration;
+                double after = (double)Mathf.Min(cycle.Duration, cycle.Elapsed + seconds) / cycle.Duration;
+                if (!state.SpendWorkProgress(workStaminaCost, before, after))
+                {
+                    Cancel(worker);
+                    worker.ReportWorkExhaustion();
+                    NotifyInteractionCompleted();
+                    return true;
+                }
+            }
+            if (!cycle.Advance(seconds, gatherAttempt ??= TryGather, out bool gathered))
                 return false;
             owner = null;
             if (gathered)

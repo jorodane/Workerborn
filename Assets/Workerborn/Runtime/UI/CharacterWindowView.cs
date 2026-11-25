@@ -36,15 +36,26 @@ namespace Workerborn
             string experience = atLimit ? $"경험치 {s.Experience:N0}" : $"{s.Experience:N0}/{s.NextLevelExperience:N0}";
             level.text = $"레벨 {s.Level}   {experience}   ·   누적 {s.TotalLevel:N0}";
             health.text = $"생명력  {s.Health}/{s.HealthLimit}";
-            stamina.text = $"스태미나  {s.Energy}/{s.StaminaLimit}";
+            RefreshStamina(s);
             ap.text = $"어빌리티 포인트  {s.AP}";
-            staminaBar.fillAmount = (float)s.Energy / s.StaminaLimit;
             healthBar.SetValue(s.Health, s.HealthLimit);
             experienceBar.fillAmount = atLimit ? 1f : (float)s.Experience / s.NextLevelExperience;
             attributes.text = $"배분 가능 {s.AttributePoints}   ·   힘 {s.Strength}   솜씨 {s.Dexterity}   지식 {s.Knowledge}";
             strength.interactable = dexterity.interactable = knowledge.interactable = s.AttributePoints > 0;
             string farm = s.FarmAvailable ? $"{s.FarmLevel}단계" : "건설 예정";
             statistics.text = $"채집 경력   {s.LifetimeHarvests:N0}회     아르바이트   {s.Career:N0}회\n소지금   {s.Gold:N0} Gold     마을 농장   {farm}";
+        }
+
+        private void LateUpdate()
+        {
+            if (IsOpen && Game != null && Game.State is { } state)
+                RefreshStamina(state);
+        }
+
+        private void RefreshStamina(VillageState state)
+        {
+            stamina.SetText("스태미나  {0}/{1}", state.Energy, state.StaminaLimit);
+            staminaBar.fillAmount = state.StaminaFill;
         }
 
         private void OnDisable() => healthBar.ClearValue();

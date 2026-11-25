@@ -115,6 +115,8 @@ namespace Workerborn
         public WoodcuttingLegend legend;
         public float minute = 480f;
         public int energy = 100;
+        public double staminaFraction;
+        public double staminaRecoveryDelay;
         public int gold;
         public int level = 1;
         public long experience;
@@ -216,7 +218,6 @@ namespace Workerborn
         public int LifeDay { get; private set; } = 1;
         public int Life { get; private set; } = 1;
         public float Minute { get; private set; } = 480f;
-        public int Energy { get; private set; } = MaxEnergy;
         public int Gold => Inventory.Count(ItemIds.Gold);
         public int Level { get; private set; } = 1;
         public long Experience { get; private set; }
@@ -282,7 +283,7 @@ namespace Workerborn
         {
             Rules = rules ?? new VillageRules();
             RefreshSkillStats();
-            Energy = StaminaLimit;
+            RestoreStamina(StaminaLimit);
             Health = HealthLimit;
             Minute = Rules.JobStart;
             lifeStartedAt = WorldMinute;
@@ -472,18 +473,25 @@ namespace Workerborn
             TryGather(skill, itemId, baseYield, baseEnergy, outcome, null, out drops, out _);
 
         internal bool TryGather(SkillId skill, string itemId, int baseYield, int baseEnergy, WorkOutcome outcome,
+            Func<int, bool> receive, out int drops, out int experience) =>
+            ResolveGather(skill, itemId, baseYield, WorkEnergyCost(skill, itemId, baseEnergy), outcome, receive, out drops, out experience);
+
+        internal bool CompleteGather(SkillId skill, string itemId, int baseYield, WorkOutcome outcome,
+            Func<int, bool> receive, out int experience) =>
+            ResolveGather(skill, itemId, baseYield, 0, outcome, receive, out _, out experience);
+
+        private bool ResolveGather(SkillId skill, string itemId, int baseYield, int cost, WorkOutcome outcome,
             Func<int, bool> receive, out int drops, out int experience)
         {
             drops = 0;
             experience = 0;
             if (baseYield < 1 || baseYield > 100 || !ItemCatalog.Contains(itemId) || !SkillProgression.IsDefined(skill))
                 return Result(false, "채집 결과 설정을 확인해 주세요.");
-            int cost = WorkEnergyCost(skill, itemId, baseEnergy);
-            if (Energy < cost)
-                return Result(false, "스태미나가 부족해요. 빵을 먹거나 숙소에서 쉬어 주세요.");
+            if (Stamina < cost)
+                return Result(false, "스태미나가 부족해요.");
             if (outcome == WorkOutcome.Failure)
             {
-                Energy -= cost;
+                SpendWorkStamina(cost);
                 return Result(false, "채집에 실패했어요.");
             }
             if ((outcome == WorkOutcome.Lucky && LuckyChancePercent == 0) ||
@@ -494,7 +502,7 @@ namespace Workerborn
             if (receive != null && !receive(quantity))
                 return false;
             drops = quantity;
-            Energy -= cost;
+            SpendWorkStamina(cost);
             LifetimeHarvests++;
             if (itemId == ItemIds.Timber)
                 LifetimeTimber = (int)Math.Min(int.MaxValue, (long)LifetimeTimber + drops);
@@ -524,7 +532,7 @@ namespace Workerborn
             if (previousLevel != Level)
             {
                 RefreshSkillStats();
-                Energy = Math.Min(StaminaLimit, Energy + StaminaLimit - previousStamina);
+                SetStamina(Stamina + StaminaLimit - previousStamina);
                 Health = Math.Min(HealthLimit, Health + HealthLimit - previousHealth);
             }
             return earned;
@@ -682,11 +690,11 @@ namespace Workerborn
 
         public bool TryEatBread()
         {
-            if (Energy >= StaminaLimit)
+            if (Stamina >= StaminaLimit)
                 return Result(false, "에너지가 이미 가득해요.");
             if (!Inventory.TryRemove(ItemIds.Bread, 1))
                 return Result(false, "가방에 빵이 없어요.");
-            Energy = Math.Min(StaminaLimit, Energy + 25);
+            SetStamina(Stamina + 25);
             return Result(true, "빵을 먹고 에너지를 25 회복했어요.");
         }
 
@@ -819,7 +827,7 @@ namespace Workerborn
             int restoredEnergy = paidRoom ? StaminaLimit : Rules.FreeRestEnergy;
             if (sharedClock)
             {
-                Energy = Math.Min(StaminaLimit, restoredEnergy);
+                RestoreStamina(restoredEnergy);
                 Health = HealthLimit;
                 return Result(true, $"숙소에서 쉬었습니다. 에너지 {Energy} 회복.");
             }
@@ -832,7 +840,7 @@ namespace Workerborn
             Day++;
             LifeDay++;
             Minute = Rules.WakeMinute;
-            Energy = Math.Min(energy, StaminaLimit);
+            RestoreStamina(energy);
             Health = HealthLimit;
             if (Job == JobStatus.Active)
                 ExpireJob();
@@ -878,7 +886,9 @@ namespace Workerborn
                 lifetimeTimber = LifetimeTimber,
                 legend = Legend,
                 minute = Minute,
-                energy = Energy,
+                energy = (int)Math.Floor(Stamina),
+                staminaFraction = Stamina - Math.Floor(Stamina),
+                staminaRecoveryDelay = staminaRecoveryDelay,
                 gold = 0,
                 level = Level,
                 experience = Experience,
@@ -928,6 +938,9 @@ namespace Workerborn
                 save.day < 1 || save.lifeDay < 1 || save.life < 1 || save.day > 1000000 || save.life > 1000000 || save.lifeDay > save.day ||
                 float.IsNaN(save.minute) || float.IsInfinity(save.minute) || save.minute < 0 || save.minute >= 1440 ||
                 save.energy < 0 || save.energy > (save.schema < 5 ? MaxEnergy : 1000000) || save.gold < 0 || save.gold > 100000000 ||
+                save.schema >= StaminaSaveSchema &&
+                (!double.IsFinite(save.staminaFraction) || save.staminaFraction < 0d || save.staminaFraction >= 1d ||
+                    !double.IsFinite(save.staminaRecoveryDelay) || save.staminaRecoveryDelay < 0d || save.staminaRecoveryDelay > RecoveryDelaySeconds) ||
                 save.level < 1 || save.level > LevelLimit || save.experience < 0 ||
                 (save.schema < 6 || save.level < LevelLimit) && save.experience >= 20 + save.level * 10 ||
                 save.totalLevel < save.level || save.ap < 0 ||
@@ -991,7 +1004,8 @@ namespace Workerborn
                 CharacterLimit = save.characterLimit,
                 RequirementCharacters = Math.Max(1, save.requirementCharacters),
                 Minute = save.minute,
-                Energy = save.energy,
+                Stamina = save.energy + (save.schema >= StaminaSaveSchema ? save.staminaFraction : 0d),
+                staminaRecoveryDelay = save.schema >= StaminaSaveSchema ? save.staminaRecoveryDelay : 0d,
                 Level = save.level,
                 Experience = save.experience,
                 TotalLevel = save.totalLevel,
@@ -1030,7 +1044,7 @@ namespace Workerborn
                 }
             state.RefreshSkillStats();
             state.Health = save.schema >= 6 ? Math.Min(save.health, state.HealthLimit) : state.HealthLimit;
-            state.Energy = Math.Min(state.Energy, state.StaminaLimit);
+            state.Stamina = Math.Min(state.Stamina, state.StaminaLimit);
             if (save.schema >= 2 && save.equipment != null)
                 foreach (var entry in save.equipment)
                 {

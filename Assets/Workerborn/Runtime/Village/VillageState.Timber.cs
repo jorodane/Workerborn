@@ -24,20 +24,12 @@ namespace Workerborn
             return scaled / 100 + (roll < (scaled % 100) / 100f ? 1 : 0);
         }
 
-        internal void SpendTimberEnergy(int cost)
+        internal void RecordTimberWork(int timber)
         {
-            Energy -= Math.Min(Energy, Math.Max(0, cost));
-            Version++;
-        }
-
-        internal void FinishTimberWork(int cost, bool succeeded, int timber)
-        {
-            SpendTimberEnergy(cost);
-            if (!succeeded)
-                return;
             LifetimeHarvests++;
             LifetimeTimber = (int)Math.Min(int.MaxValue, (long)LifetimeTimber + timber);
             AddExperience(Rules.HarvestExperience);
+            Version++;
         }
     }
 }

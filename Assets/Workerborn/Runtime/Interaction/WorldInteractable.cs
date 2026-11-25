@@ -65,6 +65,8 @@ namespace Workerborn
         internal virtual bool CanReceiveStrike => false;
         internal virtual AnimationClip StrikeClip(HarvestWorker worker) => null;
         internal virtual float StrikeImpact => .36f;
+        internal virtual int StrikeStaminaCost(VillageState state, int baseCost) =>
+            state.WorkEnergyCost(SkillId.UnarmedCombat, null, baseCost);
         internal virtual void ReceiveStrike(HarvestWorker worker, int damage)
         {
         }

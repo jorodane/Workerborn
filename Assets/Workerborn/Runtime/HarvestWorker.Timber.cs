@@ -6,7 +6,6 @@ namespace Workerborn
     {
         private bool choosingLog, aimingThrow;
         private Vector3 lastCarryPosition;
-        private float carriedMeters;
         private bool trackingCarry;
         internal int CarriedLogs => village?.CarriedLogCount(CharacterId) ?? 0;
         internal bool CanSelectLog => choosingLog && !aimingThrow && CarriedLogs < CharacterState.LiftCapacity;
@@ -139,27 +138,27 @@ namespace Workerborn
                 agent.speed = (IsWalking ? walkSpeed : runSpeed) * CarrySpeed;
         }
 
-        private void UpdateTimberCarry()
+        private bool UpdateTimberCarry()
         {
             if (CarriedLogs == 0 || village?.IsWorldTransitioning == true)
             {
                 trackingCarry = false;
-                carriedMeters = 0f;
-                return;
+                return false;
             }
             Vector3 position = StandingPosition;
             float distance = trackingCarry ? Vector3.Distance(position, lastCarryPosition) : 0f;
             lastCarryPosition = position;
             trackingCarry = true;
-            if (Action != WorkerAction.Moving || village.AwaitingWorldCommand || distance > 1.5f)
-                return;
-            carriedMeters += distance;
+            if (Action != WorkerAction.Moving || village.AwaitingWorldCommand || distance <= .0001f || distance > 1.5f)
+                return false;
+
             float step = 1.5f + CharacterState.LiftStaminaSaving * .35f;
-            if (carriedMeters < step)
-                return;
-            int cost = Mathf.FloorToInt(carriedMeters / step);
-            carriedMeters -= cost * step;
-            CharacterState.SpendTimberEnergy(cost);
+            if (!CharacterState.SpendWorkStamina((double)distance / step) || CharacterState.Stamina <= 0d)
+            {
+                TryCancelTimberSkill();
+                ReportWorkExhaustion("스태미나가 바닥나 통나무를 내려놓았어요.");
+            }
+            return true;
         }
 
         private void FinishTimberTravel()

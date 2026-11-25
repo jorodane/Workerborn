@@ -32,6 +32,7 @@ namespace Workerborn
         [SerializeField] private AnimationClip attackClip;
         [SerializeField, Min(1)] private int attackDamage = 10;
         [SerializeField, Min(.2f)] private float attackDelay = .85f;
+        [SerializeField, Min(1)] private int attackStaminaCost = 3;
         [Header("Fishing")]
         [SerializeField] private FishingBobber fishingBobberPrefab;
         private readonly Dictionary<CropDefinition, int> inventory = new Dictionary<CropDefinition, int>();
@@ -47,6 +48,8 @@ namespace Workerborn
         private WorldInteractable interactionTarget;
         private WorldInteractable strikeTarget;
         private float strikeStartedAt, nextStrikeAt;
+        private int strikeStaminaCost;
+        private double strikePaidProgress;
         private bool struck;
         private System.Action onInteractionArrival;
         private InventoryEntry pendingDrop;
@@ -171,6 +174,8 @@ namespace Workerborn
                 Quaternion.Angle(occupiedSeatFacing, transform.rotation) > .5f))
                 Cancel();
             UpdateVisualJump();
+            bool working = Action is WorkerAction.Harvesting or WorkerAction.Attacking;
+            bool carried = UpdateTimberCarry();
             bool awaitingAutomaticHarvest = IsLocallyControlled && village?.AwaitingAutomaticHarvest == true;
             if (!manualMoving && Action == WorkerAction.Moving)
                 UpdateMovement();
@@ -178,7 +183,8 @@ namespace Workerborn
                 UpdateHarvest();
             else if (Action == WorkerAction.Attacking && !awaitingAutomaticHarvest)
                 UpdateAttack();
-            UpdateTimberCarry();
+            if (!working && !carried)
+                characterState?.RecoverStamina(Time.deltaTime, Action == WorkerAction.Sitting);
             var motion = Action switch
             {
                 WorkerAction.Moving => IsWalking ? WorkerMotion.Walk : WorkerMotion.Run,
@@ -538,7 +544,7 @@ namespace Workerborn
         public void CommandAttack(WorldInteractable target)
         {
             if (village == null || CarriedLogs > 0 || !AcceptsInteractionCommands || target == null || !target.CanReceiveStrike ||
-                (CharacterState.Energy <= 0 || CharacterState.Health <= 0) || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
+                CharacterState.Health <= 0 || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
                 return;
             if (InReach(target.transform.position, target.InteractionDistance))
                 StartAttack(target);
@@ -548,10 +554,15 @@ namespace Workerborn
 
         private void StartAttack(WorldInteractable target)
         {
-            if (target == null || !target.CanReceiveStrike || CarriedLogs > 0 || CharacterState.Energy <= 0 || CharacterState.Health <= 0 ||
+            if (target == null || !target.CanReceiveStrike || CarriedLogs > 0 || CharacterState.Health <= 0 ||
                 !AcceptsInteractionCommands || !SharesMap(target.transform.position) ||
                 !InReach(target.transform.position, target.InteractionDistance))
                 return;
+            if (CharacterState.Stamina <= 0d)
+            {
+                Message?.Invoke("스태미나가 부족해요.");
+                return;
+            }
             Cancel();
             FinishVisualJump();
             Face(target.transform.position);
@@ -559,6 +570,8 @@ namespace Workerborn
             Action = WorkerAction.Attacking;
             strikeStartedAt = Time.time;
             nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, attackDelay);
+            strikeStaminaCost = target.StrikeStaminaCost(CharacterState, attackStaminaCost);
+            strikePaidProgress = 0d;
             struck = false;
             animationDriver?.BeginStrike(target.StrikeClip(this) ?? attackClip);
         }
@@ -574,14 +587,25 @@ namespace Workerborn
             float progress = Mathf.InverseLerp(strikeStartedAt, nextStrikeAt, Time.time);
             animationDriver?.SampleStrike(progress);
             if (!struck)
-                Face(strikeTarget.transform.position);
-            if (!struck && progress >= strikeTarget.StrikeImpact)
             {
-                struck = true;
-                if (strikeTarget.CanReceiveStrike)
+                Face(strikeTarget.transform.position);
+                float impact = strikeTarget.StrikeImpact;
+                double effort = Mathf.Min(1f, progress / impact);
+                if (!CharacterState.SpendWorkProgress(strikeStaminaCost, strikePaidProgress, effort))
                 {
-                    int bonus = CharacterState.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : CharacterState.UnarmedDamageBonus;
-                    strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus + CharacterState.Strength));
+                    Cancel();
+                    ReportWorkExhaustion();
+                    return;
+                }
+                strikePaidProgress = effort;
+                if (progress >= impact)
+                {
+                    struck = true;
+                    if (strikeTarget.CanReceiveStrike)
+                    {
+                        int bonus = CharacterState.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : CharacterState.UnarmedDamageBonus;
+                        strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus + CharacterState.Strength));
+                    }
                 }
             }
             if (progress >= 1f)
@@ -830,7 +854,7 @@ namespace Workerborn
                 Message?.Invoke("동물이 너무 멀리 움직여서 채집에 실패했어요.");
                 return;
             }
-            if (village != null && !village.CanHarvest(this, cropTarget))
+            if (village != null && !village.CanHarvest(this, cropTarget, requireStamina: false))
             {
                 Cancel();
                 return;
@@ -856,6 +880,12 @@ namespace Workerborn
 
         internal void ShowGatherResult(bool success) =>
             animationDriver?.SetGesture(success ? WorkerGesture.GatherSuccess : WorkerGesture.GatherFailure);
+
+        internal void ReportWorkExhaustion(string message = "스태미나가 바닥나 작업에 실패했어요.")
+        {
+            ShowGatherResult(false);
+            Message?.Invoke(message);
+        }
 
         internal bool InReach(Vector3 position, float range)
         {
