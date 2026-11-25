@@ -126,7 +126,7 @@ namespace Workerborn
         {
             if (normalHud != null)
                 normalHud.SetActive(!active);
-            UpdateItemShortcutPresentation(active);
+            UpdateItemShortcutPresentation();
             chat?.SetDialogueMode(active);
             if (dialogueBackdrop == null)
                 return;

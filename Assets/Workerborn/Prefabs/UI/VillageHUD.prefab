@@ -131,6 +131,7 @@ MonoBehaviour:
   normalHud: {fileID: 801000001}
   itemShortcuts: {fileID: 813226565}
   chatLayer: {fileID: 796000002}
+  characterStatus: {fileID: 100600}
   clock: {fileID: 801040005}
   minimap: {fileID: 832576591}
   mapSchedule: {fileID: 801040020}
@@ -3699,11 +3700,11 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 100591}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 0, y: 84}
-  m_SizeDelta: {x: 620, y: 132}
-  m_Pivot: {x: 0.5, y: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 8, y: 32}
+  m_SizeDelta: {x: 474, y: 132}
+  m_Pivot: {x: 0, y: 0}
 --- !u!1 &796000003
 GameObject:
   m_ObjectHideFlags: 0

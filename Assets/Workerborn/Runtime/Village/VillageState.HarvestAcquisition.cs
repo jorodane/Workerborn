@@ -9,6 +9,8 @@ namespace Workerborn
         public string itemId;
         public int quantity;
         public long readyAtUtc;
+        public bool hasSource;
+        public float sourceX, sourceY, sourceZ;
     }
 
     public sealed partial class VillageState
@@ -22,7 +24,7 @@ namespace Workerborn
             ? 0
             : Math.Max(1, SkillBonus(SkillId.HarvestAcquisition, SkillEffect.HarvestAcquisitionDelayMilliseconds));
 
-        internal bool TryAcquireHarvest(string itemId, int quantity, long now)
+        internal bool TryAcquireHarvest(string itemId, int quantity, long now, (float X, float Y, float Z)? source = null)
         {
             if (AwaitingIncarnation || !IsSkillLearned(SkillId.HarvestAcquisition))
                 return false;
@@ -37,11 +39,15 @@ namespace Workerborn
                     return false;
             if (!preview.CanAdd(itemId, quantity))
                 return false;
-            QueueHarvestAcquisition(new HarvestAcquisitionSave { itemId = itemId, quantity = quantity, readyAtUtc = now + delay });
+            QueueHarvestAcquisition(new HarvestAcquisitionSave
+            {
+                itemId = itemId, quantity = quantity, readyAtUtc = now + delay,
+                hasSource = source.HasValue, sourceX = source?.X ?? 0f, sourceY = source?.Y ?? 0f, sourceZ = source?.Z ?? 0f
+            });
             return true;
         }
 
-        internal void CollectReadyHarvests(long now, Action<string, int> onCollect = null)
+        internal void CollectReadyHarvests(long now, Action<HarvestAcquisitionSave> onCollect = null)
         {
             if (pendingHarvests.Count == 0 || now < nextHarvestReadyAt && Inventory.Version == lastAcquisitionInventoryVersion)
                 return;
@@ -57,7 +63,7 @@ namespace Workerborn
                 if (!Inventory.TryAdd(pending.itemId, pending.quantity))
                     continue;
                 pendingHarvests.RemoveAt(i--);
-                onCollect?.Invoke(pending.itemId, pending.quantity);
+                onCollect?.Invoke(pending);
             }
             // An expired harvest that did not fit is retried whenever bag contents change.
             lastAcquisitionInventoryVersion = Inventory.Version;

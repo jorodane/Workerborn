@@ -16,6 +16,7 @@ namespace Workerborn
         private Action<Vector3> onArrival;
         private Vector3 start;
         private float age;
+        private float startDelay;
         private float fadeRemaining;
         private bool fading;
         private PurchaseArc? purchaseArc;
@@ -33,12 +34,19 @@ namespace Workerborn
             trail.emitting = true;
         }
 
-        public void FlyTo(Transform target, Action<Vector3> arrived)
+        public void FlyTo(Transform target, Action<Vector3> arrived, float delay = 0f)
         {
             ResetTrail();
             start = transform.position;
             receiver = target;
             onArrival = arrived;
+            startDelay = delay;
+            if (startDelay <= 0f)
+                BeginFlight();
+        }
+
+        private void BeginFlight()
+        {
             if (glow != null)
                 glow.SetActive(true);
             trail.emitting = true;
@@ -65,6 +73,15 @@ namespace Workerborn
             }
             if (receiver != null)
             {
+                if (startDelay > 0f)
+                {
+                    startDelay -= deltaTime;
+                    if (startDelay > 0f)
+                        return false;
+                    deltaTime = -startDelay;
+                    startDelay = 0f;
+                    BeginFlight();
+                }
                 age += deltaTime;
                 float t = Mathf.Clamp01(age / (purchaseArc.HasValue ? PurchaseSeconds : collectionSeconds));
                 Vector3 end = receiver.position + Vector3.up * ReceiverHeight;
@@ -95,6 +112,7 @@ namespace Workerborn
             onArrival = null;
             purchaseArc = null;
             age = 0;
+            startDelay = 0f;
             fadeRemaining = 0;
             fading = false;
             trail.emitting = false;

@@ -215,9 +215,9 @@ namespace Workerborn
             CloseItemContext();
             if (item == null || item.Quantity < 2)
                 return;
-            if (game.State.Inventory.MaximumSplitQuantity(item.Id) == 0)
+            if (game.State.MaximumCursorSplitQuantity(item.Id) == 0)
             {
-                ShowToast("나눌 공간이 부족합니다.");
+                ShowToast("손에 든 아이템을 먼저 놓아 주세요.");
                 return;
             }
             OpenQuantity(item.ItemId, QuantityAction.Split, item.Id);
@@ -227,7 +227,7 @@ namespace Workerborn
         {
             if (TradeQuantityOpen)
                 return;
-            if (game.State.PendingPurchase != null)
+            if (game.State.CursorItem != null)
                 return;
             CancelItemDrag();
             var item = game.State.Inventory.Find(id);
@@ -274,7 +274,7 @@ namespace Workerborn
                 var entry = game.State.CarriedItem(draggedEntry);
                 var inventory = game.State.Inventory;
                 if (entry != null && TryInventoryCell(screen, view, out var cell) &&
-                    (draggedEntry == 0 ? inventory.CanPlacePurchase(entry, cell.x, cell.y) : inventory.CanPlaceHeld(draggedEntry, cell.x, cell.y)))
+                    (draggedEntry == 0 ? inventory.CanPlaceCursorItem(entry, cell.x, cell.y) : inventory.CanPlaceHeld(draggedEntry, cell.x, cell.y)))
                     view.ShowPlacement(cell.x, cell.y, entry.Spec.Width, entry.Spec.Height);
                 else
                     view.ShowPlacement(0, 0, 0, 0);
@@ -287,7 +287,7 @@ namespace Workerborn
                 || !TryInventoryCell(screen, view, out var cell))
                 return;
             int next = 0;
-            bool success = draggedEntry == 0 ? game.State.TryPlacePurchase(cell.x, cell.y) :
+            bool success = draggedEntry == 0 ? game.State.TryPlaceCursorItem(cell.x, cell.y) :
                 game.State.Inventory.TryPlaceHeld(draggedEntry, cell.x, cell.y, out next);
             if (!success)
                 return;
@@ -326,7 +326,7 @@ namespace Workerborn
                 ShowToast("아이템을 놓을 바닥을 선택해 주세요.");
                 return;
             }
-            if (game.Worker.CommandDrop(draggedEntry, ground) && (draggedEntry != 0 || game.State.PendingPurchase == null))
+            if (game.Worker.CommandDrop(draggedEntry, ground) && (draggedEntry != 0 || game.State.CursorItem == null))
                 CancelItemDrag();
         }
 
@@ -353,9 +353,9 @@ namespace Workerborn
         public void CancelItemDrag()
         {
             bool wasHolding = IsHoldingItem;
-            if (game?.State.PendingPurchase != null)
+            if (game?.State.CursorItem != null)
             {
-                if (game.AwaitingWorldCommand || !game.State.TryStowPurchase())
+                if (game.AwaitingWorldCommand || !game.State.TryStowCursorItem())
                 {
                     ShowToast("들고 있는 물건을 넣을 공간이 부족합니다.");
                     return;

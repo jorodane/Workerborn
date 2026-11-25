@@ -87,6 +87,25 @@ namespace Workerborn
                 PlayPickup(worker.position);
         }
 
+        internal void PlayHarvestTrails(Vector3 position, Transform worker, int quantity)
+        {
+            if (!isActiveAndEnabled || worker == null || quantity < 1)
+                return;
+            if (!trails.TryGetValue(VillageEffectKind.PickupTrail, out var pool))
+            {
+                PlayPickup(worker.position);
+                return;
+            }
+
+            int count = Mathf.Clamp(1 + Mathf.FloorToInt(Mathf.Log(quantity, 2f)), 1, 6);
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 offset = i == 0 ? Vector2.zero : UnityEngine.Random.insideUnitCircle * .28f;
+                Vector3 start = position + new Vector3(offset.x, 0f, offset.y);
+                StartTrail(pool, start).FlyTo(worker, i == count - 1 ? playPickup : null, delay: i * .045f);
+            }
+        }
+
         internal void PlayPurchaseTrail(Transform seller, Transform buyer)
         {
             if (!isActiveAndEnabled || seller == null || buyer == null)

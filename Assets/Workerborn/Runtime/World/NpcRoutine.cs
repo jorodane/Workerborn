@@ -6,6 +6,8 @@ namespace Workerborn
     internal sealed class NpcRoutine : MonoBehaviour
     {
         private const float RetryDelay = .8f;
+        internal const float MinimumHarvestPause = 2.5f;
+        private const float MaximumHarvestPause = 4.5f;
         private VillagePrototype game;
         private VillageInteractable npc;
         private HarvestWorker character;
@@ -13,6 +15,7 @@ namespace Workerborn
         private FacilityTarget goal;
         private Vector3 goalPosition;
         private float retryAt;
+        private float harvestResumeAt;
         private bool planned;
         private bool paused;
         private NpcActivity waitingActivity;
@@ -31,6 +34,7 @@ namespace Workerborn
             game = owner;
             npc = subject;
             character = worker;
+            character.HarvestAttemptFinished += PauseAfterHarvest;
         }
 
         internal bool ReservesSeat(Vector3 position) => goal.Seat != null &&
@@ -68,6 +72,8 @@ namespace Workerborn
             if (planned && !GoalStillAvailable())
                 ClearGoal();
             if (scheduled?.Facility == null || Time.time < retryAt)
+                return;
+            if (scheduled.Activity == NpcActivity.Harvesting && Time.time < harvestResumeAt)
                 return;
 
             if (character.Action == WorkerAction.Sitting)
@@ -201,10 +207,25 @@ namespace Workerborn
             goal = default;
         }
 
+        private void PauseAfterHarvest()
+        {
+            if (!isActiveAndEnabled || character.IsLocallyControlled)
+                return;
+            ClearGoal();
+            waitingActivity = NpcActivity.Working;
+            harvestResumeAt = Time.time + Random.Range(MinimumHarvestPause, MaximumHarvestPause);
+        }
+
         private void OnDisable()
         {
             if (character != null && !character.IsLocallyControlled)
                 ClearGoal();
+        }
+
+        private void OnDestroy()
+        {
+            if (character != null)
+                character.HarvestAttemptFinished -= PauseAfterHarvest;
         }
 
         private readonly struct FacilityTarget

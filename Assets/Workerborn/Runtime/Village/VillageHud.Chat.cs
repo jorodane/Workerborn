@@ -13,10 +13,21 @@ namespace Workerborn
 
         private void InitializeChat()
         {
-            chatAtStatus = chatLayer.anchoredPosition;
+            LayoutChat();
             chat = Instantiate(library.Chat, chatLayer);
             chat.Bind(game.TrySendChat, chatLayer);
             localOverhead = CreatePlayerOverhead(game.LegendPlayerName);
+        }
+
+        private void LayoutChat()
+        {
+            if (characterStatus == null || chatLayer == null)
+                return;
+            const float gap = 8f;
+            Rect canvas = CanvasRect.rect;
+            Vector3 statusCorner = CanvasRect.InverseTransformPoint(characterStatus.TransformPoint(characterStatus.rect.min));
+            chatLayer.anchoredPosition = new Vector2(gap, statusCorner.y - canvas.yMin);
+            chatLayer.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(0f, statusCorner.x - canvas.xMin - 2f * gap));
         }
 
         internal PlayerOverheadView CreatePlayerOverhead(string playerName)

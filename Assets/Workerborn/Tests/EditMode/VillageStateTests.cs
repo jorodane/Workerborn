@@ -394,11 +394,18 @@ namespace Workerborn.Tests
             Assert.That(state.TryReadSkillBook(state.Inventory.Entries.Single().Id), Is.True);
             Assert.That(state.HarvestAcquisitionDelayMilliseconds, Is.EqualTo(3_000));
 
-            Assert.That(state.TryAcquireHarvest(ItemIds.Potato, 2, now), Is.True);
+            Assert.That(state.TryAcquireHarvest(ItemIds.Potato, 2, now, (3f, .5f, -2f)), Is.True);
             state = VillageState.Restore(state.Export());
             state.CollectReadyHarvests(now + 2_999);
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.Zero);
-            state.CollectReadyHarvests(now + 3_000);
+            int delivered = 0;
+            state.CollectReadyHarvests(now + 3_000, harvest =>
+            {
+                delivered += harvest.quantity;
+                Assert.That(harvest.hasSource, Is.True);
+                Assert.That((harvest.sourceX, harvest.sourceY, harvest.sourceZ), Is.EqualTo((3f, .5f, -2f)));
+            });
+            Assert.That(delivered, Is.EqualTo(2));
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(2));
             Assert.That(state.Export().pendingHarvests, Is.Empty);
 
@@ -580,21 +587,21 @@ namespace Workerborn.Tests
             Assert.That(bag.Count(bread.Id), Is.EqualTo(bread.MaxStack - 1));
 
             state = VillageState.Restore(state.Export());
-            Assert.That(state.PendingPurchase.Quantity, Is.EqualTo(amount));
-            Assert.That(state.TryStowPurchase(), Is.False);
-            Assert.That(state.TryPlacePurchase(0, 0), Is.False);
+            Assert.That(state.CursorItem.Quantity, Is.EqualTo(amount));
+            Assert.That(state.TryStowCursorItem(), Is.False);
+            Assert.That(state.TryPlaceCursorItem(0, 0), Is.False);
             bag = state.Inventory;
             var existing = bag.Entries[1];
-            Assert.That(state.TryPlacePurchase(existing.X, existing.Y), Is.True);
+            Assert.That(state.TryPlaceCursorItem(existing.X, existing.Y), Is.True);
             Assert.That(existing.Quantity, Is.EqualTo(bread.MaxStack));
-            Assert.That(state.PendingPurchase.Quantity, Is.EqualTo(amount - 1));
+            Assert.That(state.CursorItem.Quantity, Is.EqualTo(amount - 1));
             var potato = bag.Entries[2];
             Assert.That(bag.TryRemoveAt(potato.Id, potato.Quantity), Is.True);
-            Assert.That(state.TryPlacePurchase(potato.X, potato.Y), Is.True);
+            Assert.That(state.TryPlaceCursorItem(potato.X, potato.Y), Is.True);
             Assert.That(bag.Count(bread.Id), Is.EqualTo(bread.MaxStack * 2));
-            Assert.That(state.PendingPurchase.Quantity, Is.EqualTo(1));
+            Assert.That(state.CursorItem.Quantity, Is.EqualTo(1));
             Assert.That(state.TrySellStack(0, 1), Is.True);
-            Assert.That(state.PendingPurchase, Is.Null);
+            Assert.That(state.CursorItem, Is.Null);
         }
 
         [Test]
@@ -625,23 +632,44 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void SplittingInAFullBagHoldsTheNewStackAcrossSaveAndRestore()
+        {
+            var state = new VillageState();
+            int slots = state.Inventory.Columns * state.Inventory.Rows;
+            int stackSize = ItemCatalog.Get(ItemIds.Gold).MaxStack;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Gold, slots * stackSize), Is.True);
+            var source = state.Inventory.Entries.First();
+            Assert.That(state.TrySplitStack(source.Id, 7), Is.True);
+            Assert.That(state.TrySplitStack(source.Id, 1), Is.False);
+            Assert.That(state.Inventory.Entries.Count, Is.EqualTo(slots));
+            Assert.That(state.Inventory.Find(source.Id).Quantity, Is.EqualTo(stackSize - 7));
+
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.CarriedItem(0).ItemId, Is.EqualTo(ItemIds.Gold));
+            Assert.That(state.CarriedItem(0).Quantity, Is.EqualTo(7));
+            Assert.That(state.TryPlaceCursorItem(source.X, source.Y), Is.True);
+            Assert.That(state.CarriedItem(0), Is.Null);
+            Assert.That(state.Gold, Is.EqualTo(slots * stackSize));
+        }
+
+        [Test]
         public void CursorPurchaseCanBeEquippedAndCannotFollowAPlayerIntoRebirth()
         {
             var state = Funded();
             Assert.That(state.TryBuyForPlacement(ItemIds.FishingRod, 1), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.FishingRod), Is.Zero);
             state = VillageState.Restore(state.Export());
-            Assert.That(state.PendingPurchase.Condition, Is.EqualTo(new EquipmentCondition(ItemCatalog.Get(ItemIds.FishingRod).MaxDurability)));
+            Assert.That(state.CursorItem.Condition, Is.EqualTo(new EquipmentCondition(ItemCatalog.Get(ItemIds.FishingRod).MaxDurability)));
             Assert.That(state.TryEquip(0), Is.True);
-            Assert.That(state.PendingPurchase, Is.Null);
+            Assert.That(state.CursorItem, Is.Null);
             Assert.That(state.Equipment[EquipmentSlot.MainHand], Is.EqualTo(ItemIds.FishingRod));
 
             Assert.That(state.TryBuyForPlacement(ItemIds.Bread, 2), Is.True);
             state.RebirthPersonalLife();
-            Assert.That(state.PendingPurchase, Is.Null);
+            Assert.That(state.CursorItem, Is.Null);
             Assert.That(state.Export().pendingPurchase, Is.Null);
             var save = state.Export();
-            save.pendingPurchase = new PendingPurchaseSave { itemId = ItemIds.Bread, quantity = 2 };
+            save.pendingPurchase = new CursorItemSave { itemId = ItemIds.Bread, quantity = 2 };
             Assert.Throws<ArgumentException>(() => VillageState.Restore(save));
         }
 

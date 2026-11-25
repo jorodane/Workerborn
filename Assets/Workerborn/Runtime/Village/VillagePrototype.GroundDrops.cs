@@ -9,7 +9,7 @@ namespace Workerborn
         private readonly GroundDropPiles localGroundDrops = new GroundDropPiles();
         private readonly Dictionary<string, GroundPickup> dropViews = new Dictionary<string, GroundPickup>();
         private readonly List<GroundDropSave> legacyNpcDrops = new List<GroundDropSave>();
-        private Action<string, int> showAcquiredHarvest;
+        private Action<HarvestAcquisitionSave> showAcquiredHarvest;
 
         internal long PickupUtcNow => IsOnline && Session != null ? Session.PickupUtcNow : GroundDropSave.UtcNow;
 
@@ -20,15 +20,15 @@ namespace Workerborn
             long now = PickupUtcNow;
             if (state.IsSkillLearned(SkillId.HarvestAcquisition))
             {
-                bool accepted = state.TryAcquireHarvest(itemId, amount, now);
-                if (owner.IsLocallyControlled)
+                if (!state.TryAcquireHarvest(itemId, amount, now, (origin.x, origin.y, origin.z)))
                 {
-                    if (!accepted)
+                    if (owner.IsLocallyControlled)
                         hud.ShowToast("수확물을 넣을 소지품 공간이 부족해요.");
-                    else if (state.HarvestAcquisitionDelayMilliseconds == 0)
-                        ShowAcquiredHarvest(itemId, amount);
+                    return false;
                 }
-                return accepted;
+                if (state.HarvestAcquisitionDelayMilliseconds == 0)
+                    PlayHarvestAcquisition(owner, origin, itemId, amount);
+                return true;
             }
             if (!owner.HasPlayerOwner || amount <= 0 || !pickupPool.CanSpawn(prefab))
                 return false;
@@ -53,10 +53,23 @@ namespace Workerborn
             return drafts == null || Session?.SubmitGatheredDrops(drafts) == true;
         }
 
-        private void ShowAcquiredHarvest(string itemId, int quantity)
+        private void ShowAcquiredHarvest(HarvestAcquisitionSave harvest)
         {
-            string name = ItemCatalog.Get(itemId).Name;
-            hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.5f, $"{name} +{quantity:N0}", Color.white);
+            Vector3? origin = harvest.hasSource && float.IsFinite(harvest.sourceX) && float.IsFinite(harvest.sourceY) &&
+                float.IsFinite(harvest.sourceZ) ? new Vector3(harvest.sourceX, harvest.sourceY, harvest.sourceZ) : null;
+            PlayHarvestAcquisition(worker, origin, harvest.itemId, harvest.quantity);
+        }
+
+        private void PlayHarvestAcquisition(HarvestWorker collector, Vector3? origin, string itemId, int quantity)
+        {
+            Vector3 position = collector.StandingPosition;
+            if (!SharesMap(position))
+                return;
+            Vector3 start = origin is Vector3 source && (source - position).sqrMagnitude <= 12f * 12f && collector.SharesMap(source)
+                ? source : position + collector.transform.forward * .85f + Vector3.up * .2f;
+            effects?.PlayHarvestTrails(start, collector.transform, quantity);
+            if (collector.IsLocallyControlled)
+                hud.ShowFloatingText(position + Vector3.up * 1.5f, $"{ItemCatalog.Get(itemId).Name} +{quantity:N0}", Color.white);
         }
 
         private GroundDropSave CaptureGroundDrop(string itemId, int quantity, Vector3 origin, Vector3 landing,

@@ -70,7 +70,7 @@ namespace Workerborn
         {
             QuantityAction.Buy => Game.State.MaximumBuyQuantity(id),
             QuantityAction.Sell when Stack != null => Game.State.MaximumSellQuantity(entryId),
-            QuantityAction.Split when Stack != null => Game.State.Inventory.MaximumSplitQuantity(entryId),
+            QuantityAction.Split when Stack != null => Game.State.MaximumCursorSplitQuantity(entryId),
             _ => 0
         };
 
@@ -144,14 +144,14 @@ namespace Workerborn
                 return;
             bool success = action switch
             {
-                QuantityAction.Sell => Stack != null && Game.Perform(() => Game.State.TrySellStack(entryId, quantity)),
+                QuantityAction.Sell => Stack != null && Hud.TrySellShopItem(entryId, quantity),
                 QuantityAction.Split => Stack != null && Game.Perform(() => Game.State.TrySplitStack(entryId, quantity)),
                 _ => Hud.TryBuyShopItem(id, quantity, placeOnCursor: true)
             };
             if (success)
             {
                 Hud.CloseWindow(Id);
-                if (action == QuantityAction.Buy || action == QuantityAction.Sell && entryId == 0)
+                if (action is QuantityAction.Buy or QuantityAction.Split || action == QuantityAction.Sell && entryId == 0)
                     Hud.ShowHeldItem(WorkerbornInput.Point);
             }
         }

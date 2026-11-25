@@ -27,6 +27,7 @@ namespace Workerborn
         [SerializeField] private ItemShortcutBarView itemShortcuts;
         [SerializeField] private GroundTrackingGuide trackingGuide;
         [SerializeField] private RectTransform chatLayer;
+        [SerializeField] private RectTransform characterStatus;
         [SerializeField] private VillageClockView clock;
         [SerializeField] private VillageMapView minimap;
         [SerializeField] private PartTimeScheduleView mapSchedule;
@@ -83,7 +84,7 @@ namespace Workerborn
         public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.IsOpen;
         internal bool TradeQuantityOpen => views.TryGetValue("quantity", out var quantity) &&
             quantity is QuantityWindowView { IsOpen: true, IsTrade: true };
-        public bool IsHoldingItem => draggedEntry != 0 || game?.State.PendingPurchase != null;
+        public bool IsHoldingItem => draggedEntry != 0 || game?.State.CursorItem != null;
         public bool InventoryOpen => views.TryGetValue("inventory", out var inventory) && inventory.IsOpen;
 
         private struct FloatingText
@@ -291,6 +292,7 @@ namespace Workerborn
             if (lastCanvasSize != CanvasRect.rect.size)
             {
                 lastCanvasSize = CanvasRect.rect.size;
+                LayoutChat();
                 foreach (var view in views.Values)
                     if (view.IsFloating && view.IsOpen)
                         WindowDragHandle.KeepOnScreen(view.Rect);
@@ -625,12 +627,14 @@ namespace Workerborn
                 OpenQuantity(id, QuantityAction.Buy, screen: screen);
         }
 
-        internal bool TryBuyShopItem(string id, int quantity, bool placeOnCursor)
-        {
-            return views.TryGetValue("shop", out var view) &&
-                view is ShopWindowView { IsOpen: true, Merchant: not null } shop &&
-                game.BuyFrom(shop.Merchant, id, quantity, placeOnCursor);
-        }
+        private VillageInteractable ShopMerchant => views.TryGetValue("shop", out var view) &&
+            view is ShopWindowView { IsOpen: true } shop ? shop.Merchant : null;
+
+        internal bool TryBuyShopItem(string id, int quantity, bool placeOnCursor) =>
+            game.BuyFrom(ShopMerchant, id, quantity, placeOnCursor);
+
+        internal bool TrySellShopItem(int entryId, int quantity) =>
+            game.SellTo(ShopMerchant, entryId, quantity);
 
         private void OpenQuantity(string id, QuantityAction action, int stackId = 0, Vector2? screen = null,
             bool confirmQuickSale = false)
@@ -715,7 +719,7 @@ namespace Workerborn
             }
             bool warn = quick && game.Settings.FindItem(item.ItemId)?.ConfirmQuickSale == true;
             if (quick && !warn)
-                game.Perform(() => game.State.TrySellStack(item.Id, item.Quantity));
+                TrySellShopItem(item.Id, item.Quantity);
             else
                 OpenQuantity(item.ItemId, QuantityAction.Sell, item.Id, screen, warn);
         }

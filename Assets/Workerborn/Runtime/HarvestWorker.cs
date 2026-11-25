@@ -104,6 +104,7 @@ namespace Workerborn
         internal bool OccupiesSeat(Vector3 position) => onSeat && (transform.position - position).sqrMagnitude < .04f;
 
         public event Action<string> Message;
+        internal event Action HarvestAttemptFinished;
         internal void BindVillage(VillagePrototype game, VillageState state, string id, string playerId)
         {
             village = game;
@@ -607,13 +608,17 @@ namespace Workerborn
             if (village.DropPrefabFor(entry, this) == null)
                 return false;
             bool inReach = InReach(destination, pickupDistance);
-            if (!inReach && !AcceptsInteractionCommands)
+            if (!inReach && IsLocallyControlled && village.Hud.WorldActionsLocked)
             {
                 Message?.Invoke("아이템을 손이 닿는 바닥에 놓아 주세요.");
                 return false;
             }
-            if (!inReach && !NavigateNear(destination, pickupDistance * .8f))
+            if (!inReach && !NavigateNear(destination, Mathf.Max(0f, pickupDistance - .85f)) &&
+                !NavigateNear(destination, 0f))
+            {
+                Message?.Invoke("아이템을 놓을 곳까지 갈 수 없어요.");
                 return false;
+            }
             pendingDrop = entry.Copy();
             dropPoint = destination;
             if (inReach)
@@ -840,6 +845,7 @@ namespace Workerborn
             savedHarvestProgress = 0f;
             ClearFishingCast();
             Action = WorkerAction.Idle;
+            HarvestAttemptFinished?.Invoke();
         }
 
         internal void ShowGatherResult(bool success) =>

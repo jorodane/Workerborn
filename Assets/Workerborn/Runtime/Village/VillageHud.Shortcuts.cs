@@ -6,8 +6,6 @@ namespace Workerborn
 {
     public sealed partial class VillageHud
     {
-        private Vector2 chatAtStatus;
-
         private static readonly string[] ShortcutActions =
         {
             "Gameplay/Shortcut1", "Gameplay/Shortcut2", "Gameplay/Shortcut3", "Gameplay/Shortcut4", "Gameplay/Shortcut5",
@@ -18,17 +16,10 @@ namespace Workerborn
             !game.State.AwaitingIncarnation && !game.IsWorldTransitioning && !game.AwaitingWorldCommand &&
             !WorldActionsLocked && !IsChatTyping;
 
-        private void UpdateItemShortcutPresentation(bool duringDialogue)
+        private void UpdateItemShortcutPresentation()
         {
-            if (itemShortcuts == null)
-                return;
-
-            bool show = !game.State.AwaitingIncarnation;
-            itemShortcuts.gameObject.SetActive(show);
-            var position = chatAtStatus;
-            if (show && !duringDialogue)
-                position.y += itemShortcuts.Rect.anchoredPosition.y + itemShortcuts.Rect.rect.height + 4f;
-            chatLayer.anchoredPosition = position;
+            if (itemShortcuts != null)
+                itemShortcuts.gameObject.SetActive(!game.State.AwaitingIncarnation);
         }
 
         private void ReadItemShortcuts()
@@ -70,7 +61,7 @@ namespace Workerborn
 
         private void AssignHeldItemShortcut(int index)
         {
-            if (ShortcutsAvailable && draggedEntry != 0 && game.State.PendingPurchase == null &&
+            if (ShortcutsAvailable && draggedEntry != 0 && game.State.CursorItem == null &&
                 game.Perform(() => game.State.TryAssignItemShortcut(index, draggedEntry)))
                 CancelItemDrag();
         }

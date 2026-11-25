@@ -233,25 +233,25 @@ namespace Workerborn
             return entry != null && CanPlace(entry, x, y, out _);
         }
 
-        internal bool CanPlacePurchase(InventoryEntry purchase, int x, int y) => CanPlacePurchase(purchase, x, y, out _);
+        internal bool CanPlaceCursorItem(InventoryEntry carried, int x, int y) => CanPlaceCursorItem(carried, x, y, out _);
 
-        private bool CanPlacePurchase(InventoryEntry purchase, int x, int y, out InventoryEntry target)
+        private bool CanPlaceCursorItem(InventoryEntry carried, int x, int y, out InventoryEntry target)
         {
-            var spec = purchase.Spec;
+            var spec = carried.Spec;
             target = entries.Find(item => item.X == x && item.Y == y);
-            return target != null ? target.MatchesStack(spec.Id, purchase.Condition) && target.Quantity < spec.MaxStack : Fits(entries, spec, x, y);
+            return target != null ? target.MatchesStack(spec.Id, carried.Condition) && target.Quantity < spec.MaxStack : Fits(entries, spec, x, y);
         }
 
-        internal int PlacePurchase(InventoryEntry purchase, int x, int y)
+        internal int PlaceCursorItem(InventoryEntry carried, int x, int y)
         {
-            var spec = purchase.Spec;
-            if (!CanPlacePurchase(purchase, x, y, out var target))
+            var spec = carried.Spec;
+            if (!CanPlaceCursorItem(carried, x, y, out var target))
                 return 0;
-            int amount = Math.Min(purchase.Quantity, spec.MaxStack - (target?.Quantity ?? 0));
+            int amount = Math.Min(carried.Quantity, spec.MaxStack - (target?.Quantity ?? 0));
             if (target != null)
                 target.Quantity += amount;
             else
-                entries.Add(new InventoryEntry { Id = nextId++, ItemId = spec.Id, Quantity = amount, X = x, Y = y, Condition = purchase.Condition });
+                entries.Add(new InventoryEntry { Id = nextId++, ItemId = spec.Id, Quantity = amount, X = x, Y = y, Condition = carried.Condition });
             Version++;
             return amount;
         }

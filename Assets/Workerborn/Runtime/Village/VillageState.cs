@@ -78,11 +78,12 @@ namespace Workerborn
     }
 
     [Serializable]
-    public sealed class PendingPurchaseSave
+    public sealed class CursorItemSave
     {
         public string itemId;
         public int quantity;
         public EquipmentCondition condition;
+        public bool splitFromInventory;
     }
 
     [Serializable]
@@ -138,7 +139,7 @@ namespace Workerborn
         public int inventoryRows = VillageState.BaseInventoryRows;
         public InventoryEntrySave[] inventory = Array.Empty<InventoryEntrySave>();
         public string[] itemShortcuts = Array.Empty<string>();
-        public PendingPurchaseSave pendingPurchase;
+        public CursorItemSave pendingPurchase; // Retains the original save field for items without a source cell.
         public HarvestAcquisitionSave[] pendingHarvests = Array.Empty<HarvestAcquisitionSave>();
         public float playerX;
         public float playerZ = -4.4f;
@@ -232,7 +233,8 @@ namespace Workerborn
         public bool BagExpanded => equipment.ContainsKey(EquipmentSlot.Bag);
         public bool LastRestWasCollapse { get; private set; }
         public GridInventory Inventory { get; private set; } = new GridInventory(InventoryColumns, BaseInventoryRows);
-        internal InventoryEntry PendingPurchase { get; private set; }
+        internal InventoryEntry CursorItem { get; private set; }
+        private bool cursorItemWasSplit;
 
         private readonly Dictionary<EquipmentSlot, string> equipment = new Dictionary<EquipmentSlot, string>();
         private readonly Dictionary<EquipmentSlot, EquipmentCondition> equipmentConditions = new Dictionary<EquipmentSlot, EquipmentCondition>();
@@ -296,7 +298,7 @@ namespace Workerborn
             Inventory.ReplaceWith(copy);
             SetEquippedItem(slot, item.Spec, item.Condition);
             if (entryId == 0)
-                RemovePurchaseQuantity(1);
+                RemoveCursorQuantity(1);
             return Result(true, item.Spec.Name + " 장착");
         }
 
@@ -526,8 +528,8 @@ namespace Workerborn
 
         private bool AlreadyOwnsUniquePurchase(string itemId) => itemId switch
         {
-            ItemIds.Hoe => HasHoe || Inventory.Count(ItemIds.Hoe) > 0 || PendingPurchase?.ItemId == itemId,
-            ItemIds.Bag => BagExpanded || Inventory.Count(ItemIds.Bag) > 0 || PendingPurchase?.ItemId == itemId,
+            ItemIds.Hoe => HasHoe || Inventory.Count(ItemIds.Hoe) > 0 || CursorItem?.ItemId == itemId,
+            ItemIds.Bag => BagExpanded || Inventory.Count(ItemIds.Bag) > 0 || CursorItem?.ItemId == itemId,
             _ => false
         };
 
@@ -539,7 +541,7 @@ namespace Workerborn
 
         private bool TryBuy(string itemId, int quantity, bool placeOnCursor)
         {
-            if (placeOnCursor && (PendingPurchase != null || AwaitingIncarnation))
+            if (placeOnCursor && (CursorItem != null || AwaitingIncarnation))
                 return Result(false, "손에 든 물건을 먼저 놓아 주세요.");
             if (quantity < 1 || quantity > 999)
                 return Result(false, "구입할 수 없는 수량입니다.");
@@ -559,7 +561,8 @@ namespace Workerborn
             {
                 if (cost > 0 && !Inventory.TryRemove(ItemIds.Gold, cost))
                     return Result(false, "골드가 부족해요.");
-                PendingPurchase = new InventoryEntry { ItemId = itemId, Quantity = quantity, Condition = default(EquipmentCondition).ForItem(spec) };
+                CursorItem = new InventoryEntry { ItemId = itemId, Quantity = quantity, Condition = default(EquipmentCondition).ForItem(spec) };
+                cursorItemWasSplit = false;
                 return Result(true, $"{spec.Name} {quantity}개 구입! {cost}G를 지불했어요.");
             }
             if (itemId == ItemIds.Bag)
@@ -576,30 +579,33 @@ namespace Workerborn
             return Result(true, $"{spec.Name} {quantity}개 구입! {cost}G를 지불했어요.");
         }
 
-        // A fresh purchase has no source cell. Zero is reserved for this carried stack.
-        internal InventoryEntry CarriedItem(int entryId) => entryId == 0 ? PendingPurchase : Inventory.Find(entryId);
+        // A purchased or split stack on the cursor has no source cell and uses entry ID zero.
+        internal InventoryEntry CarriedItem(int entryId) => entryId == 0 ? CursorItem : Inventory.Find(entryId);
 
-        internal bool TryPlacePurchase(int x, int y)
+        internal bool TryPlaceCursorItem(int x, int y)
         {
-            if (PendingPurchase == null)
+            if (CursorItem == null)
                 return false;
-            int placed = Inventory.PlacePurchase(PendingPurchase, x, y);
-            return placed > 0 && RemovePurchaseQuantity(placed);
+            int placed = Inventory.PlaceCursorItem(CursorItem, x, y);
+            return placed > 0 && RemoveCursorQuantity(placed);
         }
 
-        internal bool TryStowPurchase() => PendingPurchase != null &&
-            Inventory.TryAdd(PendingPurchase.ItemId, PendingPurchase.Quantity, PendingPurchase.Condition) && RemovePurchaseQuantity(PendingPurchase.Quantity);
+        internal bool TryStowCursorItem() => CursorItem != null &&
+            Inventory.TryAdd(CursorItem.ItemId, CursorItem.Quantity, CursorItem.Condition) && RemoveCursorQuantity(CursorItem.Quantity);
 
         internal bool TryRemoveCarriedItem(int entryId, int quantity) => entryId == 0
-            ? RemovePurchaseQuantity(quantity) : Inventory.TryRemoveAt(entryId, quantity);
+            ? RemoveCursorQuantity(quantity) : Inventory.TryRemoveAt(entryId, quantity);
 
-        private bool RemovePurchaseQuantity(int amount)
+        private bool RemoveCursorQuantity(int amount)
         {
-            if (PendingPurchase == null || amount < 1 || amount > PendingPurchase.Quantity)
+            if (CursorItem == null || amount < 1 || amount > CursorItem.Quantity)
                 return false;
-            PendingPurchase.Quantity -= amount;
-            if (PendingPurchase.Quantity == 0)
-                PendingPurchase = null;
+            CursorItem.Quantity -= amount;
+            if (CursorItem.Quantity == 0)
+            {
+                CursorItem = null;
+                cursorItemWasSplit = false;
+            }
             Version++;
             return true;
         }
@@ -638,14 +644,24 @@ namespace Workerborn
             if (!received)
                 return Result(false, "골드를 받을 소지품 공간이 부족합니다.");
             if (entryId == 0)
-                RemovePurchaseQuantity(quantity);
+                RemoveCursorQuantity(quantity);
             return Result(true, $"{spec.Name} {quantity}개 판매 · {total:N0} Gold");
         }
 
-        public bool TrySplitStack(int entryId, int quantity) =>
-            Inventory.TrySplit(entryId, quantity)
-                ? Result(true, $"{quantity:N0}개를 나눴어요.")
-                : Result(false, "수량이나 나눌 공간을 확인해 주세요.");
+        internal int MaximumCursorSplitQuantity(int entryId) => !AwaitingIncarnation && CursorItem == null
+            ? Math.Max(0, (Inventory.Find(entryId)?.Quantity ?? 0) - 1) : 0;
+
+        public bool TrySplitStack(int entryId, int quantity)
+        {
+            if (quantity < 1 || quantity > MaximumCursorSplitQuantity(entryId))
+                return Result(false, "손에 든 물건과 나눌 수량을 확인해 주세요.");
+            var item = Inventory.Find(entryId);
+            if (!Inventory.TryRemoveAt(entryId, quantity))
+                return false;
+            CursorItem = new InventoryEntry { ItemId = item.ItemId, Quantity = quantity, Condition = item.Condition };
+            cursorItemWasSplit = true;
+            return Result(true, $"{quantity:N0}개를 나눴어요.");
+        }
 
         public bool TryEatBread()
         {
@@ -877,10 +893,11 @@ namespace Workerborn
                 inventory = Inventory.Export(),
                 itemShortcuts = (string[])itemShortcuts.Clone(),
                 pendingHarvests = pendingHarvests.ToArray(),
-                pendingPurchase = PendingPurchase == null ? null :
-                    new PendingPurchaseSave
+                pendingPurchase = CursorItem == null ? null :
+                    new CursorItemSave
                     {
-                        itemId = PendingPurchase.ItemId, quantity = PendingPurchase.Quantity, condition = PendingPurchase.Condition
+                        itemId = CursorItem.ItemId, quantity = CursorItem.Quantity, condition = CursorItem.Condition,
+                        splitFromInventory = cursorItemWasSplit
                     }
             };
         }
@@ -1014,16 +1031,21 @@ namespace Workerborn
             if (save.bagExpanded != state.BagExpanded || state.BagExpanded && inventory.Rows < BagInventoryRows)
                 throw new ArgumentException("Invalid bag equipment.");
 
-            if (save.pendingPurchase is PendingPurchaseSave purchase &&
-                (purchase.quantity != 0 || !string.IsNullOrEmpty(purchase.itemId)))
+            if (save.pendingPurchase is CursorItemSave carried &&
+                (carried.quantity != 0 || !string.IsNullOrEmpty(carried.itemId)))
             {
-                if (!state.IsPurchasable(purchase.itemId) || purchase.quantity < 1 ||
-                    purchase.quantity > PurchaseLimit(ItemCatalog.Get(purchase.itemId)))
-                    throw new ArgumentException("Invalid pending purchase.");
-                state.PendingPurchase = new InventoryEntry
+                if (!ItemCatalog.Contains(carried.itemId) || carried.quantity < 1)
+                    throw new ArgumentException("Invalid item on the cursor.");
+                var spec = ItemCatalog.Get(carried.itemId);
+                bool legal = carried.splitFromInventory ? carried.quantity < spec.MaxStack :
+                    state.IsPurchasable(carried.itemId) && carried.quantity <= PurchaseLimit(spec);
+                if (!legal)
+                    throw new ArgumentException("Invalid cursor item quantity.");
+                state.CursorItem = new InventoryEntry
                 {
-                    ItemId = purchase.itemId, Quantity = purchase.quantity, Condition = purchase.condition.ForItem(ItemCatalog.Get(purchase.itemId))
+                    ItemId = carried.itemId, Quantity = carried.quantity, Condition = carried.condition.ForItem(spec)
                 };
+                state.cursorItemWasSplit = carried.splitFromInventory;
             }
 
             if (state.AwaitingIncarnation && (state.HasVillageProgress || save.gold != 0 ||

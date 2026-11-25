@@ -601,6 +601,14 @@ namespace Workerborn
             return true;
         }
 
+        internal bool SellTo(VillageInteractable buyer, int entryId, int quantity)
+        {
+            if (buyer == null || !Perform(() => State.TrySellStack(entryId, quantity)))
+                return false;
+            effects?.PlayPurchaseTrail(worker.transform, buyer.transform);
+            return true;
+        }
+
         private bool ApplyLocalAction(Func<bool> operation)
         {
             if (IsWorldTransitioning || AwaitingWorldCommand)

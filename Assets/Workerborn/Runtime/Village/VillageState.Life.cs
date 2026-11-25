@@ -39,7 +39,7 @@ namespace Workerborn
 
     public sealed partial class VillageState
     {
-        public const int CurrentSaveSchema = 11;
+        public const int CurrentSaveSchema = 12;
         public const int LevelLimit = 200;
         private double lifeStartedAt;
         public bool AwaitingIncarnation { get; private set; }
@@ -118,7 +118,8 @@ namespace Workerborn
             Health = HealthLimit;
             Energy = StaminaLimit;
             Inventory = new GridInventory(InventoryColumns, BaseInventoryRows);
-            PendingPurchase = null;
+            CursorItem = null;
+            cursorItemWasSplit = false;
             pendingHarvests.Clear();
             nextHarvestReadyAt = long.MaxValue;
             equipment.Clear();
@@ -158,7 +159,7 @@ namespace Workerborn
 
         private bool HasVillageProgress => Level != 1 || Experience != 0 || LifeDay != 1 || AttributePoints != 0 ||
             Strength != 0 || Dexterity != 0 || Knowledge != 0 || Job != JobStatus.None ||
-            Inventory.Entries.Count != 0 || equipment.Count != 0 || PendingPurchase != null || pendingHarvests.Count != 0;
+            Inventory.Entries.Count != 0 || equipment.Count != 0 || CursorItem != null || pendingHarvests.Count != 0;
 
         public VillageWorldRecord ExportWorld() => new VillageWorldRecord
         {

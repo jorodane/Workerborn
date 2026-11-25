@@ -649,9 +649,10 @@ namespace Workerborn.Tests
             string original = JsonUtility.ToJson(definition);
             try
             {
-                JsonUtility.FromJsonOverwrite("{\"successChance\":1,\"luckyChance\":0,\"greatLuckyChance\":0}", definition);
+                JsonUtility.FromJsonOverwrite("{\"successChance\":1,\"luckyChance\":0,\"greatLuckyChance\":0,\"itemsPerHarvest\":8}", definition);
                 int charges = crop.Remaining;
                 int drops = game.GroundItemCount;
+                int trails = UnityEngine.Object.FindObjectsByType<LootFlightTrail>(FindObjectsSortMode.None).Length;
                 int potatoes = game.State.Inventory.Count(ItemIds.Potato);
                 Assert.That(game.State.LearnSkill(SkillId.HarvestAcquisition, SkillProgression.MaxRank), Is.True);
                 Assert.That(crop.TryBegin(game.Worker), Is.True);
@@ -659,6 +660,7 @@ namespace Workerborn.Tests
                 Assert.That(crop.Remaining, Is.EqualTo(charges - 1));
                 Assert.That(game.GroundItemCount, Is.EqualTo(drops));
                 Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(potatoes + definition.ItemsPerHarvest));
+                Assert.That(UnityEngine.Object.FindObjectsByType<LootFlightTrail>(FindObjectsSortMode.None).Length, Is.EqualTo(trails + 4));
             }
             finally
             {
@@ -733,6 +735,11 @@ namespace Workerborn.Tests
             Assert.That(game.State.LifetimeHarvests, Is.EqualTo(playerHarvests));
             Assert.That(game.State.Energy, Is.EqualTo(playerEnergy));
             Assert.That(game.GroundItemCount, Is.EqualTo(groundItems));
+            Vector3 restingPosition = character.StandingPosition;
+            yield return new WaitForSeconds(NpcRoutine.MinimumHarvestPause * .75f);
+            Assert.That(character.Action, Is.EqualTo(WorkerAction.Idle));
+            Assert.That(Vector3.Distance(character.StandingPosition, restingPosition), Is.LessThan(.01f));
+            yield return Until(() => character.ActiveCrop != null, 9f);
 
             var state = game.State;
             state.AdvanceTime((state.Rules.JobEnd - state.Minute + 1f) / state.Rules.MinutesPerSecond);
@@ -814,7 +821,7 @@ namespace Workerborn.Tests
 
             farmer.Routine.enabled = true;
             yield return Until(() => character.CharacterState.Inventory.Count(ItemIds.Potato) > 0, 12f);
-            yield return Until(() => character.ActiveCrop != null && character.HarvestProgress >= .4f, 6f);
+            yield return Until(() => character.ActiveCrop != null && character.HarvestProgress >= .4f, 10f);
             Vector3 workPosition = character.StandingPosition;
             string cropId = character.ActiveCrop.PersistentId;
             float savedProgress = character.HarvestProgress;
@@ -958,6 +965,38 @@ namespace Workerborn.Tests
                 UnityEngine.InputSystem.InputSystem.RemoveDevice(mouse);
                 UnityEngine.InputSystem.InputSystem.RemoveDevice(keyboard);
             }
+        }
+
+        [UnityTest]
+        public IEnumerator ACarriedStackWalksIntoReachBeforeBeingPlaced()
+        {
+            var worker = game.Worker;
+            Vector3 start = worker.StandingPosition;
+            var destination = new[] { Vector3.right, Vector3.left, Vector3.forward, Vector3.back }
+                .Select(direction => start + direction * 4f)
+                .Select(point => game.SurfacePosition(point.x, point.z))
+                .First(point => worker.TryGetReachablePoint(point, 0f, out _));
+            Assert.That(worker.InReach(destination, HarvestWorker.DefaultPickupDistance), Is.False);
+            Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 4), Is.True);
+            var stack = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
+            game.Hud.OpenWindow("inventory");
+            game.Hud.BeginItemDrag(stack.Id, WorkerbornInput.Point);
+            Assert.That(game.Hud.IsHoldingItem, Is.True);
+
+            int drops = game.GroundItemCount;
+            Assert.That(worker.CommandDrop(stack.Id, destination), Is.True);
+            Assert.That(worker.HasPendingDrop, Is.True);
+            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(4));
+            Assert.That(game.GroundItemCount, Is.EqualTo(drops));
+            game.Hud.CancelItemDrag();
+
+            yield return Until(() => !worker.HasPendingDrop, 7f);
+            Assert.That(worker.InReach(destination, HarvestWorker.DefaultPickupDistance), Is.True);
+            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.Zero);
+            Assert.That(game.GroundItemCount, Is.EqualTo(drops + 1));
+            var drop = game.CaptureSave().drops.Single(item => item.ownerId == worker.PlayerId && item.itemId == ItemIds.Potato);
+            Assert.That(drop.x, Is.EqualTo(destination.x).Within(.01f));
+            Assert.That(drop.z, Is.EqualTo(destination.z).Within(.01f));
         }
 
         [UnityTest]
@@ -1688,10 +1727,13 @@ namespace Workerborn.Tests
             input.text = "2";
             FindButton(quantity, "나누기").onClick.Invoke();
             Assert.That(game.State.Inventory.Find(entry.Id).Quantity, Is.EqualTo(7));
-            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(9));
+            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(7));
+            Assert.That(game.State.CursorItem.Quantity, Is.EqualTo(2));
+            Assert.That(game.Hud.IsHoldingItem, Is.True);
             Assert.That(game.Hud.HasQuantityPrompt, Is.False);
             FindButton(dialogue, "거래 종료").onClick.Invoke();
             Assert.That(game.Hud.IsShopOpen, Is.False);
+            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(9));
             Assert.That(game.Hud.HasModal, Is.False);
             Assert.That(dialogue.isActiveAndEnabled, Is.True);
             Assert.That(normalHud.activeSelf, Is.False);
@@ -1739,9 +1781,12 @@ namespace Workerborn.Tests
 
                 var inventory = UnityEngine.Object.FindFirstObjectByType<InventoryWindowView>();
                 var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
-                Vector3 trailStart = seller.transform.position + Vector3.up * LootFlightTrail.ReceiverHeight;
-                bool TrailAtSeller() => UnityEngine.Object.FindObjectsByType<LootFlightTrail>(FindObjectsSortMode.None)
-                    .Any(trail => (trail.transform.position - trailStart).sqrMagnitude < .0001f && trail.GetComponent<TrailRenderer>().emitting);
+                bool TrailStartsAt(Transform sender)
+                {
+                    Vector3 origin = sender.position + Vector3.up * LootFlightTrail.ReceiverHeight;
+                    return UnityEngine.Object.FindObjectsByType<LootFlightTrail>(FindObjectsSortMode.None)
+                        .Any(trail => (trail.transform.position - origin).sqrMagnitude < .0001f && trail.GetComponent<TrailRenderer>().emitting);
+                }
                 var stock = shop.GetComponentInChildren<UiItemView>().GetComponent<Button>();
                 var potatoCell = inventory.ItemLayer.GetComponentsInChildren<InventoryItemDrag>().Single(cell => cell.EntryId == potato.Id);
                 Vector2 ScreenCenter(RectTransform rect) => RectTransformUtility.WorldToScreenPoint(null, rect.TransformPoint(rect.rect.center));
@@ -1760,6 +1805,7 @@ namespace Workerborn.Tests
                 game.Hud.ClickInventoryItem(bread.Id, saleClick);
                 stock.onClick.Invoke();
                 FindButton(prompt, "판매").onClick.Invoke();
+                Assert.That(TrailStartsAt(game.Worker.transform), Is.True);
                 Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(2));
                 Assert.That(game.State.Inventory.Count(ItemIds.Bread), Is.EqualTo(2));
                 Assert.That(game.Hud.HasQuantityPrompt, Is.False);
@@ -1768,6 +1814,7 @@ namespace Workerborn.Tests
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
                 yield return null;
                 game.Hud.ClickInventoryItem(potato.Id, saleClick);
+                Assert.That(TrailStartsAt(game.Worker.transform), Is.True);
                 Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.Zero);
                 Assert.That(game.Hud.HasQuantityPrompt, Is.False);
                 var legend = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.LegendAxe);
@@ -1784,7 +1831,7 @@ namespace Workerborn.Tests
 
                 stock.onClick.Invoke();
                 Assert.That(game.State.Inventory.Count(ItemIds.Axe), Is.EqualTo(1));
-                Assert.That(TrailAtSeller(), Is.True);
+                Assert.That(TrailStartsAt(seller.transform), Is.True);
                 Assert.That(game.Hud.IsHoldingItem, Is.False);
                 Assert.That(game.Hud.HasQuantityPrompt, Is.False);
                 yield return null;
@@ -1798,10 +1845,10 @@ namespace Workerborn.Tests
                 VerifyPopupPosition(prompt.Rect, buyClick);
                 Assert.That(inventoryInput.blocksRaycasts, Is.False);
                 FindButton(prompt, "구입").onClick.Invoke();
-                Assert.That(TrailAtSeller(), Is.True);
+                Assert.That(TrailStartsAt(seller.transform), Is.True);
                 Assert.That(game.Hud.IsHoldingItem, Is.True);
                 Assert.That(game.State.Inventory.Count(ItemIds.Axe), Is.EqualTo(1));
-                Assert.That(game.State.PendingPurchase.ItemId, Is.EqualTo(ItemIds.Axe));
+                Assert.That(game.State.CursorItem.ItemId, Is.EqualTo(ItemIds.Axe));
                 game.Hud.ClickEquipment(EquipmentSlot.MainHand, buyClick);
                 Assert.That(game.State.Equipment[EquipmentSlot.MainHand], Is.EqualTo(ItemIds.Axe));
                 Assert.That(game.Hud.IsHoldingItem, Is.False);
@@ -2282,7 +2329,7 @@ namespace Workerborn.Tests
         {
             var chat = UnityEngine.Object.FindFirstObjectByType<VillageChatView>();
             var input = chat.GetComponentInChildren<TMP_InputField>();
-            var chatLayer = chat.transform.parent;
+            var chatLayer = (RectTransform)chat.transform.parent;
             var inputFrame = chat.GetComponentInChildren<CanvasGroup>();
             var historyFrame = chat.GetComponentInChildren<VerticalGradient>();
             var inputBackground = inputFrame.GetComponent<Image>();
@@ -2302,6 +2349,12 @@ namespace Workerborn.Tests
             try
             {
                 Canvas.ForceUpdateCanvases();
+                var status = (RectTransform)game.Hud.transform.Find("Normal HUD/Character status");
+                float chatBottom = chatLayer.TransformPoint(chatLayer.rect.min).y;
+                float chatRight = chatLayer.TransformPoint(chatLayer.rect.max).x;
+                Vector3 statusBottomLeft = status.TransformPoint(status.rect.min);
+                Assert.That(chatBottom, Is.EqualTo(statusBottomLeft.y).Within(.01f));
+                Assert.That(chatRight, Is.LessThan(statusBottomLeft.x));
                 var playerHealth = overhead.Nameplate.transform.Find("Health bar");
                 yield return MovePointer(overhead.Nameplate.Rect);
                 Assert.That(playerHealth.gameObject.activeSelf, Is.True);
