@@ -24,9 +24,6 @@ MonoBehaviour:
   workAnimation: {fileID: 11400000, guid: 13dc56ef8e6b5936913e8aa47ee80219, type: 2}
   staminaCost: 4
   successChance: 0.92
-  luckyChance: 0.1
-  greatLuckyChance: 0.01
-  greatLuckyRank: 6
   scatterTowardWorker: 1
   scatterAngle: 64
   scatterRadius: {x: 0.57, y: 1.38}

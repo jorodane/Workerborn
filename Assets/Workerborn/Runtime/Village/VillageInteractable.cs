@@ -32,6 +32,12 @@ namespace Workerborn
         public override Vector3 NamePosition => Routine?.IsSeated == true && TryGetComponent<CharacterActor>(out var actor)
             ? actor.NamePosition : base.NamePosition;
         public override string InteractionVerb => Role == VillageRole.NoticeBoard ? "게시판 보기" : Role == VillageRole.Shrine ? "기도하기" : "대화하기";
+        internal override InteractionCursor CursorFor(HarvestWorker worker) => Role switch
+        {
+            VillageRole.NoticeBoard => InteractionCursor.Inspect,
+            VillageRole.Shrine => InteractionCursor.Pray,
+            _ => InteractionCursor.Talk
+        };
 
         protected override void Interact(HarvestWorker worker) => worker.CommandInteract(this);
         protected override void OnArrived(VillagePrototype village, HarvestWorker worker) => village?.BeginConversation(worker, this);

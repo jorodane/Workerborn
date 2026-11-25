@@ -36,6 +36,8 @@ namespace Workerborn
         public override float InteractionDistance => reach;
         public override bool CanInteract => base.CanInteract && !IsDefeated;
         public override string InteractionVerb => combat == null ? "다가가기" : "공격하기";
+        internal override InteractionCursor CursorFor(HarvestWorker worker) =>
+            combat == null ? InteractionCursor.Inspect : InteractionCursor.Attack;
         public AnimalCombatProfile Combat => combat;
         public int Health { get; private set; }
         public bool IsDefeated => combat != null && Health == 0;
@@ -135,12 +137,15 @@ namespace Workerborn
         {
             if (!CanReceiveStrike || worker.Village == null)
                 return;
-            int applied = Mathf.Min(Health, Mathf.Max(0, damage));
+            int resolvedDamage = worker.CharacterState.ResolveCombatDamage(damage, UnityEngine.Random.value, out bool critical);
+            int applied = Mathf.Min(Health, resolvedDamage);
             if (applied == 0)
                 return;
             Health -= applied;
             worker.Village.ShowCombatHit(transform, TargetCenter);
-            worker.Village.Hud.ShowFloatingText(NamePosition + Vector3.up * .2f, "-" + applied, new Color(1f, .85f, .56f));
+            worker.Village.Hud.ShowFloatingText(NamePosition + Vector3.up * .2f,
+                critical ? $"치명타 -{applied:N0}" : $"-{applied:N0}",
+                critical ? new Color(1f, .61f, .24f) : new Color(1f, .85f, .56f));
             if (IsDefeated)
             {
                 opponent = null;

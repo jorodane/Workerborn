@@ -44,6 +44,8 @@ namespace Workerborn
         public override bool CanInteract => CanCollect;
         public override string InteractionVerb => "줍기";
         public override string InteractionVerbFor(HarvestWorker worker) => CanCollectFor(worker) ? InteractionVerb : "소유자 보호 중";
+        internal override InteractionCursor CursorFor(HarvestWorker worker) =>
+            CanCollectFor(worker) ? InteractionCursor.PickUp : InteractionCursor.Inspect;
         public Vector3 LandingPosition => initialized ? landing : transform.position;
         public Vector3 VisualPosition => visual != null ? visual.position : transform.position;
         public override Vector3 NamePosition => pooledNameOffset.HasValue ? transform.position + pooledNameOffset.Value : base.NamePosition;

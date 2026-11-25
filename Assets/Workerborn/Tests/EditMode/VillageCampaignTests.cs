@@ -502,6 +502,7 @@ namespace Workerborn.Tests
         {
             var rules = Rules();
             var player = new VillageState(rules);
+            Assert.That(player.LearnSkill(SkillId.SoulGrowth), Is.True);
             player.TryAcceptFoundation();
             player.Inventory.TryAdd(ItemIds.Timber, 4);
             Assert.That(player.TryDeliverTimber(), Is.True);
@@ -541,6 +542,7 @@ namespace Workerborn.Tests
             save.totalLevel = 10000000000;
             save.experience = 2009;
             var player = VillageState.Restore(save, rules);
+            Assert.That(player.LearnSkill(SkillId.SoulGrowth), Is.True);
             Assert.That(player.TryHarvest(1, false, out _), Is.True);
             Assert.That(player.Level, Is.EqualTo(200));
             Assert.That(player.TotalLevel, Is.EqualTo(10000000001));

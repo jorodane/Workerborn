@@ -108,7 +108,8 @@ for name in ['Mira','Noah','Lena','Player']:assert (CONTENT/'Prefabs/Characters'
 for name in ['Board','Shrine','Monster','ForestRabbit']:assert (CONTENT/'Prefabs/Interaction'/(name+'.prefab')).is_file()
 assert (CONTENT/'Prefabs/Crops/Potato.prefab').is_file()
 wardrobe={'field_cap','field_coat','field_trousers','field_boots','field_gloves'}
-primers={'woodcutting_primer','carving_primer','unarmed_combat_primer','egg_gathering_primer','fishing_primer','harvest_acquisition_primer'}
+primers={'woodcutting_primer','carving_primer','unarmed_combat_primer','egg_gathering_primer','fishing_primer',
+         'harvest_acquisition_primer','lucky_bonus_primer','soul_growth_primer','critical_hit_primer'}
 assert {p.stem for p in (CONTENT/'Prefabs/Items').glob('*.prefab')}=={'GroundPickup','potato','bread','health_potion','hoe','bag','gold','egg','timber','woodcutting_axe','legend_axe','rabbit_meat','branch','fishing_rod','pond_fish'} | wardrobe | primers
 manifest=json.loads((ROOT/'Tools/ui-prefab-manifest.json').read_text())
 for name in ['InventoryWindow','SkillsWindow','QuestWindow','QuestScrollWindow','CharacterWindow','MapWindow','PartTimeScheduleRow','ShopWindow','QuantityWindow','ConversationWindow','ItemDetailWindow','MainMenu','EraWindow','SystemWindow','SettingsWindow','ServerAdminWindow','ServerAdminRosterRow','VillageChat','PlayerOverhead','PlotWindow']:

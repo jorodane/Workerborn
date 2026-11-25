@@ -18,6 +18,8 @@ namespace Workerborn
 
         public override string InteractionVerbFor(HarvestWorker worker) =>
             StrikesByDefault(worker) ? "때리기" : InteractionVerb;
+        internal override InteractionCursor CursorFor(HarvestWorker worker) =>
+            StrikesByDefault(worker) ? InteractionCursor.Attack : InteractionCursor.Chop;
 
         protected override void Interact(HarvestWorker worker)
         {

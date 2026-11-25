@@ -40,6 +40,9 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 8ce3328d5bb650d88111ee7016c81d44, type: 2}
   - {fileID: 11400000, guid: a709da70b3fa54c8bd41c3b9c1e4b189, type: 2}
   - {fileID: 11400000, guid: 805ede2a1c565156af85c6bb860e6cc7, type: 2}
+  - {fileID: 11400000, guid: 2d1693c3b422596498ca7054ee68a83d, type: 2}
+  - {fileID: 11400000, guid: d67a260e69d75658aa3edd9aeb694c3d, type: 2}
+  - {fileID: 11400000, guid: 3301ee1f46ac51a5add15abce1a5462b, type: 2}
   skills:
   - {fileID: 11400000, guid: 621d8bbd2e435add925d683cd1874aaf, type: 2}
   - {fileID: 11400000, guid: 5c5694c0fe18556f9615ee867a0e5668, type: 2}
@@ -48,6 +51,9 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 25b5046aa7015add94616f12cd701b28, type: 2}
   - {fileID: 11400000, guid: 74bc6cf72a29520a8df092968ca41d54, type: 2}
   - {fileID: 11400000, guid: 0aead22c39ce5095824e2ccb4ab182a0, type: 2}
+  - {fileID: 11400000, guid: 65c78904121a5774a071d51940c72a1b, type: 2}
+  - {fileID: 11400000, guid: 710ebf51e2ad580eb2e4799edddef040, type: 2}
+  - {fileID: 11400000, guid: 9996c48b6ea85c3199aa719806ab0677, type: 2}
   plotFacilities:
   - {fileID: 11400000, guid: 8e24bbcf371c51b98b4206ac37ffc95a, type: 2}
   - {fileID: 11400000, guid: eea723dd4c3359bbbb9fd81e88a72d7b, type: 2}
@@ -59,6 +65,7 @@ MonoBehaviour:
   expansionQuest: {fileID: 11400000, guid: 9fd82f28b7565027ae8cd208ef37e123, type: 2}
   player: {fileID: 11400000, guid: 1ba8002aba425f66a1f39dff4e92351b, type: 2}
   interfaceFont: {fileID: 11400000, guid: 983a7b11a9c95d02b17b50fcf036fa03, type: 2}
+  cursors: {fileID: 11400000, guid: 0899ed9264a75ab09c57cec515a85035, type: 2}
   minutesPerSecond: 3
   wakeHour: 6
   collapseHour: 24

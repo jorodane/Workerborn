@@ -63,6 +63,7 @@ namespace Workerborn
         private int generation;
         private WorldTargetReference currentTarget;
         public WorldInteractable CurrentTarget => currentTarget.Target;
+        internal InteractionCursor CursorKind { get; private set; }
 
         public void Initialize(VillagePrototype owner, TargetLinkView targetLink)
         {
@@ -191,6 +192,7 @@ namespace Workerborn
             if (!WorkerbornInput.TryGetPointerPosition(out var cursor) || !WorkerbornInput.IsInView(game.WorldCamera, cursor))
             {
                 currentTarget = pressTarget = rightTarget = default;
+                ShowCursor(InteractionCursor.Default);
                 return;
             }
 
@@ -214,6 +216,8 @@ namespace Workerborn
             if (target != null && (!target.CanInteract || !game.SharesMap(target.transform.position) ||
                 game.ControlsBlocked && !(target is GroundPickup)))
                 target = null;
+            ShowCursor(game.CameraRig.IsOrbiting ? InteractionCursor.Orbit :
+                target != null ? target.CursorFor(game.Worker) : InteractionCursor.Default);
             if (pointerOnWorld && target == null && playerCollider != null)
             {
                 Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
@@ -674,8 +678,26 @@ namespace Workerborn
             return .5f;
         }
 
+        private void ShowCursor(InteractionCursor kind)
+        {
+            if (CursorKind == kind)
+                return;
+            CursorKind = kind;
+            Vector2 hotspot = Vector2.zero;
+            var texture = kind == InteractionCursor.Default ? null : game?.Settings.Cursors?.Find(kind, out hotspot);
+            if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null)
+                Cursor.SetCursor(texture, hotspot, CursorMode.Auto);
+        }
+
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused)
+                ShowCursor(InteractionCursor.Default);
+        }
+
         private void OnDisable()
         {
+            ShowCursor(InteractionCursor.Default);
             RenderPipelineManager.beginCameraRendering -= RenderForWorldCamera;
             generation++;
             currentTarget = pressTarget = rightTarget = default;

@@ -23,9 +23,6 @@ namespace Workerborn
         [SerializeField] private WorkAnimationDefinition workAnimation;
         [SerializeField, Min(0), Tooltip("0 uses the village's default stamina cost.")] private int staminaCost;
         [SerializeField, Range(0, 1)] private float successChance = 1f;
-        [SerializeField, Range(0, 1)] private float luckyChance = .1f;
-        [SerializeField, Range(0, 1)] private float greatLuckyChance = .01f;
-        [SerializeField, Range(0, SkillProgression.MaxRank)] private int greatLuckyRank = 6;
         [Header("Loot Scatter")]
         [SerializeField] private bool scatterTowardWorker;
         [SerializeField, Range(0, 360)] private float scatterAngle = 360f;
@@ -64,14 +61,11 @@ namespace Workerborn
             return Quaternion.AngleAxis(angle, Vector3.up) * forward * radius;
         }
 
-        public WorkOutcome RollOutcome(int rank, float successRoll, float bonusRoll, float luckyBonus = 0, float greatLuckyBonus = 0)
+        public WorkOutcome RollOutcome(VillageState worker, float successRoll, float bonusRoll)
         {
             if (successRoll >= successChance && successChance < 1f)
                 return WorkOutcome.Failure;
-            float great = rank >= greatLuckyRank ? Mathf.Clamp01(greatLuckyChance + greatLuckyBonus) : 0;
-            if (bonusRoll < great)
-                return WorkOutcome.GreatLucky;
-            return bonusRoll < great + Mathf.Clamp01(luckyChance + luckyBonus) ? WorkOutcome.Lucky : WorkOutcome.Success;
+            return worker.RollGatheringBonus(bonusRoll);
         }
     }
 }

@@ -655,7 +655,7 @@ namespace Workerborn.Tests
             int drops = game.GroundItemCount;
             try
             {
-                JsonUtility.FromJsonOverwrite("{\"successChance\":1,\"luckyChance\":0,\"greatLuckyChance\":0,\"itemsPerHarvest\":3," +
+                JsonUtility.FromJsonOverwrite("{\"successChance\":1,\"itemsPerHarvest\":3," +
                     "\"scatterRadius\":{\"x\":0.1,\"y\":0.15}}", definition);
                 Assert.That(crop.TryBegin(worker), Is.True);
                 Assert.That(crop.Advance(worker, definition.HarvestSeconds), Is.True);
@@ -684,7 +684,7 @@ namespace Workerborn.Tests
             string original = JsonUtility.ToJson(definition);
             try
             {
-                JsonUtility.FromJsonOverwrite("{\"successChance\":1,\"luckyChance\":0,\"greatLuckyChance\":0,\"itemsPerHarvest\":8}", definition);
+                JsonUtility.FromJsonOverwrite("{\"successChance\":1,\"itemsPerHarvest\":8}", definition);
                 int charges = crop.Remaining;
                 int drops = game.GroundItemCount;
                 int trails = UnityEngine.Object.FindObjectsByType<LootFlightTrail>(FindObjectsSortMode.None).Length;
@@ -755,6 +755,9 @@ namespace Workerborn.Tests
             var farmer = game.FindInteraction(VillageRole.Farmer);
             var character = farmer.GetComponent<HarvestWorker>();
             Assert.That(character.CharacterState.RankOf(SkillId.HarvestAcquisition), Is.EqualTo(SkillProgression.MaxRank));
+            Assert.That(character.CharacterState.IsSkillLearned(SkillId.LuckyBonus), Is.False);
+            Assert.That(character.CharacterState.IsSkillLearned(SkillId.SoulGrowth), Is.False);
+            long residentExperience = character.CharacterState.Experience;
             int charges = game.RemainingHarvests;
             int playerHarvests = game.State.LifetimeHarvests;
             int playerEnergy = game.State.Energy;
@@ -767,6 +770,7 @@ namespace Workerborn.Tests
             yield return Until(() => character.CharacterState.Inventory.Count(ItemIds.Potato) > 0, 12f);
             Assert.That(game.RemainingHarvests, Is.LessThan(charges));
             Assert.That(character.CharacterState.LifetimeHarvests, Is.GreaterThan(0));
+            Assert.That(character.CharacterState.Experience, Is.EqualTo(residentExperience));
             Assert.That(game.State.LifetimeHarvests, Is.EqualTo(playerHarvests));
             Assert.That(game.State.Energy, Is.EqualTo(playerEnergy));
             Assert.That(game.GroundItemCount, Is.EqualTo(groundItems));
@@ -1054,6 +1058,7 @@ namespace Workerborn.Tests
                 Vector2 pixel = camera.WorldToScreenPoint(pickup.GetComponentInChildren<MeshRenderer>().bounds.center);
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel });
                 yield return Until(() => game.Targeting.CurrentTarget == pickup, 3f);
+                Assert.That(game.Targeting.CursorKind, Is.EqualTo(InteractionCursor.PickUp));
                 int before = game.State.Inventory.Count(ItemIds.Egg);
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = pixel, buttons = 1 });
                 yield return Until(() => game.State.Inventory.Count(ItemIds.Egg) == before + 1, 2f);
@@ -1441,6 +1446,52 @@ namespace Workerborn.Tests
             finally
             {
                 UnityEngine.InputSystem.InputSystem.RemoveDevice(mouse);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RightDragKeepsOrbitingDuringAnInteriorTransition()
+        {
+            var inn = WorldInteractable.Active.OfType<VillageBuildingDoor>().Single(door => door.BuildingId == "inn");
+            Vector3 point = inn.Approach.position;
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(point.x, point.z), out var at, .8f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(at.position), Is.True);
+
+            var mouse = InputSystem.AddDevice<Mouse>();
+            try
+            {
+                var camera = game.WorldCamera;
+                Vector2 center = camera.pixelRect.center;
+                var delta = new Vector2(40f, 0f);
+                Quaternion original = camera.transform.rotation;
+                Assert.That(game.UseBuildingDoor(inn), Is.True);
+                Assert.That(game.ControlsBlocked, Is.True);
+
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = center, buttons = 2 });
+                yield return null;
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = center + delta, delta = delta, buttons = 2 });
+                yield return null;
+                Assert.That(game.IsWorldTransitioning, Is.True);
+                Assert.That(game.CameraRig.IsOrbiting, Is.True);
+                Assert.That(game.Targeting.CursorKind, Is.EqualTo(InteractionCursor.Orbit));
+                Assert.That(Quaternion.Angle(original, camera.transform.rotation), Is.GreaterThan(4f));
+
+                yield return Until(() => game.CurrentInterior == inn.Interior, 3f);
+                Assert.That(game.IsWorldTransitioning, Is.True);
+                Quaternion inRoom = camera.transform.rotation;
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = center, delta = -delta, buttons = 2 });
+                yield return null;
+                Assert.That(Quaternion.Angle(inRoom, camera.transform.rotation), Is.GreaterThan(4f));
+
+                yield return Until(() => !game.IsWorldTransitioning, 3f);
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = center });
+                yield return null;
+                Assert.That(game.CameraRig.RightClickThisFrame, Is.False);
+                Assert.That(game.Targeting.CursorKind, Is.Not.EqualTo(InteractionCursor.Orbit));
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(mouse);
             }
         }
 

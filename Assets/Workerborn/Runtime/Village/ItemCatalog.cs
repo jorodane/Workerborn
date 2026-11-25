@@ -66,6 +66,9 @@ namespace Workerborn
         public const string EggGatheringBook = "egg_gathering_primer";
         public const string FishingBook = "fishing_primer";
         public const string HarvestAcquisitionBook = "harvest_acquisition_primer";
+        public const string LuckyBonusBook = "lucky_bonus_primer";
+        public const string SoulGrowthBook = "soul_growth_primer";
+        public const string CriticalHitBook = "critical_hit_primer";
     }
 
     public sealed class ItemSpec
@@ -116,7 +119,10 @@ namespace Workerborn
             new ItemSpec(ItemIds.CombatBook, "맨손전투 입문서", "읽으면 맨손전투 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.UnarmedCombat),
             new ItemSpec(ItemIds.EggGatheringBook, "달걀 채집 입문서", "읽으면 달걀 채집 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.EggGathering),
             new ItemSpec(ItemIds.FishingBook, "낚시 입문서", "읽으면 낚시 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.Fishing),
-            new ItemSpec(ItemIds.HarvestAcquisitionBook, "수확물 자동 습득 입문서", "읽으면 수확물 자동 습득 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.HarvestAcquisition)
+            new ItemSpec(ItemIds.HarvestAcquisitionBook, "수확물 자동 습득 입문서", "읽으면 수확물 자동 습득 스킬을 배웁니다.", 1, 1, 1, 15, taughtSkill: SkillId.HarvestAcquisition),
+            new ItemSpec(ItemIds.LuckyBonusBook, "럭키 보너스 입문서", "읽으면 채집에서 럭키 보너스를 얻을 수 있습니다.", 1, 1, 1, 15, taughtSkill: SkillId.LuckyBonus),
+            new ItemSpec(ItemIds.SoulGrowthBook, "영혼의 성장 입문서", "읽으면 경험치를 얻을 수 있습니다.", 1, 1, 1, 15, taughtSkill: SkillId.SoulGrowth),
+            new ItemSpec(ItemIds.CriticalHitBook, "치명타 입문서", "읽으면 전투에서 치명타를 낼 수 있습니다.", 1, 1, 1, 15, taughtSkill: SkillId.CriticalHit)
         };
         private static readonly Dictionary<string, ItemSpec> configured = new Dictionary<string, ItemSpec>();
 

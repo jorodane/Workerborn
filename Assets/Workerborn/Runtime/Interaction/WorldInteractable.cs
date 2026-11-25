@@ -61,6 +61,7 @@ namespace Workerborn
         public virtual bool CanInteract => isActiveAndEnabled;
         public virtual string InteractionVerb => "살펴보기";
         public virtual string InteractionVerbFor(HarvestWorker worker) => InteractionVerb;
+        internal virtual InteractionCursor CursorFor(HarvestWorker worker) => InteractionCursor.Inspect;
         internal virtual bool CanReceiveStrike => false;
         internal virtual void ReceiveStrike(HarvestWorker worker, int damage)
         {

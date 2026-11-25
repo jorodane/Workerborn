@@ -36,14 +36,17 @@ namespace Workerborn
         private bool rightPressed;
         private bool rightDragged;
         private bool rightViewMoved;
+        private bool rightClickAllowed;
         private bool middlePressed;
         private Vector2 pressPoint;
         public bool RightClickThisFrame { get; private set; }
+        internal bool IsOrbiting { get; private set; }
         public float Distance => distance;
 
         internal void SnapToTarget()
         {
-            rightPressed = middlePressed = false;
+            if (game?.IsWorldTransitioning != true)
+                ResetOrbit();
             if (target != null)
                 UpdatePose();
         }
@@ -67,24 +70,30 @@ namespace Workerborn
         private void Update()
         {
             RightClickThisFrame = false;
-            if (target == null || game?.IsWorldTransitioning == true || !WorkerbornInput.TryGetPointerPosition(out var position))
+            IsOrbiting = false;
+            if (target == null || !WorkerbornInput.TryGetPointerPosition(out var position))
             {
-                rightPressed = middlePressed = false;
+                ResetOrbit();
                 return;
             }
+            bool transitioning = game?.IsWorldTransitioning == true;
             bool blocked = game != null && game.ControlsBlocked;
             bool canAdjustView = !blocked || game.Hud?.HasModal == true && !game.AwaitingWorldCommand;
-            var ui = game?.Targeting?.UiAt(position);
+            bool canOrbit = transitioning || canAdjustView;
+            if (transitioning)
+                rightClickAllowed = false;
+            var ui = transitioning ? null : game?.Targeting?.UiAt(position);
             bool overUi = ui != null && ui.GetComponentInParent<WorldNameplateView>() == null;
-            if (WorkerbornInput.Pressed("Camera/OrbitRight") && (canAdjustView || game?.Hud.AllowsGroundItems == true) && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitRight") && (canOrbit || game?.Hud.AllowsGroundItems == true) && !overUi)
             {
                 rightPressed = true;
                 rightDragged = false;
                 rightViewMoved = false;
+                rightClickAllowed = !transitioning;
                 pressPoint = position;
             }
 
-            if (WorkerbornInput.Pressed("Camera/OrbitMiddle") && canAdjustView && !overUi)
+            if (WorkerbornInput.Pressed("Camera/OrbitMiddle") && canOrbit && !overUi)
                 middlePressed = true;
             if (WorkerbornInput.Released("Camera/OrbitMiddle"))
                 middlePressed = false;
@@ -93,22 +102,24 @@ namespace Workerborn
             {
                 if (rightPressed && (position - pressPoint).sqrMagnitude > 25f)
                     rightDragged = true;
-                if ((rightDragged || middlePressed) && canAdjustView)
+                if ((rightDragged || middlePressed) && canOrbit)
                 {
+                    IsOrbiting = true;
                     Vector2 delta = WorkerbornInput.Look;
                     yaw += delta.x * orbitSensitivity;
                     pitch = Mathf.Clamp(pitch - delta.y * orbitSensitivity, pitchLimits.x, pitchLimits.y);
                 }
             }
 
-            if (canAdjustView && !overUi)
+            if (!transitioning && canAdjustView && !overUi)
                 distance = OrbitZoom.Apply(distance, WorkerbornInput.Scroll, minimumDistance, maximumDistance, zoomSensitivity);
             if (rightPressed && (yaw != previousYaw || pitch != previousPitch || distance != previousDistance))
                 rightViewMoved = true;
 
             if (WorkerbornInput.Released("Camera/OrbitRight"))
             {
-                RightClickThisFrame = rightPressed && !rightViewMoved && (!blocked || !rightDragged && game?.Hud.AllowsGroundItems == true) && !overUi;
+                RightClickThisFrame = rightPressed && rightClickAllowed && !rightViewMoved &&
+                    (!blocked || !rightDragged && game?.Hud.AllowsGroundItems == true) && !overUi;
                 rightPressed = false;
             }
         }
@@ -116,11 +127,12 @@ namespace Workerborn
         private void OnApplicationFocus(bool focused)
         {
             if (!focused)
-            {
-                rightPressed = false;
-                middlePressed = false;
-            }
+                ResetOrbit();
         }
+
+        private void OnDisable() => ResetOrbit();
+
+        private void ResetOrbit() => rightPressed = middlePressed = rightClickAllowed = IsOrbiting = false;
 
         private void LateUpdate()
         {

@@ -63,6 +63,7 @@ namespace Workerborn
             {
                 SkillId.Harvesting => "첫 일자리 퀘스트를 완료하면 배울 수 있어요.",
                 SkillId.Woodcutting => "목재 납품을 마치거나 잡화점의 벌목 입문서를 읽으면 배울 수 있어요.",
+                SkillId.SoulGrowth => "잡화점의 영혼의 성장 입문서를 읽으면 경험치를 얻을 수 있어요.",
                 _ => $"잡화점의 {state.Rules.Skill(selected).Name} 입문서를 읽으면 배울 수 있어요."
             };
         }
@@ -75,16 +76,16 @@ namespace Workerborn
                     ? "수확물을 즉시 얻고, 주변의 떨어진 수확물도 즉시 주웁니다."
                     : $"2m 안에 떨어진 수확물을 초당 최대 {state.HarvestItemsPerSecond:N0}개 줍습니다.";
             }
+            if (skill == SkillId.LuckyBonus)
+                return $"채집 성공 시 럭키 {state.LuckyChancePercent}% · 획득량 ×2\n대박 {state.GreatLuckyChancePercent}% · 획득량 ×50";
+            if (skill == SkillId.SoulGrowth)
+                return $"경험치 획득량 {state.ExperienceGainPercent}%";
+            if (skill == SkillId.CriticalHit)
+                return $"치명타 확률 {state.CriticalChance:P1} · 피해 ×{state.CriticalDamagePercent / 100f:0.##}";
 
             var lines = new List<string>();
             if (SkillProgression.IsGathering(skill))
-            {
                 lines.Add($"획득량 ×{state.YieldMultiplierFor(skill):N0}    스태미나 절약 {state.SkillBonus(skill, SkillEffect.StaminaSaving):+0;-0;0}");
-                int lucky = state.SkillBonus(skill, SkillEffect.LuckyChance);
-                int great = state.SkillBonus(skill, SkillEffect.GreatLuckyChance);
-                if (lucky != 0 || great != 0)
-                    lines.Add($"럭키 {lucky:+0;-0;0}%p    대박 {great:+0;-0;0}%p");
-            }
             else if (skill == SkillId.Carving)
                 lines.Add($"갈무리 획득량 ×{state.YieldMultiplierFor(skill):N0}");
 

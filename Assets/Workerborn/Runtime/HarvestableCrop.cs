@@ -30,6 +30,7 @@ namespace Workerborn
         internal bool IsBeingHarvested => cycle?.IsWorking == true;
         public override bool CanInteract => base.CanInteract && !IsDepleted;
         public override string InteractionVerb => definition != null ? definition.InteractionVerb : base.InteractionVerb;
+        internal override InteractionCursor CursorFor(HarvestWorker worker) => InteractionCursor.Harvest;
         public float Progress => cycle?.Progress ?? 0f;
         public event Action<HarvestableCrop> Harvested;
         protected void Awake() => EnsureInitialized();

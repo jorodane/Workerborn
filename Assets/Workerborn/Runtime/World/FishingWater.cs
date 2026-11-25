@@ -10,6 +10,7 @@ namespace Workerborn
 
         protected override float DefaultDistance => 7f;
         public override bool CanInteract => surface != null && surface.enabled && base.CanInteract;
+        internal override InteractionCursor CursorFor(HarvestWorker worker) => InteractionCursor.Fish;
 
         public void CastFromPointer(HarvestWorker worker, Ray pointerRay)
         {

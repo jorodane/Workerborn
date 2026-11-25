@@ -435,8 +435,9 @@ namespace Workerborn
             Inventory.ReplaceWith(updated);
             Job = JobStatus.Completed;
             Career++;
-            AddExperience(JobExperience);
-            return Result(true, $"아르바이트 완료! {JobReward}G · 경험치 {JobExperience} · 농장 경력 +1");
+            int earned = AddExperience(JobExperience);
+            string experience = earned > 0 ? $" · 경험치 {earned:N0}" : "";
+            return Result(true, $"아르바이트 완료! {JobReward}G{experience} · 농장 경력 +1");
         }
 
         private void ExpireJob()
@@ -467,12 +468,13 @@ namespace Workerborn
             TryGather(SkillProgression.ForItem(itemId), itemId, baseYield, baseEnergy, outcome, out drops);
 
         public bool TryGather(SkillId skill, string itemId, int baseYield, int baseEnergy, WorkOutcome outcome, out int drops) =>
-            TryGather(skill, itemId, baseYield, baseEnergy, outcome, null, out drops);
+            TryGather(skill, itemId, baseYield, baseEnergy, outcome, null, out drops, out _);
 
         internal bool TryGather(SkillId skill, string itemId, int baseYield, int baseEnergy, WorkOutcome outcome,
-            Func<int, bool> receive, out int drops)
+            Func<int, bool> receive, out int drops, out int experience)
         {
             drops = 0;
+            experience = 0;
             if (baseYield < 1 || baseYield > 100 || !ItemCatalog.Contains(itemId) || !SkillProgression.IsDefined(skill))
                 return Result(false, "채집 결과 설정을 확인해 주세요.");
             int cost = WorkEnergyCost(skill, itemId, baseEnergy);
@@ -483,6 +485,9 @@ namespace Workerborn
                 Energy -= cost;
                 return Result(false, "채집에 실패했어요.");
             }
+            if ((outcome == WorkOutcome.Lucky && LuckyChancePercent == 0) ||
+                (outcome == WorkOutcome.GreatLucky && GreatLuckyChancePercent == 0))
+                outcome = WorkOutcome.Success;
             int bonus = outcome == WorkOutcome.GreatLucky ? 50 : outcome == WorkOutcome.Lucky ? 2 : 1;
             int quantity = ScaledYield(skill, baseYield, bonus);
             if (receive != null && !receive(quantity))
@@ -492,15 +497,18 @@ namespace Workerborn
             LifetimeHarvests++;
             if (itemId == ItemIds.Timber)
                 LifetimeTimber = (int)Math.Min(int.MaxValue, (long)LifetimeTimber + drops);
-            AddExperience(Rules.HarvestExperience + Knowledge / 5);
+            experience = AddExperience((int)Math.Min(int.MaxValue, (long)Rules.HarvestExperience + Knowledge / 5));
             string result = outcome == WorkOutcome.GreatLucky ? "대박 보너스!" : outcome == WorkOutcome.Lucky ? "럭키 보너스!" : "채집 완료!";
             return Result(true, $"{result} {ItemCatalog.Get(itemId).Name} {drops:N0}개");
         }
 
-        private void AddExperience(int amount)
+        private int AddExperience(int amount)
         {
+            int earned = (int)Math.Min(long.MaxValue - Experience, ScaledExperience(amount));
+            if (earned <= 0 || AwaitingIncarnation)
+                return 0;
             int previousLevel = Level, previousStamina = StaminaLimit, previousHealth = HealthLimit;
-            Experience += Math.Min(long.MaxValue - Experience, Math.Max(0, amount));
+            Experience += earned;
             while (Level < LevelLimit && Experience >= NextLevelExperience)
             {
                 Experience -= NextLevelExperience;
@@ -518,6 +526,7 @@ namespace Workerborn
                 Energy = Math.Min(StaminaLimit, Energy + StaminaLimit - previousStamina);
                 Health = Math.Min(HealthLimit, Health + HealthLimit - previousHealth);
             }
+            return earned;
         }
 
         public bool TryBuy(string itemId) => TryBuy(itemId, 1);

@@ -401,13 +401,11 @@ namespace Workerborn
             var skill = work.Skill;
             if (!CanHarvest(sourceWorker, crop))
                 return false;
-            var outcome = work.RollOutcome(state.RankOf(skill), UnityEngine.Random.value, UnityEngine.Random.value,
-                state.SkillBonus(skill, SkillEffect.LuckyChance) * .01f,
-                state.SkillBonus(skill, SkillEffect.GreatLuckyChance) * .01f);
+            var outcome = work.RollOutcome(state, UnityEngine.Random.value, UnityEngine.Random.value);
             int level = state.Level;
             var water = crop as FishingWater;
             Vector3 source = water != null ? sourceWorker.FishingPoint ?? crop.transform.position : crop.transform.position;
-            if (!state.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(state, work), outcome, ReceiveYield, out _))
+            if (!state.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(state, work), outcome, ReceiveYield, out _, out int experience))
             {
                 sourceWorker.ShowGatherResult(false);
                 hud.ShowFloatingText(source + Vector3.up, "실패", new Color(1f, .65f, .55f));
@@ -417,8 +415,8 @@ namespace Workerborn
 
             if (outcome == WorkOutcome.Lucky || outcome == WorkOutcome.GreatLucky)
                 hud.ShowFloatingText(source + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
-            if (sourceWorker.IsLocallyControlled)
-                hud.ShowFloatingText(sourceWorker.transform.position + Vector3.up * 1.8f, "+" + state.Rules.HarvestExperience + " EXP", Color.white);
+            if (sourceWorker.IsLocallyControlled && experience > 0)
+                hud.ShowFloatingText(sourceWorker.transform.position + Vector3.up * 1.8f, $"+{experience:N0} EXP", Color.white);
             ShowLevelUp(sourceWorker, level);
             return true;
 

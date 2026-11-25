@@ -6,7 +6,7 @@ namespace Workerborn
     public enum SkillId
     {
         Harvesting = 0, Woodcutting = 1, Carving = 2, UnarmedCombat = 3, EggGathering = 4, Fishing = 5,
-        HarvestAcquisition = 6
+        HarvestAcquisition = 6, LuckyBonus = 7, SoulGrowth = 8, CriticalHit = 9
     }
 
     public enum SkillEffect
@@ -17,7 +17,10 @@ namespace Workerborn
         UnarmedDamage,
         LuckyChance,
         GreatLuckyChance,
-        HarvestItemsPerSecond = 7
+        HarvestItemsPerSecond = 7,
+        ExperienceGainPercent,
+        CriticalChanceBasisPoints,
+        CriticalDamagePercent
     }
 
     [Serializable]
@@ -46,7 +49,7 @@ namespace Workerborn
         public static IReadOnlyList<SkillId> All { get; } = Array.AsReadOnly(new[]
         {
             SkillId.Harvesting, SkillId.Woodcutting, SkillId.Carving, SkillId.UnarmedCombat, SkillId.EggGathering, SkillId.Fishing,
-            SkillId.HarvestAcquisition
+            SkillId.HarvestAcquisition, SkillId.LuckyBonus, SkillId.SoulGrowth, SkillId.CriticalHit
         });
         private static readonly SkillProgression[] defaults =
         {
@@ -54,9 +57,20 @@ namespace Workerborn
             new SkillProgression(SkillId.Woodcutting, "벌목", GatheringRows(2, new SkillRankEffect(20, 20, SkillEffect.StaminaSaving, 1))),
             new SkillProgression(SkillId.Carving, "갈무리", new[] { new SkillRankEffect(1, 100, SkillEffect.YieldMultiplier, 1) }),
             new SkillProgression(SkillId.UnarmedCombat, "맨손전투", new[] { new SkillRankEffect(1, 100, SkillEffect.UnarmedDamage, 1), new SkillRankEffect(20, 20, SkillEffect.MaxStamina, 5) }),
-            new SkillProgression(SkillId.EggGathering, "달걀 채집", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.LuckyChance, 5))),
-            new SkillProgression(SkillId.Fishing, "낚시", GatheringRows(1, new SkillRankEffect(20, 20, SkillEffect.LuckyChance, 5))),
-            new SkillProgression(SkillId.HarvestAcquisition, "수확물 자동 습득", HarvestAcquisitionRows())
+            new SkillProgression(SkillId.EggGathering, "달걀 채집", GatheringRows(1)),
+            new SkillProgression(SkillId.Fishing, "낚시", GatheringRows(1)),
+            new SkillProgression(SkillId.HarvestAcquisition, "수확물 자동 습득", GradeEffects(SkillEffect.HarvestItemsPerSecond, 1, 1)),
+            new SkillProgression(SkillId.LuckyBonus, "럭키 보너스", GradeEffects(SkillEffect.LuckyChance, 5, 1,
+                new SkillRankEffect(11, 11, SkillEffect.GreatLuckyChance, 1),
+                new SkillRankEffect(51, 51, SkillEffect.GreatLuckyChance, 1))),
+            new SkillProgression(SkillId.SoulGrowth, "영혼의 성장", new[]
+            {
+                new SkillRankEffect(0, 0, SkillEffect.ExperienceGainPercent, 100),
+                new SkillRankEffect(1, MaxRank, SkillEffect.ExperienceGainPercent, 1)
+            }),
+            new SkillProgression(SkillId.CriticalHit, "치명타", GradeEffects(SkillEffect.CriticalDamagePercent, 150, 10,
+                new SkillRankEffect(0, 0, SkillEffect.CriticalChanceBasisPoints, 500),
+                new SkillRankEffect(1, MaxRank, SkillEffect.CriticalChanceBasisPoints, 20)))
         };
 
         private readonly SkillRankEffect[] effects;
@@ -119,25 +133,28 @@ namespace Workerborn
             return (int)Math.Max(-1000000, Math.Min(1000000, total));
         }
 
-        private static SkillRankEffect[] GatheringRows(int laterYield, SkillRankEffect milestone) => new[]
+        private static SkillRankEffect[] GatheringRows(int laterYield, params SkillRankEffect[] milestones)
         {
-            new SkillRankEffect(1, 8, SkillEffect.YieldMultiplier, 1, 1),
-            new SkillRankEffect(9, 100, SkillEffect.YieldMultiplier, laterYield),
-            new SkillRankEffect(3, 3, SkillEffect.StaminaSaving, 1),
-            new SkillRankEffect(6, 6, SkillEffect.StaminaSaving, 1),
-            milestone
-        };
-
-        private static SkillRankEffect[] HarvestAcquisitionRows()
-        {
-            var rows = new SkillRankEffect[GradeAtRank(MaxRank) + 1];
-            rows[0] = new SkillRankEffect(0, 0, SkillEffect.HarvestItemsPerSecond, 1);
-            for (int grade = 1; grade < rows.Length; grade++)
+            var rows = new List<SkillRankEffect>
             {
-                int rank = (grade - 1) * RanksPerGrade + 1;
-                rows[grade] = new SkillRankEffect(rank, rank, SkillEffect.HarvestItemsPerSecond, 1);
+                new SkillRankEffect(1, 8, SkillEffect.YieldMultiplier, 1, 1),
+                new SkillRankEffect(9, 100, SkillEffect.YieldMultiplier, laterYield),
+                new SkillRankEffect(3, 3, SkillEffect.StaminaSaving, 1),
+                new SkillRankEffect(6, 6, SkillEffect.StaminaSaving, 1)
+            };
+            rows.AddRange(milestones);
+            return rows.ToArray();
+        }
+
+        private static SkillRankEffect[] GradeEffects(SkillEffect effect, int practice, int perGrade, params SkillRankEffect[] additional)
+        {
+            var rows = new List<SkillRankEffect> { new SkillRankEffect(0, 0, effect, practice) };
+            for (int rank = 1; rank <= MaxRank; rank += RanksPerGrade)
+            {
+                rows.Add(new SkillRankEffect(rank, rank, effect, perGrade));
             }
-            return rows;
+            rows.AddRange(additional);
+            return rows.ToArray();
         }
     }
 }

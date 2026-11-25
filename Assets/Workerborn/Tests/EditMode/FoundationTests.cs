@@ -49,6 +49,7 @@ namespace Workerborn.Tests
             Assert.That(state.HasTool(ItemIds.Axe), Is.False);
             Assert.That(state.TryEquip(state.Inventory.Entries.Single(e => e.ItemId == ItemIds.Axe).Id), Is.True);
             Assert.That(state.HasTool(ItemIds.Axe), Is.True);
+            Assert.That(state.LearnSkill(SkillId.LuckyBonus), Is.True);
             for (int i = 0; i < 3; i++)
             {
                 Assert.That(state.TryGather(ItemIds.Timber, 1, 4, WorkOutcome.Lucky, out int timber), Is.True);
@@ -157,6 +158,7 @@ namespace Workerborn.Tests
             Assert.That(state.LifetimeHarvests, Is.Zero);
 
             var expert = VillageState.Restore(new VillageSave { skillRank = 8 });
+            Assert.That(expert.LearnSkill(SkillId.LuckyBonus, 11), Is.True);
             Assert.That(expert.TryGather(ItemIds.Timber, 1, 4, WorkOutcome.GreatLucky, out int timber), Is.True);
             Assert.That(timber, Is.EqualTo(1850));
             Assert.That(expert.Inventory.TryAdd(ItemIds.Timber, timber), Is.True);

@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f64c10831bb65244b8485e409affcf27, type: 3}
+  m_Name: VillageCursors
+  m_EditorClassIdentifier: ''
+  styles:
+  - kind: 1
+    texture: {fileID: 2800000, guid: 5308b2e087ba57889881eb193c12b280, type: 3}
+    hotspot: {x: 16, y: 16}
+  - kind: 2
+    texture: {fileID: 2800000, guid: 62782f912a6c5ea39d4dd512e6c385c2, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 3
+    texture: {fileID: 2800000, guid: 93a0fd7e7b3151279180882e3f312e23, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 4
+    texture: {fileID: 2800000, guid: 4b7fb956b0e05d31a44c6cc91873d906, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 5
+    texture: {fileID: 2800000, guid: 1da88aa7aab05e8d9494b401ed16b682, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 6
+    texture: {fileID: 2800000, guid: 7d5a8b2c93c85967b3fb75f0a61157fd, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 7
+    texture: {fileID: 2800000, guid: e672aeab58755680900d4a7784bf0745, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 8
+    texture: {fileID: 2800000, guid: 38d57512773f54f5a395bc524431429e, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 9
+    texture: {fileID: 2800000, guid: 7f8b0dc580935f09a05a9ec1e7cd6430, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 10
+    texture: {fileID: 2800000, guid: 7d71f5d866e759f6b8c723403eb162d0, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 11
+    texture: {fileID: 2800000, guid: c43b723002725eee9e02f7db8640b74a, type: 3}
+    hotspot: {x: 2, y: 2}
+  - kind: 12
+    texture: {fileID: 2800000, guid: 4faec36259b65a1385609c6cfbe9bbce, type: 3}
+    hotspot: {x: 2, y: 2}

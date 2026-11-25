@@ -384,7 +384,7 @@ namespace Workerborn
             string status = active ? "진행 중" : closed ? "마감" : jobWasOpen ? "접수 중" : "접수 전";
             string progress = active ? $"{s.Inventory.Count(r.JobItemId):N0}/{s.JobRequirement:N0}" : $"{s.OfferedJobRequirement:N0}개";
             int gold = active ? s.JobReward : s.OfferedJobReward;
-            int experience = active ? s.JobExperience : s.OfferedJobExperience;
+            int experience = s.ScaledExperience(active ? s.JobExperience : s.OfferedJobExperience);
             string rewardId = active ? s.JobRewardItemId : s.OfferedJobTier.RewardItemId;
             int rewardCount = active ? s.JobRewardItemCount : s.OfferedJobTier.RewardItemCount;
             string reward = rewardCount > 0 ? $"\n{ItemCatalog.Get(rewardId).Name} ×{rewardCount:N0}" : "";

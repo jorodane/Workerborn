@@ -44,7 +44,7 @@ namespace Workerborn
             if (page == VillageQuestPage.FarmJob)
             {
                 description.text = r.JobTitle + "\n\n" + r.JobDescription;
-                rewards.text = $"보수\n{s.JobReward} Gold\n경험치 {s.JobExperience}";
+                rewards.text = $"보수\n{s.JobReward} Gold\n경험치 {s.ScaledExperience(s.JobExperience)}";
                 if (s.JobRewardItemCount > 0)
                     rewards.text += $"\n{ItemCatalog.Get(s.JobRewardItemId).Name} ×{s.JobRewardItemCount}";
                 string status = s.Job == JobStatus.Completed ? "납품 완료" : s.Job == JobStatus.Failed ? "기간 만료" : "미라와 대화해 납품하세요.";
@@ -59,7 +59,7 @@ namespace Workerborn
                 if (page == VillageQuestPage.TimberContract)
                 {
                     description.text = (Game.Settings.FindItem(quest.DocumentItemId)?.DisplayName ?? quest.Title) + "\n\n농장 건설에 필요한 목재를 미라에게 납품하세요.";
-                    rewards.text = $"보상\n{quest.RewardGold} Gold\nAP {quest.RewardAP}\n경험치 {quest.RewardExperience}";
+                    rewards.text = $"보상\n{quest.RewardGold} Gold\nAP {quest.RewardAP}\n경험치 {s.ScaledExperience(quest.RewardExperience)}";
                     objectives.text = $"누적 납품  {s.TimberDelivered:N0}/{s.TimberRequired:N0}\n\n" +
                         (delivered ? "납품 완료" : s.CanConfirmTimberDelivery ? "요구량을 채웠어요. 미라에게 납품 완료를 확인하세요." : "달걀을 팔아 도끼를 구하고 주무기에 장착하세요.");
                 }
@@ -80,7 +80,9 @@ namespace Workerborn
             }
             bool expansion = page == VillageQuestPage.Expansion;
             description.text = expansion ? r.ExpansionTitle + "\n\n" + r.ExpansionDescription : r.IntroTitle + "\n\n" + r.IntroDescription;
-            rewards.text = expansion ? $"시대 전환 후 농장 확장\n{r.ExpansionRewardGold} Gold\nAP {r.ExpansionRewardAP}\n경험치 {r.ExpansionRewardExperience}" : $"보상\n{r.IntroGold} Gold\nAP {r.IntroAP}\n경험치 {r.IntroExperience}";
+            rewards.text = expansion
+                ? $"시대 전환 후 농장 확장\n{r.ExpansionRewardGold} Gold\nAP {r.ExpansionRewardAP}\n경험치 {s.ScaledExperience(r.ExpansionRewardExperience)}"
+                : $"보상\n{r.IntroGold} Gold\nAP {r.IntroAP}\n경험치 {s.ScaledExperience(r.IntroExperience)}";
             objectives.text = expansion
                 ? $"기부금  {s.DonatedGold:N0}/{s.ExpansionGoldRequired:N0}G\n\n{ItemCatalog.Get(r.DonationItemId).Name}  {s.DonatedPotatoes:N0}/{s.ExpansionItemsRequired:N0}\n\n" +
                     (s.FarmUpgradePending ? "[완료] 시대 전환 가능" : s.CanConfirmExpansion ? "요구량을 채웠어요. 확장 준비를 확인하세요." : "[진행 중]")

@@ -37,9 +37,6 @@ MonoBehaviour:
     guid: 182273f91ec35145835c9e977b849b19
     type: 3
   successChance: 0.96
-  luckyChance: 0.1
-  greatLuckyChance: 0.01
-  greatLuckyRank: 6
   scatterTowardWorker: 0
   scatterAngle: 360
   scatterRadius: {x: 0.38, y: 1.18}

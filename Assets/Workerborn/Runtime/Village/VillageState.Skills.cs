@@ -15,12 +15,18 @@ namespace Workerborn
         private readonly int[] skillRanks = new int[SkillProgression.All.Count];
         private readonly bool[] learnedSkills = new bool[SkillProgression.All.Count];
         private const int LearnedSkillSaveSchema = 9;
+        private const int BonusSkillsSaveSchema = 14;
 
         public int SkillRank => RankOf(SkillId.Harvesting);
         public int NextSkillCost => NextSkillCostFor(SkillId.Harvesting);
         public int YieldMultiplier => YieldMultiplierFor(SkillId.Harvesting);
         public int StaminaLimit { get; private set; }
         public int UnarmedDamageBonus { get; private set; }
+        public int GreatLuckyChancePercent => Math.Clamp(SkillBonus(SkillId.LuckyBonus, SkillEffect.GreatLuckyChance), 0, 100);
+        public int LuckyChancePercent => Math.Clamp(SkillBonus(SkillId.LuckyBonus, SkillEffect.LuckyChance), 0, 100 - GreatLuckyChancePercent);
+        public int ExperienceGainPercent => Math.Max(0, SkillBonus(SkillId.SoulGrowth, SkillEffect.ExperienceGainPercent));
+        public float CriticalChance => Math.Clamp(SkillBonus(SkillId.CriticalHit, SkillEffect.CriticalChanceBasisPoints), 0, 10_000) / 10_000f;
+        public int CriticalDamagePercent => Math.Max(100, SkillBonus(SkillId.CriticalHit, SkillEffect.CriticalDamagePercent));
 
         public int RankOf(SkillId skill) => skillRanks[(int)skill];
         public bool IsSkillLearned(SkillId skill) => SkillProgression.IsDefined(skill) && learnedSkills[(int)skill];
@@ -52,6 +58,28 @@ namespace Workerborn
 
         public int ScaledYield(SkillId skill, int baseYield, int bonus = 1) =>
             (int)Math.Min(int.MaxValue, (long)baseYield * YieldMultiplierFor(skill) * bonus);
+
+        internal WorkOutcome RollGatheringBonus(float roll)
+        {
+            int great = GreatLuckyChancePercent;
+            int combined = great + LuckyChancePercent;
+            if (great > 0 && (great == 100 || roll < great * .01f))
+                return WorkOutcome.GreatLucky;
+            return combined > 0 && (combined == 100 || roll < combined * .01f) ? WorkOutcome.Lucky : WorkOutcome.Success;
+        }
+
+        public int ScaledExperience(int baseExperience) =>
+            (int)Math.Min(int.MaxValue, (long)Math.Max(0, baseExperience) * ExperienceGainPercent / 100);
+
+        internal int ResolveCombatDamage(int baseDamage, float roll, out bool critical)
+        {
+            int damage = Math.Max(0, baseDamage);
+            float chance = CriticalChance;
+            critical = damage > 0 && chance > 0f && (chance >= 1f || roll < chance);
+            return critical
+                ? (int)Math.Min(int.MaxValue, ((long)damage * CriticalDamagePercent + 50) / 100)
+                : damage;
+        }
 
         public bool TryUpgradeSkill() => TryUpgradeSkill(SkillId.Harvesting);
 
@@ -119,7 +147,7 @@ namespace Workerborn
             // Older characters already had access to the practice ranks available at the time.
             if (save.schema < LearnedSkillSaveSchema)
                 foreach (var skill in SkillProgression.All)
-                    learnedSkills[(int)skill] = skill != SkillId.HarvestAcquisition;
+                    learnedSkills[(int)skill] = (int)skill < (int)SkillId.HarvestAcquisition;
             if (save.schema < 5)
             {
                 foreach (var skill in SkillProgression.All)
@@ -134,6 +162,9 @@ namespace Workerborn
             foreach (var entry in save.skillRanks)
             {
                 if (save.schema < HarvestAcquisitionSaveSchema && entry?.skill == SkillId.HarvestAcquisition)
+                    continue;
+                if (save.schema < BonusSkillsSaveSchema && entry != null &&
+                    (int)entry.skill >= (int)SkillId.LuckyBonus && SkillProgression.IsDefined(entry.skill))
                     continue;
                 if (entry == null || !SkillProgression.IsDefined(entry.skill) || entry.rank < 0 ||
                     entry.rank > SkillProgression.MaxRank || seen[(int)entry.skill] ||

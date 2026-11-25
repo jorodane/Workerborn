@@ -13,6 +13,7 @@ namespace Workerborn
         public override bool CanInteract => base.CanInteract && approach != null && pose != null;
         public override string DisplayName => "내 침대";
         public override string InteractionVerb => "잠자기";
+        internal override InteractionCursor CursorFor(HarvestWorker worker) => InteractionCursor.Rest;
 
         protected override void Interact(HarvestWorker worker) =>
             worker.CommandApproachAt(this, approach.position);

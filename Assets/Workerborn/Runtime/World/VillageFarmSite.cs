@@ -11,6 +11,7 @@ namespace Workerborn
         public Transform FarmOrigin => farmOrigin != null ? farmOrigin : transform;
         public override string DisplayName => siteName;
         public override string InteractionVerb => siteName + " 지정하기";
+        internal override InteractionCursor CursorFor(HarvestWorker worker) => InteractionCursor.Manage;
 
         protected override void Interact(HarvestWorker worker) => worker.CommandApproach(this);
         protected override void OnArrived(VillagePrototype village, HarvestWorker worker)

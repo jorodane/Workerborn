@@ -35,6 +35,8 @@ namespace Workerborn
         public override bool CanInteract => Interior != null && base.CanInteract;
         public override string InteractionVerb => IsExit ? (Interior.Lobby != null ? "로비로 나가기" : "밖으로 나가기") :
             IsOpen ? "들어가기" : "문 닫힘";
+        internal override InteractionCursor CursorFor(HarvestWorker worker) =>
+            IsOpen ? InteractionCursor.Enter : InteractionCursor.Inspect;
         public override float InteractionDistance => approach != null
             ? Mathf.Max(base.InteractionDistance, Vector3.Distance(approach.position, transform.position) + .9f)
             : base.InteractionDistance;

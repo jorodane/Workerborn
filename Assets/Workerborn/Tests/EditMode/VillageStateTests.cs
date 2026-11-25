@@ -10,12 +10,14 @@ namespace Workerborn.Tests
         public void HarvestDeliveryFailureLeavesStaminaAndProgressIntact()
         {
             var state = new VillageState();
+            Assert.That(state.LearnSkill(SkillId.SoulGrowth), Is.True);
             int energy = state.Energy;
             int requested = 0;
             Assert.That(state.TryGather(SkillId.Harvesting, ItemIds.Potato, 1, 5, WorkOutcome.Success,
-                quantity => { requested = quantity; return false; }, out int harvested), Is.False);
+                quantity => { requested = quantity; return false; }, out int harvested, out int experience), Is.False);
             Assert.That(requested, Is.EqualTo(1));
             Assert.That(harvested, Is.Zero);
+            Assert.That(experience, Is.Zero);
             Assert.That(state.Energy, Is.EqualTo(energy));
             Assert.That(state.LifetimeHarvests, Is.Zero);
             Assert.That(state.Experience, Is.Zero);
@@ -234,6 +236,7 @@ namespace Workerborn.Tests
         public void FirstJobQuestGrantsGrowthBeforeRebirthBecomesAvailable()
         {
             var state = new VillageState();
+            Assert.That(state.LearnSkill(SkillId.SoulGrowth), Is.True);
             state.MeetFarmer();
             Assert.That(state.TryAcceptJob(), Is.True);
             for (int i = 0; i < 3; i++)
@@ -306,6 +309,8 @@ namespace Workerborn.Tests
             Assert.That(state.Gold, Is.EqualTo(75));
             Assert.That(state.Career, Is.EqualTo(1));
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(6));
+            Assert.That(state.Experience, Is.Zero);
+            Assert.That(state.Level, Is.EqualTo(1));
         }
 
         [Test]
@@ -339,6 +344,7 @@ namespace Workerborn.Tests
         public void HarvestConsumesEnergyAndGrantsExperienceButDoesNotAutoLoot()
         {
             var state = new VillageState();
+            Assert.That(state.LearnSkill(SkillId.SoulGrowth), Is.True);
             Assert.That(state.TryHarvest(2, false, out int drops), Is.True);
             Assert.That(drops, Is.EqualTo(2));
             Assert.That(state.Energy, Is.EqualTo(95));
@@ -350,9 +356,65 @@ namespace Workerborn.Tests
         public void LuckyHarvestMultipliesTheDropCount()
         {
             var state = new VillageState();
-            state.TryHarvest(2, true, out int drops);
+            Assert.That(state.RollGatheringBonus(0f), Is.EqualTo(WorkOutcome.Success));
+            Assert.That(state.TryHarvest(2, true, out int drops), Is.True);
+            Assert.That(drops, Is.EqualTo(2));
+            Assert.That(state.Experience, Is.Zero);
+
+            Assert.That(state.Inventory.TryAdd(ItemIds.LuckyBonusBook, 1), Is.True);
+            Assert.That(state.TryReadSkillBook(state.Inventory.Entries.Single().Id), Is.True);
+            Assert.That(state.RollGatheringBonus(.04f), Is.EqualTo(WorkOutcome.Lucky));
+            Assert.That(state.RollGatheringBonus(.051f), Is.EqualTo(WorkOutcome.Success));
+            Assert.That(state.TryHarvest(2, true, out drops), Is.True);
             Assert.That(drops, Is.EqualTo(4));
-            Assert.That(state.LifetimeHarvests, Is.EqualTo(1));
+            Assert.That(state.LifetimeHarvests, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void SoulGrowthEnablesExperienceWithoutResettingAnExistingLevel()
+        {
+            var save = new VillageState().Export();
+            save.schema = 13;
+            save.level = 4;
+            save.totalLevel = 4;
+            save.experience = 12;
+            var state = VillageState.Restore(save);
+            Assert.That(state.Level, Is.EqualTo(4));
+            Assert.That(state.TryHarvest(1, false, out _), Is.True);
+            Assert.That(state.Experience, Is.EqualTo(12));
+
+            Assert.That(state.Inventory.TryAdd(ItemIds.SoulGrowthBook, 1), Is.True);
+            Assert.That(state.TryReadSkillBook(state.Inventory.Entries.Single().Id), Is.True);
+            Assert.That(state.TryHarvest(1, false, out _), Is.True);
+            Assert.That(state.Experience, Is.EqualTo(20));
+            Assert.That(state.LearnSkill(SkillId.SoulGrowth, SkillProgression.MaxRank), Is.True);
+            Assert.That(state.TryHarvest(1, false, out _), Is.True);
+            Assert.That(state.Experience, Is.EqualTo(36));
+            Assert.That(state.Level, Is.EqualTo(4));
+            Assert.That(VillageState.Restore(state.Export()).ExperienceGainPercent, Is.EqualTo(200));
+        }
+
+        [Test]
+        public void CriticalHitChanceUsesRankAndDamageUsesGrade()
+        {
+            var save = new VillageState().Export();
+            save.ap = 100;
+            var state = VillageState.Restore(save);
+            Assert.That(state.ResolveCombatDamage(20, 0f, out bool critical), Is.EqualTo(20));
+            Assert.That(critical, Is.False);
+
+            Assert.That(state.Inventory.TryAdd(ItemIds.CriticalHitBook, 1), Is.True);
+            Assert.That(state.TryReadSkillBook(state.Inventory.Entries.Single().Id), Is.True);
+            Assert.That(state.ResolveCombatDamage(20, .049f, out critical), Is.EqualTo(30));
+            Assert.That(critical, Is.True);
+            Assert.That(state.ResolveCombatDamage(20, .051f, out _), Is.EqualTo(20));
+
+            Assert.That(state.TryUpgradeSkillToNextGrade(SkillId.CriticalHit), Is.True);
+            Assert.That(state.ResolveCombatDamage(20, .051f, out _), Is.EqualTo(32));
+            Assert.That(state.TryUpgradeSkill(SkillId.CriticalHit), Is.True);
+            Assert.That(state.ResolveCombatDamage(20, .053f, out _), Is.EqualTo(32));
+            Assert.That(state.TryUpgradeSkillToNextGrade(SkillId.CriticalHit), Is.True);
+            Assert.That(state.ResolveCombatDamage(20, .07f, out _), Is.EqualTo(34));
         }
 
         [Test]
