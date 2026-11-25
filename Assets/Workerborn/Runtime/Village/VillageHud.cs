@@ -31,6 +31,9 @@ namespace Workerborn
         [SerializeField] private VillageMapView minimap;
         [SerializeField] private PartTimeScheduleView mapSchedule;
         [SerializeField] private CanvasGroup worldFade;
+        [SerializeField] private CanvasGroup areaAnnouncement;
+        [SerializeField] private TMP_Text areaTitle;
+        [SerializeField] private TMP_Text areaDescription;
         private readonly List<VillageWindowView> windowFocus = new List<VillageWindowView>();
         private Vector2 lastCanvasSize;
         internal VillageJobSchedule Jobs { get; private set; }
@@ -55,6 +58,11 @@ namespace Workerborn
         private const float ToastFadeOut = .48f;
         private float toastStartedAt;
         private float toastInitialAlpha;
+        private const float AreaFadeIn = .25f;
+        private const float AreaHold = 2f;
+        private const float AreaFadeOut = 1f;
+        private MonoBehaviour announcedArea;
+        private float areaAnnouncedAt;
         private RectTransform skillBubble;
         private SkillBalloonView skillBalloon;
         private RectTransform hoverTip;
@@ -172,6 +180,33 @@ namespace Workerborn
             toast.alpha = fadeIn * fadeOut;
         }
 
+        private void UpdateAreaAnnouncement()
+        {
+            if (areaAnnouncement == null)
+                return;
+            float now = Time.unscaledTime;
+            if (!game.IsWorldTransitioning)
+            {
+                var area = game.CurrentArea;
+                if (area.Source != announcedArea)
+                {
+                    announcedArea = area.Source;
+                    areaAnnouncedAt = now;
+                    areaTitle.text = area.Name;
+                    areaDescription.text = area.Description;
+                    areaAnnouncement.gameObject.SetActive(true);
+                }
+            }
+            if (!areaAnnouncement.gameObject.activeSelf)
+                return;
+            float elapsed = now - areaAnnouncedAt;
+            float remaining = AreaFadeIn + AreaHold + AreaFadeOut - elapsed;
+            areaAnnouncement.alpha = Mathf.SmoothStep(0f, 1f, elapsed / AreaFadeIn) *
+                Mathf.SmoothStep(0f, 1f, remaining / AreaFadeOut);
+            if (remaining <= 0f)
+                areaAnnouncement.gameObject.SetActive(false);
+        }
+
         public void ShowFloatingText(Vector3 position, string content, Color color)
         {
             var text = floatingTexts.Rent();
@@ -277,6 +312,7 @@ namespace Workerborn
             Jobs.Update();
             UpdateTracking();
             UpdateToast();
+            UpdateAreaAnnouncement();
 
             if (state.Version != seenVersion || state.Inventory.Version != seenInventoryVersion)
             {
@@ -584,9 +620,16 @@ namespace Workerborn
             if (IsHoldingItem)
                 SellHeldItem(screen);
             else if (WorkerbornInput.Held("Gameplay/Target"))
-                game.Perform(() => game.State.TryBuy(id));
+                TryBuyShopItem(id, 1, placeOnCursor: false);
             else
                 OpenQuantity(id, QuantityAction.Buy, screen: screen);
+        }
+
+        internal bool TryBuyShopItem(string id, int quantity, bool placeOnCursor)
+        {
+            return views.TryGetValue("shop", out var view) &&
+                view is ShopWindowView { IsOpen: true, Merchant: not null } shop &&
+                game.BuyFrom(shop.Merchant, id, quantity, placeOnCursor);
         }
 
         private void OpenQuantity(string id, QuantityAction action, int stackId = 0, Vector2? screen = null,

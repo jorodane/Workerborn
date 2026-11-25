@@ -28,6 +28,7 @@ namespace Workerborn
         internal Transform Visual => visual;
         internal GroundPickup AppearanceSource { get; set; }
         internal GroundDropSave DropRecord { get; private set; }
+        internal EquipmentCondition Condition => DropRecord?.condition ?? default;
         internal string SharedDropId { get; private set; }
         internal bool IsPooled => returnToPool != null;
         public string ItemId => item != null ? item.Id : definition != null ? definition.ItemId : string.Empty;
@@ -51,7 +52,8 @@ namespace Workerborn
                 base.AddContextActions(village, actions);
             string id = ItemId;
             int count = Quantity;
-            actions.Add(new WorldContextAction("자세히 보기", () => village.Hud.InspectGroundItem(id, count)));
+            var condition = Condition;
+            actions.Add(new WorldContextAction("자세히 보기", () => village.Hud.InspectGroundItem(id, count, condition)));
         }
 
         protected override void Interact(HarvestWorker worker) => worker.CommandPickup(this);

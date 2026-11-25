@@ -117,7 +117,7 @@ namespace Workerborn
             quantityInput.gameObject.SetActive(showAmount);
             foreach (var button in amountButtons)
                 button.gameObject.SetActive(showAmount);
-            item.Display(Game.Settings.FindItem(id), id, quantity);
+            item.Display(Game.Settings.FindItem(id), id, quantity, action == QuantityAction.Buy ? default : Stack?.Condition ?? default);
             item.SetTradeTooltip(action is QuantityAction.Buy or QuantityAction.Sell ? action : null);
             title.text = confirmQuickSale ? $"{spec.Name} · 즉시 판매 확인" : spec.Name;
             total.text = action == QuantityAction.Split
@@ -142,12 +142,12 @@ namespace Workerborn
             ApplyInput(quantityInput.text, true);
             if (quantity < 1)
                 return;
-            bool success = Game.Perform(() => action switch
+            bool success = action switch
             {
-                QuantityAction.Sell => Stack != null && Game.State.TrySellStack(entryId, quantity),
-                QuantityAction.Split => Stack != null && Game.State.TrySplitStack(entryId, quantity),
-                _ => Game.State.TryBuyForPlacement(id, quantity)
-            });
+                QuantityAction.Sell => Stack != null && Game.Perform(() => Game.State.TrySellStack(entryId, quantity)),
+                QuantityAction.Split => Stack != null && Game.Perform(() => Game.State.TrySplitStack(entryId, quantity)),
+                _ => Hud.TryBuyShopItem(id, quantity, placeOnCursor: true)
+            };
             if (success)
             {
                 Hud.CloseWindow(Id);

@@ -61,6 +61,7 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   navigation: {fileID: 100121}
+  mapDescription: 생활에 필요한 도구와 물품을 사고파는 곳.
   arrival: {fileID: 100120}
   exit: {fileID: 100118}
 --- !u!1 &100004

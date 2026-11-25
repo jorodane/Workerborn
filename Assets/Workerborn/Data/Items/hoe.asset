@@ -35,6 +35,7 @@ MonoBehaviour:
   maxStack: 1
   price: 60
   equipmentSlot: 5
+  maxDurability: 100
   equipmentPart:
     fileID: 11400000
     guid: 38f55a0d09ab5f85bd3e475fdddf54fa

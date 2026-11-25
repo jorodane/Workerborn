@@ -89,5 +89,17 @@ namespace Workerborn
             else
                 ShowToast($"소지품에 {spec.Name} 아이템이 없어요.");
         }
+
+        internal void ShowShortcutTooltip(int index, Vector2 screen)
+        {
+            var state = game.State;
+            string id = state.ItemShortcutAt(index);
+            if (id == null)
+                return;
+            var spec = ItemCatalog.Get(id);
+            var condition = state.IsEquipped(spec) ? state.EquippedCondition(spec.EquipmentSlot) :
+                state.FindShortcutEntry(index)?.Condition ?? default;
+            ShowItemTooltip(id, screen, condition: condition);
+        }
     }
 }

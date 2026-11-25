@@ -60,7 +60,7 @@ namespace Workerborn
             hovered = true;
             RefreshFrame();
             if (itemId != null)
-                hud.ShowItemTooltip(itemId, data.position);
+                hud.ShowShortcutTooltip(Index, data.position);
         }
 
         public void OnPointerExit(PointerEventData data) => ResetHover();

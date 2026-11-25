@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: 맨손전투
   icon: {fileID: 21300000, guid: 11db81a4f13e55a292f60a8d8d53a45d, type: 3}
   firstUpgradeCost: 1
-  costIncreasePerRank: 1
+  costIncreasePerGrade: 1
   rankEffects:
   - fromRank: 1
     throughRank: 100

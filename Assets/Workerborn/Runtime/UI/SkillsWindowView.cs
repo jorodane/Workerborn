@@ -9,8 +9,10 @@ namespace Workerborn
     {
         [SerializeField] private RectTransform skillRows;
         [SerializeField] private Button advance;
+        [SerializeField] private Button advanceGrade;
         [SerializeField] private Button use;
         [SerializeField] private TMP_Text advanceText;
+        [SerializeField] private TMP_Text advanceGradeText;
         [SerializeField] private TMP_Text ap;
         [SerializeField] private TMP_Text details;
 
@@ -24,6 +26,7 @@ namespace Workerborn
                 rows.Add(skill, Instantiate(hud.Library.ListRow, skillRows));
             use.onClick.AddListener(() => game.UseGatheringSkill(selected));
             advance.onClick.AddListener(() => game.UpgradeSkill(selected));
+            advanceGrade.onClick.AddListener(() => game.UpgradeSkillToNextGrade(selected));
         }
 
         public override void Refresh()
@@ -49,6 +52,11 @@ namespace Workerborn
             int cost = state.NextSkillCostFor(selected);
             advanceText.text = !learned ? "미습득" : maxed ? "최고 랭크" : $"승급  AP {cost}";
             advance.interactable = learned && !maxed && state.AP >= cost;
+            int gradeRank = state.NextSkillGradeRankFor(selected);
+            int gradeCost = state.NextSkillGradeCostFor(selected);
+            advanceGradeText.text = !learned ? "다음 급수" : gradeRank == 0
+                ? "최고 급수" : $"{SkillProgression.GradeAtRank(gradeRank)}급까지  AP {gradeCost}";
+            advanceGrade.interactable = gradeRank > 0 && state.AP >= gradeCost;
             use.gameObject.SetActive(SkillProgression.IsGathering(selected));
             use.interactable = learned && !state.AwaitingIncarnation;
             details.text = learned ? Describe(state, selected) : selected switch

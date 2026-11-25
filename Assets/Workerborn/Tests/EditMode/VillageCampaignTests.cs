@@ -58,6 +58,35 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void DroppedEquipmentKeepsItsConditionAndDoesNotMergeWithNewEquipment()
+        {
+            const long now = 100_000;
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 0f, -4.4f);
+            Assert.That(campaign.Connect("a", "하나", out var owner), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out var buyer), Is.True);
+            Incarnate(campaign, "a");
+            Incarnate(campaign, "b");
+            var state = VillageState.Restore(owner.character, rules);
+            var condition = new EquipmentCondition(7, 62);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Axe, 1, condition), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
+            Assert.That(campaign.Checkpoint("a", state.Export()), Is.True);
+
+            var draft = new GroundDropSave { itemId = ItemIds.Axe, z = -4.4f };
+            var axe = state.Inventory.Entries.First();
+            Assert.That(campaign.TryPlaceGroundDrop("a", axe.Id, draft, now, out var wornDrop, out _), Is.True);
+            Assert.That(wornDrop.condition, Is.EqualTo(condition));
+            Assert.That(campaign.TryPlaceGroundDrop("a", state.Inventory.Entries.Last().Id, draft, now, out _, out _), Is.True);
+            campaign = new VillageCampaign(rules, Sites, 0f, -4.4f, campaign.Export());
+            Assert.That(campaign.Connect("b", "둘", out buyer), Is.True);
+            campaign.ReleaseExpiredDrops(now + 60_000, null);
+            Assert.That(campaign.SharedGroundDrops.Count(), Is.EqualTo(2));
+            Assert.That(campaign.TryCollectGroundDrop("b", wornDrop.id, now + 60_000, out _, out _), Is.True);
+            Assert.That(VillageState.Restore(buyer.character, rules).Inventory.Entries.Single().Condition, Is.EqualTo(condition));
+        }
+
+        [Test]
         public void OnlyReleasedNearbyItemsOfTheSameKindMergeAndTheRemainderStaysOnTheGround()
         {
             const long now = 100_000;

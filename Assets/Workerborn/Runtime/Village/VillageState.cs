@@ -48,6 +48,7 @@ namespace Workerborn
         public string id;
         public int quantity = 1;
         public string itemId;
+        public EquipmentCondition condition;
         // Older saves used this field to mark the NPC's uncollected harvests.
         public string harvestedBy;
         public string ownerId;
@@ -81,6 +82,7 @@ namespace Workerborn
     {
         public string itemId;
         public int quantity;
+        public EquipmentCondition condition;
     }
 
     [Serializable]
@@ -233,7 +235,10 @@ namespace Workerborn
         internal InventoryEntry PendingPurchase { get; private set; }
 
         private readonly Dictionary<EquipmentSlot, string> equipment = new Dictionary<EquipmentSlot, string>();
+        private readonly Dictionary<EquipmentSlot, EquipmentCondition> equipmentConditions = new Dictionary<EquipmentSlot, EquipmentCondition>();
         public IReadOnlyDictionary<EquipmentSlot, string> Equipment => equipment;
+        public EquipmentCondition EquippedCondition(EquipmentSlot slot) =>
+            equipmentConditions.TryGetValue(slot, out var condition) ? condition : default;
         public VillageRules Rules { get; }
         public int Version { get; private set; }
         public int NoticeSerial { get; private set; }
@@ -284,12 +289,12 @@ namespace Workerborn
             if (entryId != 0 && !copy.TryRemoveAt(entryId, 1))
                 return false;
             var slot = item.Spec.EquipmentSlot;
-            if (equipment.TryGetValue(slot, out string previous) && !copy.TryAdd(previous, 1))
+            if (equipment.TryGetValue(slot, out string previous) && !copy.TryAdd(previous, 1, EquippedCondition(slot)))
                 return Result(false, "기존 장비를 넣을 공간이 없습니다.");
             if (slot == EquipmentSlot.Bag && copy.Rows < BagInventoryRows)
                 copy.ExpandRows(BagInventoryRows);
             Inventory.ReplaceWith(copy);
-            equipment[slot] = item.ItemId;
+            SetEquippedItem(slot, item.Spec, item.Condition);
             if (entryId == 0)
                 RemovePurchaseQuantity(1);
             return Result(true, item.Spec.Name + " 장착");
@@ -300,11 +305,18 @@ namespace Workerborn
             if (!equipment.TryGetValue(slot, out string item))
                 return false;
             var copy = Inventory.Copy();
-            if ((slot == EquipmentSlot.Bag && !copy.TryShrinkRows(BaseInventoryRows)) || !copy.TryAdd(item, 1))
+            if ((slot == EquipmentSlot.Bag && !copy.TryShrinkRows(BaseInventoryRows)) || !copy.TryAdd(item, 1, EquippedCondition(slot)))
                 return Result(false, "장비를 해제할 소지품 공간이 부족합니다.");
             Inventory.ReplaceWith(copy);
             equipment.Remove(slot);
+            equipmentConditions.Remove(slot);
             return Result(true, ItemCatalog.Get(item).Name + " 해제");
+        }
+
+        private void SetEquippedItem(EquipmentSlot slot, ItemSpec item, EquipmentCondition condition = default)
+        {
+            equipment[slot] = item.Id;
+            equipmentConditions[slot] = condition.ForItem(item);
         }
 
         private bool Result(bool success, string message)
@@ -547,14 +559,14 @@ namespace Workerborn
             {
                 if (cost > 0 && !Inventory.TryRemove(ItemIds.Gold, cost))
                     return Result(false, "골드가 부족해요.");
-                PendingPurchase = new InventoryEntry { ItemId = itemId, Quantity = quantity };
+                PendingPurchase = new InventoryEntry { ItemId = itemId, Quantity = quantity, Condition = default(EquipmentCondition).ForItem(spec) };
                 return Result(true, $"{spec.Name} {quantity}개 구입! {cost}G를 지불했어요.");
             }
             if (itemId == ItemIds.Bag)
             {
                 if (spec.Price > 0 && !Inventory.TryRemove(ItemIds.Gold, spec.Price))
                     return Result(false, "골드가 부족해요.");
-                equipment.Add(EquipmentSlot.Bag, itemId);
+                SetEquippedItem(EquipmentSlot.Bag, spec);
                 if (Inventory.Rows < BagInventoryRows)
                     Inventory.ExpandRows(BagInventoryRows);
                 return Result(true, $"{spec.Name} 구입 및 장착. {spec.Price}G를 지불했어요.");
@@ -576,7 +588,7 @@ namespace Workerborn
         }
 
         internal bool TryStowPurchase() => PendingPurchase != null &&
-            Inventory.TryAdd(PendingPurchase.ItemId, PendingPurchase.Quantity) && RemovePurchaseQuantity(PendingPurchase.Quantity);
+            Inventory.TryAdd(PendingPurchase.ItemId, PendingPurchase.Quantity, PendingPurchase.Condition) && RemovePurchaseQuantity(PendingPurchase.Quantity);
 
         internal bool TryRemoveCarriedItem(int entryId, int quantity) => entryId == 0
             ? RemovePurchaseQuantity(quantity) : Inventory.TryRemoveAt(entryId, quantity);
@@ -809,7 +821,7 @@ namespace Workerborn
         {
             var worn = new List<EquipmentEntrySave>();
             foreach (var entry in equipment)
-                worn.Add(new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value });
+                worn.Add(new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value, condition = EquippedCondition(entry.Key) });
             return new T
             {
                 schema = CurrentSaveSchema,
@@ -866,7 +878,10 @@ namespace Workerborn
                 itemShortcuts = (string[])itemShortcuts.Clone(),
                 pendingHarvests = pendingHarvests.ToArray(),
                 pendingPurchase = PendingPurchase == null ? null :
-                    new PendingPurchaseSave { itemId = PendingPurchase.ItemId, quantity = PendingPurchase.Quantity }
+                    new PendingPurchaseSave
+                    {
+                        itemId = PendingPurchase.ItemId, quantity = PendingPurchase.Quantity, condition = PendingPurchase.Condition
+                    }
             };
         }
 
@@ -987,14 +1002,14 @@ namespace Workerborn
                 {
                     if (entry == null || !ItemCatalog.Contains(entry.itemId) || entry.slot == EquipmentSlot.None || ItemCatalog.Get(entry.itemId).EquipmentSlot != entry.slot || state.equipment.ContainsKey(entry.slot))
                         throw new ArgumentException("Invalid equipped item.");
-                    state.equipment.Add(entry.slot, entry.itemId);
+                    state.SetEquippedItem(entry.slot, ItemCatalog.Get(entry.itemId), entry.condition);
                 }
 
             if (save.schema < 4 && save.bagExpanded)
             {
                 if (state.BagExpanded || inventory.Count(ItemIds.Bag) != 1 || !inventory.TryRemove(ItemIds.Bag, 1))
                     throw new ArgumentException("Invalid legacy bag.");
-                state.equipment.Add(EquipmentSlot.Bag, ItemIds.Bag);
+                state.SetEquippedItem(EquipmentSlot.Bag, ItemCatalog.Get(ItemIds.Bag));
             }
             if (save.bagExpanded != state.BagExpanded || state.BagExpanded && inventory.Rows < BagInventoryRows)
                 throw new ArgumentException("Invalid bag equipment.");
@@ -1005,7 +1020,10 @@ namespace Workerborn
                 if (!state.IsPurchasable(purchase.itemId) || purchase.quantity < 1 ||
                     purchase.quantity > PurchaseLimit(ItemCatalog.Get(purchase.itemId)))
                     throw new ArgumentException("Invalid pending purchase.");
-                state.PendingPurchase = new InventoryEntry { ItemId = purchase.itemId, Quantity = purchase.quantity };
+                state.PendingPurchase = new InventoryEntry
+                {
+                    ItemId = purchase.itemId, Quantity = purchase.quantity, Condition = purchase.condition.ForItem(ItemCatalog.Get(purchase.itemId))
+                };
             }
 
             if (state.AwaitingIncarnation && (state.HasVillageProgress || save.gold != 0 ||

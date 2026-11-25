@@ -61,6 +61,7 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   navigation: {fileID: 100121}
+  mapDescription: 마을 주민이 일과를 마치고 돌아오는 집.
   arrival: {fileID: 100120}
   exit: {fileID: 100118}
 --- !u!1 &100004

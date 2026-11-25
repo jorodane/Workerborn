@@ -7,6 +7,9 @@ namespace Workerborn
     [DisallowMultipleComponent]
     public sealed class VillageMapRegion : MonoBehaviour
     {
+        internal const string DefaultMapName = "솔바람 마을";
+        internal const string DefaultMapDescription = "밭을 가꾸고 장을 보며 하루를 보내는 마을.";
+
         [Serializable]
         private struct LayerColor
         {
@@ -18,7 +21,12 @@ namespace Workerborn
         private float width = 80f;
         [SerializeField, Min(1f), Tooltip("Depth in world units along Z.")]
         private float depth = 72f;
+        [SerializeField] private string mapName = DefaultMapName;
+        [SerializeField, TextArea(1, 3)] private string mapDescription = DefaultMapDescription;
         [SerializeField] private LayerColor[] layerColors = Array.Empty<LayerColor>();
+
+        internal string MapName => string.IsNullOrWhiteSpace(mapName) ? DefaultMapName : mapName;
+        internal string MapDescription => mapDescription;
 
         private const int Resolution = 384;
         private static readonly Color Paper = new Color(.89f, .82f, .67f);

@@ -22,5 +22,6 @@ MonoBehaviour:
   maxStack: 1
   price: 12
   equipmentSlot: 1
+  maxDurability: 100
   equipmentPart: {fileID: 11400000, guid: 4b9819e492be51529b01d75d22004c84, type: 2}
   groundPrefab: {fileID: 100008, guid: 1d48e5511314549fa477b7a590a4fba3, type: 3}

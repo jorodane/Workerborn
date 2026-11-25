@@ -70,6 +70,11 @@ namespace Workerborn.Tests
             yield return null;
             game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
             Assert.That(game.InRebirthZone, Is.True);
+            var announcement = game.Hud.transform.Find("Area announcement");
+            var areaName = announcement.Find("Area name").GetComponent<TMP_Text>();
+            var areaDescription = announcement.Find("Area description").GetComponent<TMP_Text>();
+            yield return Until(() => areaName.text == game.RebirthArea.MapName && announcement.gameObject.activeSelf, 3f);
+            Assert.That(areaDescription.text, Is.EqualTo(game.RebirthArea.MapDescription).And.Not.Empty);
             Assert.That(game.CaptureSave().awaitingIncarnation, Is.True);
             Assert.That(game.State.Level, Is.EqualTo(1));
             Assert.That(game.State.Inventory.Entries, Is.Empty);
@@ -80,7 +85,9 @@ namespace Workerborn.Tests
             var skills = game.Hud.OpenWindow("skills");
             var advance = skills.GetComponentsInChildren<Button>().Single(button => button.name == "Advance");
             Assert.That(advance.interactable, Is.True);
-            advance.onClick.Invoke();
+            var advanceGrade = skills.GetComponentsInChildren<Button>().Single(button => button.name == "Advance grade");
+            Assert.That(advanceGrade.interactable, Is.True);
+            advanceGrade.onClick.Invoke();
             Assert.That(game.State.RankOf(SkillId.Harvesting), Is.EqualTo(1));
             Assert.That(game.State.AP, Is.Zero);
             Assert.That(game.Perform(() => game.State.Inventory.TryAdd(ItemIds.Potato, 1)), Is.False);
@@ -106,6 +113,7 @@ namespace Workerborn.Tests
             Assert.That(game.State.LifeLook, Is.EqualTo(look));
             Assert.That(game.State.Inventory.Entries, Is.Empty);
             Assert.That(game.State.RankOf(SkillId.Harvesting), Is.EqualTo(1));
+            yield return Until(() => areaName.text == "솔바람 마을" && announcement.gameObject.activeSelf, 3f);
         }
 
         [UnityTest]
@@ -1694,6 +1702,25 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator PurchaseArcPassesAboveAndAwayFromBothEndpoints()
+        {
+            var seller = new Vector3(0f, 1f, 0f);
+            var buyer = new Vector3(4f, 1f, 0f);
+            var center = Vector3.Lerp(seller, buyer, .5f);
+            var arc = new LootFlightTrail.PurchaseArc(seller, buyer, new Vector2(.1f, .9f));
+            Vector3 waypoint = arc.PositionAt(arc.WaypointProgress);
+            Assert.That(waypoint.y, Is.GreaterThan(center.y + .8f));
+            Assert.That(Vector3.Distance(waypoint, center), Is.EqualTo(2f).Within(.001f));
+            Assert.That(Vector3.Distance(waypoint, seller), Is.GreaterThanOrEqualTo(2f));
+            Assert.That(Vector3.Distance(waypoint, buyer), Is.GreaterThanOrEqualTo(2f));
+            Assert.That(Vector3.Distance(arc.PositionAt(0f), seller), Is.LessThan(.001f));
+            Assert.That(Vector3.Distance(arc.PositionAt(1f), buyer), Is.LessThan(.001f));
+            var overlap = new LootFlightTrail.PurchaseArc(seller, seller, Vector2.one * .5f);
+            Assert.That(overlap.PositionAt(overlap.WaypointProgress).y, Is.GreaterThan(seller.y + .45f));
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator TradeQuantityOpensAtTheClickAndLocksBothItemGrids()
         {
             var keyboard = InputSystem.AddDevice<Keyboard>();
@@ -1705,12 +1732,16 @@ namespace Workerborn.Tests
                 Assert.That(game.State.Inventory.TryAdd(ItemIds.LegendAxe, 1), Is.True);
                 var potato = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
                 var bread = game.State.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Bread);
-                game.Hud.OpenShop(game.FindInteraction(VillageRole.Merchant));
+                var seller = game.FindInteraction(VillageRole.Merchant);
+                game.Hud.OpenShop(seller);
                 yield return null;
                 Canvas.ForceUpdateCanvases();
 
                 var inventory = UnityEngine.Object.FindFirstObjectByType<InventoryWindowView>();
                 var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
+                Vector3 trailStart = seller.transform.position + Vector3.up * LootFlightTrail.ReceiverHeight;
+                bool TrailAtSeller() => UnityEngine.Object.FindObjectsByType<LootFlightTrail>(FindObjectsSortMode.None)
+                    .Any(trail => (trail.transform.position - trailStart).sqrMagnitude < .0001f && trail.GetComponent<TrailRenderer>().emitting);
                 var stock = shop.GetComponentInChildren<UiItemView>().GetComponent<Button>();
                 var potatoCell = inventory.ItemLayer.GetComponentsInChildren<InventoryItemDrag>().Single(cell => cell.EntryId == potato.Id);
                 Vector2 ScreenCenter(RectTransform rect) => RectTransformUtility.WorldToScreenPoint(null, rect.TransformPoint(rect.rect.center));
@@ -1753,6 +1784,7 @@ namespace Workerborn.Tests
 
                 stock.onClick.Invoke();
                 Assert.That(game.State.Inventory.Count(ItemIds.Axe), Is.EqualTo(1));
+                Assert.That(TrailAtSeller(), Is.True);
                 Assert.That(game.Hud.IsHoldingItem, Is.False);
                 Assert.That(game.Hud.HasQuantityPrompt, Is.False);
                 yield return null;
@@ -1766,6 +1798,7 @@ namespace Workerborn.Tests
                 VerifyPopupPosition(prompt.Rect, buyClick);
                 Assert.That(inventoryInput.blocksRaycasts, Is.False);
                 FindButton(prompt, "구입").onClick.Invoke();
+                Assert.That(TrailAtSeller(), Is.True);
                 Assert.That(game.Hud.IsHoldingItem, Is.True);
                 Assert.That(game.State.Inventory.Count(ItemIds.Axe), Is.EqualTo(1));
                 Assert.That(game.State.PendingPurchase.ItemId, Is.EqualTo(ItemIds.Axe));

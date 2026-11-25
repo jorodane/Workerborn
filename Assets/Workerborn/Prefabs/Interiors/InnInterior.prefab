@@ -64,6 +64,7 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   navigation: {fileID: 100121}
+  mapDescription: 여행객이 머물 방을 안내받는 곳.
   arrival: {fileID: 100120}
   exit: {fileID: 100118}
   keeperPoint: {fileID: 910026102}

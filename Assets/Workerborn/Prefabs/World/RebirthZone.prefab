@@ -966,6 +966,7 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   mapName: 구름 위
+  mapDescription: 운명의 인도자와 함께 다음 생을 준비하는 곳.
   navigation: {fileID: 100033}
   spawn: {fileID: 100029}
   guide: {fileID: 100032}

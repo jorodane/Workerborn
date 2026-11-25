@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: 벌목
   icon: {fileID: 21300000, guid: 3a6c1825591d530f82d7c3fa599990e3, type: 3}
   firstUpgradeCost: 1
-  costIncreasePerRank: 1
+  costIncreasePerGrade: 1
   rankEffects:
   - fromRank: 1
     throughRank: 8

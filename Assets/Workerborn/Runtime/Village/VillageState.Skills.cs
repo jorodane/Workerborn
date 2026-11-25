@@ -25,6 +25,9 @@ namespace Workerborn
         public int RankOf(SkillId skill) => skillRanks[(int)skill];
         public bool IsSkillLearned(SkillId skill) => SkillProgression.IsDefined(skill) && learnedSkills[(int)skill];
         public int NextSkillCostFor(SkillId skill) => Rules.Skill(skill).UpgradeCost(RankOf(skill));
+        public int NextSkillGradeRankFor(SkillId skill) => IsSkillLearned(skill) ? SkillProgression.RankForNextGrade(RankOf(skill)) : 0;
+        public int NextSkillGradeCostFor(SkillId skill) => IsSkillLearned(skill)
+            ? Rules.Skill(skill).UpgradeCost(RankOf(skill), NextSkillGradeRankFor(skill)) : 0;
         public int SkillBonus(SkillId skill, SkillEffect effect) =>
             IsSkillLearned(skill) ? Rules.Skill(skill).BonusAt(RankOf(skill), effect) : 0;
         public int YieldMultiplierFor(SkillId skill) => Math.Max(1, 1 + SkillBonus(skill, SkillEffect.YieldMultiplier));
@@ -52,7 +55,10 @@ namespace Workerborn
 
         public bool TryUpgradeSkill() => TryUpgradeSkill(SkillId.Harvesting);
 
-        public bool TryUpgradeSkill(SkillId skill)
+        public bool TryUpgradeSkill(SkillId skill) => TryUpgradeSkill(skill, toNextGrade: false);
+        public bool TryUpgradeSkillToNextGrade(SkillId skill) => TryUpgradeSkill(skill, toNextGrade: true);
+
+        private bool TryUpgradeSkill(SkillId skill, bool toNextGrade)
         {
             if (!SkillProgression.IsDefined(skill))
                 return Result(false, "스킬을 찾을 수 없어요.");
@@ -62,12 +68,15 @@ namespace Workerborn
             int rank = RankOf(skill);
             if (rank >= SkillProgression.MaxRank)
                 return Result(false, $"{profile.Name} 최고 랭크에 도달했어요.");
-            int cost = profile.UpgradeCost(rank);
+            int targetRank = toNextGrade ? SkillProgression.RankForNextGrade(rank) : rank + 1;
+            if (targetRank == 0)
+                return Result(false, $"{profile.Name} 최고 급수에 도달했어요.");
+            int cost = profile.UpgradeCost(rank, targetRank);
             if (AP < cost)
                 return Result(false, $"승급하려면 AP {cost}가 필요해요.");
             AP -= cost;
-            LearnSkill(skill, rank + 1);
-            return Result(true, $"{profile.Name} {SkillProgression.RankLabel(rank + 1)} 승급!");
+            LearnSkill(skill, targetRank);
+            return Result(true, $"{profile.Name} {SkillProgression.RankLabel(targetRank)} 승급!");
         }
 
         internal bool LearnSkill(SkillId skill, int rank = 0)

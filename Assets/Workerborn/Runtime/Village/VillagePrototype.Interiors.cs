@@ -18,6 +18,19 @@ namespace Workerborn
         private readonly Dictionary<VillagePlot, int> plotInteriorSlots = new Dictionary<VillagePlot, int>();
         public VillageInteriorMap CurrentInterior { get; private set; }
 
+        internal (MonoBehaviour Source, string Name, string Description) CurrentArea
+        {
+            get
+            {
+                if (CurrentInterior != null)
+                    return (CurrentInterior, CurrentInterior.MapName, CurrentInterior.MapDescription);
+                if (InRebirthZone && rebirthZone != null)
+                    return (rebirthZone, rebirthZone.MapName, rebirthZone.MapDescription);
+                return mapRegion != null ? (mapRegion, mapRegion.MapName, mapRegion.MapDescription) :
+                    (this, VillageMapRegion.DefaultMapName, VillageMapRegion.DefaultMapDescription);
+            }
+        }
+
         private void BindBuildingDoors()
         {
             var doors = mapRoot.GetComponentsInChildren<VillageBuildingDoor>(true);
@@ -212,6 +225,8 @@ namespace Workerborn
                 return false;
             if (character == worker)
             {
+                if (CurrentInterior != room || InRebirthZone != toClouds)
+                    effects?.Clear();
                 CurrentInterior = room;
                 InRebirthZone = toClouds;
                 lighting?.SetInteriorBackground(room != null);

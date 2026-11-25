@@ -39,7 +39,7 @@ namespace Workerborn
 
     public sealed partial class VillageState
     {
-        public const int CurrentSaveSchema = HarvestAcquisitionSaveSchema;
+        public const int CurrentSaveSchema = 11;
         public const int LevelLimit = 200;
         private double lifeStartedAt;
         public bool AwaitingIncarnation { get; private set; }
@@ -122,6 +122,7 @@ namespace Workerborn
             pendingHarvests.Clear();
             nextHarvestReadyAt = long.MaxValue;
             equipment.Clear();
+            equipmentConditions.Clear();
             Job = JobStatus.None;
             LastJobDay = -1;
             JobRequirement = JobReward = JobExperience = 0;

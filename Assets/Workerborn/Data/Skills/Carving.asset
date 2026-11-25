@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: 갈무리
   icon: {fileID: 21300000, guid: 22cec4f47ef8d4ed6a3995fbc614c2ae, type: 3}
   firstUpgradeCost: 1
-  costIncreasePerRank: 1
+  costIncreasePerGrade: 1
   rankEffects:
   - fromRank: 1
     throughRank: 100

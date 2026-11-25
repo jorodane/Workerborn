@@ -59,13 +59,14 @@ namespace Workerborn
             hud.ShowFloatingText(worker.transform.position + Vector3.up * 1.5f, $"{name} +{quantity:N0}", Color.white);
         }
 
-        private GroundDropSave CaptureGroundDrop(string itemId, int quantity, Vector3 origin, Vector3 landing)
+        private GroundDropSave CaptureGroundDrop(string itemId, int quantity, Vector3 origin, Vector3 landing,
+            EquipmentCondition condition = default)
         {
             var room = InteriorAt(landing.x, landing.z);
             Vector3 exterior = room != null ? ExteriorPosition(room) : landing;
             return new GroundDropSave
             {
-                itemId = itemId, quantity = quantity, x = exterior.x, z = exterior.z,
+                itemId = itemId, quantity = quantity, condition = condition, x = exterior.x, z = exterior.z,
                 interior = room != null ? room.CapturePosition(landing) : default,
                 hasDropOrigin = true, originX = origin.x, originY = origin.y, originZ = origin.z
             };
@@ -122,7 +123,7 @@ namespace Workerborn
             {
                 var drop = legacyNpcDrops[i];
                 if (villageCharacters.TryGetValue(drop.harvestedBy, out var character) && character != null &&
-                    character.CharacterState.Inventory.TryAdd(drop.itemId, drop.quantity))
+                    character.CharacterState.Inventory.TryAdd(drop.itemId, drop.quantity, drop.condition))
                     legacyNpcDrops.RemoveAt(i);
             }
         }

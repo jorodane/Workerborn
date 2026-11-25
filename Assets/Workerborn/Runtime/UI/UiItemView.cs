@@ -23,13 +23,15 @@ namespace Workerborn
         private VillageHud tooltipHud;
         private string tooltipItem;
         private int tooltipQuantity;
+        private EquipmentCondition tooltipCondition;
         private QuantityAction? tradeTooltip;
         public RectTransform Rect => (RectTransform)transform;
 
-        public void Display(ItemDefinition definition, string itemId, int quantity)
+        public void Display(ItemDefinition definition, string itemId, int quantity, EquipmentCondition condition = default)
         {
             tooltipItem = itemId;
             tooltipQuantity = quantity;
+            tooltipCondition = condition;
             icon.sprite = definition != null ? definition.Icon : null;
             icon.enabled = icon.sprite != null;
             fallback.text = icon.enabled ? "" : ItemCatalog.Get(itemId).Name;
@@ -81,7 +83,7 @@ namespace Workerborn
 
         public void OnPointerEnter(PointerEventData data) =>
             tooltipHud?.ShowItemTooltip(tooltipItem, data.position, tradeTooltip == QuantityAction.Sell ? tooltipQuantity : 0,
-                shopListing: tradeTooltip == QuantityAction.Buy);
+                shopListing: tradeTooltip == QuantityAction.Buy, condition: tooltipCondition);
         public void OnPointerExit(PointerEventData data) => tooltipHud?.HideItemTooltip();
         private void OnDisable() => tooltipHud?.HideItemTooltip();
     }

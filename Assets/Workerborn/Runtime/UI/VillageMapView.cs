@@ -21,7 +21,6 @@ namespace Workerborn
         [SerializeField] private Sprite plotIcon;
         [SerializeField] private bool showPlaceNames = true;
         private VillagePrototype game;
-        private string villageName;
         private readonly Dictionary<VillageInteractable, Marker> npcs = new Dictionary<VillageInteractable, Marker>();
         private readonly Dictionary<VillagePlot, Marker> plots = new Dictionary<VillagePlot, Marker>();
         private Marker farm;
@@ -51,7 +50,6 @@ namespace Workerborn
             var mapClick = GetComponent<VillageMapClick>();
             mapClick.Game = game;
             mapClick.Map = this;
-            villageName = areaName.text;
             map.uvRect = new Rect(0f, 0f, 1f, 1f);
             var image = map.rectTransform;
             image.anchorMin = image.anchorMax = image.pivot = Vector2.one * .5f;
@@ -130,7 +128,7 @@ namespace Workerborn
             if (area.width <= 0f || area.height <= 0f)
                 return;
             var interior = game.CurrentInterior;
-            areaName.text = interior != null ? interior.MapName : game.InRebirthZone ? game.RebirthArea.MapName : villageName;
+            areaName.text = game.CurrentArea.Name;
             map.texture = interior != null ? interior.MapImage() :
                 game.InRebirthZone || game.MapRegion == null ? null : game.MapRegion.TerrainImage(game.GroundTerrain, game);
             map.enabled = map.texture != null;

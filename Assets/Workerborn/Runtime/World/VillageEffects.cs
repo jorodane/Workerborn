@@ -87,6 +87,16 @@ namespace Workerborn
                 PlayPickup(worker.position);
         }
 
+        internal void PlayPurchaseTrail(Transform seller, Transform buyer)
+        {
+            if (!isActiveAndEnabled || seller == null || buyer == null)
+                return;
+            if (trails.TryGetValue(VillageEffectKind.PickupTrail, out var pool))
+                StartTrail(pool, seller.position + Vector3.up * LootFlightTrail.ReceiverHeight).FlyPurchaseTo(buyer, playPickup);
+            else
+                PlayPickup(buyer.position);
+        }
+
         private void Play(VillageEffectKind effect, Vector3 position)
         {
             if (isActiveAndEnabled && bursts.TryGetValue(effect, out var burst))

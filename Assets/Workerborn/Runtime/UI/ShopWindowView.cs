@@ -17,6 +17,7 @@ namespace Workerborn
         [SerializeField]
         private ShopSellTarget sellTarget;
         private VillageInteractable merchant;
+        internal VillageInteractable Merchant => merchant;
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);

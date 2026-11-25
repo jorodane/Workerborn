@@ -42,6 +42,7 @@ namespace Workerborn
     public sealed class SkillProgression
     {
         public const int MaxRank = 100;
+        public const int RanksPerGrade = 10;
         public static IReadOnlyList<SkillId> All { get; } = Array.AsReadOnly(new[]
         {
             SkillId.Harvesting, SkillId.Woodcutting, SkillId.Carving, SkillId.UnarmedCombat, SkillId.EggGathering, SkillId.Fishing,
@@ -63,7 +64,7 @@ namespace Workerborn
         };
 
         private readonly SkillRankEffect[] effects;
-        private readonly int firstUpgradeCost, costIncrease;
+        private readonly int firstUpgradeCost, costIncreasePerGrade;
         public SkillId Id { get; }
         public string Name { get; }
 
@@ -73,7 +74,7 @@ namespace Workerborn
             Name = name;
             this.effects = effects ?? Array.Empty<SkillRankEffect>();
             this.firstUpgradeCost = firstUpgradeCost;
-            this.costIncrease = costIncrease;
+            costIncreasePerGrade = costIncrease;
         }
 
         public static bool IsDefined(SkillId id) => (uint)id < All.Count;
@@ -87,10 +88,25 @@ namespace Workerborn
         };
         public static bool IsGathering(SkillId id) =>
             id == SkillId.Harvesting || id == SkillId.Woodcutting || id == SkillId.EggGathering || id == SkillId.Fishing;
-        public static string RankLabel(int rank) => rank == 0 ? "연습 랭크" : $"랭크 {rank}";
+        public static int GradeAtRank(int rank) => (rank + RanksPerGrade - 1) / RanksPerGrade;
+        public static string RankLabel(int rank) => $"{GradeAtRank(rank)}급 · 랭크 {rank}";
+
+        internal static int RankForNextGrade(int rank)
+        {
+            int nextRank = GradeAtRank(rank) * RanksPerGrade + 1;
+            return nextRank <= MaxRank ? nextRank : 0;
+        }
 
         public int UpgradeCost(int currentRank) =>
-            (int)Math.Max(0, Math.Min(1000000, (long)firstUpgradeCost + (long)currentRank * costIncrease));
+            (int)Math.Clamp((long)firstUpgradeCost + (long)(GradeAtRank(currentRank + 1) - 1) * costIncreasePerGrade, 0, 1_000_000);
+
+        internal int UpgradeCost(int currentRank, int targetRank)
+        {
+            int total = 0;
+            for (int rank = currentRank; rank < targetRank; rank++)
+                total += UpgradeCost(rank);
+            return total;
+        }
 
         public int BonusAt(int rank, SkillEffect kind)
         {

@@ -13,6 +13,8 @@ namespace Workerborn
         [SerializeField] private VillageBuildingDoor guestRoomDoor;
         [SerializeField] private Transform keeperPoint;
         [SerializeField] private VillageBed bed;
+        [SerializeField] private string mapName;
+        [SerializeField, TextArea(1, 3)] private string mapDescription = "마을과 이어진 실내 공간.";
         private Texture2D mapImage;
 
         internal VillageBuildingDoor Entrance { get; private set; }
@@ -23,7 +25,9 @@ namespace Workerborn
         internal Transform KeeperPoint => keeperPoint;
         internal VillageBed Bed => bed;
         internal string Id { get; private set; }
-        internal string MapName => Lobby != null ? "내 여관방" : GuestRoom != null ? "여관 로비" : $"{Entrance.DisplayName} 내부";
+        internal string MapName => !string.IsNullOrWhiteSpace(mapName) ? mapName :
+            Lobby != null ? "내 여관방" : GuestRoom != null ? "여관 로비" : $"{Entrance.DisplayName} 내부";
+        internal string MapDescription => mapDescription;
         internal BoxCollider Floor => navigation != null ? navigation.GroundBox : null;
         internal Transform Arrival => arrival;
         internal VillageBuildingDoor Exit => exit;

@@ -459,6 +459,40 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void UpgradingToTheNextGradeChargesEveryRankOrLeavesTheSkillIntact()
+        {
+            var skill = SkillId.HarvestAcquisition;
+            var state = new VillageState();
+            Assert.That(state.NextSkillGradeRankFor(skill), Is.Zero);
+            Assert.That(state.TryUpgradeSkillToNextGrade(skill), Is.False);
+            state.LearnSkill(skill);
+            Assert.That(state.NextSkillGradeRankFor(skill), Is.EqualTo(1));
+            Assert.That(state.NextSkillGradeCostFor(skill), Is.EqualTo(1));
+
+            state.LearnSkill(skill, 8);
+            var save = state.Export();
+            save.ap = 3;
+            state = VillageState.Restore(save);
+            Assert.That(state.NextSkillCostFor(skill), Is.EqualTo(1));
+            Assert.That(state.NextSkillGradeRankFor(skill), Is.EqualTo(11));
+            Assert.That(state.NextSkillGradeCostFor(skill), Is.EqualTo(4));
+            Assert.That(state.TryUpgradeSkillToNextGrade(skill), Is.False);
+            Assert.That(state.AP, Is.EqualTo(3));
+            Assert.That(state.RankOf(skill), Is.EqualTo(8));
+
+            save.ap = 4;
+            state = VillageState.Restore(save);
+            Assert.That(state.TryUpgradeSkillToNextGrade(skill), Is.True);
+            Assert.That(state.AP, Is.Zero);
+            Assert.That(state.RankOf(skill), Is.EqualTo(11));
+            Assert.That(state.NextSkillCostFor(skill), Is.EqualTo(2));
+            Assert.That(state.NextSkillGradeRankFor(skill), Is.EqualTo(21));
+            state.LearnSkill(skill, 91);
+            Assert.That(state.NextSkillGradeRankFor(skill), Is.Zero);
+            Assert.That(state.NextSkillCostFor(skill), Is.EqualTo(10));
+        }
+
+        [Test]
         public void IndependentSkillsReachRankOneHundredAndSurviveSaving()
         {
             var state = VillageState.Restore(new VillageSave { skillRank = 4, ap = 20000 });
@@ -564,11 +598,40 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void EquipmentConditionSurvivesSwapsAndLegacyEquipmentStartsCleanAtFullDurability()
+        {
+            var state = new VillageState();
+            var worn = new EquipmentCondition(0, 56);
+            Assert.That(state.Inventory.TryAdd(ItemIds.FishingRod, 1, worn), Is.True);
+            Assert.That(state.TryEquip(state.Inventory.Entries.Single().Id), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
+
+            var save = state.Export();
+            state = VillageState.Restore(save);
+            Assert.That(state.EquippedCondition(EquipmentSlot.MainHand), Is.EqualTo(worn));
+            Assert.That(state.TryEquip(state.Inventory.Entries.Single().Id), Is.True);
+            Assert.That(state.Inventory.Entries.Single().Condition, Is.EqualTo(worn));
+            Assert.That(state.TryUnequip(EquipmentSlot.MainHand), Is.True);
+            var axe = state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Axe);
+            Assert.That(axe.Condition, Is.EqualTo(new EquipmentCondition(axe.Spec.MaxDurability)));
+
+            save.schema = 10;
+            save.equipment.Single().condition = default;
+            save.inventory.Single().condition = default;
+            state = VillageState.Restore(save);
+            Assert.That(state.EquippedCondition(EquipmentSlot.MainHand),
+                Is.EqualTo(new EquipmentCondition(ItemCatalog.Get(ItemIds.FishingRod).MaxDurability)));
+            Assert.That(state.Inventory.Entries.Single().Condition, Is.EqualTo(new EquipmentCondition(axe.Spec.MaxDurability)));
+        }
+
+        [Test]
         public void CursorPurchaseCanBeEquippedAndCannotFollowAPlayerIntoRebirth()
         {
             var state = Funded();
             Assert.That(state.TryBuyForPlacement(ItemIds.FishingRod, 1), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.FishingRod), Is.Zero);
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.PendingPurchase.Condition, Is.EqualTo(new EquipmentCondition(ItemCatalog.Get(ItemIds.FishingRod).MaxDurability)));
             Assert.That(state.TryEquip(0), Is.True);
             Assert.That(state.PendingPurchase, Is.Null);
             Assert.That(state.Equipment[EquipmentSlot.MainHand], Is.EqualTo(ItemIds.FishingRod));

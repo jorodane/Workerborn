@@ -18,6 +18,8 @@ namespace Workerborn
         {
             if (!drops.TryAdd(drop.id, drop))
                 return false;
+            if (ItemCatalog.Contains(drop.itemId))
+                drop.condition = drop.condition.ForItem(ItemCatalog.Get(drop.itemId));
             protectedDrops.Add((drop.reservedUntilUtc, drop.id));
             return true;
         }
@@ -76,7 +78,7 @@ namespace Workerborn
                         float dx = drop.MapX - candidate.MapX;
                         float dz = drop.MapZ - candidate.MapZ;
                         float distance = dx * dx + dz * dz;
-                        if (distance <= bestDistance && candidate.quantity <= int.MaxValue - drop.quantity)
+                        if (distance <= bestDistance && candidate.condition.Equals(drop.condition) && candidate.quantity <= int.MaxValue - drop.quantity)
                         {
                             bestDistance = distance;
                             nearest = candidate;

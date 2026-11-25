@@ -43,7 +43,7 @@ namespace Workerborn
                 var item = Instantiate(library.Item, inventoryGrid);
                 item.Rect.sizeDelta = new Vector2(entry.Spec.Width * CellX - 2, entry.Spec.Height * CellY - 2);
                 item.Rect.anchoredPosition = new Vector2(entry.X * CellX, -entry.Y * CellY);
-                item.Display(game.Settings.FindItem(entry.ItemId), entry.ItemId, entry.Quantity);
+                item.Display(game.Settings.FindItem(entry.ItemId), entry.ItemId, entry.Quantity, entry.Condition);
                 item.Inventory(this, entry.Id);
             }
         }
@@ -167,7 +167,7 @@ namespace Workerborn
                 view.gameObject.SetActive(false);
         }
 
-        public void ShowItemTooltip(string id, Vector2 screen, int quantity = 0, bool shopListing = false)
+        public void ShowItemTooltip(string id, Vector2 screen, int quantity = 0, bool shopListing = false, EquipmentCondition condition = default)
         {
             if (IsHoldingItem || string.IsNullOrEmpty(id))
                 return;
@@ -180,7 +180,7 @@ namespace Workerborn
                 trade = game.State.CanSell(id)
                     ? $"판매가  개당 {spec.Price:N0} Gold\n묶음 판매가  {(long)spec.Price * quantity:N0} Gold"
                     : "판매할 수 없는 물건";
-            view?.Show(spec, trade: trade);
+            view?.Show(spec, trade: trade, condition: condition);
             if (view != null)
                 ShowAt(view, screen + new Vector2(16, -12));
         }
@@ -188,13 +188,13 @@ namespace Workerborn
         internal void ShowEquipmentTooltip(EquipmentSlot slot, Vector2 screen)
         {
             if (game.State.Equipment.TryGetValue(slot, out string item))
-                ShowItemTooltip(item, screen, quantity: 1);
+                ShowItemTooltip(item, screen, quantity: 1, condition: game.State.EquippedCondition(slot));
         }
 
-        internal void InspectGroundItem(string id, int quantity)
+        internal void InspectGroundItem(string id, int quantity, EquipmentCondition condition = default)
         {
             HideItemTooltip();
-            (OpenWindow("itemdetail") as ItemTooltipView)?.Show(ItemCatalog.Get(id), quantity);
+            (OpenWindow("itemdetail") as ItemTooltipView)?.Show(ItemCatalog.Get(id), quantity, condition: condition);
         }
 
         public void HideItemTooltip()
@@ -274,7 +274,7 @@ namespace Workerborn
                 var entry = game.State.CarriedItem(draggedEntry);
                 var inventory = game.State.Inventory;
                 if (entry != null && TryInventoryCell(screen, view, out var cell) &&
-                    (draggedEntry == 0 ? inventory.CanPlacePurchase(entry.Spec, cell.x, cell.y) : inventory.CanPlaceHeld(draggedEntry, cell.x, cell.y)))
+                    (draggedEntry == 0 ? inventory.CanPlacePurchase(entry, cell.x, cell.y) : inventory.CanPlaceHeld(draggedEntry, cell.x, cell.y)))
                     view.ShowPlacement(cell.x, cell.y, entry.Spec.Width, entry.Spec.Height);
                 else
                     view.ShowPlacement(0, 0, 0, 0);

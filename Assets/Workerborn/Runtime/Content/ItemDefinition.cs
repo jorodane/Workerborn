@@ -31,6 +31,8 @@ namespace Workerborn
         private bool confirmQuickSale;
         [SerializeField]
         private EquipmentSlot equipmentSlot;
+        [SerializeField, Min(1), Tooltip("Starting and maximum durability for equippable items.")]
+        private int maxDurability = 100;
         [SerializeField]
         private CharacterPartDefinition equipmentPart;
         [SerializeField, Tooltip("Prefab for scene placement and the source of meshes, materials and pose for pooled drops.")]
@@ -46,6 +48,6 @@ namespace Workerborn
         public CharacterPartDefinition EquipmentPart => equipmentPart;
 
         public ItemSpec ToSpec() => new ItemSpec(id, displayName, description, Mathf.Min(width, VillageState.InventoryColumns),
-            height, maxStack, price, equipmentSlot, healthRestore, teachesSkill ? taughtSkill : (SkillId?)null);
+            height, maxStack, price, equipmentSlot, healthRestore, teachesSkill ? taughtSkill : (SkillId?)null, maxDurability);
     }
 }

@@ -6,10 +6,42 @@ namespace Workerborn
     public enum EquipmentSlot { None, Head, Body, Hands, Feet, MainHand, OffHand, Accessory, Legs, Bag }
 
     [Serializable]
+    public struct EquipmentCondition : IEquatable<EquipmentCondition>
+    {
+        public bool initialized;
+        public int durability;
+        public int contamination;
+
+        public EquipmentCondition(int durability, int contamination = 0)
+        {
+            initialized = true;
+            this.durability = durability;
+            this.contamination = contamination;
+        }
+
+        internal EquipmentCondition ForItem(ItemSpec item)
+        {
+            if (item.EquipmentSlot == EquipmentSlot.None)
+                return default;
+            // Legacy saves omit this value, while zero durability is a valid equipment state.
+            return initialized
+                ? new EquipmentCondition(Math.Clamp(durability, 0, item.MaxDurability), Math.Clamp(contamination, 0, 100))
+                : new EquipmentCondition(item.MaxDurability);
+        }
+
+        public bool Equals(EquipmentCondition other) =>
+            initialized == other.initialized && durability == other.durability && contamination == other.contamination;
+
+        public override bool Equals(object obj) => obj is EquipmentCondition other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(initialized, durability, contamination);
+    }
+
+    [Serializable]
     public sealed class EquipmentEntrySave
     {
         public EquipmentSlot slot;
         public string itemId;
+        public EquipmentCondition condition;
     }
 
     public static class ItemIds
@@ -46,16 +78,18 @@ namespace Workerborn
         public int MaxStack { get; }
         public int Price { get; }
         public EquipmentSlot EquipmentSlot { get; }
+        public int MaxDurability { get; }
         public int HealthRestore { get; }
         public SkillId? TaughtSkill { get; }
         public ItemSpec(string id, string name, string description, int width, int height, int maxStack, int price,
-            EquipmentSlot equipmentSlot = EquipmentSlot.None, int healthRestore = 0, SkillId? taughtSkill = null)
+            EquipmentSlot equipmentSlot = EquipmentSlot.None, int healthRestore = 0, SkillId? taughtSkill = null, int maxDurability = 100)
         {
             Id = id; Name = name; Description = description;
             Width = width; Height = height; MaxStack = maxStack; Price = price;
             EquipmentSlot = equipmentSlot;
             HealthRestore = Math.Max(0, healthRestore);
             TaughtSkill = taughtSkill;
+            MaxDurability = equipmentSlot == EquipmentSlot.None ? 0 : Math.Max(1, maxDurability);
         }
     }
 

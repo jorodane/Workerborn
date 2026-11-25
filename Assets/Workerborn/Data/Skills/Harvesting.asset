@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: 수확
   icon: {fileID: 21300000, guid: 9fc670e4153759efa4ca9573ec9cd758, type: 3}
   firstUpgradeCost: 1
-  costIncreasePerRank: 1
+  costIncreasePerGrade: 1
   rankEffects:
   - fromRank: 1
     throughRank: 8

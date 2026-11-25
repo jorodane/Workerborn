@@ -59,6 +59,7 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   navigation: {fileID: 100121}
+  mapDescription: 하루의 피로를 풀 수 있는 나만의 방.
   arrival: {fileID: 100120}
   exit: {fileID: 100118}
   bed: {fileID: 910026006}

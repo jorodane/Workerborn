@@ -11,6 +11,7 @@ namespace Workerborn
         public int quantity;
         public int x;
         public int y;
+        public EquipmentCondition condition;
     }
 
     public sealed class InventoryEntry
@@ -20,8 +21,10 @@ namespace Workerborn
         public int Quantity { get; internal set; }
         public int X { get; internal set; }
         public int Y { get; internal set; }
+        public EquipmentCondition Condition { get; internal set; }
         public ItemSpec Spec => ItemCatalog.Get(ItemId);
-        internal InventoryEntry Copy() => new InventoryEntry { Id = Id, ItemId = ItemId, Quantity = Quantity, X = X, Y = Y };
+        internal InventoryEntry Copy() => (InventoryEntry)MemberwiseClone();
+        internal bool MatchesStack(string itemId, EquipmentCondition condition) => ItemId == itemId && Condition.Equals(condition);
     }
 
     // Adds are transactional: a full bag never silently destroys part of a pickup.
@@ -92,20 +95,20 @@ namespace Workerborn
             return true;
         }
 
-        public bool CanAdd(string itemId, int quantity) => BuildAdded(itemId, quantity, out _, out _, out _);
+        public bool CanAdd(string itemId, int quantity) => BuildAdded(itemId, quantity, default, out _, out _, out _);
 
-        public bool TryAdd(string itemId, int quantity)
+        public bool TryAdd(string itemId, int quantity, EquipmentCondition condition = default)
         {
-            if (!BuildAdded(itemId, quantity, out var added, out int next, out _)) return false;
+            if (!BuildAdded(itemId, quantity, condition, out var added, out int next, out _)) return false;
             entries = added;
             nextId = next;
             Version++;
             return true;
         }
 
-        internal int TryAddUpTo(string itemId, int quantity)
+        internal int TryAddUpTo(string itemId, int quantity, EquipmentCondition condition = default)
         {
-            if (!BuildAdded(itemId, quantity, out var added, out int next, out int accepted, allowPartial: true))
+            if (!BuildAdded(itemId, quantity, condition, out var added, out int next, out int accepted, allowPartial: true))
                 return 0;
             entries = added;
             nextId = next;
@@ -113,7 +116,7 @@ namespace Workerborn
             return accepted;
         }
 
-        private bool BuildAdded(string itemId, int quantity, out List<InventoryEntry> result, out int next,
+        private bool BuildAdded(string itemId, int quantity, EquipmentCondition condition, out List<InventoryEntry> result, out int next,
             out int accepted, bool allowPartial = false)
         {
             result = null;
@@ -121,11 +124,12 @@ namespace Workerborn
             accepted = 0;
             if (!ItemCatalog.Contains(itemId) || quantity <= 0) return false;
             var spec = ItemCatalog.Get(itemId);
+            condition = condition.ForItem(spec);
             var copy = CopyEntries();
             int remaining = quantity;
             foreach (var entry in copy)
             {
-                if (entry.ItemId != itemId) continue;
+                if (!entry.MatchesStack(itemId, condition)) continue;
                 int amount = Math.Min(remaining, spec.MaxStack - entry.Quantity);
                 entry.Quantity += amount;
                 remaining -= amount;
@@ -138,7 +142,7 @@ namespace Workerborn
                     break;
                 }
                 int amount = Math.Min(remaining, spec.MaxStack);
-                copy.Add(new InventoryEntry { Id = next++, ItemId = itemId, Quantity = amount, X = x, Y = y });
+                copy.Add(new InventoryEntry { Id = next++, ItemId = itemId, Quantity = amount, X = x, Y = y, Condition = condition });
                 remaining -= amount;
             }
             result = copy;
@@ -168,7 +172,7 @@ namespace Workerborn
             var entry = Find(id);
             if (entry == null) return false;
             var target = entries.Find(other => other.Id != id && other.X == x && other.Y == y);
-            if (target != null && target.ItemId == entry.ItemId && entry.Spec.MaxStack > 1)
+            if (target != null && target.MatchesStack(entry.ItemId, entry.Condition) && entry.Spec.MaxStack > 1)
             {
                 int transfer = Math.Min(entry.Quantity, target.Spec.MaxStack - target.Quantity);
                 if (transfer == 0) return false;
@@ -200,7 +204,7 @@ namespace Workerborn
             if (source == null || quantity < 1 || quantity >= source.Quantity || !FirstFit(entries, source.Spec, out int x, out int y))
                 return false;
             source.Quantity -= quantity;
-            entries.Add(new InventoryEntry { Id = nextId++, ItemId = source.ItemId, Quantity = quantity, X = x, Y = y });
+            entries.Add(new InventoryEntry { Id = nextId++, ItemId = source.ItemId, Quantity = quantity, X = x, Y = y, Condition = source.Condition });
             Version++;
             return true;
         }
@@ -211,7 +215,7 @@ namespace Workerborn
             var entry = Find(id);
             if (entry == null) { nextHeld = 0; return false; }
             if (!CanPlace(entry, x, y, out var target)) return false;
-            if (target != null && target.ItemId != entry.ItemId)
+            if (target != null && !target.MatchesStack(entry.ItemId, entry.Condition))
             {
                 int oldX = entry.X, oldY = entry.Y;
                 entry.X = x; entry.Y = y; target.X = oldX; target.Y = oldY;
@@ -229,24 +233,25 @@ namespace Workerborn
             return entry != null && CanPlace(entry, x, y, out _);
         }
 
-        internal bool CanPlacePurchase(ItemSpec spec, int x, int y) => CanPlacePurchase(spec, x, y, out _);
+        internal bool CanPlacePurchase(InventoryEntry purchase, int x, int y) => CanPlacePurchase(purchase, x, y, out _);
 
-        private bool CanPlacePurchase(ItemSpec spec, int x, int y, out InventoryEntry target)
+        private bool CanPlacePurchase(InventoryEntry purchase, int x, int y, out InventoryEntry target)
         {
+            var spec = purchase.Spec;
             target = entries.Find(item => item.X == x && item.Y == y);
-            return target != null ? target.ItemId == spec.Id && target.Quantity < spec.MaxStack : Fits(entries, spec, x, y);
+            return target != null ? target.MatchesStack(spec.Id, purchase.Condition) && target.Quantity < spec.MaxStack : Fits(entries, spec, x, y);
         }
 
         internal int PlacePurchase(InventoryEntry purchase, int x, int y)
         {
             var spec = purchase.Spec;
-            if (!CanPlacePurchase(spec, x, y, out var target))
+            if (!CanPlacePurchase(purchase, x, y, out var target))
                 return 0;
             int amount = Math.Min(purchase.Quantity, spec.MaxStack - (target?.Quantity ?? 0));
             if (target != null)
                 target.Quantity += amount;
             else
-                entries.Add(new InventoryEntry { Id = nextId++, ItemId = spec.Id, Quantity = amount, X = x, Y = y });
+                entries.Add(new InventoryEntry { Id = nextId++, ItemId = spec.Id, Quantity = amount, X = x, Y = y, Condition = purchase.Condition });
             Version++;
             return amount;
         }
@@ -263,7 +268,7 @@ namespace Workerborn
                 }
             if (target == null)
                 return Fits(entries, entry.Spec, x, y, entry.Id);
-            if (target.ItemId == entry.ItemId)
+            if (target.MatchesStack(entry.ItemId, entry.Condition))
                 return target.X == x && target.Y == y && target.Quantity < target.Spec.MaxStack;
 
             return Fits(entries, entry.Spec, x, y, entry.Id, target.Id)
@@ -366,7 +371,10 @@ namespace Workerborn
             for (int i = 0; i < entries.Count; i++)
             {
                 var entry = entries[i];
-                result[i] = new InventoryEntrySave { id = entry.Id, itemId = entry.ItemId, quantity = entry.Quantity, x = entry.X, y = entry.Y };
+                result[i] = new InventoryEntrySave
+                {
+                    id = entry.Id, itemId = entry.ItemId, quantity = entry.Quantity, x = entry.X, y = entry.Y, condition = entry.Condition
+                };
             }
             return result;
         }
@@ -384,7 +392,11 @@ namespace Workerborn
                 var spec = ItemCatalog.Get(item.itemId);
                 if (item.quantity < 1 || item.quantity > spec.MaxStack || !result.Fits(result.entries, spec, item.x, item.y))
                     throw new ArgumentException("Invalid inventory placement or quantity.");
-                result.entries.Add(new InventoryEntry { Id = item.id, ItemId = item.itemId, Quantity = item.quantity, X = item.x, Y = item.y });
+                result.entries.Add(new InventoryEntry
+                {
+                    Id = item.id, ItemId = item.itemId, Quantity = item.quantity, X = item.x, Y = item.y,
+                    Condition = item.condition.ForItem(spec)
+                });
                 result.nextId = Math.Max(result.nextId, item.id + 1);
             }
             return result;

@@ -28,7 +28,7 @@ namespace Workerborn
                 message = "놓으려던 아이템이 바뀌었어요. 다시 확인해 주세요.";
                 return false;
             }
-            drop = AddGroundDrop(draft, profile.id, now);
+            drop = AddGroundDrop(draft, profile.id, now, entry.Condition);
             SaveCharacter(profile, state, teleport: false);
             message = null;
             return true;
@@ -67,8 +67,8 @@ namespace Workerborn
             }
 
             var state = VillageState.Restore(profile.character, rules);
-            quantity = drop.combined ? state.Inventory.TryAddUpTo(drop.itemId, drop.quantity) :
-                state.Inventory.TryAdd(drop.itemId, drop.quantity) ? drop.quantity : 0;
+            quantity = drop.combined ? state.Inventory.TryAddUpTo(drop.itemId, drop.quantity, drop.condition) :
+                state.Inventory.TryAdd(drop.itemId, drop.quantity, drop.condition) ? drop.quantity : 0;
             if (quantity == 0)
             {
                 message = "소지품 공간이 부족합니다.";
@@ -101,11 +101,11 @@ namespace Workerborn
             return x * x + z * z <= GroundDropSave.PickupDistance * GroundDropSave.PickupDistance;
         }
 
-        private GroundDropSave AddGroundDrop(GroundDropSave draft, string owner, long now)
+        private GroundDropSave AddGroundDrop(GroundDropSave draft, string owner, long now, EquipmentCondition condition = default)
         {
             var drop = new GroundDropSave
             {
-                id = Guid.NewGuid().ToString("N"), itemId = draft.itemId, quantity = draft.quantity,
+                id = Guid.NewGuid().ToString("N"), itemId = draft.itemId, quantity = draft.quantity, condition = condition,
                 x = draft.x, z = draft.z, interior = draft.interior, hasDropOrigin = draft.hasDropOrigin,
                 originX = draft.originX, originY = draft.originY, originZ = draft.originZ
             };

@@ -46,6 +46,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: ''
   width: 80
   depth: 72
+  mapName: 솔바람 마을
+  mapDescription: 밭을 가꾸고 장을 보며 하루를 보내는 마을.
   layerColors:
   - layer: {fileID: 8574412962073106934, guid: 1b99f5ad535e43179221919835c084b2, type: 2}
     color: {r: 0.9, g: 0.76, b: 0.53, a: 1}

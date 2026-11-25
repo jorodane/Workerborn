@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Workerborn
 {
@@ -9,7 +10,7 @@ namespace Workerborn
         [SerializeField] private string displayName;
         [SerializeField] private Sprite icon;
         [SerializeField, Min(0)] private int firstUpgradeCost = 1;
-        [SerializeField, Min(0)] private int costIncreasePerRank = 1;
+        [SerializeField, Min(0), FormerlySerializedAs("costIncreasePerRank")] private int costIncreasePerGrade = 1;
         [SerializeField] private SkillRankEffect[] rankEffects;
 
         public SkillId Id => skill;
@@ -17,6 +18,6 @@ namespace Workerborn
 
         public SkillProgression ToProgression() => new SkillProgression(skill,
             string.IsNullOrWhiteSpace(displayName) ? SkillProgression.Default(skill).Name : displayName,
-            rankEffects, firstUpgradeCost, costIncreasePerRank);
+            rankEffects, firstUpgradeCost, costIncreasePerGrade);
     }
 }

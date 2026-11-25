@@ -515,7 +515,7 @@ namespace Workerborn
                 return false;
             var state = source.CharacterState;
             var entry = state.CarriedItem(request.Id);
-            if (entry == null || entry.ItemId != request.ItemId || entry.Quantity != request.Quantity)
+            if (entry == null || !entry.MatchesStack(request.ItemId, request.Condition) || entry.Quantity != request.Quantity)
             {
                 if (source.IsLocallyControlled)
                     hud.ShowToast("아이템 수량이 바뀌었습니다. 다시 놓아 주세요.");
@@ -527,7 +527,7 @@ namespace Workerborn
 
             var end = SurfacePosition(destination.x, destination.z) + Vector3.up * .08f;
             Vector3 origin = source.transform.position + Vector3.up * .45f;
-            var drop = CaptureGroundDrop(request.ItemId, request.Quantity, origin, end);
+            var drop = CaptureGroundDrop(entry.ItemId, entry.Quantity, origin, end, entry.Condition);
             if (IsOnline)
                 return Session?.SubmitGroundDrop(entry.Id, drop) == true;
             if (!state.TryRemoveCarriedItem(entry.Id, entry.Quantity))
@@ -555,7 +555,7 @@ namespace Workerborn
             int quantity = item.Quantity;
             if (item.DropRecord?.combined == true)
             {
-                quantity = state.Inventory.TryAddUpTo(item.ItemId, quantity);
+                quantity = state.Inventory.TryAddUpTo(item.ItemId, quantity, item.Condition);
                 if (quantity > 0 && quantity < item.Quantity)
                 {
                     item.DropRecord.quantity -= quantity;
@@ -566,7 +566,7 @@ namespace Workerborn
                 if (quantity > 0)
                     item.CompleteCollection();
             }
-            else if (!item.TryCollect(collector, () => state.Inventory.TryAdd(item.ItemId, quantity)))
+            else if (!item.TryCollect(collector, () => state.Inventory.TryAdd(item.ItemId, quantity, item.Condition)))
                 quantity = 0;
             if (quantity == 0)
             {
@@ -591,6 +591,15 @@ namespace Workerborn
         public bool Perform(Func<bool> operation) => !State.AwaitingIncarnation && ApplyLocalAction(operation);
 
         internal bool UpgradeSkill(SkillId skill) => ApplyLocalAction(() => State.TryUpgradeSkill(skill));
+        internal bool UpgradeSkillToNextGrade(SkillId skill) => ApplyLocalAction(() => State.TryUpgradeSkillToNextGrade(skill));
+
+        internal bool BuyFrom(VillageInteractable seller, string id, int quantity, bool placeOnCursor)
+        {
+            if (seller == null || !Perform(() => placeOnCursor ? State.TryBuyForPlacement(id, quantity) : State.TryBuy(id, quantity)))
+                return false;
+            effects?.PlayPurchaseTrail(seller.transform, worker.transform);
+            return true;
+        }
 
         private bool ApplyLocalAction(Func<bool> operation)
         {

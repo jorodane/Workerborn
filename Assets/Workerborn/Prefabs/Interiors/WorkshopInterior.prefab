@@ -61,6 +61,7 @@ MonoBehaviour:
   m_Name: ''
   m_EditorClassIdentifier: ''
   navigation: {fileID: 100121}
+  mapDescription: 마을에 필요한 도구와 자재를 다루는 작업 공간.
   arrival: {fileID: 100120}
   exit: {fileID: 100118}
 --- !u!1 &100004
