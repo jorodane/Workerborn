@@ -27,7 +27,7 @@ namespace Workerborn
         private float started, duration, dropHeight;
         private Vector3 from, landing;
         private Quaternion landingRotation;
-        private TimberFall fall;
+        private TimberFall motion;
         private float groundClearance;
         private bool hasCutMesh;
         public TimberPart Part => part;
@@ -49,7 +49,7 @@ namespace Workerborn
             part == TimberPart.Log && worker.CanSelectLog ? "들어 올리기" : InteractionVerb;
         internal override InteractionCursor CursorFor(HarvestWorker worker) =>
             part == TimberPart.Log && worker.CanSelectLog ? InteractionCursor.PickUp : InteractionCursor.Chop;
-        public override bool CanInteract => base.CanInteract && carrier == null && !moving && fall == null;
+        public override bool CanInteract => base.CanInteract && carrier == null && !moving && motion == null;
         internal override bool CanReceiveStrike => CanInteract;
         internal override AnimationClip StrikeClip(HarvestWorker worker) => worker.Village.Settings.Timber.Split;
         internal override float StrikeImpact => .52f;
@@ -68,9 +68,7 @@ namespace Workerborn
         {
             if (geometry == null)
                 return;
-            const float halfKerf = .025f;
-            var slice = new TimberSection(section.Start > 0f ? section.Start + halfKerf : section.Start,
-                section.End < site.TopHeight ? section.End - halfKerf : section.End);
+            var slice = site.TrimCutFaces(section);
             model.SetActive(false);
             model = new GameObject("Cut tree mesh") { layer = 2 };
             model.transform.SetParent(transform, false);
@@ -95,7 +93,7 @@ namespace Workerborn
             landing = point;
             landingRotation = rotation;
             moving = false;
-            fall = null;
+            motion = null;
             carrier = null;
             transform.SetPositionAndRotation(point, rotation);
             RefreshAppearance();
@@ -113,17 +111,24 @@ namespace Workerborn
             }
             else
             {
-                var pose = site.PoseAt(tree, site.Section(part).Center);
+                var pose = site.PoseOf(tree, part);
                 Place(TimberLocation.Position(pose), SectionRotation(TimberLocation.Rotation(pose)));
             }
-            fall = body;
+            motion = body;
             RefreshAppearance();
         }
 
         private Quaternion SectionRotation(Quaternion rotation) => hasCutMesh ? rotation : rotation * Quaternion.Euler(-90f, 0f, 0f);
 
-        internal void PresentLog(TimberLogSave log, int index, bool animate)
+        internal void PresentLog(TimberLogSave log, int index, bool animate, TimberFall body)
         {
+            if (body != null)
+            {
+                Place(body.transform.position, SectionRotation(body.transform.rotation));
+                motion = body;
+                RefreshAppearance();
+                return;
+            }
             string previousCarrier = carrier;
             Vector3 point = village.SurfacePosition(log.point.x, log.point.z);
             Quaternion rotation = Quaternion.Euler(hasCutMesh ? 90f : 0f, log.yaw, 0f);
@@ -191,15 +196,22 @@ namespace Workerborn
         {
             if (!CanInteract)
                 return;
+            PlayAxeImpact();
             worker.Village.RequestTimberWork(worker, new TimberOrder { action = TimberAction.Split, target = target, part = part });
+        }
+
+        internal void PlayAxeImpact()
+        {
+            Vector3 above = TargetCenter + Vector3.up * (hitVolume.bounds.extents.y + .15f);
+            village.PlayTimberAxeImpact(hitVolume.ClosestPoint(above));
         }
 
         private void LateUpdate()
         {
             if (carrier != null)
                 UpdateCarriedPose();
-            else if (fall != null && part != TimberPart.Stump)
-                transform.SetPositionAndRotation(fall.transform.position, SectionRotation(fall.transform.rotation));
+            else if (motion != null && part != TimberPart.Stump)
+                transform.SetPositionAndRotation(motion.transform.position, SectionRotation(motion.transform.rotation));
             else if (moving)
             {
                 float progress = Mathf.Max(0f, (Time.time - started) / duration);

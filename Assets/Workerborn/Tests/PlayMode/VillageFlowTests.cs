@@ -500,6 +500,10 @@ namespace Workerborn.Tests
         public IEnumerator TreeReactsToBareHandedAndAxeImpacts()
         {
             var tree = game.Crops.OfType<LoggingTree>().First();
+            Vector3 foot = game.SurfacePosition(tree.transform.position.x, tree.transform.position.z);
+            var blocker = tree.GetComponentInChildren<VillageNavigationBlocker>();
+            Assert.That(blocker.GetComponent<NavMeshObstacle>().carving, Is.True);
+            yield return Until(() => !NavMesh.SamplePosition(foot, out _, .18f, NavMesh.AllAreas), 1.5f);
             Vector3 approach = tree.transform.position + Vector3.right * 1.75f;
             Assert.That(NavMesh.SamplePosition(approach, out var at, .4f, NavMesh.AllAreas), Is.True);
             game.Worker.WarpTo(at.position);
@@ -522,6 +526,8 @@ namespace Workerborn.Tests
             Assert.That(game.Worker.ActiveCrop, Is.SameAs(tree));
             Assert.That(visual.localScale, Is.EqualTo(scale));
             yield return Until(() => tree.Felled, tree.Definition.HarvestSeconds + 1f);
+            Assert.That(blocker.gameObject.activeInHierarchy, Is.False);
+            yield return Until(() => NavMesh.SamplePosition(foot, out _, .18f, NavMesh.AllAreas), 1.5f);
             var parts = WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId).ToArray();
             Assert.That(parts.Select(piece => piece.Part), Is.EquivalentTo(new[] { TimberPart.Stump, TimberPart.Trunk }));
             var trunk = parts.Single(piece => piece.Part == TimberPart.Trunk);
@@ -536,6 +542,7 @@ namespace Workerborn.Tests
             game.UseSkill(SkillId.Woodcutting);
             yield return Until(() => game.Worker.CurrentTimberSwing == TimberSwing.Split, 2f);
             yield return Until(() => trunk == null, 4f);
+            Assert.That(GameObject.Find("TimberAxeImpact(Clone)"), Is.Not.Null);
             Assert.That(WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId)
                 .Select(piece => piece.Part), Is.EquivalentTo(new[] { TimberPart.Stump, TimberPart.Lower, TimberPart.Upper }));
         }
@@ -557,7 +564,13 @@ namespace Workerborn.Tests
                     1, layout.Reach, 1f, 1f, platform.transform.position.y, layout.CutHeight, layout.TopHeight, layout.BarkRadius,
                     layout.CrownDropDistance, layout.Products);
                 TimberPose resting = default;
-                var fall = TimberFall.Begin(site, 0f, bark, platform.transform, pose => resting = pose);
+                int landings = 0;
+                Vector3 contact = default;
+                var fall = TimberFall.Begin(site, 0f, bark, platform.transform, pose => resting = pose, point =>
+                {
+                    landings++;
+                    contact = point;
+                });
                 var body = fall.GetComponent<Rigidbody>();
                 yield return Until(() => Tilt() >= 8f, 2f);
                 float earlySpeed = body.angularVelocity.magnitude;
@@ -570,8 +583,30 @@ namespace Workerborn.Tests
                 Assert.That(Mathf.Abs((TimberLocation.Rotation(resting) * Vector3.up).y), Is.LessThan(.15f));
                 Assert.That(resting.height - platform.transform.position.y, Is.InRange(0f, .35f));
                 Assert.That(resting.point.DistanceSquared(releasedAt), Is.GreaterThan(.0025f));
+                Assert.That(landings, Is.EqualTo(1));
+                Assert.That(contact.y, Is.EqualTo(platform.transform.position.y).Within(.08f));
+
+                Vector3 direction = Vector3.ProjectOnPlane(TimberLocation.Rotation(resting) * Vector3.up, Vector3.up).normalized;
+                var lower = site.Section(TimberPart.Lower);
+                var upper = site.Section(TimberPart.Upper);
+                var center = site.Section(TimberPart.Trunk).Center;
+                var baseOfLower = resting.ShiftAlongTrunk(lower.Center - center);
+                var baseOfUpper = resting.ShiftAlongTrunk(upper.Center - center);
+                TimberPose lowerEnd = default, upperEnd = default;
+                Push(lower, baseOfLower, -1, pose => lowerEnd = pose);
+                Push(upper, baseOfUpper, 1, pose => upperEnd = pose);
+                yield return Until(() => lowerEnd.IsValid && upperEnd.IsValid, 4f);
+                Vector3 initialGap = TimberLocation.Position(baseOfUpper) - TimberLocation.Position(baseOfLower);
+                Vector3 finalGap = TimberLocation.Position(upperEnd) - TimberLocation.Position(lowerEnd);
+                Assert.That(Vector3.Dot(finalGap - initialGap, direction), Is.GreaterThan(.06f));
 
                 float Tilt() => Vector3.Angle(Vector3.up, body.rotation * Vector3.up);
+                void Push(TimberSection section, TimberPose start, int side, Action<TimberPose> settled)
+                {
+                    var slice = site.TrimCutFaces(section);
+                    var collider = source.CutGeometry(game.Settings.Timber.CutSurface).Slice(slice, barkOnly: true);
+                    TimberFall.Separate(site, section, start, 0f, collider, slice.Center - section.Center, side, platform.transform, settled);
+                }
             }
             finally
             {

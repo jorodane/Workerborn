@@ -865,7 +865,7 @@ namespace Workerborn
 
             bool completed = cropTarget.Advance(this, Time.deltaTime);
             if (animationDriver?.SampleWork(cropTarget.Progress) == true && cropTarget is LoggingTree tree)
-                tree.ShowImpact(this);
+                tree.ShowImpact(this, withAxe: true);
             if (!completed)
                 return;
 

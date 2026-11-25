@@ -49,7 +49,7 @@ namespace Workerborn
             if (obstacleRoot != null)
                 foreach (var marker in obstacleRoot.GetComponentsInChildren<VillageNavigationBlocker>(true))
                 {
-                    if (!marker.isActiveAndEnabled || marker.Volume == null || !marker.Volume.enabled)
+                    if (marker.CarvesAtRuntime || !marker.isActiveAndEnabled || marker.Volume == null || !marker.Volume.enabled)
                         continue;
                     var volume = marker.Volume;
                     sources.Add(new NavMeshBuildSource { shape = NavMeshBuildSourceShape.ModifierBox, transform = volume.transform.localToWorldMatrix * Matrix4x4.Translate(volume.center), size = volume.size, area = 1 });
@@ -71,6 +71,15 @@ namespace Workerborn
                 Destroy(generated);
                 generated = null;
             }
+            if (obstacleRoot != null)
+                foreach (var marker in obstacleRoot.GetComponentsInChildren<VillageNavigationBlocker>(true))
+                {
+                    if (!marker.CarvesAtRuntime)
+                        continue;
+                    // Bakes made before this obstacle could carve still contain its old footprint.
+                    useBakedData = false;
+                    marker.EnableCarving();
+                }
             var data = useBakedData ? bakedData : null;
             if (data == null)
                 data = generated = BuildData();

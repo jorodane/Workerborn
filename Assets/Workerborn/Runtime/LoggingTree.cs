@@ -127,7 +127,7 @@ namespace Workerborn
             RenewInteractionGeneration();
         }
 
-        internal void ShowImpact(HarvestWorker worker)
+        internal void ShowImpact(HarvestWorker worker, bool withAxe = false)
         {
             if (Visual == null || !Visual.gameObject.activeSelf)
                 return;
@@ -135,6 +135,8 @@ namespace Workerborn
                 restRotation = Visual.localRotation;
             Vector3 away = transform.position - worker.transform.position;
             away.y = 0f;
+            if (withAxe)
+                worker.Village?.PlayTimberAxeImpact(transform.position + Vector3.up * (cutHeight + .14f) - away.normalized * barkRadius);
             Vector3 axis = away.sqrMagnitude > .001f ? Vector3.Cross(Vector3.up, away.normalized) : transform.right;
             impactAxis = Visual.parent != null ? Visual.parent.InverseTransformDirection(axis) : axis;
             impactStartedAt = Time.time;

@@ -15,7 +15,7 @@ namespace Workerborn
     internal enum SessionMessage
     {
         Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave, Chat, Ping, Pong,
-        RemoveClient, DiscoverWorld, Administration, GroundTransfer, GatheredDrops, GroundItems, TimberWork
+        RemoveClient, DiscoverWorld, Administration, GroundTransfer, GatheredDrops, GroundItems, TimberWork, TimberImpact
     }
 
     [Serializable]
@@ -52,7 +52,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 21;
+        public const int ProtocolVersion = 22;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -1057,7 +1057,7 @@ namespace Workerborn
         {
             var avatars = authority.Avatars();
             var woodland = authority.Woodland;
-            headlessTimber?.PresentTimberFalls(woodland);
+            headlessTimber?.PresentTimberMotions(woodland);
             long now = GroundDropSave.UtcNow;
             authority.ReleaseExpiredDrops(now, SyncGroundChange);
             foreach (var connection in connections)
@@ -1153,6 +1153,8 @@ namespace Workerborn
                 ApplyAdministrationReply(packet);
             else if (packet.type == SessionMessage.Profile)
                 ApplyProfile(packet);
+            else if (packet.type == SessionMessage.TimberImpact && LocalPlayerId != null)
+                village?.PlayRemoteTimberImpact(packet.timberOrder);
             else if (packet.type == SessionMessage.Chat && village != null && !string.IsNullOrEmpty(packet.player) &&
                 VillageChatText.TryNormalize(packet.message, out string text))
                 village.ReceiveChat(packet.player, PortableCharacter.CleanName(packet.name, "일꾼"), text);

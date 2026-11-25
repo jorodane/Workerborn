@@ -17,9 +17,9 @@ namespace Workerborn
             authority?.ConfigureTimber(sites, ground, height, () => UnityEngine.Random.value);
         }
 
-        internal void FinishTimberFall(string id, TimberPose pose)
+        internal void FinishTimberMotion(string id, TimberPart part, TimberPose pose)
         {
-            if (authority?.SettleTimberFall(id, pose) == true)
+            if (authority?.SettleTimberMotion(id, part, pose) == true)
                 nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
         }
 
@@ -35,10 +35,24 @@ namespace Workerborn
             bool changed = authority.PerformTimber(identity, packet.character, packet.timberOrder, GroundDropSave.UtcNow,
                 occupation, out string message, out var drops, out var acquired);
             if (changed)
+            {
                 QueueCreatedDrops(drops);
+                if (packet.timberOrder?.action == TimberAction.Split)
+                    RelayTimberImpact(connection, packet.timberOrder);
+            }
             SendProfile(identity, connection, message, packet.request, changed, transition: false, timberAcquired: acquired);
             if (changed)
                 nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
+        }
+
+        private void RelayTimberImpact(Connection source, TimberOrder order)
+        {
+            if (source != null)
+                village?.PlayRemoteTimberImpact(order);
+            var impact = new SessionPacket { type = SessionMessage.TimberImpact, timberOrder = order };
+            foreach (var observer in connections)
+                if (observer != source && observer.Identity != null && !observer.Leaving)
+                    Send(observer, impact);
         }
     }
 }

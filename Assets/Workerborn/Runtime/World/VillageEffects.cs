@@ -70,6 +70,8 @@ namespace Workerborn
         public void PlayLevelUp(Vector3 position) => Play(VillageEffectKind.LevelUp, position);
         public void PlayCorpseDespawn(Vector3 position) => Play(VillageEffectKind.CorpseDespawn, position);
         public void PlayCombatHit(Vector3 position) => Play(VillageEffectKind.CombatHit, position);
+        internal void PlayTimberLanding(Vector3 position) => Play(VillageEffectKind.TimberLanding, position);
+        internal void PlayTimberAxeImpact(Vector3 position) => Play(VillageEffectKind.TimberAxeImpact, position);
 
         public void PlayDropTrail(GroundPickup pickup)
         {

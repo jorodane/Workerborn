@@ -351,6 +351,7 @@ MonoBehaviour:
     type: 3
   m_Name: ''
   m_EditorClassIdentifier: ''
+  carvesAtRuntime: 1
 --- !u!1 &100112
 GameObject:
   m_ObjectHideFlags: 0
