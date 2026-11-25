@@ -135,6 +135,13 @@ namespace Workerborn
 
         internal static VillageState BeforeFirstLife(VillageRules rules) => new VillageState(rules) { AwaitingIncarnation = true };
 
+        internal static VillageState RestorePlayer(VillageSave save, VillageRules rules, out bool learnedSoulGrowth)
+        {
+            var state = Restore(save, rules);
+            learnedSoulGrowth = !state.AwaitingIncarnation && state.LearnSkill(SkillId.SoulGrowth);
+            return state;
+        }
+
         internal bool CanIncarnate(int selection) => CanIncarnate(selection, out _);
 
         private bool CanIncarnate(int selection, out CharacterLook look)
@@ -154,7 +161,8 @@ namespace Workerborn
             Health = HealthLimit;
             Energy = StaminaLimit;
             LastGuideLife = Life;
-            return Result(true, $"{Life}번째 생이 시작됐어요.");
+            bool learnedSoulGrowth = LearnSkill(SkillId.SoulGrowth);
+            return Result(true, $"{Life}번째 생이 시작됐어요." + (learnedSoulGrowth ? " 영혼의 성장을 배웠어요." : ""));
         }
 
         private bool HasVillageProgress => Level != 1 || Experience != 0 || LifeDay != 1 || AttributePoints != 0 ||

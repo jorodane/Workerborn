@@ -255,6 +255,7 @@ namespace Workerborn
                 var fallback = npc.Role switch
                 {
                     VillageRole.NoticeBoard => DialogueAction.Job,
+                    VillageRole.Guide when state.AwaitingIncarnation && !state.IsSkillLearned(SkillId.SoulGrowth) => DialogueAction.GuideSoulGrowth,
                     VillageRole.Guide when state.Life > 1 => DialogueAction.GuideAfter,
                     _ => DialogueAction.Greeting
                 };
@@ -283,7 +284,7 @@ namespace Workerborn
                 return;
             }
 
-            if (npc.Role == VillageRole.Guide && action is (DialogueAction.Greeting or DialogueAction.GuideAfter))
+            if (npc.Role == VillageRole.Guide && action is (DialogueAction.Greeting or DialogueAction.GuideAfter or DialogueAction.GuideSoulGrowth))
             {
                 LookOption("체형", LookPart.Body);
                 LookOption("머리", LookPart.Hair);

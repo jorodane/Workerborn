@@ -213,7 +213,7 @@ namespace Workerborn
                     State.Inventory.ReplaceWith(GridInventory.Restore(save.inventoryColumns, save.inventoryRows, save.inventory));
                 else
                 {
-                    State = VillageState.Restore(save, State.Rules);
+                    State = VillageState.RestorePlayer(save, State.Rules, out _);
                     worker.SetCharacterState(State);
                 }
             }

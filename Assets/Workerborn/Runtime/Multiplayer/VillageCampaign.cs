@@ -126,7 +126,9 @@ namespace Workerborn
                         profile.character == null || profiles.ContainsKey(profile.identity))
                         throw new ArgumentException("Invalid campaign profile.");
                     ApplyWorld(profile.character);
-                    VillageState.Restore(profile.character, rules);
+                    var state = VillageState.RestorePlayer(profile.character, rules, out bool learnedSoulGrowth);
+                    if (learnedSoulGrowth)
+                        SaveCharacter(profile, state, teleport: false);
                     profiles.Add(profile.identity, profile);
                 }
                 RestoreGroundDrops(saved.groundDrops);
@@ -331,8 +333,10 @@ namespace Workerborn
             ApplyWorld(save);
             try
             {
-                state = VillageState.Restore(save, rules);
+                state = VillageState.RestorePlayer(save, rules, out bool learnedSoulGrowth);
                 profile.character = save;
+                if (learnedSoulGrowth)
+                    SaveCharacter(profile, state, teleport: false);
                 return true;
             }
             catch (ArgumentException) { return false; }
@@ -478,6 +482,7 @@ namespace Workerborn
             profile.character = state.Export();
             profile.character.CopyPoseAndAction(previous, teleport);
             profile.character.characters = previous.characters;
+            profile.character.cropRemaining = teleport ? Array.Empty<int>() : previous.cropRemaining;
             profile.character.cropStates = teleport ? Array.Empty<CropStateSave>() : previous.cropStates;
             profile.character.animalStates = teleport ? Array.Empty<AnimalStateSave>() : previous.animalStates;
             profile.character.collectedPickupIds = teleport && previous.life != state.Life ? Array.Empty<string>() : previous.collectedPickupIds;

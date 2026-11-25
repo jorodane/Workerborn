@@ -722,6 +722,7 @@ namespace Workerborn.Tests
             campaign.Move("a", new SessionAvatar { x = 10, z = 22 });
             Assert.That(campaign.Avatars()[0].x, Is.EqualTo(100));
             var waiting = VillageState.Restore(profile.character, rules);
+            Assert.That(waiting.IsSkillLearned(SkillId.SoulGrowth), Is.False);
             Assert.That(waiting.AdvanceTime(1440f * 2f / rules.MinutesPerSecond), Is.False);
             Assert.That(waiting.Day, Is.EqualTo(3));
             Assert.That(waiting.LifeMinutes, Is.Zero);
@@ -748,16 +749,48 @@ namespace Workerborn.Tests
             Assert.That(campaign.Avatars()[0].x, Is.EqualTo(100));
             var look = new CharacterLook { body = 1, hair = 13, outfit = 12, face = 3 };
             Assert.That(campaign.Perform("a", CampaignAction.Incarnate, null, -1, false, out _), Is.False);
-            Assert.That(campaign.Perform("a", CampaignAction.Incarnate, null, look.ToSelection(), false, out _), Is.True);
+            Assert.That(VillageState.Restore(profile.character, rules).IsSkillLearned(SkillId.SoulGrowth), Is.False);
+            Assert.That(campaign.Perform("a", CampaignAction.Incarnate, null, look.ToSelection(), false, out var message), Is.True);
+            Assert.That(message, Does.Contain("영혼의 성장을 배웠어요"));
             var born = VillageState.Restore(profile.character, rules);
             Assert.That(born.AwaitingIncarnation, Is.False);
             Assert.That(born.Level, Is.EqualTo(1));
+            Assert.That(born.IsSkillLearned(SkillId.SoulGrowth), Is.True);
+            Assert.That(born.RankOf(SkillId.SoulGrowth), Is.Zero);
+            Assert.That(born.ExperienceGainPercent, Is.EqualTo(100));
             Assert.That(born.LifeMinutes, Is.Zero);
             Assert.That(born.Inventory.Entries, Is.Empty);
             Assert.That(born.LifeLook, Is.EqualTo(look));
             Assert.That(campaign.Avatars()[0].x, Is.EqualTo(10));
             campaign.Move("a", new SessionAvatar { x = 100, y = 30, z = 100 });
             Assert.That(campaign.Avatars()[0].x, Is.EqualTo(10));
+        }
+
+        [Test]
+        public void ExistingCampaignPlayersGainSoulGrowthAndKeepTheirWorldRecords()
+        {
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 10, 22);
+            Assert.That(campaign.Connect("a", "일꾼", out var profile), Is.True);
+            Incarnate(campaign, "a");
+            var saved = profile.character;
+            saved.skillRanks[(int)SkillId.SoulGrowth].learned = false;
+            saved.experience = 11;
+            saved.cropRemaining = new[] { 2 };
+            saved.playerX = 13f;
+
+            campaign = new VillageCampaign(rules, Sites, 10, 22, campaign.Export());
+            Assert.That(campaign.Connect("a", "일꾼", out profile), Is.True);
+            var restored = VillageState.Restore(profile.character, rules);
+            Assert.That(restored.IsSkillLearned(SkillId.SoulGrowth), Is.True);
+            Assert.That(restored.Experience, Is.EqualTo(11));
+            Assert.That(profile.character.cropRemaining, Is.EqualTo(new[] { 2 }));
+            Assert.That(profile.character.playerX, Is.EqualTo(13f));
+
+            var checkpoint = restored.Export();
+            checkpoint.skillRanks[(int)SkillId.SoulGrowth].learned = false;
+            Assert.That(campaign.Checkpoint("a", checkpoint), Is.True);
+            Assert.That(VillageState.Restore(profile.character, rules).IsSkillLearned(SkillId.SoulGrowth), Is.True);
         }
 
         private static void Incarnate(VillageCampaign campaign, string identity) =>

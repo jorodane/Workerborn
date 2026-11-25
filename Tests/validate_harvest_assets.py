@@ -278,9 +278,11 @@ assert any(resolve(row['PrefabInstance']['m_SourcePrefab']) == potion_model for 
 noah = docs(CONTENT / 'Data/NPCs/Noah.asset')[0]['MonoBehaviour']
 assert any(resolve(row).stem == 'health_potion' for row in noah['shopItems'])
 assert {item['id']: item['taughtSkill'] for item in itemdefs if item.get('teachesSkill')} == primers
-assert set(primers) <= {resolve(row).stem for row in noah['shopItems']}
 plot_merchant = docs(CONTENT / 'Data/NPCs/PlotMerchant.asset')[0]['MonoBehaviour']
-assert {item for item, skill in primers.items() if skill >= 6} <= {resolve(row).stem for row in plot_merchant['shopItems']}
+retired_primer = 'soul_growth_primer'
+assert set(primers) - {retired_primer} <= {resolve(row).stem for row in noah['shopItems']}
+assert {item for item, skill in primers.items() if skill >= 6 and item != retired_primer} <= {resolve(row).stem for row in plot_merchant['shopItems']}
+assert all(retired_primer not in {resolve(row).stem for row in merchant['shopItems']} for merchant in (noah, plot_merchant))
 assert next(i for i in itemdefs if i['id']=='gold')['maxStack']==1000
 assert next(i for i in itemdefs if i['id']=='iron_hoe')['equipmentSlot']==5
 assert next(i for i in itemdefs if i['id']=='small_bag')['equipmentSlot']==9

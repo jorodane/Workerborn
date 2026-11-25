@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Workerborn
 {
-    public enum DialogueAction { Greeting, Job, IntroQuest, Contribution, Shop, Rest, Rebirth, Foundation, GuideAfter, Legend, PlainText }
+    public enum DialogueAction { Greeting, Job, IntroQuest, Contribution, Shop, Rest, Rebirth, Foundation, GuideAfter, Legend, PlainText, GuideSoulGrowth }
 
     public enum DialogueRequirementKind
     {

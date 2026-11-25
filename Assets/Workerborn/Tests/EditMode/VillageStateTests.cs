@@ -370,28 +370,35 @@ namespace Workerborn.Tests
             Assert.That(state.LifetimeHarvests, Is.EqualTo(2));
         }
 
-        [Test]
-        public void SoulGrowthEnablesExperienceWithoutResettingAnExistingLevel()
+        [TestCase(13)]
+        [TestCase(14)]
+        public void ExistingPlayersReceiveSoulGrowthWithoutResettingTheirProgress(int schema)
         {
-            var save = new VillageState().Export();
-            save.schema = 13;
+            var previous = new VillageState();
+            Assert.That(previous.Inventory.TryAdd(ItemIds.SoulGrowthBook, 1), Is.True);
+            var save = previous.Export();
+            save.schema = schema;
             save.level = 4;
             save.totalLevel = 4;
             save.experience = 12;
-            var state = VillageState.Restore(save);
-            Assert.That(state.Level, Is.EqualTo(4));
-            Assert.That(state.TryHarvest(1, false, out _), Is.True);
-            Assert.That(state.Experience, Is.EqualTo(12));
+            Assert.That(VillageState.Restore(save).IsSkillLearned(SkillId.SoulGrowth), Is.False);
 
-            Assert.That(state.Inventory.TryAdd(ItemIds.SoulGrowthBook, 1), Is.True);
-            Assert.That(state.TryReadSkillBook(state.Inventory.Entries.Single().Id), Is.True);
+            var state = VillageState.RestorePlayer(save, null, out bool learned);
+            Assert.That(learned, Is.True);
+            Assert.That(state.IsSkillLearned(SkillId.SoulGrowth), Is.True);
+            Assert.That(state.RankOf(SkillId.SoulGrowth), Is.Zero);
+            Assert.That(state.Level, Is.EqualTo(4));
+            Assert.That(state.Experience, Is.EqualTo(12));
+            Assert.That(state.Inventory.Count(ItemIds.SoulGrowthBook), Is.EqualTo(1));
             Assert.That(state.TryHarvest(1, false, out _), Is.True);
             Assert.That(state.Experience, Is.EqualTo(20));
             Assert.That(state.LearnSkill(SkillId.SoulGrowth, SkillProgression.MaxRank), Is.True);
             Assert.That(state.TryHarvest(1, false, out _), Is.True);
             Assert.That(state.Experience, Is.EqualTo(36));
             Assert.That(state.Level, Is.EqualTo(4));
-            Assert.That(VillageState.Restore(state.Export()).ExperienceGainPercent, Is.EqualTo(200));
+            var reloaded = VillageState.RestorePlayer(state.Export(), null, out learned);
+            Assert.That(learned, Is.False);
+            Assert.That(reloaded.ExperienceGainPercent, Is.EqualTo(200));
         }
 
         [Test]

@@ -167,7 +167,7 @@ namespace Workerborn
             usesSelectedWorld = !IsAppearanceTrial && Session?.HasLocalWorld == true;
             bool reloading = Session != null && Session.TakeSoloReload(out restoredWorld, out notice);
             if (reloading)
-                State = VillageState.Restore(restoredWorld, rules);
+                State = VillageState.RestorePlayer(restoredWorld, rules, out _);
             else if (IsOnline || usesSelectedWorld)
             {
                 if (IsOnline)
@@ -175,7 +175,7 @@ namespace Workerborn
                 Session.InitializeAuthority(rules, AuthoredSites(), spawnPoint.position, rebirthZone);
                 restoredWorld = Session.InitialCharacter;
                 if (restoredWorld != null)
-                    State = VillageState.Restore(restoredWorld, rules);
+                    State = VillageState.RestorePlayer(restoredWorld, rules, out _);
             }
             else if (loadSavedGame && VillageSaveStore.TryLoad(out var savedState, out var savedWorld, out notice, rules, repairBackup: !IsAppearanceTrial))
             {

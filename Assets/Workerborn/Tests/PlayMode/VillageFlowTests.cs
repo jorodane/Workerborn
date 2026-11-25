@@ -77,6 +77,7 @@ namespace Workerborn.Tests
             Assert.That(areaDescription.text, Is.EqualTo(game.RebirthArea.MapDescription).And.Not.Empty);
             Assert.That(game.CaptureSave().awaitingIncarnation, Is.True);
             Assert.That(game.State.Level, Is.EqualTo(1));
+            Assert.That(game.State.IsSkillLearned(SkillId.SoulGrowth), Is.False);
             Assert.That(game.State.Inventory.Entries, Is.Empty);
             yield return Until(() => game.State.Day > waiting.Day && !game.IsWorldTransitioning, 3f);
             Assert.That(game.InRebirthZone, Is.True);
@@ -104,13 +105,23 @@ namespace Workerborn.Tests
             game.Hud.CloseDialogue();
             Assert.That(game.InRebirthZone, Is.True);
             game.Hud.OpenDialogue(guide);
+            var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+            var body = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
+            Assert.That(body.text, Does.Contain("영혼의 성장").And.Contain("경험치"));
+            Assert.That(dialogue.GetComponentsInChildren<Button>().Any(button =>
+                button.GetComponentInChildren<TMP_Text>()?.text == "환생하기"), Is.False);
+            yield return Until(() => dialogue.GetComponentsInChildren<Button>().Any(button =>
+                button.GetComponentInChildren<TMP_Text>()?.text == "다음"), 3f);
+            FindButton(dialogue, "다음").onClick.Invoke();
+            Assert.That(game.State.IsSkillLearned(SkillId.SoulGrowth), Is.False);
             var look = new CharacterLook { body = 1, hair = 7, face = 2, outfit = 4 };
             game.PreviewIncarnationLook(look);
-            game.ConfirmIncarnation();
+            FindButton(dialogue, "환생하기").onClick.Invoke();
             yield return Until(() => !game.InRebirthZone, 3f);
             Assert.That(game.InRebirthZone, Is.False);
             Assert.That(game.State.LifeMinutes, Is.EqualTo(0).Within(.02));
             Assert.That(game.State.LifeLook, Is.EqualTo(look));
+            Assert.That(game.State.IsSkillLearned(SkillId.SoulGrowth), Is.True);
             Assert.That(game.State.Inventory.Entries, Is.Empty);
             Assert.That(game.State.RankOf(SkillId.Harvesting), Is.EqualTo(1));
             yield return Until(() => areaName.text == "솔바람 마을" && announcement.gameObject.activeSelf, 3f);

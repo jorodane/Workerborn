@@ -22,7 +22,7 @@ namespace Workerborn
                 {
                     if (new FileInfo(path).Length > 1000000) throw new InvalidDataException("Save is too large.");
                     var saved = JsonUtility.FromJson<VillageSave>(File.ReadAllText(path));
-                    var loaded = VillageState.Restore(saved, rules);
+                    var loaded = VillageState.RestorePlayer(saved, rules, out _);
                     state = loaded; world = saved;
                     message = path == SavePath ? "이전 삶의 기록을 불러왔어요." : "백업에서 삶의 기록을 복구했어요.";
                     if (repairBackup && path != SavePath && primaryExists)
