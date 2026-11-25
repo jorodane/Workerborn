@@ -31,6 +31,7 @@ namespace Workerborn
         [SerializeField] private Color itemName = Color.white;
         [SerializeField] private Color enemyName = new Color(1f, .63f, .35f);
         private bool boxVisible, pointerInside, pointerDown;
+        private int shownPickupQuantity;
         private PointerTargeting targeting;
         private WorldTargetReference target;
         public WorldInteractable Target => target.Target;
@@ -41,8 +42,8 @@ namespace Workerborn
         {
             this.target = new WorldTargetReference(target);
             targeting = controller;
-            SetText(text ?? (target is GroundPickup { Quantity: > 1 } item
-                ? $"{item.DisplayName} ×{item.Quantity}" : target.DisplayName));
+            shownPickupQuantity = target is GroundPickup item ? item.Quantity : 0;
+            SetText(text ?? target.DisplayName);
             if (target is MonsterInteractable { Combat: not null } monster)
                 SetHealth(false, monster.Health, monster.Combat.Health);
             else
@@ -108,6 +109,11 @@ namespace Workerborn
         private void Update() => Refresh();
         private void Refresh()
         {
+            if (Subject is GroundPickup item && item.Quantity != shownPickupQuantity)
+            {
+                shownPickupQuantity = item.Quantity;
+                SetText(item.DisplayName);
+            }
             bool alt = boxVisible && WorkerbornInput.Held("Gameplay/Names");
             var current = alt ? Target : null;
             background.raycastTarget = current != null;

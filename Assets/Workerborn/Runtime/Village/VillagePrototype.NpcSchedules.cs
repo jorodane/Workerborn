@@ -9,11 +9,15 @@ namespace Workerborn
         private readonly Dictionary<string, HarvestWorker> villageCharacters = new Dictionary<string, HarvestWorker>();
         internal bool CanRunNpcSchedules => initialized;
 
-        private void BindWorker(CharacterActor actor, HarvestWorker character, VillageState state, string id, Camera inputCamera = null)
+        internal HarvestWorker FindCharacter(string id) => id == worker.CharacterId ? worker :
+            villageCharacters.TryGetValue(id, out var character) ? character : null;
+
+        private void BindWorker(CharacterActor actor, HarvestWorker character, VillageState state, string id,
+            Camera inputCamera = null, string playerId = null)
         {
             BindCharacter(actor);
             character.Initialize(inputCamera, actor.GetComponent<WorkerAnimation>());
-            character.BindVillage(this, state, id);
+            character.BindVillage(this, state, id, playerId);
         }
 
         internal void BindNpcCharacter(CharacterActor actor, string instanceId = null, bool inClouds = false)

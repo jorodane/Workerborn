@@ -65,6 +65,7 @@ namespace Workerborn
             hud.HideItemTooltip();
             hud.SetIncarnationPresentation();
             targeting?.RefreshStaticGeometry();
+            RefreshSharedGroundPickups();
             cameraRig.SnapToTarget();
         }
     }

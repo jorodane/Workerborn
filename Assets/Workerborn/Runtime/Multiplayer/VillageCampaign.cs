@@ -50,6 +50,7 @@ namespace Workerborn
         public string worldId;
         public VillageWorldRecord world;
         public CampaignProfile[] profiles = Array.Empty<CampaignProfile>();
+        public GroundDropSave[] groundDrops = Array.Empty<GroundDropSave>();
         public double deadline;
     }
 
@@ -67,7 +68,7 @@ namespace Workerborn
         public int requirementCharacters;
     }
 
-    internal sealed class VillageCampaign
+    internal sealed partial class VillageCampaign
     {
         private readonly VillageRules rules;
         private readonly IReadOnlyDictionary<string, string> sites;
@@ -127,6 +128,9 @@ namespace Workerborn
                     VillageState.Restore(profile.character, rules);
                     profiles.Add(profile.identity, profile);
                 }
+                RestoreGroundDrops(saved.groundDrops);
+                foreach (var profile in profiles.Values)
+                    LoadSoloGroundDrops(profile.character);
             }
         }
 
@@ -184,6 +188,12 @@ namespace Workerborn
             World = world;
             var profile = profiles[identity];
             profile.enteredEra = world.era;
+            if (!save.awaitingIncarnation)
+            {
+                foreach (var drop in SharedGroundDrops.Where(drop => drop.IsVisibleTo(profile.id)).ToArray())
+                    groundDrops.Remove(drop.id);
+                LoadSoloGroundDrops(save);
+            }
             profile.character = save;
         }
 
@@ -523,7 +533,11 @@ namespace Workerborn
         {
             foreach (var profile in profiles.Values)
                 ApplyWorld(profile.character);
-            return new CampaignRecord { worldId = WorldId, world = World, deadline = deadline, profiles = profiles.Values.ToArray() };
+            return new CampaignRecord
+            {
+                worldId = WorldId, world = World, deadline = deadline, profiles = profiles.Values.ToArray(),
+                groundDrops = SharedGroundDrops.ToArray()
+            };
         }
     }
 }

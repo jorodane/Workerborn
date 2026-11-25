@@ -30,7 +30,7 @@ namespace Workerborn
         [SerializeField] private bool scatterTowardWorker;
         [SerializeField, Range(0, 360)] private float scatterAngle = 360f;
         [SerializeField] private Vector2 scatterRadius = new Vector2(.4f, 1.25f);
-        [SerializeField, Range(1, 48)] private int maxVisibleDrops = 24;
+        [SerializeField, Range(1, GroundDropSave.MaximumGatheredDrops)] private int maxVisibleDrops = 24;
         [Header("Legacy harvest demo model references")]
         [SerializeField]
         private GameObject plantPrefab;
@@ -53,7 +53,7 @@ namespace Workerborn
         public Sprite SkillIcon => skillIcon;
         public WorkAnimationDefinition WorkAnimation => workAnimation;
         public int StaminaCost => staminaCost;
-        public int MaxVisibleDrops => Mathf.Clamp(maxVisibleDrops, 1, 48);
+        public int MaxVisibleDrops => Mathf.Clamp(maxVisibleDrops, 1, GroundDropSave.MaximumGatheredDrops);
 
         public Vector3 SampleDropOffset(Vector3 towardWorker, int index, int count, float angleRoll, float radiusRoll)
         {

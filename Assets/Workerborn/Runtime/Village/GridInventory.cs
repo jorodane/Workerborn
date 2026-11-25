@@ -92,21 +92,33 @@ namespace Workerborn
             return true;
         }
 
-        public bool CanAdd(string itemId, int quantity) => BuildAdded(itemId, quantity, out _, out _);
+        public bool CanAdd(string itemId, int quantity) => BuildAdded(itemId, quantity, out _, out _, out _);
 
         public bool TryAdd(string itemId, int quantity)
         {
-            if (!BuildAdded(itemId, quantity, out var added, out int next)) return false;
+            if (!BuildAdded(itemId, quantity, out var added, out int next, out _)) return false;
             entries = added;
             nextId = next;
             Version++;
             return true;
         }
 
-        private bool BuildAdded(string itemId, int quantity, out List<InventoryEntry> result, out int next)
+        internal int TryAddUpTo(string itemId, int quantity)
+        {
+            if (!BuildAdded(itemId, quantity, out var added, out int next, out int accepted, allowPartial: true))
+                return 0;
+            entries = added;
+            nextId = next;
+            Version++;
+            return accepted;
+        }
+
+        private bool BuildAdded(string itemId, int quantity, out List<InventoryEntry> result, out int next,
+            out int accepted, bool allowPartial = false)
         {
             result = null;
             next = nextId;
+            accepted = 0;
             if (!ItemCatalog.Contains(itemId) || quantity <= 0) return false;
             var spec = ItemCatalog.Get(itemId);
             var copy = CopyEntries();
@@ -120,13 +132,18 @@ namespace Workerborn
             }
             while (remaining > 0)
             {
-                if (!FirstFit(copy, spec, out int x, out int y)) return false;
+                if (!FirstFit(copy, spec, out int x, out int y))
+                {
+                    if (!allowPartial) return false;
+                    break;
+                }
                 int amount = Math.Min(remaining, spec.MaxStack);
                 copy.Add(new InventoryEntry { Id = next++, ItemId = itemId, Quantity = amount, X = x, Y = y });
                 remaining -= amount;
             }
             result = copy;
-            return true;
+            accepted = quantity - remaining;
+            return accepted > 0;
         }
 
         public bool TryRemove(string itemId, int quantity)

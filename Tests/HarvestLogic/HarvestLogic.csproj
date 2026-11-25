@@ -11,6 +11,7 @@
     <Compile Include="../../Assets/Workerborn/Runtime/HarvestCycle.cs" Link="HarvestCycle.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/ItemCatalog.cs" Link="ItemCatalog.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/GridInventory.cs" Link="GridInventory.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/GroundDropPiles.cs" Link="GroundDropPiles.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.cs" Link="VillageState.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Foundation.cs" Link="VillageState.Foundation.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Plots.cs" Link="VillageState.Plots.cs" />
@@ -31,6 +32,7 @@
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Life.cs" Link="VillageState.Life.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Legends.cs" Link="VillageState.Legends.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.cs" Link="VillageCampaign.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.GroundDrops.cs" Link="VillageCampaign.GroundDrops.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/WorldCapacity.cs" Link="WorldCapacity.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/DedicatedAdminProtocol.cs" Link="DedicatedAdminProtocol.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageChatText.cs" Link="VillageChatText.cs" />

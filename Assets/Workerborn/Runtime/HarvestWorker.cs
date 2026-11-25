@@ -18,7 +18,7 @@ namespace Workerborn
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed partial class HarvestWorker : MonoBehaviour
     {
-        internal const float DefaultPickupDistance = 2f;
+        internal const float DefaultPickupDistance = GroundDropSave.PickupDistance;
         private const float JumpHeight = .6f;
         [SerializeField, Min(.1f)] private float runSpeed = 3.7f;
         [SerializeField, Min(.1f)] private float walkSpeed = 1.65f;
@@ -73,12 +73,14 @@ namespace Workerborn
         internal bool IsLocallyControlled => worldCamera != null;
         public bool AcceptsInteractionCommands => village == null || !IsLocallyControlled || !village.ControlsBlocked;
         public bool AcceptsGroundItemCommands => village == null || !CharacterState.AwaitingIncarnation &&
-            (!IsLocallyControlled || village.Hud.AllowsGroundItems);
+            (!IsLocallyControlled || !village.AwaitingWorldCommand && village.Hud.AllowsGroundItems);
         public PointerTargeting Targeting => village != null && IsLocallyControlled ? village.Targeting : null;
         internal VillagePrototype Village => village;
         internal VillageState CharacterState => characterState;
         internal CharacterActor Actor => actor;
         internal string CharacterId { get; private set; }
+        internal string PlayerId { get; private set; }
+        internal bool HasPlayerOwner => !string.IsNullOrEmpty(PlayerId);
         internal SeatSlot OccupiedSeat => occupiedSeat;
         public bool IsWalking => Action == WorkerAction.Moving &&
             (manualMoving ? manualWalking : walkPath);
@@ -102,10 +104,11 @@ namespace Workerborn
         internal bool OccupiesSeat(Vector3 position) => onSeat && (transform.position - position).sqrMagnitude < .04f;
 
         public event Action<string> Message;
-        internal void BindVillage(VillagePrototype game, VillageState state, string id)
+        internal void BindVillage(VillagePrototype game, VillageState state, string id, string playerId)
         {
             village = game;
             CharacterId = id;
+            PlayerId = playerId;
             SetCharacterState(state);
         }
 
@@ -367,7 +370,7 @@ namespace Workerborn
             float bestDistance = float.MaxValue;
             foreach (var candidate in WorldInteractable.Active)
             {
-                if (!(candidate is GroundPickup item) || !item.CanCollect || item.IsInFlight || !IsInPickupRange(item))
+                if (!(candidate is GroundPickup item) || !item.CanCollectFor(this) || item.IsInFlight || !IsInPickupRange(item))
                     continue;
                 Vector3 offset = item.LandingPosition - transform.position;
                 offset.y = 0f;
@@ -474,6 +477,11 @@ namespace Workerborn
         {
             if (!AcceptsGroundItemCommands || item == null || !item.CanCollect)
                 return;
+            if (!item.CanCollectFor(this))
+            {
+                Message?.Invoke("아직 소유자만 주울 수 있는 아이템입니다.");
+                return;
+            }
             if (IsInPickupRange(item))
             {
                 CollectPickup(item);
@@ -490,14 +498,14 @@ namespace Workerborn
 
         private bool CollectPickup(GroundPickup item)
         {
-            if (!IsInPickupRange(item) || !item.CanCollect)
+            if (!IsInPickupRange(item) || !item.CanCollectFor(this))
                 return false;
             if (village != null)
                 return village.TryCollectPickup(this, item);
             CropDefinition definition = item.Definition;
             int quantity = item.Quantity;
-            string displayName = item.DisplayName;
-            if (!item.TryCollect())
+            string displayName = item.ItemDisplayName;
+            if (!item.TryCollect(this))
                 return false;
             if (definition != null)
             {
@@ -593,7 +601,7 @@ namespace Workerborn
 
         public bool CommandDrop(int entryId, Vector3 destination)
         {
-            if (village == null || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
+            if (village == null || !HasPlayerOwner || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
                 return false;
             var entry = CharacterState.CarriedItem(entryId);
             if (village.DropPrefabFor(entry, this) == null)

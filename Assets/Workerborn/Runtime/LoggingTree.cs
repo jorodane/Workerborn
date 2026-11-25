@@ -47,7 +47,7 @@ namespace Workerborn
             if (!CanReceiveStrike || worker.Village == null)
                 return;
             ShowImpact(worker);
-            if (worker.Village.DropStrikeLoot(transform, branch, Mathf.Clamp(branchesPerStrike, 1, 8)))
+            if (worker.Village.DropStrikeLoot(transform, branch, Mathf.Clamp(branchesPerStrike, 1, 8), worker))
                 NotifyInteractionCompleted();
         }
 
@@ -95,7 +95,7 @@ namespace Workerborn
         private bool StrikesByDefault(HarvestWorker worker)
         {
             var tool = Definition?.RequiredTool;
-            return CanReceiveStrike && tool != null && worker.Village != null && !worker.Village.State.HasTool(tool.Id);
+            return CanReceiveStrike && tool != null && worker.Village != null && !worker.CharacterState.HasTool(tool.Id);
         }
     }
 }

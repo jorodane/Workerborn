@@ -7,6 +7,21 @@ namespace Workerborn.Tests
     public sealed class VillageStateTests
     {
         [Test]
+        public void HarvestDeliveryFailureLeavesStaminaAndProgressIntact()
+        {
+            var state = new VillageState();
+            int energy = state.Energy;
+            int requested = 0;
+            Assert.That(state.TryGather(SkillId.Harvesting, ItemIds.Potato, 1, 5, WorkOutcome.Success,
+                quantity => { requested = quantity; return false; }, out int harvested), Is.False);
+            Assert.That(requested, Is.EqualTo(1));
+            Assert.That(harvested, Is.Zero);
+            Assert.That(state.Energy, Is.EqualTo(energy));
+            Assert.That(state.LifetimeHarvests, Is.Zero);
+            Assert.That(state.Experience, Is.Zero);
+        }
+
+        [Test]
         public void VillageAndResidentRecordsUseTheSameCharacterProgressAndEquipmentRules()
         {
             var resident = new VillageState();

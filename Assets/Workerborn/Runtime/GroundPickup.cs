@@ -27,16 +27,19 @@ namespace Workerborn
         public CropDefinition Definition => definition;
         internal Transform Visual => visual;
         internal GroundPickup AppearanceSource { get; set; }
-        internal string HarvestedBy { get; set; }
+        internal GroundDropSave DropRecord { get; private set; }
+        internal string SharedDropId { get; private set; }
         internal bool IsPooled => returnToPool != null;
         public string ItemId => item != null ? item.Id : definition != null ? definition.ItemId : string.Empty;
         public int Quantity => quantity;
-        public override string DisplayName => item != null ? item.DisplayName : definition != null ? definition.DisplayName : name;
+        internal string ItemDisplayName => item != null ? item.DisplayName : definition != null ? definition.DisplayName : name;
+        public override string DisplayName => Quantity > 1 ? $"{ItemDisplayName}({Quantity:N0})" : ItemDisplayName;
         protected override float DefaultDistance => HarvestWorker.DefaultPickupDistance;
         public bool CanCollect => !collected && isActiveAndEnabled;
         public bool IsInFlight => initialized && age < flightSeconds;
         public override bool CanInteract => CanCollect;
         public override string InteractionVerb => "줍기";
+        public override string InteractionVerbFor(HarvestWorker worker) => CanCollectFor(worker) ? InteractionVerb : "소유자 보호 중";
         public Vector3 LandingPosition => initialized ? landing : transform.position;
         public Vector3 VisualPosition => visual != null ? visual.position : transform.position;
         public override Vector3 NamePosition => pooledNameOffset.HasValue ? transform.position + pooledNameOffset.Value : base.NamePosition;
@@ -44,7 +47,8 @@ namespace Workerborn
 
         public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
         {
-            base.AddContextActions(village, actions);
+            if (CanCollectFor(village.Worker))
+                base.AddContextActions(village, actions);
             string id = ItemId;
             int count = Quantity;
             actions.Add(new WorldContextAction("자세히 보기", () => village.Hud.InspectGroundItem(id, count)));
@@ -73,11 +77,21 @@ namespace Workerborn
             pooledNameOffset = source.NamePosition - source.transform.position;
         }
 
+        internal void BindDrop(GroundDropSave record, bool shared = false)
+        {
+            DropRecord = record;
+            SharedDropId = shared ? record.id : null;
+        }
+
+        internal bool CanCollectFor(HarvestWorker worker) => CanCollect &&
+            (DropRecord == null || DropRecord.CanCollect(worker?.PlayerId, worker?.Village?.PickupUtcNow ?? GroundDropSave.UtcNow));
+
         public void SetQuantity(int amount) => quantity = Mathf.Max(1, amount);
         public void Initialize(CropDefinition crop, Vector3 start, Vector3 end, bool settled = false) => Initialize(crop, visual, start, end, settled);
         public void Initialize(CropDefinition crop, Transform model, Vector3 start, Vector3 end, bool settled = false)
         {
-            HarvestedBy = null;
+            DropRecord = null;
+            SharedDropId = null;
             initialized = true;
             collected = false;
             definition = crop;
@@ -99,16 +113,23 @@ namespace Workerborn
                 Landed?.Invoke(landing);
         }
 
-        public bool TryCollect(Func<bool> receive = null)
+        public bool TryCollect(Func<bool> receive = null) => TryCollect(null, receive);
+
+        internal bool TryCollect(HarvestWorker worker, Func<bool> receive = null)
         {
-            if (!CanCollect)
+            if (SharedDropId != null || !CanCollectFor(worker))
                 return false;
             if (receive != null && !receive())
                 return false;
+            CompleteCollection();
+            return true;
+        }
+
+        internal void CompleteCollection()
+        {
             collected = true;
             NotifyInteractionCompleted();
             Despawn();
-            return true;
         }
 
         internal void KeepForRespawn()

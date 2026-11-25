@@ -12,7 +12,11 @@ using UnityEngine.SceneManagement;
 
 namespace Workerborn
 {
-    internal enum SessionMessage { Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave, Chat, Ping, Pong, RemoveClient, DiscoverWorld, Administration }
+    internal enum SessionMessage
+    {
+        Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave, Chat, Ping, Pong,
+        RemoveClient, DiscoverWorld, Administration, GroundTransfer, GatheredDrops, GroundItems
+    }
 
     [Serializable]
     internal sealed class SessionPacket
@@ -29,6 +33,12 @@ namespace Workerborn
         public PortableCharacter appearance;
         public SessionAvatar avatar;
         public SessionAvatar[] avatars;
+        public GroundDropSave groundDrop;
+        public GroundDropSave[] groundDrops;
+        public string[] removedGroundDrops;
+        public string collectedDropId;
+        public int collectedQuantity;
+        public long pickupUtc;
         public ServerAdminAction adminAction;
         public DedicatedAdminStatus adminStatus;
     }
@@ -36,7 +46,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 11;
+        public const int ProtocolVersion = 12;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -59,6 +69,7 @@ namespace Workerborn
             public float PingSentAt;
             public int PingMilliseconds = -1;
             public float NextAdminSnapshot;
+            public readonly HashSet<string> PendingGroundDrops = new HashSet<string>();
         }
 
         public static VillageSession Instance { get; private set; }
@@ -502,6 +513,8 @@ namespace Workerborn
             village = game;
             InitialCharacter = null;
             Busy = false;
+            if (Online)
+                game.RefreshSharedGroundPickups();
             if (inviteWhenReady)
             {
                 inviteWhenReady = false;
@@ -525,6 +538,8 @@ namespace Workerborn
         {
             if (Submitting || !Online || character == null)
                 return false;
+            if (pendingGatheredDrops.Count > 0)
+                return FlushGatheredDrops(character);
             if (authority != null && localIdentity != null)
                 return authority.Checkpoint(localIdentity, character);
             return host != null && Send(host, new SessionPacket { type = SessionMessage.Checkpoint, character = character });
@@ -555,18 +570,25 @@ namespace Workerborn
             return true;
         }
 
-        public bool Submit(CampaignAction action, string argument = null, int value = 1)
+        public bool Submit(CampaignAction action, string argument = null, int value = 1) => SubmitCommand(new SessionPacket
+        {
+            type = SessionMessage.Command, action = action, argument = argument, value = value
+        });
+
+        private bool SubmitCommand(SessionPacket packet)
         {
             if (!Online || village == null || Submitting)
                 return false;
-            var packet = new SessionPacket
-            {
-                type = SessionMessage.Command, action = action, argument = argument, value = value,
-                request = ++requestSequence, character = village.CaptureSave()
-            };
+            packet.request = ++requestSequence;
+            packet.character = village.CaptureSave();
+            if (!FlushGatheredDrops(packet.character))
+                return false;
             if (authority != null && localIdentity != null)
             {
-                CampaignCommand(localIdentity, packet, null);
+                if (packet.type == SessionMessage.GroundTransfer)
+                    GroundTransfer(localIdentity, packet, null);
+                else
+                    CampaignCommand(localIdentity, packet, null);
                 PublishWorld();
                 return true;
             }
@@ -584,12 +606,20 @@ namespace Workerborn
         {
             if (leaveBy > 0 || waitingForRequest != 0)
                 return;
-            if (host != null && village != null &&
-                Send(host, new SessionPacket { type = SessionMessage.Leave, character = village.CaptureSave() }))
+            if (host != null && village != null)
             {
-                leaveBy = Time.unscaledTime + 1.5f;
-                village.Worker.Cancel();
-                return;
+                var character = village.CaptureSave();
+                if (!FlushGatheredDrops(character))
+                {
+                    village.Hud.ShowToast("채집 결과를 서버에 보내고 있어요. 잠시 후 다시 나가 주세요.");
+                    return;
+                }
+                if (Send(host, new SessionPacket { type = SessionMessage.Leave, character = character }))
+                {
+                    leaveBy = Time.unscaledTime + 1.5f;
+                    village.Worker.Cancel();
+                    return;
+                }
             }
             village?.SaveGame(false);
             QueueExit("");
@@ -673,6 +703,8 @@ namespace Workerborn
                 QueueExit("서버 요청 시간이 지났어요. 방에 다시 입장해 주세요.");
                 return;
             }
+            if (now >= nextNetwork && village != null && !Submitting && pendingGatheredDrops.Count > 0)
+                FlushGatheredDrops(village.CaptureSave());
             if (authority != null && Online)
             {
                 PollAuthority(now);
@@ -863,6 +895,12 @@ namespace Workerborn
                 case SessionMessage.Command:
                     CampaignCommand(connection.Identity, packet, connection);
                     break;
+                case SessionMessage.GroundTransfer:
+                    GroundTransfer(connection.Identity, packet, connection);
+                    break;
+                case SessionMessage.GatheredDrops:
+                    PublishGatheredDrops(connection.Identity, packet.character, packet.groundDrops);
+                    break;
                 case SessionMessage.Administration:
                     AdministrationCommand(connection.Identity, packet, connection);
                     break;
@@ -935,6 +973,8 @@ namespace Workerborn
                     return;
                 }
                 connection.Identity = identity;
+                foreach (var drop in authority.SharedGroundDrops)
+                    connection.PendingGroundDrops.Add(drop.id);
             }
             if (connection.Steam == 0)
                 token = connection.Identity;
@@ -973,13 +1013,15 @@ namespace Workerborn
             }
         }
 
-        private void SendProfile(string identity, Connection connection, string message, int request, bool includeCharacter, bool transition)
+        private void SendProfile(string identity, Connection connection, string message, int request, bool includeCharacter, bool transition,
+            string collectedDropId = null, int collectedQuantity = 0, GroundDropSave remainder = null)
         {
             var packet = new SessionPacket
             {
                 type = SessionMessage.Profile, character = includeCharacter ? authority.Profile(identity).character : null,
                 status = authority.Status(identity, CanManageProfile(identity)), world = authority.World, message = message,
-                request = request, value = transition ? 1 : 0
+                request = request, value = transition ? 1 : 0, collectedDropId = collectedDropId,
+                collectedQuantity = collectedQuantity, groundDrop = remainder
             };
             if (connection == null)
                 ApplyProfile(packet);
@@ -990,15 +1032,18 @@ namespace Workerborn
         private void PublishWorld()
         {
             var avatars = authority.Avatars();
+            long now = GroundDropSave.UtcNow;
+            authority.ReleaseExpiredDrops(now, SyncGroundChange);
             foreach (var connection in connections)
             {
                 if (connection.Identity == null || connection.Leaving)
                     continue;
                 Send(connection, new SessionPacket
                 {
-                    type = SessionMessage.World, world = authority.World, avatars = avatars,
+                    type = SessionMessage.World, world = authority.World, avatars = avatars, pickupUtc = now,
                     status = authority.Status(connection.Identity, CanManageProfile(connection.Identity))
                 });
+                SendGroundChanges(connection);
             }
             if (village != null && localIdentity != null)
             {
@@ -1081,10 +1126,13 @@ namespace Workerborn
                 village.ReceiveChat(packet.player, PortableCharacter.CleanName(packet.name, "일꾼"), text);
             else if (packet.type == SessionMessage.World)
             {
+                SynchronizePickupClock(packet.pickupUtc);
                 UpdateStatus(packet.status);
                 if (village != null)
                     village.ApplySharedWorld(packet.world, packet.avatars);
             }
+            else if (packet.type == SessionMessage.GroundItems && LocalPlayerId != null)
+                ReceiveGroundChanges(packet);
         }
 
         private void SendDedicatedHello(Connection connection, string token)
@@ -1109,6 +1157,8 @@ namespace Workerborn
             if (village != null)
             {
                 village.ApplySessionProfile(packet.character, packet.world, packet.message, packet.value == 1);
+                if (!string.IsNullOrEmpty(packet.collectedDropId))
+                    ApplyGroundPickupReply(packet);
                 if (packet.request != 0 && packet.request == requestSequence)
                     village.Hud.FinishDialogueWorldReply(packet.character != null, packet.message);
             }
@@ -1312,6 +1362,9 @@ namespace Workerborn
             kind = null;
             Busy = false;
             waitingForRequest = 0;
+            receivedGroundDrops.Clear();
+            pendingGatheredDrops.Clear();
+            pickupClockAtSync = 0;
             leaveBy = 0;
             nextLocalChat = 0;
             inviteWhenReady = false;

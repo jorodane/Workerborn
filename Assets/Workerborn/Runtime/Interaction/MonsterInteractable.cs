@@ -25,6 +25,7 @@ namespace Workerborn
         private float despawnAt;
         private bool counterAnimation;
         private bool lootTaken;
+        internal string LootOwnerCharacterId { get; private set; }
         private bool corpseHidden;
         private bool returning;
         private Vector3 home;
@@ -64,13 +65,14 @@ namespace Workerborn
             RestoreEncounter(combat.Health, false);
         }
 
-        internal void RestoreEncounter(int health, bool gathered)
+        internal void RestoreEncounter(int health, bool gathered, string lootOwner = null)
         {
             if (combat == null)
                 return;
             Health = Mathf.Clamp(health, 0, combat.Health);
             HealthVisibleUntil = 0f;
             lootTaken = IsDefeated && gathered;
+            LootOwnerCharacterId = IsDefeated ? lootOwner : null;
             opponent = null;
             returning = false;
             wander?.StopCombatMovement();
@@ -121,12 +123,12 @@ namespace Workerborn
         {
             if (!IsDefeated || lootTaken || village == null)
                 return false;
-            lootTaken = true;
-            int count = (source?.CharacterState ?? village.State).ScaledYield(SkillId.Carving, combat.LootCount);
-            if (village.DropStrikeLoot(transform, combat.Loot, count, source))
-                return true;
-            lootTaken = false;
-            return false;
+            source ??= string.IsNullOrEmpty(LootOwnerCharacterId) ? village.Worker : village.FindCharacter(LootOwnerCharacterId);
+            if (source == null)
+                return false;
+            int count = source.CharacterState.ScaledYield(SkillId.Carving, combat.LootCount);
+            lootTaken = village.DropStrikeLoot(transform, combat.Loot, count, source);
+            return lootTaken;
         }
 
         internal override void ReceiveStrike(HarvestWorker worker, int damage)
@@ -147,6 +149,7 @@ namespace Workerborn
                 Play(defeatedState);
                 corpseVillage = worker.Village;
                 despawnAt = Time.time + combat.CorpseSeconds;
+                LootOwnerCharacterId = worker.CharacterId;
                 TryDropLoot(worker.Village, worker);
                 worker.Village.SaveGame(false);
             }

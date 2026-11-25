@@ -57,7 +57,10 @@ namespace Workerborn
             {
                 mapRegion?.Invalidate();
                 if (initialized)
+                {
                     targeting?.RefreshStaticGeometry();
+                    RefreshSharedGroundPickups();
+                }
             }
             return navigationChanged;
         }

@@ -26,6 +26,7 @@ namespace Workerborn
         public string id;
         public int health;
         public bool lootTaken;
+        public string lootOwnerCharacterId;
     }
 
     [Serializable]
@@ -39,13 +40,40 @@ namespace Workerborn
     [Serializable]
     public sealed class GroundDropSave
     {
+        internal const long ReservationMilliseconds = 60_000;
+        internal const float PickupDistance = 2f;
+        internal const int MaximumGatheredDrops = 48;
+        internal static long UtcNow => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
         public string id;
         public int quantity = 1;
         public string itemId;
+        // Older saves used this field to mark the NPC's uncollected harvests.
         public string harvestedBy;
+        public string ownerId;
+        public long reservedUntilUtc;
+        public bool combined;
         public float x;
         public float z;
         public InteriorPositionSave interior;
+        public bool hasDropOrigin;
+        public float originX, originY, originZ;
+
+        internal bool CanCollect(string playerId, long now) =>
+            string.IsNullOrEmpty(ownerId) || now >= reservedUntilUtc || ownerId == playerId;
+
+        internal bool IsVisibleTo(string playerId) => interior.id?.EndsWith("/guest", StringComparison.Ordinal) != true || ownerId == playerId;
+
+        internal string RoomId => string.IsNullOrEmpty(interior.id) ? null : interior.id;
+        internal float MapX => RoomId == null ? x : interior.localX;
+        internal float MapZ => RoomId == null ? z : interior.localZ;
+        internal GroundDropSave Copy() => (GroundDropSave)MemberwiseClone();
+
+        internal void ReserveFor(string playerId, long now)
+        {
+            ownerId = playerId;
+            reservedUntilUtc = now + ReservationMilliseconds;
+        }
     }
 
     [Serializable]
@@ -416,7 +444,11 @@ namespace Workerborn
         public bool TryGather(string itemId, int baseYield, int baseEnergy, WorkOutcome outcome, out int drops) =>
             TryGather(SkillProgression.ForItem(itemId), itemId, baseYield, baseEnergy, outcome, out drops);
 
-        public bool TryGather(SkillId skill, string itemId, int baseYield, int baseEnergy, WorkOutcome outcome, out int drops)
+        public bool TryGather(SkillId skill, string itemId, int baseYield, int baseEnergy, WorkOutcome outcome, out int drops) =>
+            TryGather(skill, itemId, baseYield, baseEnergy, outcome, null, out drops);
+
+        internal bool TryGather(SkillId skill, string itemId, int baseYield, int baseEnergy, WorkOutcome outcome,
+            Func<int, bool> receive, out int drops)
         {
             drops = 0;
             if (baseYield < 1 || baseYield > 100 || !ItemCatalog.Contains(itemId) || !SkillProgression.IsDefined(skill))
@@ -424,12 +456,18 @@ namespace Workerborn
             int cost = WorkEnergyCost(skill, itemId, baseEnergy);
             if (Energy < cost)
                 return Result(false, "스태미나가 부족해요. 빵을 먹거나 숙소에서 쉬어 주세요.");
-            Energy -= cost;
             if (outcome == WorkOutcome.Failure)
+            {
+                Energy -= cost;
                 return Result(false, "채집에 실패했어요.");
-            LifetimeHarvests++;
+            }
             int bonus = outcome == WorkOutcome.GreatLucky ? 50 : outcome == WorkOutcome.Lucky ? 2 : 1;
-            drops = ScaledYield(skill, baseYield, bonus);
+            int quantity = ScaledYield(skill, baseYield, bonus);
+            if (receive != null && !receive(quantity))
+                return false;
+            drops = quantity;
+            Energy -= cost;
+            LifetimeHarvests++;
             if (itemId == ItemIds.Timber)
                 LifetimeTimber = (int)Math.Min(int.MaxValue, (long)LifetimeTimber + drops);
             AddExperience(Rules.HarvestExperience + Knowledge / 5);

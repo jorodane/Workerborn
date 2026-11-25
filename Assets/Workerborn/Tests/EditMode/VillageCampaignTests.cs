@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -22,6 +23,104 @@ namespace Workerborn.Tests
                 RewardExperience = 36
             }
         };
+
+        [Test]
+        public void GroundOwnershipSurvivesWorldReloadAndOnlyOnePlayerCanClaimTheDrop()
+        {
+            const long now = 100_000;
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 0f, -4.4f);
+            Assert.That(campaign.Connect("a", "하나", out var owner), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out var other), Is.True);
+            Incarnate(campaign, "a");
+            Incarnate(campaign, "b");
+            StockResources(campaign, rules, ItemIds.Potato, 5);
+            var entry = VillageState.Restore(owner.character, rules).Inventory.Entries.Single();
+            var draft = new GroundDropSave { itemId = entry.ItemId, quantity = entry.Quantity, x = 0f, z = -4.4f, ownerId = other.id };
+
+            Assert.That(campaign.TryPlaceGroundDrop("a", entry.Id, draft, now, out var placed, out _), Is.True);
+            Assert.That(placed.ownerId, Is.EqualTo(owner.id));
+            Assert.That(campaign.TryCollectGroundDrop("b", placed.id, now + 59_999, out _, out _), Is.False);
+            Assert.That(campaign.TryCollectGroundDrop("a", placed.id, now, out int collected, out _), Is.True);
+            Assert.That(collected, Is.EqualTo(5));
+            entry = VillageState.Restore(owner.character, rules).Inventory.Entries.Single();
+            Assert.That(campaign.TryPlaceGroundDrop("a", entry.Id, draft, now, out placed, out _), Is.True);
+
+            campaign = new VillageCampaign(rules, Sites, 0f, -4.4f, campaign.Export());
+            Assert.That(campaign.Connect("a", "하나", out owner), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out other), Is.True);
+            Assert.That(campaign.TryCollectGroundDrop("b", placed.id, now + 59_999, out _, out _), Is.False);
+            Assert.That(campaign.TryCollectGroundDrop("b", placed.id, now + 60_000, out collected, out _), Is.True);
+            Assert.That(collected, Is.EqualTo(5));
+            Assert.That(campaign.TryCollectGroundDrop("a", placed.id, now + 60_001, out _, out _), Is.False);
+            Assert.That(VillageState.Restore(owner.character, rules).Inventory.Count(ItemIds.Potato), Is.Zero);
+            Assert.That(VillageState.Restore(other.character, rules).Inventory.Count(ItemIds.Potato), Is.EqualTo(5));
+        }
+
+        [Test]
+        public void OnlyReleasedNearbyItemsOfTheSameKindMergeAndTheRemainderStaysOnTheGround()
+        {
+            const long now = 100_000;
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 0f, -4.4f);
+            Assert.That(campaign.Connect("a", "하나", out var owner), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out _), Is.True);
+            Incarnate(campaign, "a");
+            Incarnate(campaign, "b");
+
+            var samePosition = new InteriorPositionSave { id = "inn", localX = 0f, localZ = -4.4f };
+            var drafts = new[]
+            {
+                new GroundDropSave { itemId = ItemIds.Potato, quantity = 50, x = 0f, z = -4.4f },
+                new GroundDropSave { itemId = ItemIds.Potato, quantity = 10, x = 2.05f, z = -4.4f },
+                new GroundDropSave { itemId = ItemIds.Bread, quantity = 5, x = 0f, z = -4.4f },
+                new GroundDropSave { itemId = ItemIds.Potato, quantity = 32, x = 0f, z = -4.4f, interior = samePosition }
+            };
+            Assert.That(campaign.TryPublishGatheredDrops("a", owner.character, drafts, now, out var drops), Is.True);
+            var late = new GroundDropSave { itemId = ItemIds.Potato, quantity = 75, x = -1.3f, z = -4.4f };
+            Assert.That(campaign.TryPublishGatheredDrops("b", campaign.Profile("b").character, new[] { late }, now + 1_000, out var lateDrops), Is.True);
+
+            campaign.ReleaseExpiredDrops(now + 60_000, null);
+            Assert.That(campaign.SharedGroundDrops.Count(), Is.EqualTo(5));
+            Assert.That(drops[0].quantity, Is.EqualTo(50));
+            var changes = new List<string>();
+            campaign.ReleaseExpiredDrops(now + 61_000, changes.Add);
+            Assert.That(changes, Is.EquivalentTo(new[] { drops[0].id, lateDrops[0].id }));
+            Assert.That(campaign.SharedGroundDrops.Select(drop => drop.quantity), Is.EquivalentTo(new[] { 125, 10, 5, 32 }));
+            Assert.That(drops[0].combined, Is.True);
+
+            var state = VillageState.Restore(owner.character, rules);
+            int space = state.Inventory.Columns * state.Inventory.Rows * ItemCatalog.Get(ItemIds.Potato).MaxStack;
+            StockResources(campaign, rules, ItemIds.Potato, space - 5);
+            Assert.That(campaign.TryCollectGroundDrop("a", drops[0].id, now + 61_001, out int quantity, out _), Is.True);
+            Assert.That(quantity, Is.EqualTo(5));
+            Assert.That(drops[0].quantity, Is.EqualTo(120));
+            Assert.That(campaign.TryCollectGroundDrop("a", drops[0].id, now + 61_001, out _, out _), Is.False);
+            Assert.That(campaign.TryGetGroundDrop(drops[0].id, out _), Is.True);
+        }
+
+        [Test]
+        public void HostingASoloWorldKeepsItsDroppedItemsAndReservationDeadline()
+        {
+            const long now = 100_000;
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 0f, -4.4f);
+            Assert.That(campaign.Connect("a", "하나", out var owner), Is.True);
+            Incarnate(campaign, "a");
+            var drop = new GroundDropSave { id = Guid.NewGuid().ToString("N"), itemId = ItemIds.Potato, quantity = 3, z = -4.4f };
+            drop.ReserveFor(owner.id, now);
+            owner.character.drops = new[] { drop };
+            campaign.StoreSolo("a", campaign.World, owner.character);
+            Assert.That(owner.character.drops, Is.Empty);
+
+            campaign = new VillageCampaign(rules, Sites, 0f, -4.4f, campaign.Export());
+            Assert.That(campaign.Connect("b", "둘", out _), Is.True);
+            Incarnate(campaign, "b");
+            Assert.That(campaign.SharedGroundDrops.Single().reservedUntilUtc, Is.EqualTo(now + 60_000));
+            Assert.That(campaign.TryCollectGroundDrop("b", drop.id, now + 59_999, out _, out _), Is.False);
+            Assert.That(campaign.TryCollectGroundDrop("b", drop.id, now + 60_000, out int quantity, out _), Is.True);
+            Assert.That(quantity, Is.EqualTo(3));
+        }
 
         [Test]
         public void APortableCharacterKeepsSeparateProgressInEachWorld()

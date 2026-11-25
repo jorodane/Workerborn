@@ -686,6 +686,7 @@ namespace Workerborn.Tests
             int charges = game.RemainingHarvests;
             int playerHarvests = game.State.LifetimeHarvests;
             int playerEnergy = game.State.Energy;
+            int groundItems = game.GroundItemCount;
             farmer.Routine.enabled = true;
             yield return Until(() => farmer.CurrentActivity == NpcActivity.Harvesting, 3f);
             Assert.That(game.Crops.Any(crop => Vector3.Distance(crop.transform.position, farmer.transform.position) < 2f), Is.True);
@@ -696,6 +697,7 @@ namespace Workerborn.Tests
             Assert.That(character.CharacterState.LifetimeHarvests, Is.GreaterThan(0));
             Assert.That(game.State.LifetimeHarvests, Is.EqualTo(playerHarvests));
             Assert.That(game.State.Energy, Is.EqualTo(playerEnergy));
+            Assert.That(game.GroundItemCount, Is.EqualTo(groundItems));
 
             var state = game.State;
             state.AdvanceTime((state.Rules.JobEnd - state.Minute + 1f) / state.Rules.MinutesPerSecond);
@@ -2552,8 +2554,36 @@ namespace Workerborn.Tests
             var drop = UnityEngine.Object.FindObjectsByType<GroundPickup>(FindObjectsSortMode.None)
                 .Single(i => i.ItemId == ItemIds.Potato && i.Quantity == 3);
             Assert.That(game.State.Inventory.Find(stack.Id), Is.Null);
+            Assert.That(drop.DropRecord.ownerId, Is.EqualTo(game.Worker.PlayerId));
+            Assert.That(drop.DropRecord.CanCollect("another-player", drop.DropRecord.reservedUntilUtc - 1), Is.False);
+            Assert.That(drop.DropRecord.CanCollect("another-player", drop.DropRecord.reservedUntilUtc), Is.True);
             Assert.That(Vector2.Distance(new Vector2(drop.LandingPosition.x, drop.LandingPosition.z),
                 new Vector2(destination.x, destination.z)), Is.LessThan(.01f));
+        }
+
+        [UnityTest]
+        public IEnumerator ExpiredGroundDropsLoadAsOnePileWithTheCombinedName()
+        {
+            Vector3 position = game.Worker.StandingPosition;
+            long expired = GroundDropSave.UtcNow - 1;
+            var save = game.CaptureSave();
+            save.drops = new[]
+            {
+                new GroundDropSave { id = "first-potatoes", itemId = ItemIds.Potato, quantity = 50, ownerId = game.Worker.PlayerId,
+                    reservedUntilUtc = expired, x = position.x + .5f, z = position.z },
+                new GroundDropSave { id = "second-potatoes", itemId = ItemIds.Potato, quantity = 75, ownerId = "another-player",
+                    reservedUntilUtc = expired, x = position.x + 1f, z = position.z }
+            };
+            Assert.That(VillageSaveStore.TrySave(save, out _), Is.True);
+
+            yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
+            game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
+            var pile = UnityEngine.Object.FindObjectsByType<GroundPickup>(FindObjectsSortMode.None)
+                .Single(item => item.ItemId == ItemIds.Potato);
+            Assert.That(pile.Quantity, Is.EqualTo(125));
+            Assert.That(pile.DisplayName, Is.EqualTo("감자(125)"));
+            Assert.That(game.TryCollectPickup(pile), Is.True);
+            Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(125));
         }
 
         [UnityTest]

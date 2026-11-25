@@ -202,7 +202,7 @@ namespace Workerborn
             agent.enabled = true;
             if (NavMesh.SamplePosition(SurfacePosition(spawnPoint.position.x, spawnPoint.position.z), out var initialPosition, 2f, NavMesh.AllAreas))
                 agent.Warp(initialPosition.position);
-            BindWorker(player, worker, State, LocalCharacterId, worldCamera);
+            BindWorker(player, worker, State, LocalCharacterId, worldCamera, LegendPlayerId);
             BindBuiltCharacters();
             foreach (var npc in npcs)
             {
@@ -228,6 +228,7 @@ namespace Workerborn
             cameraRig.Initialize(worker.transform, this);
             RestoreWorldObjects();
             RestoreVillageCharacters();
+            SettleLegacyNpcDrops();
             lighting?.SetDate(State.Day, State.Minute);
             initialized = true;
             if (reloading)
@@ -405,32 +406,13 @@ namespace Workerborn
             int level = state.Level;
             var water = crop as FishingWater;
             Vector3 source = water != null ? sourceWorker.FishingPoint ?? crop.transform.position : crop.transform.position;
-            if (!state.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(state, work), outcome, out int count))
+            if (!state.TryGather(skill, work.ItemId, work.ItemsPerHarvest, BaseWorkCost(state, work), outcome, ReceiveYield, out _))
             {
                 sourceWorker.ShowGatherResult(false);
                 hud.ShowFloatingText(source + Vector3.up, "실패", new Color(1f, .65f, .55f));
                 return false;
             }
             sourceWorker.ShowGatherResult(true);
-            var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
-            if (pickupPool.CanSpawn(prefab))
-            {
-                Vector3 direction = sourceWorker.transform.position - source;
-                Vector3 landingOrigin = water != null ? sourceWorker.transform.position : source;
-                int piles = Mathf.Min(count, work.MaxVisibleDrops);
-                for (int i = 0; i < piles; i++)
-                {
-                    Vector3 point = landingOrigin + work.SampleDropOffset(direction, i, piles, UnityEngine.Random.Range(.18f, .82f), UnityEngine.Random.value);
-                    Vector3 end = SurfacePosition(point.x, point.z);
-                    if (water != null)
-                        end = NavMesh.SamplePosition(end, out var shore, .4f, NavMesh.AllAreas) && !water.CoversGround(shore.position)
-                            ? shore.position : landingOrigin;
-                    int quantity = count / piles + (i < count % piles ? 1 : 0);
-                    SpawnPickup(prefab, work, quantity, source + Vector3.up * .5f, end + Vector3.up * .08f).HarvestedBy = sourceWorker.CharacterId;
-                }
-            }
-            else
-                Debug.LogError("Assign a ground-item prefab with a mesh to " + work.name, this);
 
             if (outcome == WorkOutcome.Lucky || outcome == WorkOutcome.GreatLucky)
                 hud.ShowFloatingText(source + Vector3.up, outcome == WorkOutcome.GreatLucky ? "대박 보너스" : "럭키 보너스", new Color(1f, 0.88f, 0.5f));
@@ -438,6 +420,25 @@ namespace Workerborn
                 hud.ShowFloatingText(sourceWorker.transform.position + Vector3.up * 1.8f, "+" + state.Rules.HarvestExperience + " EXP", Color.white);
             ShowLevelUp(sourceWorker, level);
             return true;
+
+            bool ReceiveYield(int quantity)
+            {
+                var prefab = work.PickupPrefab != null ? work.PickupPrefab : settings.FindItem(work.ItemId)?.GroundPrefab;
+                return DeliverYield(sourceWorker, work.ItemId, quantity, prefab, work,
+                    source + Vector3.up * .5f, work.MaxVisibleDrops, Landing);
+            }
+
+            Vector3 Landing(int index, int piles)
+            {
+                Vector3 direction = sourceWorker.transform.position - source;
+                Vector3 origin = water != null ? sourceWorker.transform.position : source;
+                Vector3 point = origin + work.SampleDropOffset(direction, index, piles, UnityEngine.Random.Range(.18f, .82f), UnityEngine.Random.value);
+                Vector3 end = SurfacePosition(point.x, point.z);
+                if (water != null)
+                    end = NavMesh.SamplePosition(end, out var shore, .4f, NavMesh.AllAreas) && !water.CoversGround(shore.position)
+                        ? shore.position : origin;
+                return end + Vector3.up * .08f;
+            }
         }
 
         private GroundPickup SpawnPickup(GroundPickup source, CropDefinition definition, int quantity, Vector3 start, Vector3 end, bool settled = false)
@@ -452,7 +453,11 @@ namespace Workerborn
             return item;
         }
 
-        private void RemovePickup(GroundPickup pickup) => pickups.Remove(pickup);
+        private void RemovePickup(GroundPickup pickup)
+        {
+            pickups.Remove(pickup);
+            ForgetGroundPickup(pickup);
+        }
 
         internal void PlayCorpseDespawn(Vector3 position) => effects?.PlayCorpseDespawn(position);
 
@@ -462,25 +467,22 @@ namespace Workerborn
             HitFlash.PlayOn(visual);
         }
 
-        internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount, HarvestWorker sourceWorker = null)
+        internal bool DropStrikeLoot(Transform origin, ItemDefinition reward, int amount, HarvestWorker sourceWorker)
         {
-            var prefab = reward != null ? reward.GroundPrefab : null;
-            if (amount < 1 || !pickupPool.CanSpawn(prefab) || prefab.ItemId != reward.Id)
+            if (reward == null || amount < 1)
                 return false;
             Vector3 source = origin.position;
-            Vector3 forward = (sourceWorker ?? worker).transform.position - source;
+            Vector3 forward = sourceWorker.transform.position - source;
             forward.y = 0;
             forward = forward.sqrMagnitude > .001f ? forward.normalized : origin.forward;
             Vector3 right = Vector3.Cross(Vector3.up, forward);
-            int piles = Mathf.Min(amount, 24);
-            for (int i = 0; i < piles; i++)
+            return DeliverYield(sourceWorker, reward.Id, amount, reward.GroundPrefab, null, source + Vector3.up * .25f, 24, Landing);
+
+            Vector3 Landing(int index, int piles)
             {
-                Vector3 point = source + forward * .65f + right * ((i - (piles - 1) * .5f) * .26f);
-                Vector3 end = SurfacePosition(point.x, point.z) + Vector3.up * .08f;
-                int quantity = amount / piles + (i < amount % piles ? 1 : 0);
-                SpawnPickup(prefab, null, quantity, source + Vector3.up * .25f, end);
+                Vector3 point = source + forward * .65f + right * ((index - (piles - 1) * .5f) * .26f);
+                return SurfacePosition(point.x, point.z) + Vector3.up * .08f;
             }
-            return true;
         }
 
         internal void ReceiveAnimalHit(HarvestWorker target, int damage)
@@ -509,6 +511,8 @@ namespace Workerborn
 
         internal bool PlaceInventoryDrop(HarvestWorker source, InventoryEntry request, Vector3 destination)
         {
+            if (!source.HasPlayerOwner)
+                return false;
             var state = source.CharacterState;
             var entry = state.CarriedItem(request.Id);
             if (entry == null || entry.ItemId != request.ItemId || entry.Quantity != request.Quantity)
@@ -518,12 +522,17 @@ namespace Workerborn
                 return false;
             }
             var prefab = DropPrefabFor(entry, source);
-            if (prefab == null || !source.SharesMap(destination) || !state.TryRemoveCarriedItem(entry.Id, entry.Quantity))
+            if (prefab == null || !source.SharesMap(destination))
                 return false;
 
             var end = SurfacePosition(destination.x, destination.z) + Vector3.up * .08f;
-            SpawnPickup(prefab, null, request.Quantity,
-                source.transform.position + Vector3.up * .45f, end);
+            Vector3 origin = source.transform.position + Vector3.up * .45f;
+            var drop = CaptureGroundDrop(request.ItemId, request.Quantity, origin, end);
+            if (IsOnline)
+                return Session?.SubmitGroundDrop(entry.Id, drop) == true;
+            if (!state.TryRemoveCarriedItem(entry.Id, entry.Quantity))
+                return false;
+            SpawnLocalPlayerDrop(drop, source.PlayerId, PickupUtcNow, prefab, null, origin, end);
             hud.RefreshWindows();
             SaveGame(false);
             return true;
@@ -534,29 +543,49 @@ namespace Workerborn
         internal bool TryCollectPickup(HarvestWorker collector, GroundPickup item)
         {
             var state = collector.CharacterState;
-            if (state.AwaitingIncarnation || item == null || !item.CanCollect || !collector.SharesMap(item.LandingPosition) || !collector.IsInPickupRange(item))
+            if (state.AwaitingIncarnation || item == null || !item.CanCollectFor(collector) ||
+                !collector.SharesMap(item.LandingPosition) || !collector.IsInPickupRange(item))
                 return false;
-            string id = item.ItemId;
+            if (item.SharedDropId != null)
+                return collector.HasPlayerOwner && Session?.SubmitGroundPickup(item.SharedDropId) == true;
+
+            Vector3 itemPosition = item.VisualPosition + Vector3.up * .08f;
+            string displayName = item.ItemDisplayName;
+            string persistentId = item.PersistentId;
             int quantity = item.Quantity;
-            if (!state.Inventory.CanAdd(id, quantity))
+            if (item.DropRecord?.combined == true)
+            {
+                quantity = state.Inventory.TryAddUpTo(item.ItemId, quantity);
+                if (quantity > 0 && quantity < item.Quantity)
+                {
+                    item.DropRecord.quantity -= quantity;
+                    item.SetQuantity(item.DropRecord.quantity);
+                    PlayCollection(collector, itemPosition, displayName, quantity);
+                    return true;
+                }
+                if (quantity > 0)
+                    item.CompleteCollection();
+            }
+            else if (!item.TryCollect(collector, () => state.Inventory.TryAdd(item.ItemId, quantity)))
+                quantity = 0;
+            if (quantity == 0)
             {
                 if (collector.IsLocallyControlled)
                     hud.ShowToast("소지품 공간이 부족합니다.");
                 return false;
             }
-
-            Vector3 itemPosition = item.VisualPosition + Vector3.up * .08f;
-            string displayName = item.DisplayName;
-            string persistentId = item.PersistentId;
-            if (!item.TryCollect(() => state.Inventory.TryAdd(id, quantity)))
-                return false;
             if (!item.IsPooled)
                 RemovePickup(item);
             if (!string.IsNullOrEmpty(persistentId))
                 collectedPickups.Add(persistentId);
+            PlayCollection(collector, itemPosition, displayName, quantity);
+            return true;
+        }
+
+        private void PlayCollection(HarvestWorker collector, Vector3 itemPosition, string displayName, int quantity)
+        {
             effects?.PlayPickupTrail(itemPosition, collector.transform);
             hud.ShowFloatingText(collector.transform.position + Vector3.up * 1.5f, displayName + " +" + quantity, Color.white);
-            return true;
         }
 
         public bool Perform(Func<bool> operation) => !State.AwaitingIncarnation && ApplyLocalAction(operation);
@@ -860,7 +889,7 @@ namespace Workerborn
                         foreach (var animal in animals)
                             if (animal != null && animal.PersistentId == record.id)
                             {
-                                animal.RestoreEncounter(record.health, record.lootTaken);
+                                animal.RestoreEncounter(record.health, record.lootTaken, record.lootOwnerCharacterId);
                                 break;
                             }
             if (restoredWorld.drops != null)
@@ -868,6 +897,18 @@ namespace Workerborn
                 {
                     if (drop == null || float.IsNaN(drop.x) || float.IsNaN(drop.z) || float.IsInfinity(drop.x) || float.IsInfinity(drop.z))
                         continue;
+                    if (!string.IsNullOrEmpty(drop.harvestedBy) && drop.harvestedBy != LocalCharacterId)
+                    {
+                        legacyNpcDrops.Add(drop);
+                        continue;
+                    }
+                    if (!string.IsNullOrEmpty(drop.ownerId) && !string.IsNullOrEmpty(drop.id))
+                    {
+                        if (drop.RoomId != null && !TryRestoreInterior(drop.interior, out _, out _))
+                            drop.interior = default;
+                        localGroundDrops.Add(drop);
+                        continue;
+                    }
                     GroundPickup authored = null;
                     if (!string.IsNullOrEmpty(drop.id))
                         foreach (var existing in pickups)
@@ -889,8 +930,13 @@ namespace Workerborn
 
                     var source = settings.FindItem(drop.itemId)?.GroundPrefab;
                     if (pickupPool.CanSpawn(source))
-                        SpawnPickup(source, drop.itemId == potato.ItemId ? potato : null, drop.quantity, end, end, settled: true).HarvestedBy = drop.harvestedBy;
+                        SpawnPickup(source, drop.itemId == potato.ItemId ? potato : null, drop.quantity, end, end, settled: true);
                 }
+            if (usesSelectedWorld && !IsOnline && Session != null)
+                foreach (var drop in Session.SharedGroundDrops)
+                    if (drop.IsVisibleTo(worker.PlayerId))
+                        localGroundDrops.Add(drop.Copy());
+            RestoreLocalGroundPickups();
             RestoreCharacterAction(worker, restoredWorld);
         }
 
@@ -962,18 +1008,23 @@ namespace Workerborn
             var animalStates = new List<AnimalStateSave>();
             foreach (var animal in animals)
                 if (animal != null && animal.Combat != null && !string.IsNullOrEmpty(animal.PersistentId))
-                    animalStates.Add(new AnimalStateSave { id = animal.PersistentId, health = animal.Health, lootTaken = animal.LootTaken });
+                    animalStates.Add(new AnimalStateSave
+                    {
+                        id = animal.PersistentId, health = animal.Health, lootTaken = animal.LootTaken,
+                        lootOwnerCharacterId = animal.LootOwnerCharacterId
+                    });
             save.animalStates = animalStates.ToArray();
-            var ground = new List<GroundDropSave>();
+            var ground = new List<GroundDropSave>(legacyNpcDrops);
+            ground.AddRange(localGroundDrops.Active);
             foreach (var item in pickups)
-                if (item != null && item.isActiveAndEnabled)
+                if (item != null && item.isActiveAndEnabled && item.DropRecord == null)
                 {
                     Vector3 landing = item.LandingPosition;
                     var room = InteriorAt(landing.x, landing.z);
                     Vector3 exterior = room != null ? ExteriorPosition(room) : landing;
                     ground.Add(new GroundDropSave
                     {
-                        id = item.PersistentId, quantity = item.Quantity, itemId = item.ItemId, harvestedBy = item.HarvestedBy,
+                        id = item.PersistentId, quantity = item.Quantity, itemId = item.ItemId,
                         x = exterior.x, z = exterior.z, interior = room != null ? room.CapturePosition(landing) : default
                     });
                 }
@@ -986,6 +1037,7 @@ namespace Workerborn
         {
             if (!initialized)
                 return;
+            ReleaseLocalGroundDrops();
             hud.SetCommandPending(AwaitingWorldCommand);
             if (IsWorldTransitioning || AwaitingWorldCommand)
                 return;

@@ -78,9 +78,6 @@ namespace Workerborn
             retryAt = Time.time + RetryDelay;
             if (goal.Seat != null && TrySit())
                 return;
-            if (scheduled.Activity == NpcActivity.Harvesting && TryCollectHarvest())
-                return;
-
             if (scheduled.Activity == NpcActivity.Resting || scheduled.Activity == NpcActivity.Harvesting)
             {
                 var target = FindTarget(scheduled.Activity);
@@ -132,38 +129,6 @@ namespace Workerborn
             return false;
         }
 
-        private bool TryCollectHarvest()
-        {
-            GroundPickup nearest = null;
-            float bestDistance = float.PositiveInfinity;
-            bool landing = false;
-            foreach (var target in WorldInteractable.Active)
-            {
-                if (target is not GroundPickup item || !item.CanCollect ||
-                    item.HarvestedBy != character.CharacterId || !character.SharesMap(item.LandingPosition) ||
-                    !character.CharacterState.Inventory.CanAdd(item.ItemId, item.Quantity))
-                    continue;
-                if (item.IsInFlight)
-                {
-                    landing = true;
-                    continue;
-                }
-                float distance = (item.LandingPosition - character.StandingPosition).sqrMagnitude;
-                if (distance < bestDistance && (character.IsInPickupRange(item) ||
-                    character.TryGetReachablePoint(item.LandingPosition, item.InteractionDistance * .8f, out _)))
-                {
-                    nearest = item;
-                    bestDistance = distance;
-                }
-            }
-            if (nearest == null)
-                return landing;
-            planned = false;
-            goal = default;
-            nearest.RequestInteraction(character);
-            return true;
-        }
-
         private FacilityTarget FindTarget(NpcActivity activity)
         {
             FacilityTarget nearest = default;
@@ -190,7 +155,7 @@ namespace Workerborn
             void Consider(FacilityTarget target)
             {
                 if (!CanUse(target) || target.Crop != null && (target.Crop.IsBeingHarvested ||
-                    !game.CanHarvest(character, target.Crop, showNotice: false)))
+                    !game.CanHarvest(character, target.Crop, showNotice: false) || !CanCarryHarvest(target.Crop.Definition)))
                     return;
                 Vector3 point = target.Position;
                 float distance = (point - character.StandingPosition).sqrMagnitude;
@@ -201,6 +166,12 @@ namespace Workerborn
                 bestDistance = distance;
                 nearest = target;
             }
+        }
+
+        private bool CanCarryHarvest(CropDefinition crop)
+        {
+            var state = character.CharacterState;
+            return state.Inventory.CanAdd(crop.ItemId, state.ScaledYield(crop.Skill, crop.ItemsPerHarvest));
         }
 
         private bool GoalStillAvailable() => MatchesFacility(goal.Facility) && CanUse(goal) &&
