@@ -132,8 +132,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8acfcacd1395830bf5e47abda8a5999, type: 3}
   m_Name: ''
   m_EditorClassIdentifier: ''
-  seatOffset: {x: 0, y: 0.44, z: 0}
+  seatOffset: {x: 0, y: 0.415, z: 0}
   facingDegrees: 0
+  seatedRootOffset: {x: 0, y: -0.46, z: 0.32}
   approachWidth: 0.8
   approachDepth: 1.5
   heightTolerance: 0.7

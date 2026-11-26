@@ -15,6 +15,9 @@ namespace Workerborn
     [DisallowMultipleComponent]
     public sealed class TimberPiece : WorldInteractable
     {
+        private static readonly int BigWindAmount = Shader.PropertyToID("_Big_Wind_Amount");
+        private static readonly int SmallWindAmount = Shader.PropertyToID("_Small_Wind_Amount");
+
         [SerializeField] private TimberPart part;
         [SerializeField] private GameObject model;
         [SerializeField] private Collider hitVolume;
@@ -62,6 +65,7 @@ namespace Workerborn
             target = id;
             part = piece;
             AssignPersistentId(part == TimberPart.Log ? id : $"{id}:{part}");
+            SuppressWind(model.GetComponent<MeshRenderer>());
         }
 
         internal void ShowCutMesh(TimberGeometry geometry, TimberSite site, TimberSection section, float cutYaw)
@@ -74,9 +78,12 @@ namespace Workerborn
             model.transform.SetParent(transform, false);
             model.transform.localRotation = Quaternion.Euler(0f, -cutYaw, 0f);
             model.transform.localPosition = Vector3.up * (slice.Center - (part == TimberPart.Stump ? 0f : section.Center));
-            Mesh mesh = geometry.Slice(slice);
+            bool barkOnly = part != TimberPart.Trunk;
+            Mesh mesh = geometry.Slice(slice, barkOnly);
             model.AddComponent<MeshFilter>().sharedMesh = mesh;
-            model.AddComponent<MeshRenderer>().sharedMaterials = geometry.Materials;
+            var renderer = model.AddComponent<MeshRenderer>();
+            renderer.sharedMaterials = geometry.MaterialsFor(barkOnly);
+            SuppressWind(renderer);
             hasCutMesh = true;
             groundClearance = site.BarkRadius;
             if (part != TimberPart.Stump && hitVolume is CapsuleCollider capsule)
@@ -86,6 +93,17 @@ namespace Workerborn
                 capsule.radius = Mathf.Max(capsule.radius, site.BarkRadius);
                 capsule.height = section.Length + .08f;
             }
+        }
+
+        private static void SuppressWind(MeshRenderer renderer)
+        {
+            if (renderer == null)
+                return;
+            var properties = new MaterialPropertyBlock();
+            renderer.GetPropertyBlock(properties);
+            properties.SetFloat(BigWindAmount, 0f);
+            properties.SetFloat(SmallWindAmount, 0f);
+            renderer.SetPropertyBlock(properties);
         }
 
         private void Place(Vector3 point, Quaternion rotation)
@@ -103,6 +121,8 @@ namespace Workerborn
         {
             if (part == TimberPart.Stump)
             {
+                if (seat != null && hasCutMesh)
+                    seat.SetSurfaceHeight(site.TrimCutFaces(site.Section(TimberPart.Stump)).End);
                 Place(new Vector3(site.Point.x, site.BaseHeight, site.Point.z), Quaternion.Euler(0f, tree.fallYaw, 0f));
             }
             else if (body != null)

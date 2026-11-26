@@ -11,6 +11,7 @@ namespace Workerborn
         private Transform head;
         private VillageHud hud;
         private Vector3 destination;
+        private Vector3 seatPosition;
         private Quaternion yaw;
         private bool hasPose;
         private Transform modularModel;
@@ -50,7 +51,7 @@ namespace Workerborn
             animationDriver?.SetCarrying(assets?.Carry, carrying);
         }
         internal bool OccupiesSeat(Vector3 position) => hasPose && animationDriver != null &&
-            animationDriver.CurrentAction == (int)WorkerMotion.SeatSit && (position - destination).sqrMagnitude < .04f;
+            animationDriver.CurrentAction == (int)WorkerMotion.SeatSit && (position - seatPosition).sqrMagnitude < .04f;
 
         internal void SetPose(SessionAvatar avatar, float surfaceY)
         {
@@ -61,6 +62,7 @@ namespace Workerborn
             }
             float height = Mathf.Abs(avatar.y - surfaceY) < 3f ? avatar.y : surfaceY;
             destination = new Vector3(avatar.x, height, avatar.z);
+            seatPosition = avatar.hasSeat ? new Vector3(avatar.seatX, avatar.seatY, avatar.seatZ) : destination;
             yaw = Quaternion.Euler(0, avatar.yaw, 0);
             if (!hasPose || Vector3.SqrMagnitude(destination - transform.position) > 64f)
                 transform.SetPositionAndRotation(destination, yaw);

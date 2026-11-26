@@ -24,9 +24,9 @@ namespace Workerborn
         private EquipmentSlotPointer[] equipment;
         [SerializeField]
         private RectTransform[] equipmentIcons;
-        [SerializeField] private Button[] handSetTabs;
-        [SerializeField] private Color activeHandSetColor = new Color(.34f, .59f, .73f);
-        private Color idleHandSetColor;
+        [SerializeField] private Button[] equipmentSetTabs;
+        [SerializeField] private Color activeEquipmentSetColor = new Color(.34f, .59f, .73f);
+        private Color idleEquipmentSetColor;
         private UiItemView[] equippedItems;
         public RectTransform ItemLayer => itemLayer;
         public RectTransform ItemViewport => itemViewport;
@@ -50,11 +50,11 @@ namespace Workerborn
             equippedItems = new UiItemView[equipment.Length];
             foreach (var slot in equipment)
                 slot.Bind(hud);
-            idleHandSetColor = handSetTabs[0].targetGraphic.color;
-            for (int i = 0; i < handSetTabs.Length; i++)
+            idleEquipmentSetColor = equipmentSetTabs[0].targetGraphic.color;
+            for (int i = 0; i < equipmentSetTabs.Length; i++)
             {
                 int set = i;
-                handSetTabs[i].onClick.AddListener(() => hud.SelectHandSet(set));
+                equipmentSetTabs[i].onClick.AddListener(() => hud.SelectEquipmentSet(set));
             }
             itemLayer.GetComponent<InventoryGridPointer>().Hud = hud;
         }
@@ -78,14 +78,16 @@ namespace Workerborn
             cellLayer.sizeDelta = size;
             // Keep the authored panel height; its inventory viewport scrolls when the bag expands.
             gold.text = Game.State.Gold.ToString("N0");
-            for (int i = 0; i < handSetTabs.Length; i++)
-                handSetTabs[i].targetGraphic.color = i == Game.State.HandSet ? activeHandSetColor : idleHandSetColor;
+            for (int i = 0; i < equipmentSetTabs.Length; i++)
+                equipmentSetTabs[i].targetGraphic.color = i == Game.State.EquipmentSet ? activeEquipmentSetColor : idleEquipmentSetColor;
             for (int i = 0; i < equipment.Length; i++)
             {
                 var visual = equippedItems[i];
-                bool occupied = Game.State.Equipment.TryGetValue(equipment[i].Slot, out var id);
+                var slot = equipment[i].Slot;
+                bool occupied = Game.State.Equipment.TryGetValue(slot, out var id);
+                bool blocked = Game.State.IsEquipmentBlocked(slot);
                 equipment[i].ShowOccupied(occupied);
-                if (!occupied)
+                if (!occupied && !blocked)
                 {
                     if (visual != null)
                         visual.gameObject.SetActive(false);
@@ -102,7 +104,11 @@ namespace Workerborn
                     visual.Rect.offsetMax = Vector2.zero;
                     equippedItems[i] = visual;
                 }
-                visual.Display(Game.Settings.FindItem(id), id, 1);
+                if (blocked)
+                    visual.DisplayIcon(null, "<b><size=16>X</size></b>");
+                else
+                    visual.Display(Game.Settings.FindItem(id), id, 1);
+                visual.SetIconOpacity(Game.State.IsEquipmentFallback(slot) ? .55f : 1f);
                 visual.gameObject.SetActive(true);
             }
 

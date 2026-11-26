@@ -270,8 +270,8 @@ namespace Workerborn
                 ToggleWindow("character");
             if (WorkerbornInput.Pressed("Gameplay/Map"))
                 ToggleWindow("map");
-            if (WorkerbornInput.Pressed("Gameplay/SwitchHandSet"))
-                SelectHandSet(1 - game.State.HandSet);
+            if (WorkerbornInput.Pressed("Gameplay/SwitchEquipmentSet"))
+                SelectEquipmentSet(1 - game.State.EquipmentSet);
             ReadItemShortcuts();
             if (hasPointer)
             {

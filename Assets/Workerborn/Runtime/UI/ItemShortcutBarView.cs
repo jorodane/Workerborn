@@ -25,7 +25,7 @@ namespace Workerborn
                     slots[index].ShowItem(settings.FindItem(id), id, state.Inventory.Count(id), state.IsEquipped(ItemCatalog.Get(id)));
                 else
                     slots[index].Clear();
-                slots[index].ShowKey(binding);
+                slots[index].ShowBinding(binding);
             }
         }
     }

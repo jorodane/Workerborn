@@ -535,6 +535,20 @@ namespace Workerborn.Tests
             Assert.That(UnityEngine.Object.FindFirstObjectByType<TimberFall>(), Is.Not.Null);
             yield return Until(() => trunk.CanInteract, 13f);
             Assert.That(Vector3.Angle(Vector3.up, trunk.transform.up), Is.GreaterThan(20f));
+            Assert.That(trunk.GetComponentInChildren<MeshFilter>().sharedMesh.subMeshCount, Is.GreaterThan(2));
+            AssertNoWind(trunk);
+
+            var stump = parts.Single(piece => piece.Part == TimberPart.Stump);
+            var seat = stump.Seat;
+            Vector3 besideStump = seat.Position + Vector3.right * .85f;
+            Assert.That(NavMesh.SamplePosition(game.SurfacePosition(besideStump.x, besideStump.z), out var seatApproach, .35f, NavMesh.AllAreas), Is.True);
+            Assert.That(game.Worker.WarpTo(seatApproach.position), Is.True);
+            Assert.That(game.Worker.ToggleSit(seat), Is.True);
+            yield return new WaitForSeconds(1f);
+            Assert.That(game.Worker.transform.position.y, Is.LessThan(seat.Position.y - .35f));
+            Assert.That(game.Worker.OccupiesSeat(seat.Position), Is.True);
+            game.Worker.ToggleSit();
+            Assert.That(Vector3.Distance(game.Worker.transform.position, seatApproach.position), Is.LessThan(.02f));
 
             Vector3 besideTrunk = trunk.transform.position + trunk.transform.right * .85f;
             Assert.That(NavMesh.SamplePosition(besideTrunk, out var splitAt, .8f, NavMesh.AllAreas), Is.True);
@@ -543,8 +557,23 @@ namespace Workerborn.Tests
             yield return Until(() => game.Worker.CurrentTimberSwing == TimberSwing.Split, 2f);
             yield return Until(() => trunk == null, 4f);
             Assert.That(GameObject.Find("TimberAxeImpact(Clone)"), Is.Not.Null);
-            Assert.That(WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId)
-                .Select(piece => piece.Part), Is.EquivalentTo(new[] { TimberPart.Stump, TimberPart.Lower, TimberPart.Upper }));
+            var splitPieces = WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId).ToArray();
+            Assert.That(splitPieces.Select(piece => piece.Part), Is.EquivalentTo(new[] { TimberPart.Stump, TimberPart.Lower, TimberPart.Upper }));
+            foreach (var piece in splitPieces)
+            {
+                Assert.That(piece.GetComponentInChildren<MeshFilter>().sharedMesh.subMeshCount, Is.EqualTo(2));
+                AssertNoWind(piece);
+            }
+
+            static void AssertNoWind(TimberPiece piece)
+            {
+                var properties = new MaterialPropertyBlock();
+                piece.GetComponentInChildren<MeshRenderer>().GetPropertyBlock(properties);
+                Assert.That(properties.HasFloat("_Big_Wind_Amount"), Is.True);
+                Assert.That(properties.GetFloat("_Big_Wind_Amount"), Is.Zero);
+                Assert.That(properties.HasFloat("_Small_Wind_Amount"), Is.True);
+                Assert.That(properties.GetFloat("_Small_Wind_Amount"), Is.Zero);
+            }
         }
 
         [UnityTest]
@@ -566,8 +595,10 @@ namespace Workerborn.Tests
                 TimberPose resting = default;
                 int landings = 0;
                 Vector3 contact = default;
-                var fall = TimberFall.Begin(site, 0f, bark, platform.transform, pose => resting = pose, point =>
+                var fall = TimberFall.Begin(site, 0f, bark, platform.transform, pose => resting = pose, (impact, point) =>
                 {
+                    Assert.That(impact.IsValid, Is.True);
+                    Assert.That(resting.IsValid, Is.False);
                     landings++;
                     contact = point;
                 });
@@ -615,7 +646,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator CrownProductsWaitForTheTrunkToSettleAgainstAnotherTree()
+        public IEnumerator CrownProductsUseTheSameCollisionAsTheLandingEffectAgainstAnotherTree()
         {
             var source = game.Crops.OfType<LoggingTree>().First();
             var layout = source.Site();
@@ -644,18 +675,18 @@ namespace Workerborn.Tests
                     _ => false, _ => true, _ => throw new InvalidOperationException("Yield before settling"), out _), Is.EqualTo(TimberResult.Succeeded));
 
                 var bark = source.CutGeometry(game.Settings.Timber.CutSurface).Slice(site.Section(TimberPart.Trunk), barkOnly: true);
-                TimberPose resting = default;
+                TimberPose impact = default;
                 List<TimberYield> products = null;
-                var fall = TimberFall.Begin(site, 0f, bark, platform.transform, pose =>
+                var fall = TimberFall.Begin(site, 0f, bark, platform.transform, pose => work.SettlePiece(site.Id, TimberPart.Trunk, pose), (pose, _) =>
                 {
-                    resting = pose;
-                    work.SettlePiece(site.Id, TimberPart.Trunk, pose);
+                    impact = pose;
+                    Assert.That(work.RecordTrunkLanding(site.Id, pose), Is.True);
                     work.ReleaseCrownProducts((_, _, items) => { products = items; return true; });
                 });
                 yield return Until(() => Vector3.Angle(Vector3.up, fall.transform.up) >= 8f, 2f);
                 Assert.That(products, Is.Null);
                 yield return Until(() => products != null, 13f);
-                var crown = resting.ShiftAlongTrunk(site.Section(TimberPart.Trunk).Length * .25f);
+                var crown = impact.ShiftAlongTrunk(site.Section(TimberPart.Trunk).Length * .25f);
                 Assert.That(products.Single().point.DistanceSquared(crown.point), Is.LessThan(.0001f));
                 Assert.That(products[0].crownHeight, Is.EqualTo(crown.height).Within(.001f));
                 Assert.That(Vector3.Distance(TimberLocation.Position(crown), platform.transform.position + Vector3.forward * 4.7f), Is.GreaterThan(1f));

@@ -15,7 +15,7 @@
                     "initialStateCheck": true
                 },
                 {
-                    "name": "SwitchHandSet",
+                    "name": "SwitchEquipmentSet",
                     "type": "Button",
                     "id": "f5473d84-bd18-478a-945b-e42da6e51566",
                     "expectedControlType": "Button",
@@ -297,7 +297,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "Keyboard&Mouse",
-                    "action": "SwitchHandSet",
+                    "action": "SwitchEquipmentSet",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

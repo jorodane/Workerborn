@@ -11,7 +11,8 @@ namespace Workerborn
         private readonly Vertex[] vertices;
         private readonly int[][] triangles;
         private readonly Dictionary<(float Start, float End, bool BarkOnly), Mesh> sections = new Dictionary<(float, float, bool), Mesh>();
-        internal Material[] Materials { get; }
+        private readonly Material[] treeMaterials;
+        private readonly Material[] barkMaterials;
 
         internal TimberGeometry(MeshFilter source, Vector3 foot, Material cutSurface)
         {
@@ -37,9 +38,10 @@ namespace Workerborn
 
             triangles = new int[mesh.subMeshCount][];
             var sourceMaterials = source.GetComponent<MeshRenderer>().sharedMaterials;
-            Materials = new Material[mesh.subMeshCount + 1];
-            Array.Copy(sourceMaterials, Materials, Math.Min(sourceMaterials.Length, triangles.Length));
-            Materials[triangles.Length] = cutSurface != null ? cutSurface : Materials[0];
+            treeMaterials = new Material[mesh.subMeshCount + 1];
+            Array.Copy(sourceMaterials, treeMaterials, Math.Min(sourceMaterials.Length, triangles.Length));
+            treeMaterials[triangles.Length] = cutSurface != null ? cutSurface : treeMaterials[0];
+            barkMaterials = new[] { treeMaterials[0], treeMaterials[triangles.Length] };
             for (int submesh = 0; submesh < triangles.Length; submesh++)
             {
                 int[] indices = mesh.GetTriangles(submesh);
@@ -49,6 +51,8 @@ namespace Workerborn
                 triangles[submesh] = indices;
             }
         }
+
+        internal Material[] MaterialsFor(bool barkOnly) => barkOnly ? barkMaterials : treeMaterials;
 
         internal Mesh Slice(TimberSection section, bool barkOnly = false)
         {

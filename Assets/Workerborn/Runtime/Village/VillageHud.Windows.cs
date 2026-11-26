@@ -123,8 +123,10 @@ namespace Workerborn
                 if (game.Perform(() => game.State.TryEquip(item.Id)))
                     CancelItemDrag();
             }
-            else if (game.State.Equipment.TryGetValue(slot, out string id) && game.Perform(() => game.State.TryUnequip(slot)))
+            else if (game.State.AssignedEquipmentAt(slot) is string id)
             {
+                if (!game.Perform(() => game.State.TryUnequip(slot)))
+                    return;
                 InventoryEntry newest = null;
                 foreach (var item in game.State.Inventory.Entries)
                     if (item.ItemId == id && (newest == null || item.Id > newest.Id))
@@ -132,6 +134,8 @@ namespace Workerborn
                 if (newest != null)
                     BeginItemDrag(newest.Id, screen);
             }
+            else if (game.Perform(() => game.State.TryToggleEquipmentFallback(slot)))
+                HideItemTooltip();
         }
 
         public void OpenItemContext(int id, Vector2 screen)

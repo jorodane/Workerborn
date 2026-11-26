@@ -107,7 +107,7 @@ namespace Workerborn
             interactionTarget is MonsterInteractable { Combat: not null };
         internal bool IsInteractingWith(WorldInteractable target) =>
             target == interactionTarget || target == strikeTarget || target == cropTarget;
-        internal bool OccupiesSeat(Vector3 position) => onSeat && (transform.position - position).sqrMagnitude < .04f;
+        internal bool OccupiesSeat(Vector3 position) => onSeat && occupiedSeat != null && (occupiedSeat.Position - position).sqrMagnitude < .04f;
 
         public event Action<string> Message;
         internal event Action HarvestAttemptFinished;
@@ -170,7 +170,7 @@ namespace Workerborn
             if (IsLocallyControlled)
                 ReadLocalControls();
             if (onSeat && (occupiedSeat == null || !occupiedSeat.isActiveAndEnabled ||
-                (occupiedSeat.Position - transform.position).sqrMagnitude > .0004f ||
+                (occupiedSeat.SittingRoot(occupiedSeatFacing) - transform.position).sqrMagnitude > .0004f ||
                 Quaternion.Angle(occupiedSeatFacing, transform.rotation) > .5f))
                 Cancel();
             UpdateVisualJump();
@@ -292,7 +292,7 @@ namespace Workerborn
                 agent.updatePosition = false;
                 agent.updateRotation = false;
                 occupiedSeatFacing = nearest.FacingFor(StandingPosition, transform.rotation);
-                transform.SetPositionAndRotation(nearest.Position, occupiedSeatFacing);
+                transform.SetPositionAndRotation(nearest.SittingRoot(occupiedSeatFacing), occupiedSeatFacing);
             }
             Action = WorkerAction.Sitting;
             return true;

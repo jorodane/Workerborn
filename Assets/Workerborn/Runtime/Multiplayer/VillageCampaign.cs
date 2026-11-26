@@ -27,6 +27,8 @@ namespace Workerborn
         public CharacterLook look;
         public float x, y, z, yaw, jumpOffset, gestureProgress;
         public float timberProgress;
+        public bool hasSeat;
+        public float seatX, seatY, seatZ;
         public int motion, gesture;
         public int timberSwing;
     }
@@ -362,6 +364,13 @@ namespace Workerborn
             target.z = pose.z;
             target.yaw = pose.yaw;
             target.motion = pose.motion;
+            float dx = pose.seatX - pose.x, dy = pose.seatY - pose.y, dz = pose.seatZ - pose.z;
+            target.hasSeat = pose.motion == (int)WorkerMotion.SeatSit && pose.hasSeat &&
+                FiniteCoordinate(pose.seatX) && FiniteCoordinate(pose.seatY) && FiniteCoordinate(pose.seatZ) &&
+                dx * dx + dy * dy + dz * dz <= 1f;
+            target.seatX = target.hasSeat ? pose.seatX : pose.x;
+            target.seatY = target.hasSeat ? pose.seatY : pose.y;
+            target.seatZ = target.hasSeat ? pose.seatZ : pose.z;
             target.jumpOffset = float.IsNaN(pose.jumpOffset) ? 0f : Math.Max(0f, Math.Min(.6f, pose.jumpOffset));
             target.gesture = pose.gesture >= (int)WorkerGesture.None && pose.gesture <= (int)WorkerGesture.TimberToss
                 ? pose.gesture : (int)WorkerGesture.None;
@@ -520,6 +529,7 @@ namespace Workerborn
             avatar.z = origin?.z ?? character.playerZ;
             avatar.yaw = origin?.yaw ?? 0f;
             avatar.motion = (int)WorkerMotion.Idle;
+            avatar.hasSeat = false;
             avatar.jumpOffset = 0f;
             avatar.gesture = (int)WorkerGesture.None;
             avatar.gestureProgress = 0f;

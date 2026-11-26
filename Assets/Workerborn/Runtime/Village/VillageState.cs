@@ -168,6 +168,9 @@ namespace Workerborn
         public bool hasLifeLook;
         public CharacterLook lifeLook;
         public EquipmentEntrySave[] equipment = Array.Empty<EquipmentEntrySave>();
+        public EquipmentEntrySave[] otherEquipment = Array.Empty<EquipmentEntrySave>();
+        public int equipmentSet, blockedEquipment, otherBlockedEquipment;
+        // The previous schema stored only the other set's hand slots.
         public EquipmentEntrySave[] otherHandEquipment = Array.Empty<EquipmentEntrySave>();
         public int handSet;
 
@@ -253,13 +256,17 @@ namespace Workerborn
         private bool cursorItemWasSplit;
 
         private readonly Dictionary<EquipmentSlot, string> equipment = new Dictionary<EquipmentSlot, string>();
-        private readonly Dictionary<EquipmentSlot, EquipmentCondition> equipmentConditions = new Dictionary<EquipmentSlot, EquipmentCondition>();
-        private readonly Dictionary<EquipmentSlot, (string ItemId, EquipmentCondition Condition)> otherHandEquipment =
-            new Dictionary<EquipmentSlot, (string, EquipmentCondition)>();
-        internal int HandSet { get; private set; }
+        private readonly EquipmentLoadout[] equipmentSets = { new EquipmentLoadout(), new EquipmentLoadout() };
+        internal int EquipmentSet { get; private set; }
+        private EquipmentLoadout ActiveEquipment => equipmentSets[EquipmentSet];
+        private EquipmentLoadout OtherEquipment => equipmentSets[1 - EquipmentSet];
         public IReadOnlyDictionary<EquipmentSlot, string> Equipment => equipment;
-        public EquipmentCondition EquippedCondition(EquipmentSlot slot) =>
-            equipmentConditions.TryGetValue(slot, out var condition) ? condition : default;
+        public EquipmentCondition EquippedCondition(EquipmentSlot slot)
+        {
+            if (ActiveEquipment.Items.TryGetValue(slot, out var assigned))
+                return assigned.Condition;
+            return !ActiveEquipment.IsBlocked(slot) && OtherEquipment.Items.TryGetValue(slot, out var borrowed) ? borrowed.Condition : default;
+        }
         public VillageRules Rules { get; }
         public int Version { get; private set; }
         public int NoticeSerial { get; private set; }
@@ -310,10 +317,10 @@ namespace Workerborn
             if (entryId != 0 && !copy.TryRemoveAt(entryId, 1))
                 return false;
             var slot = item.Spec.EquipmentSlot;
-            if (equipment.TryGetValue(slot, out string previous) && !copy.TryAdd(previous, 1, EquippedCondition(slot)))
+            if (ActiveEquipment.Items.TryGetValue(slot, out var previous) && !copy.TryAdd(previous.ItemId, 1, previous.Condition))
                 return Result(false, "기존 장비를 넣을 공간이 없습니다.");
-            if (slot == EquipmentSlot.Bag && copy.Rows < BagInventoryRows)
-                copy.ExpandRows(BagInventoryRows);
+            if (slot == EquipmentSlot.Bag)
+                SetBagCapacity(copy, true);
             Inventory.ReplaceWith(copy);
             SetEquippedItem(slot, item.Spec, item.Condition);
             if (entryId == 0)
@@ -323,43 +330,111 @@ namespace Workerborn
 
         public bool TryUnequip(EquipmentSlot slot)
         {
-            if (!equipment.TryGetValue(slot, out string item))
-                return false;
+            if (!ActiveEquipment.Items.TryGetValue(slot, out var item))
+                return IsEquipmentFallback(slot) && TryToggleEquipmentFallback(slot);
             var copy = Inventory.Copy();
-            if ((slot == EquipmentSlot.Bag && !copy.TryShrinkRows(BaseInventoryRows)) || !copy.TryAdd(item, 1, EquippedCondition(slot)))
+            if (slot == EquipmentSlot.Bag && !OtherEquipment.Items.ContainsKey(slot) && !SetBagCapacity(copy, false) ||
+                !copy.TryAdd(item.ItemId, 1, item.Condition))
                 return Result(false, "장비를 해제할 소지품 공간이 부족합니다.");
             Inventory.ReplaceWith(copy);
-            equipment.Remove(slot);
-            equipmentConditions.Remove(slot);
-            return Result(true, ItemCatalog.Get(item).Name + " 해제");
+            ActiveEquipment.Items.Remove(slot);
+            RefreshEffectiveEquipment();
+            return Result(true, ItemCatalog.Get(item.ItemId).Name + " 해제");
         }
 
         private void SetEquippedItem(EquipmentSlot slot, ItemSpec item, EquipmentCondition condition = default)
         {
-            equipment[slot] = item.Id;
-            equipmentConditions[slot] = condition.ForItem(item);
+            ActiveEquipment.Items[slot] = (item.Id, condition.ForItem(item));
+            ActiveEquipment.Blocked &= ~(1 << (int)slot);
+            RefreshEffectiveEquipment();
         }
 
-        internal bool TrySelectHandSet(int set)
+        internal bool TrySelectEquipmentSet(int set)
         {
-            if (AwaitingIncarnation || CursorItem != null || (uint)set >= 2 || HandSet == set)
+            if (AwaitingIncarnation || CursorItem != null || (uint)set >= equipmentSets.Length || EquipmentSet == set)
                 return false;
-            SwapHand(EquipmentSlot.MainHand);
-            SwapHand(EquipmentSlot.OffHand);
-            HandSet = set;
-            return Result(true, $"손 장비 {set + 1}번");
+            bool willWearBag = OtherEquipment.Items.ContainsKey(EquipmentSlot.Bag) ||
+                !OtherEquipment.IsBlocked(EquipmentSlot.Bag) && ActiveEquipment.Items.ContainsKey(EquipmentSlot.Bag);
+            if (willWearBag != BagExpanded && !SetBagCapacity(Inventory, willWearBag))
+                return Result(false, "가방을 벗으려면 소지품 공간이 더 필요해요.");
+            EquipmentSet = set;
+            RefreshEffectiveEquipment();
+            return Result(true, $"장비 세트 {set + 1}번");
         }
 
-        private void SwapHand(EquipmentSlot slot)
+        internal string AssignedEquipmentAt(EquipmentSlot slot) => ActiveEquipment.Items.TryGetValue(slot, out var item) ? item.ItemId : null;
+        internal bool IsEquipmentFallback(EquipmentSlot slot) => equipment.ContainsKey(slot) && !ActiveEquipment.Items.ContainsKey(slot);
+        internal bool IsEquipmentBlocked(EquipmentSlot slot) => ActiveEquipment.IsBlocked(slot);
+
+        internal bool TryToggleEquipmentFallback(EquipmentSlot slot)
         {
-            bool hasOther = otherHandEquipment.Remove(slot, out var other);
-            if (equipment.Remove(slot, out var current))
+            if (AwaitingIncarnation || CursorItem != null || !ValidEquipmentSlot(slot) || ActiveEquipment.Items.ContainsKey(slot))
+                return false;
+            bool willBorrow = ActiveEquipment.IsBlocked(slot);
+            if (slot == EquipmentSlot.Bag && OtherEquipment.Items.ContainsKey(slot) && !SetBagCapacity(Inventory, willBorrow))
+                return Result(false, "가방을 벗으려면 소지품 공간이 더 필요해요.");
+            ActiveEquipment.Blocked ^= 1 << (int)slot;
+            RefreshEffectiveEquipment();
+            return Result(true, null);
+        }
+
+        private void RefreshEffectiveEquipment()
+        {
+            equipment.Clear();
+            foreach (var item in ActiveEquipment.Items)
+                equipment.Add(item.Key, item.Value.ItemId);
+            foreach (var item in OtherEquipment.Items)
+                if (!ActiveEquipment.IsBlocked(item.Key))
+                    equipment.TryAdd(item.Key, item.Value.ItemId);
+        }
+
+        private static bool SetBagCapacity(GridInventory inventory, bool wearingBag)
+        {
+            if (!wearingBag)
+                return inventory.Rows <= BaseInventoryRows || inventory.TryShrinkRows(BaseInventoryRows);
+            if (inventory.Rows < BagInventoryRows)
+                inventory.ExpandRows(BagInventoryRows);
+            return true;
+        }
+
+        private bool OwnsEquippedItem(string id, EquipmentSlot slot) => AssignedEquipmentAt(slot) == id ||
+            OtherEquipment.Items.TryGetValue(slot, out var other) && other.ItemId == id;
+
+        private const int EquipmentSlotMask = (1 << ((int)EquipmentSlot.Bag + 1)) - 2;
+        private static bool ValidEquipmentSlot(EquipmentSlot slot) => slot is > EquipmentSlot.None and <= EquipmentSlot.Bag;
+
+        private sealed class EquipmentLoadout
+        {
+            internal readonly Dictionary<EquipmentSlot, (string ItemId, EquipmentCondition Condition)> Items =
+                new Dictionary<EquipmentSlot, (string, EquipmentCondition)>();
+            internal int Blocked;
+            internal bool IsBlocked(EquipmentSlot slot) => ValidEquipmentSlot(slot) && (Blocked & (1 << (int)slot)) != 0;
+
+            internal EquipmentEntrySave[] ExportItems()
             {
-                equipmentConditions.Remove(slot, out var condition);
-                otherHandEquipment.Add(slot, (current, condition));
+                var saved = new EquipmentEntrySave[Items.Count];
+                int i = 0;
+                foreach (var entry in Items)
+                    saved[i++] = new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value.ItemId, condition = entry.Value.Condition };
+                return saved;
             }
-            if (hasOther)
-                SetEquippedItem(slot, ItemCatalog.Get(other.ItemId), other.Condition);
+
+            internal void RestoreItems(EquipmentEntrySave[] saved, int blocked, bool handsOnly = false)
+            {
+                if ((blocked & ~EquipmentSlotMask) != 0)
+                    throw new ArgumentException("Invalid blocked equipment slots.");
+                Blocked = blocked;
+                foreach (var entry in saved ?? Array.Empty<EquipmentEntrySave>())
+                {
+                    if (entry == null || !ValidEquipmentSlot(entry.slot) || IsBlocked(entry.slot) ||
+                        handsOnly && entry.slot is not (EquipmentSlot.MainHand or EquipmentSlot.OffHand) ||
+                        !ItemCatalog.Contains(entry.itemId))
+                        throw new ArgumentException("Invalid equipped item.");
+                    var item = ItemCatalog.Get(entry.itemId);
+                    if (item.EquipmentSlot != entry.slot || !Items.TryAdd(entry.slot, (entry.itemId, entry.condition.ForItem(item))))
+                        throw new ArgumentException("Invalid equipped item.");
+                }
+            }
         }
 
         private bool Result(bool success, string message)
@@ -585,8 +660,8 @@ namespace Workerborn
 
         private bool AlreadyOwnsUniquePurchase(string itemId) => itemId switch
         {
-            ItemIds.Hoe => HasHoe || Inventory.Count(ItemIds.Hoe) > 0 || CursorItem?.ItemId == itemId,
-            ItemIds.Bag => BagExpanded || Inventory.Count(ItemIds.Bag) > 0 || CursorItem?.ItemId == itemId,
+            ItemIds.Hoe => OwnsEquippedItem(itemId, EquipmentSlot.MainHand) || Inventory.Count(ItemIds.Hoe) > 0 || CursorItem?.ItemId == itemId,
+            ItemIds.Bag => OwnsEquippedItem(itemId, EquipmentSlot.Bag) || Inventory.Count(ItemIds.Bag) > 0 || CursorItem?.ItemId == itemId,
             _ => false
         };
 
@@ -627,8 +702,7 @@ namespace Workerborn
                 if (spec.Price > 0 && !Inventory.TryRemove(ItemIds.Gold, spec.Price))
                     return Result(false, "골드가 부족해요.");
                 SetEquippedItem(EquipmentSlot.Bag, spec);
-                if (Inventory.Rows < BagInventoryRows)
-                    Inventory.ExpandRows(BagInventoryRows);
+                SetBagCapacity(Inventory, true);
                 return Result(true, $"{spec.Name} 구입 및 장착. {spec.Price}G를 지불했어요.");
             }
             if (!Inventory.TryExchange(ItemIds.Gold, cost, itemId, quantity))
@@ -908,22 +982,17 @@ namespace Workerborn
 
         internal T Export<T>() where T : CharacterSave, new()
         {
-            var worn = new List<EquipmentEntrySave>();
-            foreach (var entry in equipment)
-                worn.Add(new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value, condition = EquippedCondition(entry.Key) });
-            var otherHands = new EquipmentEntrySave[otherHandEquipment.Count];
-            int hand = 0;
-            foreach (var entry in otherHandEquipment)
-                otherHands[hand++] = new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value.ItemId, condition = entry.Value.Condition };
             return new T
             {
                 schema = CurrentSaveSchema,
                 awaitingIncarnation = AwaitingIncarnation,
                 hasLifeLook = LifeLook.HasValue,
                 lifeLook = LifeLook.GetValueOrDefault(),
-                equipment = worn.ToArray(),
-                otherHandEquipment = otherHands,
-                handSet = HandSet,
+                equipment = ActiveEquipment.ExportItems(),
+                otherEquipment = OtherEquipment.ExportItems(),
+                equipmentSet = EquipmentSet,
+                blockedEquipment = ActiveEquipment.Blocked,
+                otherBlockedEquipment = OtherEquipment.Blocked,
                 day = Day,
                 lifeDay = LifeDay,
                 life = Life,
@@ -1110,26 +1179,18 @@ namespace Workerborn
             state.RefreshSkillStats();
             state.Health = save.schema >= 6 ? Math.Min(save.health, state.HealthLimit) : state.HealthLimit;
             state.Stamina = Math.Min(state.Stamina, state.StaminaLimit);
-            if (save.schema >= 2 && save.equipment != null)
-                foreach (var entry in save.equipment)
-                {
-                    if (entry == null || !ItemCatalog.Contains(entry.itemId) || entry.slot == EquipmentSlot.None || ItemCatalog.Get(entry.itemId).EquipmentSlot != entry.slot || state.equipment.ContainsKey(entry.slot))
-                        throw new ArgumentException("Invalid equipped item.");
-                    state.SetEquippedItem(entry.slot, ItemCatalog.Get(entry.itemId), entry.condition);
-                }
-            if (save.schema >= LoadoutSaveSchema)
-            {
-                if ((uint)save.handSet >= 2)
-                    throw new ArgumentException("Invalid hand equipment set.");
-                state.HandSet = save.handSet;
-                foreach (var entry in save.otherHandEquipment ?? Array.Empty<EquipmentEntrySave>())
-                {
-                    if (entry == null || entry.slot is not (EquipmentSlot.MainHand or EquipmentSlot.OffHand) ||
-                        !ItemCatalog.Contains(entry.itemId) || ItemCatalog.Get(entry.itemId).EquipmentSlot != entry.slot ||
-                        !state.otherHandEquipment.TryAdd(entry.slot, (entry.itemId, entry.condition.ForItem(ItemCatalog.Get(entry.itemId)))))
-                        throw new ArgumentException("Invalid equipment in the other hand set.");
-                }
-            }
+            bool fullSets = save.schema >= EquipmentSetsSaveSchema;
+            int set = fullSets ? save.equipmentSet : save.schema >= LoadoutSaveSchema ? save.handSet : 0;
+            if ((uint)set >= state.equipmentSets.Length)
+                throw new ArgumentException("Invalid equipment set.");
+            state.EquipmentSet = set;
+            if (save.schema >= 2)
+                state.ActiveEquipment.RestoreItems(save.equipment, fullSets ? save.blockedEquipment : 0);
+            if (fullSets)
+                state.OtherEquipment.RestoreItems(save.otherEquipment, save.otherBlockedEquipment);
+            else if (save.schema >= LoadoutSaveSchema)
+                state.OtherEquipment.RestoreItems(save.otherHandEquipment, 0, handsOnly: true);
+            state.RefreshEffectiveEquipment();
 
             if (save.schema < 4 && save.bagExpanded)
             {

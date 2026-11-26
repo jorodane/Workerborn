@@ -120,26 +120,38 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void HandSetsKeepConditionsAndSharedEquipmentAcrossSaveAndClearOnRebirth()
+        public void EquipmentSetsBorrowOnlyUnblockedEmptySlotsAndKeepItemsInTheirOwnSets()
         {
             var state = new VillageState();
             var worn = new EquipmentCondition(5, 24);
             Equip(ItemIds.Axe, worn);
             Equip(ItemIds.Bag);
-            Assert.That(state.TrySelectHandSet(1), Is.True);
-            Assert.That(state.HasTool(ItemIds.Axe), Is.False);
+            Assert.That(state.TrySelectEquipmentSet(1), Is.True);
+            Assert.That(state.HasTool(ItemIds.Axe), Is.True);
+            Assert.That(state.IsEquipmentFallback(EquipmentSlot.MainHand), Is.True);
             Assert.That(state.BagExpanded, Is.True);
-            Equip(ItemIds.FishingRod);
+            Assert.That(state.IsEquipmentFallback(EquipmentSlot.Bag), Is.True);
+            Assert.That(state.TryToggleEquipmentFallback(EquipmentSlot.MainHand), Is.True);
+            Assert.That(state.HasTool(ItemIds.Axe), Is.False);
+            Assert.That(state.IsEquipmentBlocked(EquipmentSlot.MainHand), Is.True);
+            Assert.That(state.Inventory.Entries, Is.Empty);
             state = VillageState.Restore(state.Export());
-            Assert.That(state.HandSet, Is.EqualTo(1));
+            Assert.That(state.IsEquipmentBlocked(EquipmentSlot.MainHand), Is.True);
+            Equip(ItemIds.FishingRod);
+            Assert.That(state.IsEquipmentBlocked(EquipmentSlot.MainHand), Is.False);
+            Assert.That(state.TryToggleEquipmentFallback(EquipmentSlot.Head), Is.True);
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.EquipmentSet, Is.EqualTo(1));
             Assert.That(state.HasTool(ItemIds.FishingRod), Is.True);
-            Assert.That(state.TrySelectHandSet(0), Is.True);
+            Assert.That(state.TrySelectEquipmentSet(0), Is.True);
             Assert.That(state.HasTool(ItemIds.Axe), Is.True);
             Assert.That(state.EquippedCondition(EquipmentSlot.MainHand), Is.EqualTo(worn));
             Assert.That(state.Inventory.Entries, Is.Empty);
             Assert.That(state.BagExpanded, Is.True);
+            Assert.That(state.IsEquipmentBlocked(EquipmentSlot.Head), Is.False);
             state.RebirthPersonalLife();
-            Assert.That(state.Export().otherHandEquipment, Is.Empty);
+            Assert.That(state.Export().otherEquipment, Is.Empty);
+            Assert.That(state.Export().otherBlockedEquipment, Is.Zero);
             Assert.That(VillageState.Restore(state.Export()).Equipment, Is.Empty);
 
             void Equip(string item, EquipmentCondition condition = default)
@@ -147,6 +159,59 @@ namespace Workerborn.Tests
                 Assert.That(state.Inventory.TryAdd(item, 1, condition), Is.True);
                 Assert.That(state.TryEquip(state.Inventory.Entries.Single().Id), Is.True);
             }
+        }
+
+        [Test]
+        public void OldHandSetsKeepTheirItemsAndTheSharedBagBecomesAFallback()
+        {
+            const int bagRows = VillageState.BaseInventoryRows + 2;
+            var save = new VillageState().Export();
+            save.schema = 17;
+            save.handSet = 1;
+            save.bagExpanded = true;
+            save.inventoryRows = bagRows;
+            save.equipment = new[]
+            {
+                new EquipmentEntrySave { slot = EquipmentSlot.Bag, itemId = ItemIds.Bag },
+                new EquipmentEntrySave { slot = EquipmentSlot.MainHand, itemId = ItemIds.FishingRod }
+            };
+            var worn = new EquipmentCondition(3, 9);
+            save.otherHandEquipment = new[] { new EquipmentEntrySave { slot = EquipmentSlot.MainHand, itemId = ItemIds.Axe, condition = worn } };
+            var state = VillageState.Restore(save);
+            Assert.That(state.EquipmentSet, Is.EqualTo(1));
+            Assert.That(state.HasTool(ItemIds.FishingRod), Is.True);
+            Assert.That(state.TrySelectEquipmentSet(0), Is.True);
+            Assert.That(state.EquippedCondition(EquipmentSlot.MainHand), Is.EqualTo(worn));
+            Assert.That(state.IsEquipmentFallback(EquipmentSlot.Bag), Is.True);
+            Assert.That(state.TryToggleEquipmentFallback(EquipmentSlot.Bag), Is.True);
+            Assert.That(state.Inventory.Rows, Is.EqualTo(VillageState.BaseInventoryRows));
+            Assert.That(state.TryToggleEquipmentFallback(EquipmentSlot.Bag), Is.True);
+            Assert.That(state.Inventory.Rows, Is.EqualTo(bagRows));
+        }
+
+        [Test]
+        public void TakingOffAFallbackBagThroughEitherSetOrItsSlotKeepsAnOverfullInventoryIntact()
+        {
+            var state = new VillageState();
+            Assert.That(state.TrySelectEquipmentSet(1), Is.True);
+            Assert.That(state.TryToggleEquipmentFallback(EquipmentSlot.Bag), Is.True);
+            Assert.That(state.TrySelectEquipmentSet(0), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Bag, 1), Is.True);
+            Assert.That(state.TryEquip(state.Inventory.Entries.Single().Id), Is.True);
+            int potatoes = (state.Inventory.Columns * VillageState.BaseInventoryRows + 1) * ItemCatalog.Get(ItemIds.Potato).MaxStack;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, potatoes), Is.True);
+            Assert.That(state.TrySelectEquipmentSet(1), Is.False);
+            Assert.That(state.EquipmentSet, Is.Zero);
+            Assert.That(state.BagExpanded, Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(potatoes));
+
+            var save = state.Export();
+            save.otherBlockedEquipment = 0;
+            state = VillageState.Restore(save);
+            Assert.That(state.TrySelectEquipmentSet(1), Is.True);
+            Assert.That(state.TryToggleEquipmentFallback(EquipmentSlot.Bag), Is.False);
+            Assert.That(state.IsEquipmentFallback(EquipmentSlot.Bag), Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(potatoes));
         }
 
         [Test]

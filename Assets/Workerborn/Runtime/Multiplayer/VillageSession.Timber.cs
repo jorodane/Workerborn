@@ -27,6 +27,25 @@ namespace Workerborn
             nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
         }
 
+        internal void TimberLanded(string id, TimberPose pose, Vector3 contact)
+        {
+            long now = GroundDropSave.UtcNow;
+            if (authority?.LandTimberTrunk(id, pose, now, out var drops) != true)
+                return;
+
+            village?.PlayTimberLanding(contact);
+            QueueCreatedDrops(drops);
+            var packet = new SessionPacket { type = SessionMessage.TimberLanding, timberContact = contact, groundDrops = drops, pickupUtc = now };
+            foreach (var connection in connections)
+            {
+                if (connection.Identity == null || connection.Leaving || !Send(connection, packet))
+                    continue;
+                foreach (var drop in drops)
+                    connection.PendingGroundDrops.Remove(drop.id);
+            }
+            nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
+        }
+
         internal bool SubmitTimberWork(TimberOrder order) => SubmitCommand(new SessionPacket
         {
             type = SessionMessage.TimberWork,
@@ -35,7 +54,7 @@ namespace Workerborn
 
         private void TimberCommand(string identity, SessionPacket packet, Connection connection)
         {
-            Func<TimberPoint, bool> occupation = village != null ? village.TimberStumpOccupied : null;
+            Func<TimberSite, bool> occupation = village != null ? village.TimberStumpOccupied : null;
             bool changed = authority.PerformTimber(identity, packet.character, packet.timberOrder, GroundDropSave.UtcNow,
                 occupation, out string message, out var drops, out var acquired);
             if (changed)

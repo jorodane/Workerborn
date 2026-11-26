@@ -38,12 +38,20 @@ namespace Workerborn
             count.text = quantity > 1 ? quantity.ToString() : "";
         }
 
-        internal void DisplaySkill(Sprite sprite, string name)
+        internal void DisplayIcon(Sprite sprite, string name)
         {
             icon.sprite = sprite;
             icon.enabled = sprite != null;
             fallback.text = icon.enabled ? "" : name;
             count.text = "";
+        }
+
+        internal void SetIconOpacity(float alpha)
+        {
+            var tint = icon.color;
+            tint.a = alpha;
+            icon.color = tint;
+            fallback.alpha = alpha;
         }
 
         public void Inventory(VillageHud hud, int id)

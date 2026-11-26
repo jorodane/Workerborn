@@ -15,7 +15,7 @@ namespace Workerborn
     internal enum SessionMessage
     {
         Hello = 1, Welcome, Checkpoint, Move, Command, World, Profile, Error, Leave, Chat, Ping, Pong,
-        RemoveClient, DiscoverWorld, Administration, GroundTransfer, GatheredDrops, GroundItems, TimberWork, TimberImpact
+        RemoveClient, DiscoverWorld, Administration, GroundTransfer, GatheredDrops, GroundItems, TimberWork, TimberImpact, TimberLanding
     }
 
     [Serializable]
@@ -32,6 +32,7 @@ namespace Workerborn
         public WoodlandSave woodland;
         public TimberOrder timberOrder;
         public TimberYield[] timberAcquired;
+        public Vector3 timberContact;
         public CampaignStatus status;
         public PortableCharacter appearance;
         public SessionAvatar avatar;
@@ -52,7 +53,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 23;
+        public const int ProtocolVersion = 24;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -1155,6 +1156,11 @@ namespace Workerborn
                 ApplyProfile(packet);
             else if (packet.type == SessionMessage.TimberImpact && LocalPlayerId != null)
                 village?.PlayRemoteTimberImpact(packet.timberOrder);
+            else if (packet.type == SessionMessage.TimberLanding && LocalPlayerId != null)
+            {
+                village?.PlayTimberLanding(packet.timberContact);
+                ReceiveGroundChanges(packet);
+            }
             else if (packet.type == SessionMessage.Chat && village != null && !string.IsNullOrEmpty(packet.player) &&
                 VillageChatText.TryNormalize(packet.message, out string text))
                 village.ReceiveChat(packet.player, PortableCharacter.CleanName(packet.name, "일꾼"), text);

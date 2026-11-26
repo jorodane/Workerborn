@@ -8,6 +8,7 @@ namespace Workerborn
     public sealed class ItemShortcutSlotView : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         [SerializeField] private Image frame;
+        [SerializeField] private Sprite alternateFrame;
         [SerializeField] private TMP_Text keyLabel;
         [SerializeField] private CanvasGroup content;
         [SerializeField] private UiItemView item;
@@ -16,10 +17,10 @@ namespace Workerborn
 
         private VillageHud hud;
         private Color idleColor;
+        private Sprite defaultFrame;
         private bool hovered, equipped, occupied;
         private Vector2 hoverPosition;
         private int shownBinding = -1;
-        private float defaultKeySize;
         internal int Index { get; private set; }
 
         internal void Bind(VillageHud owner, int index)
@@ -27,17 +28,17 @@ namespace Workerborn
             hud = owner;
             Index = index;
             idleColor = frame.color;
-            defaultKeySize = keyLabel.fontSize;
+            defaultFrame = frame.sprite;
+            keyLabel.text = ((index + 1) % VillageState.ItemShortcutCount).ToString();
             item.ShowIconOnly(showQuantity: true);
         }
 
-        internal void ShowKey(int binding)
+        internal void ShowBinding(int binding)
         {
             if (shownBinding == binding)
                 return;
             shownBinding = binding;
-            keyLabel.text = VillageState.ShortcutKey(binding);
-            keyLabel.fontSize = binding < VillageState.ItemShortcutCount ? defaultKeySize : defaultKeySize * .85f;
+            frame.sprite = binding >= VillageState.ItemShortcutCount ? alternateFrame : defaultFrame;
             if (hovered && occupied)
                 hud.ShowShortcutTooltip(Index, hoverPosition);
         }
@@ -56,7 +57,7 @@ namespace Workerborn
         {
             occupied = true;
             equipped = false;
-            item.DisplaySkill(sprite, name);
+            item.DisplayIcon(sprite, name);
             item.gameObject.SetActive(true);
             content.alpha = 1f;
             RefreshFrame();

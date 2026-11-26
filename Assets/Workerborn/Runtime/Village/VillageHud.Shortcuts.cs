@@ -130,7 +130,7 @@ namespace Workerborn
             HideItemTooltip();
             var icon = Instantiate(library.Item, transform);
             icon.ShowIconOnly();
-            icon.DisplaySkill(game.Settings.FindSkill(skill)?.Icon, game.State.Rules.Skill(skill).Name);
+            icon.DisplayIcon(game.Settings.FindSkill(skill)?.Icon, game.State.Rules.Skill(skill).Name);
             skillShortcutGhost = icon.Rect;
             skillShortcutGhost.anchorMin = skillShortcutGhost.anchorMax = new Vector2(.5f, .5f);
             skillShortcutGhost.pivot = new Vector2(.5f, .5f);
@@ -161,15 +161,15 @@ namespace Workerborn
             skillShortcutGhost = null;
         }
 
-        internal void SelectHandSet(int set)
+        internal void SelectEquipmentSet(int set)
         {
             if (game.State.AwaitingIncarnation || game.IsWorldTransitioning || game.AwaitingWorldCommand ||
                 HasQuantityPrompt || WorldActionsLocked && !IsShopOpen || IsChatTyping || IsTextInputFocused ||
-                IsHoldingItem || skillShortcutGhost != null || game.Worker.CarriedLogs > 0 || game.State.HandSet == set)
+                IsHoldingItem || skillShortcutGhost != null || game.Worker.CarriedLogs > 0 || game.State.EquipmentSet == set)
                 return;
             game.Perform(() =>
             {
-                if (!game.State.TrySelectHandSet(set))
+                if (!game.State.TrySelectEquipmentSet(set))
                     return false;
                 var worker = game.Worker;
                 if (worker.Action is WorkerAction.Harvesting or WorkerAction.Attacking || worker.IsApproachingInteraction)

@@ -74,7 +74,7 @@ namespace Workerborn
         public string id;
         public int productDay, usedSlots, felledDay, parts, separatingParts;
         public float fallYaw, fallAngle;
-        public TimberPose restingPose, lowerPose, upperPose;
+        public TimberPose landingPose, restingPose, lowerPose, upperPose;
         public bool falling;
         public string crownOwner;
         public TimberYield[] crownProducts;
@@ -402,16 +402,27 @@ namespace Workerborn
             return true;
         }
 
-        internal bool ReleaseCrownProducts(Func<string, TimberPoint, List<TimberYield>, bool> deliver)
+        internal bool RecordTrunkLanding(string id, TimberPose pose)
+        {
+            if (!pose.IsValid || !trees.TryGetValue(id, out var tree) || !tree.falling || !tree.Has(TimberPart.Trunk) || tree.landingPose.IsValid)
+                return false;
+            tree.landingPose = pose;
+            Changed();
+            return true;
+        }
+
+        internal bool ReleaseCrownProducts(Func<string, TimberPoint, List<TimberYield>, bool> deliver, string treeId = null)
         {
             bool changed = false;
             for (int i = pendingCrowns.Count - 1; i >= 0; i--)
             {
                 var tree = pendingCrowns[i];
-                if (tree.falling)
+                if (treeId != null && tree.id != treeId || tree.falling && !tree.landingPose.IsValid)
                     continue;
                 var site = sites[tree.id];
-                var crown = site.PoseAt(tree, site.Section(TimberPart.Upper).Center);
+                var crown = tree.landingPose.IsValid
+                    ? tree.landingPose.ShiftAlongTrunk(site.Section(TimberPart.Upper).Center - site.Section(TimberPart.Trunk).Center)
+                    : site.PoseAt(tree, site.Section(TimberPart.Upper).Center);
                 var rewards = new List<TimberYield>(tree.crownProducts.Length);
                 foreach (var item in tree.crownProducts)
                     rewards.Add(new TimberYield(item.itemId, item.quantity, crown.point) { fromCrown = true, crownHeight = crown.height });
@@ -428,7 +439,7 @@ namespace Workerborn
         }
 
         internal TimberResult Perform(TimberOrder order, VillageState worker, string workerId, TimberPoint at, float facing,
-            int day, Func<TimberPoint, bool> occupied, Func<TimberPoint, bool> canPlace,
+            int day, Func<TimberSite, bool> occupied, Func<TimberPoint, bool> canPlace,
             Func<List<TimberYield>, bool> deliver, out string message)
         {
             message = "지금은 이 나무 작업을 할 수 없어요.";
@@ -512,7 +523,7 @@ namespace Workerborn
         }
 
         private TimberResult SplitPart(TimberPart part, VillageState worker, TimberSite site, TimberTreeSave tree,
-            TimberPoint at, Func<TimberPoint, bool> occupied, Func<List<TimberYield>, bool> deliver, out string message)
+            TimberPoint at, Func<TimberSite, bool> occupied, Func<List<TimberYield>, bool> deliver, out string message)
         {
             var section = site.Section(part);
             var piece = part == TimberPart.Stump ? default : site.PoseOf(tree, part);
@@ -522,7 +533,7 @@ namespace Workerborn
                 return TimberResult.Rejected;
             if (!CanSplit(worker, site.Tool, at, point, out message))
                 return TimberResult.Rejected;
-            if (part == TimberPart.Stump && occupied(point))
+            if (part == TimberPart.Stump && occupied(site))
             {
                 message = "누군가 밑동에 앉아 있어요.";
                 return TimberResult.Rejected;

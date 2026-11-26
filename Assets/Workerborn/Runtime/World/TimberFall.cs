@@ -14,17 +14,20 @@ namespace Workerborn
         private float elapsed, stillFor, lastContact = float.NegativeInfinity;
         private float lowestHeight, settleLimit;
         private Action<TimberPose> onSettled;
-        private Action<Vector3> onGroundImpact;
+        private Action<TimberPose, Vector3> onLanded;
+        private Vector3? lastContactPoint;
 
         internal static TimberFall Begin(TimberSite site, float yaw, Mesh bark, Transform parent, Action<TimberPose> onSettled,
-            Action<Vector3> onGroundImpact = null)
+            Action<TimberPose, Vector3> onLanded = null, TimberPose resumeAt = default)
         {
             float length = site.Section(TimberPart.Trunk).Length;
             var pivot = new Vector3(site.Point.x, site.BaseHeight + site.CutHeight, site.Point.z);
             Quaternion orientation = Quaternion.Euler(0f, yaw, 0f);
-            var pose = TimberLocation.Pose(pivot + Vector3.up * (length * .5f), orientation);
+            var pose = resumeAt.IsValid ? resumeAt : TimberLocation.Pose(pivot + Vector3.up * (length * .5f), orientation);
             var fall = Create(site, pose, yaw, bark, length, 0f, parent, 12f, onSettled);
-            fall.onGroundImpact = onGroundImpact;
+            if (resumeAt.IsValid)
+                return fall;
+            fall.onLanded = onLanded;
             // The pivot lets gravity accelerate the initial tip before the severed trunk is released.
             fall.hinge = fall.gameObject.AddComponent<HingeJoint>();
             fall.hinge.autoConfigureConnectedAnchor = false;
@@ -89,8 +92,8 @@ namespace Workerborn
 
         private void OnCollisionEnter(Collision collision)
         {
-            lastContact = Time.fixedTime;
-            if (onGroundImpact == null)
+            RememberContact(collision);
+            if (onLanded == null)
                 return;
             for (int i = 0; i < collision.contactCount; i++)
             {
@@ -98,13 +101,29 @@ namespace Workerborn
                 if (contact.normal.y < .55f ||
                     Mathf.Max(Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal)), collision.impulse.magnitude / body.mass) < .5f)
                     continue;
-                var play = onGroundImpact;
-                onGroundImpact = null;
-                play(contact.point + contact.normal * .025f);
+                AnnounceLanding(TimberLocation.Pose(body.position, body.rotation), contact.point + contact.normal * .025f);
                 break;
             }
         }
-        private void OnCollisionStay() => lastContact = Time.fixedTime;
+
+        private void OnCollisionStay(Collision collision) => RememberContact(collision);
+
+        private void RememberContact(Collision collision)
+        {
+            lastContact = Time.fixedTime;
+            if (onLanded != null && collision.contactCount > 0)
+            {
+                var contact = collision.GetContact(0);
+                lastContactPoint = contact.point + contact.normal * .025f;
+            }
+        }
+
+        private void AnnounceLanding(TimberPose pose, Vector3 contact)
+        {
+            var landed = onLanded;
+            onLanded = null;
+            landed?.Invoke(pose, contact);
+        }
 
         private void FixedUpdate()
         {
@@ -132,6 +151,9 @@ namespace Workerborn
             body.collisionDetectionMode = CollisionDetectionMode.Discrete;
             body.isKinematic = true;
             trunk.enabled = false;
+            // A trunk can come to rest propped against another tree without a downward impact.
+            if (lastContactPoint is Vector3 contact)
+                AnnounceLanding(restingPose, contact);
             onSettled?.Invoke(restingPose);
         }
     }

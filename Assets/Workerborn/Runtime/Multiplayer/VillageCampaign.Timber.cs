@@ -11,24 +11,33 @@ namespace Workerborn
         private Func<TimberPoint, float> timberHeight;
         internal WoodlandSave Woodland => timber?.Capture() ?? storedWoodland;
 
+        internal bool LandTimberTrunk(string id, TimberPose pose, long now, out GroundDropSave[] drops)
+        {
+            drops = Array.Empty<GroundDropSave>();
+            if (timber?.RecordTrunkLanding(id, pose) != true)
+                return false;
+            drops = ReleaseTimberCrownDrops(now, id);
+            return true;
+        }
+
         internal bool SettleTimberMotion(string id, TimberPart part, TimberPose pose, long now, out GroundDropSave[] drops)
         {
             drops = Array.Empty<GroundDropSave>();
             if (timber?.SettlePiece(id, part, pose) != true)
                 return false;
             if (part == TimberPart.Trunk)
-                drops = ReleaseTimberCrownDrops(now);
+                drops = ReleaseTimberCrownDrops(now, id);
             return true;
         }
 
-        internal GroundDropSave[] ReleaseTimberCrownDrops(long now)
+        internal GroundDropSave[] ReleaseTimberCrownDrops(long now, string treeId = null)
         {
             var created = new List<GroundDropSave>();
             timber?.ReleaseCrownProducts((owner, stump, rewards) =>
             {
                 CreateTimberDrops(owner, stump, rewards, now, created);
                 return true;
-            });
+            }, treeId);
             return created.Count > 0 ? created.ToArray() : Array.Empty<GroundDropSave>();
         }
 
@@ -51,7 +60,7 @@ namespace Workerborn
         }
 
         internal bool PerformTimber(string identity, VillageSave save, TimberOrder order, long now,
-            Func<TimberPoint, bool> localSeatOccupied, out string message, out GroundDropSave[] drops, out TimberYield[] acquired)
+            Func<TimberSite, bool> localSeatOccupied, out string message, out GroundDropSave[] drops, out TimberYield[] acquired)
         {
             drops = Array.Empty<GroundDropSave>();
             acquired = null;
@@ -74,12 +83,12 @@ namespace Workerborn
             acquired = collected;
             return true;
 
-            bool IsOccupied(TimberPoint seat)
+            bool IsOccupied(TimberSite site)
             {
-                if (localSeatOccupied?.Invoke(seat) == true)
+                if (localSeatOccupied?.Invoke(site) == true)
                     return true;
                 foreach (var avatar in avatars.Values)
-                    if (avatar.motion == (int)WorkerMotion.SeatSit && seat.DistanceSquared(new TimberPoint(avatar.x, avatar.z)) <= .075f)
+                    if (avatar.motion == (int)WorkerMotion.SeatSit && site.Point.DistanceSquared(new TimberPoint(avatar.seatX, avatar.seatZ)) <= .075f)
                         return true;
                 return false;
             }

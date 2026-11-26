@@ -103,10 +103,10 @@ MonoBehaviour:
   placementPreview: {fileID: 101004}
   gridLayout: {fileID: 100141}
   gold: {fileID: 100282}
-  handSetTabs:
+  equipmentSetTabs:
   - {fileID: 101202}
   - {fileID: 101212}
-  activeHandSetColor: {r: 0.34, g: 0.59, b: 0.73, a: 1}
+  activeEquipmentSetColor: {r: 0.34, g: 0.59, b: 0.73, a: 1}
   equipment:
   - {fileID: 100062}
   - {fileID: 100073}
@@ -6080,7 +6080,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 100001, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
       propertyPath: m_Name
-      value: Hand set 1
+      value: Equipment set 1
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
       propertyPath: m_AnchoredPosition.x
@@ -6141,7 +6141,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 100001, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
       propertyPath: m_Name
-      value: Hand set 2
+      value: Equipment set 2
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
       propertyPath: m_AnchoredPosition.x

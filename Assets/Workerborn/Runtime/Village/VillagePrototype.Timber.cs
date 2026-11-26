@@ -91,7 +91,7 @@ namespace Workerborn
                 standing?.Remove(record.id);
                 var site = tree.Site();
                 if (record.falling && record.Has(TimberPart.Trunk))
-                    Start(tree, record.id, TimberPart.Trunk, site.Section(TimberPart.Trunk), record.fallYaw, default, 0);
+                    Start(tree, record.id, TimberPart.Trunk, site.Section(TimberPart.Trunk), record.fallYaw, record.landingPose, 0);
                 if (record.IsSeparating(TimberPart.Lower))
                     Start(tree, record.id, TimberPart.Lower, site.Section(TimberPart.Lower), record.fallYaw, site.PoseOf(record, TimberPart.Lower), -1);
                 if (record.IsSeparating(TimberPart.Upper))
@@ -116,11 +116,32 @@ namespace Workerborn
                 var bark = tree.CutGeometry(settings.Timber?.CutSurface)?.Slice(slice, barkOnly: true);
                 var parent = headlessTimberPhysics ?? droppedItems;
                 Action<TimberPose> settled = authority ? pose => FinishTimberMotion(id, part, site, cutYaw, initial, pose) : null;
+                Action<TimberPose, Vector3> landed = authority && part == TimberPart.Trunk ? (pose, contact) => LandTimberTrunk(id, pose, contact) : null;
                 var motion = part == TimberPart.Trunk
-                    ? TimberFall.Begin(site, cutYaw, bark, parent, settled, headlessTimberPhysics == null && effects != null ? effects.PlayTimberLanding : null)
+                    ? TimberFall.Begin(site, cutYaw, bark, parent, settled, landed, initial)
                     : TimberFall.Separate(site, section, initial, cutYaw, bark, slice.Center - section.Center, side, parent, settled);
                 timberMotions.Add(key, motion);
             }
+        }
+
+        private void LandTimberTrunk(string id, TimberPose pose, Vector3 contact)
+        {
+            if (IsOnline)
+            {
+                Session?.TimberLanded(id, pose, contact);
+                return;
+            }
+            if (soloTimber?.RecordTrunkLanding(id, pose) != true)
+                return;
+            PlayTimberLanding(contact);
+            soloTimber.ReleaseCrownProducts(DeliverCrownProducts, id);
+            SaveGame(false);
+        }
+
+        internal void PlayTimberLanding(Vector3 contact)
+        {
+            if (SharesMap(contact))
+                effects?.PlayTimberLanding(contact);
         }
 
         private void FinishTimberMotion(string id, TimberPart part, TimberSite site, float facing, TimberPose initial, TimberPose pose)
@@ -144,7 +165,8 @@ namespace Workerborn
                 Session?.FinishTimberMotion(id, part, pose);
             else if (soloTimber?.SettlePiece(id, part, pose) == true)
             {
-                soloTimber.ReleaseCrownProducts(DeliverCrownProducts);
+                if (part == TimberPart.Trunk)
+                    soloTimber.ReleaseCrownProducts(DeliverCrownProducts, id);
                 PresentWoodland(soloTimber.Capture());
                 SaveGame(false);
             }
@@ -162,7 +184,8 @@ namespace Workerborn
                 InteriorAt(point.x, point.z) == null && rebirthZone?.Contains(point.x, point.z) != true;
         }
 
-        internal bool TimberStumpOccupied(TimberPoint point) => SeatInUse(SurfacePosition(point.x, point.z) + Vector3.up * .44f);
+        internal bool TimberStumpOccupied(TimberSite site) => felledPieces.TryGetValue((site.Id, TimberPart.Stump), out var stump) &&
+            stump.Seat != null && SeatInUse(stump.Seat.Position);
         private float TimberSurfaceHeight(TimberPoint point) => SurfacePosition(point.x, point.z).y;
 
         internal bool RequestTimberWork(HarvestWorker source, TimberOrder order)

@@ -9,6 +9,8 @@ namespace Workerborn
         private Vector3 seatOffset;
         [SerializeField, Tooltip("Facing relative to the slot's rotation.")]
         private float facingDegrees;
+        [SerializeField, Tooltip("Character root offset from the seat surface, in the seated character's facing axes.")]
+        private Vector3 seatedRootOffset;
         [SerializeField, Min(.1f)] private float approachWidth = .8f;
         [SerializeField, Min(.1f)] private float approachDepth = 1.1f;
         [SerializeField, Min(.1f)] private float heightTolerance = .65f;
@@ -18,6 +20,8 @@ namespace Workerborn
         internal Vector3 Position => transform.position + Facing * seatOffset;
         internal Quaternion Facing => Quaternion.Euler(0f, transform.eulerAngles.y + facingDegrees, 0f);
         internal Vector3 ApproachPosition => Position + Facing * Vector3.forward * (approachDepth * .75f);
+        internal Vector3 SittingRoot(Quaternion facing) => Position + facing * seatedRootOffset;
+        internal void SetSurfaceHeight(float height) => seatOffset.y = height;
 
         internal Quaternion FacingFor(Vector3 approach, Quaternion fallback)
         {

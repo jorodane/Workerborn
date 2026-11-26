@@ -132,8 +132,11 @@ namespace Workerborn
         {
             var pose = worker.transform;
             var animation = player.GetComponent<WorkerAnimation>();
+            var seat = worker.OccupiedSeat;
+            Vector3 seatPoint = seat != null ? seat.Position : pose.position;
             return new SessionAvatar { x = pose.position.x, y = pose.position.y, z = pose.position.z,
                 yaw = pose.eulerAngles.y, motion = animation.CurrentAction, jumpOffset = worker.VisualJumpOffset,
+                hasSeat = seat != null, seatX = seatPoint.x, seatY = seatPoint.y, seatZ = seatPoint.z,
                 gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress,
                 timberSwing = (int)worker.CurrentTimberSwing, timberProgress = worker.CurrentTimberProgress };
         }
