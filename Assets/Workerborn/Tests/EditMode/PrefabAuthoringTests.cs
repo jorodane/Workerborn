@@ -12,6 +12,40 @@ namespace Workerborn.Tests
     public sealed class PrefabAuthoringTests
     {
         [Test]
+        public void MountTypesCanUseABoxColliderAndOptOutOfCombat()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Workerborn/Prefabs/Interaction/ChestnutHorse.prefab");
+            Assert.That(prefab, Is.Not.Null);
+            var horse = prefab.GetComponent<VillageMount>();
+            Assert.That(horse.Definition, Is.Not.Null);
+            Assert.That(horse.Speed(walk: true), Is.EqualTo(2.4f));
+            Assert.That(horse.Speed(walk: false), Is.EqualTo(7.2f));
+            Assert.That(horse.AttackDamage, Is.EqualTo(12));
+
+            var profile = ScriptableObject.CreateInstance<MountDefinition>();
+            var root = new GameObject("Passive mount test");
+            try
+            {
+                JsonUtility.FromJsonOverwrite("{\"runSpeed\":5.5,\"boardingReach\":3}", profile);
+                var box = root.AddComponent<BoxCollider>();
+                var mount = root.AddComponent<VillageMount>();
+                using var serialized = new SerializedObject(mount);
+                serialized.FindProperty("definition").objectReferenceValue = profile;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+
+                Assert.That(mount.GetComponents<Collider>(), Is.EqualTo(new Collider[] { box }));
+                Assert.That(mount.Speed(walk: false), Is.EqualTo(5.5f));
+                Assert.That(mount.InteractionDistance, Is.EqualTo(3f));
+                Assert.That(mount.CanAttack, Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(profile);
+            }
+        }
+
+        [Test]
         public void CameraVisibilityCanBeConstructedWithoutAllocatingNativeObjectsInItsConstructor()
         {
             var root = new GameObject("Camera visibility construction test");

@@ -76,6 +76,8 @@ namespace Workerborn
             if (log == null || log.Part != TimberPart.Log || !log.CanInteract || !AcceptsInteractionCommands ||
                 CharacterState.AwaitingIncarnation || CarriedLogs >= CharacterState.LiftCapacity)
                 return;
+            if (DeferUntilStanding(() => LiftLog(log)))
+                return;
 
             choosingLog = true;
             aimingThrow = false;

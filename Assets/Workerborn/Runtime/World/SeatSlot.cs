@@ -9,7 +9,7 @@ namespace Workerborn
         private Vector3 seatOffset;
         [SerializeField, Tooltip("Facing relative to the slot's rotation.")]
         private float facingDegrees;
-        [SerializeField, Tooltip("Character root offset from the seat surface, in the seated character's facing axes.")]
+        [SerializeField, Tooltip("Offset from the seat surface to the ground anchor of the sit and stand animations, in the character's facing axes.")]
         private Vector3 seatedRootOffset;
         [SerializeField, Min(.1f)] private float approachWidth = .8f;
         [SerializeField, Min(.1f)] private float approachDepth = 1.1f;
@@ -20,7 +20,7 @@ namespace Workerborn
         internal Vector3 Position => transform.position + Facing * seatOffset;
         internal Quaternion Facing => Quaternion.Euler(0f, transform.eulerAngles.y + facingDegrees, 0f);
         internal Vector3 ApproachPosition => Position + Facing * Vector3.forward * (approachDepth * .75f);
-        internal Vector3 SittingRoot(Quaternion facing) => Position + facing * seatedRootOffset;
+        internal Vector3 AnimationRoot(Quaternion facing) => Position + facing * seatedRootOffset;
         internal void SetSurfaceHeight(float height) => seatOffset.y = height;
 
         internal Quaternion FacingFor(Vector3 approach, Quaternion fallback)
@@ -55,6 +55,9 @@ namespace Workerborn
                 Gizmos.DrawLine(Vector3.zero, Vector3.forward * approachDepth);
             }
             Gizmos.DrawSphere(Vector3.zero, .06f);
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawLine(Vector3.zero, seatedRootOffset);
+            Gizmos.DrawWireSphere(seatedRootOffset, .06f);
             Gizmos.matrix = matrix;
             Gizmos.color = color;
         }

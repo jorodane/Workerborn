@@ -128,34 +128,50 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator SittingUsesASeatOnlyFromItsFrontAndRestoresTheWalkablePosition()
+        public IEnumerator TheWorkerStandsInPlaceBeforeMovingAwayFromASeat()
         {
-            Vector3 ground = game.Worker.transform.position;
-            game.Worker.ToggleSit();
-            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Sitting));
-            Assert.That(game.Worker.transform.position, Is.EqualTo(ground));
-            game.Worker.ToggleSit();
-            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Idle));
+            var worker = game.Worker;
+            Vector3 ground = worker.transform.position;
+            worker.ToggleSit();
+            Assert.That(worker.Action, Is.EqualTo(WorkerAction.Sitting));
+            Assert.That(worker.transform.position, Is.EqualTo(ground));
+            worker.ToggleSit();
+            Assert.That(worker.Action, Is.EqualTo(WorkerAction.Idle));
 
-            var seat = UnityEngine.Object.FindFirstObjectByType<SeatSlot>();
+            var bench = GameObject.Find("Bench square");
+            var seat = bench.GetComponentInChildren<SeatSlot>();
+            Assert.That(seat.Position.y - bench.transform.position.y, Is.InRange(.38f, .50f));
             Vector3 front = seat.Position + seat.Facing * Vector3.forward * .85f;
             Assert.That(seat.Covers(front), Is.True);
             Assert.That(seat.Covers(seat.Position - seat.Facing * Vector3.forward * .5f), Is.False);
             Assert.That(NavMesh.SamplePosition(game.SurfacePosition(front.x, front.z), out var standing, .35f, NavMesh.AllAreas), Is.True);
-            Assert.That(game.Worker.WarpTo(standing.position), Is.True);
-            game.Worker.ToggleSit();
-            yield return null;
-            Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Sitting));
-            Assert.That(Vector3.Distance(game.Worker.transform.position, seat.Position), Is.LessThan(.01f));
-            Assert.That(Quaternion.Angle(game.Worker.transform.rotation, seat.Facing), Is.LessThan(.1f));
-            var actorVisual = game.Worker.Actor.VisualRoot;
+            Assert.That(worker.WarpTo(standing.position), Is.True);
+            Assert.That(worker.ToggleSit(seat), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            Assert.That(worker.Action, Is.EqualTo(WorkerAction.Sitting));
+            Assert.That(worker.OccupiedSeat, Is.SameAs(seat));
+            Assert.That(Quaternion.Angle(worker.transform.rotation, seat.Facing), Is.LessThan(.1f));
+            var actorVisual = worker.Actor.VisualRoot;
+            var animation = worker.GetComponent<WorkerAnimation>();
+            var agent = worker.GetComponent<NavMeshAgent>();
+            Vector3 foothold = worker.transform.position;
             Vector3 visibleBefore = actorVisual.position;
-            Vector3 cameraAnchorBefore = game.Worker.CameraFollowPosition;
-            game.Worker.ToggleSit();
-            Assert.That(Vector3.Distance(actorVisual.position, visibleBefore), Is.LessThan(.02f));
-            Assert.That(Vector3.Distance(game.Worker.CameraFollowPosition, cameraAnchorBefore), Is.LessThan(.02f));
-            Assert.That(game.Worker.GetComponent<NavMeshAgent>().isOnNavMesh, Is.True);
-            yield return Until(() => (actorVisual.position - game.Worker.transform.position).sqrMagnitude < .04f, 2f);
+            Vector3 destination = NearbyDestination();
+            worker.CommandMove(destination);
+            Assert.That(animation.IsStandingUp, Is.True);
+            Assert.That(agent.isOnNavMesh, Is.True);
+            yield return Until(() =>
+            {
+                if (!animation.IsStandingUp)
+                    return true;
+                Assert.That(agent.isStopped, Is.True);
+                Assert.That(worker.OccupiedSeat, Is.SameAs(seat));
+                Assert.That(Vector3.Distance(worker.transform.position, foothold), Is.LessThan(.01f));
+                Assert.That(Vector3.Distance(actorVisual.position, visibleBefore), Is.LessThan(.01f));
+                return false;
+            }, 2f);
+            yield return Until(() => Vector3.Distance(worker.transform.position, destination) < .25f, 4f);
+            Assert.That(worker.OccupiedSeat, Is.Null);
         }
 
         [UnityTest]
@@ -567,8 +583,10 @@ namespace Workerborn.Tests
             yield return new WaitForSeconds(1f);
             Assert.That(game.Worker.transform.position.y, Is.LessThan(seat.Position.y - .35f));
             Assert.That(game.Worker.OccupiesSeat(seat.Position), Is.True);
+            Vector3 seatFoothold = game.Worker.transform.position;
             game.Worker.ToggleSit();
-            Assert.That(Vector3.Distance(game.Worker.transform.position, seatApproach.position), Is.LessThan(.02f));
+            yield return Until(() => game.Worker.OccupiedSeat == null, 2f);
+            Assert.That(Vector3.Distance(game.Worker.transform.position, seatFoothold), Is.LessThan(.02f));
 
             Vector3 besideTrunk = trunk.transform.position + trunk.transform.right * .85f;
             Assert.That(NavMesh.SamplePosition(besideTrunk, out var splitAt, .8f, NavMesh.AllAreas), Is.True);
@@ -1010,7 +1028,7 @@ namespace Workerborn.Tests
             var state = game.State;
             state.AdvanceTime((state.Rules.JobEnd - state.Minute + 1f) / state.Rules.MinutesPerSecond);
             yield return Until(() => farmer.CurrentActivity == NpcActivity.Resting && farmer.Routine.IsSeated, 28f);
-            Assert.That(game.SeatInUse(farmer.transform.position), Is.True);
+            Assert.That(game.SeatInUse(character.OccupiedSeat.Position), Is.True);
             Assert.That(game.DialogueTopicsFor(farmer).Any(entry => entry.Topic.keyword == "밭일은 어때요?"), Is.False);
             Assert.That(game.DialogueTopicsFor(farmer).Any(entry => entry.Topic.keyword == "오늘 일은 끝났나요?"), Is.True);
         }
@@ -2807,6 +2825,7 @@ namespace Workerborn.Tests
             var worker = game.Worker;
             var horse = UnityEngine.Object.FindFirstObjectByType<VillageMount>();
             Assert.That(horse, Is.Not.Null);
+            Assert.That(horse.PersistentId, Is.EqualTo("village-chestnut-horse"));
             Assert.That(horse.RiderPose.isHumanMotion, Is.True);
             Assert.That(horse.GetComponentInChildren<Animator>().runtimeAnimatorController, Is.Not.Null);
             var skin = horse.GetComponentsInChildren<SkinnedMeshRenderer>().Single(mesh => mesh.enabled);

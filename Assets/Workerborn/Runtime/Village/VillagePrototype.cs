@@ -841,6 +841,17 @@ namespace Workerborn
             }
         }
 
+        private bool IsOutdoorGround(float x, float z)
+        {
+            var terrain = GroundTerrain;
+            if (!float.IsFinite(x) || !float.IsFinite(z) || terrain == null || terrain.terrainData == null)
+                return false;
+            Vector3 origin = terrain.transform.position;
+            Vector3 size = terrain.terrainData.size;
+            return x >= origin.x && z >= origin.z && x <= origin.x + size.x && z <= origin.z + size.z &&
+                InteriorAt(x, z) == null && rebirthZone?.Contains(x, z) != true;
+        }
+
         internal Vector3 SurfacePosition(float x, float z)
         {
             var point = new Vector3(x, 0, z);

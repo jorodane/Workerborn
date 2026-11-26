@@ -284,26 +284,27 @@ MonoBehaviour:
   onInteractionRequested:
     m_PersistentCalls:
       m_Calls: []
-  persistentId: village-chestnut-horse
+  persistentId: ''
   onInteractionCompleted:
     m_PersistentCalls:
       m_Calls: []
-  interactionDistance: 2
-  displayName: 갈색 말
+  interactionDistance: 0
+  definition: {fileID: 11400000, guid: f7f9fb96fa1f511aaf34b809c857c4fb, type: 2}
+  displayName: ''
   model: {fileID: 100004}
-  skin: {fileID: 100020}
-  saddleBone: {fileID: 100019}
-  saddle: {fileID: 100008}
+  interactionVolume: {fileID: 100013}
+  pointerRenderers:
+  - {fileID: 100020}
+  attachmentBone: {fileID: 100019}
+  riderAssembly: {fileID: 100008}
   riderRoot: {fileID: 100012}
   riderPose: {fileID: 3094330708855449807, guid: 3b4a867ff369674489690238e4644dca, type: 3}
-  leftStirrup: {fileID: 100016}
-  rightStirrup: {fileID: 100018}
-  walkSpeed: 2.4
-  runSpeed: 7.2
-  attackAnimation: {fileID: 7400000, guid: 85cc1e23436c24c4882712876a5f8334, type: 3}
-  attackDamage: 12
-  attackReach: 2.2
-  attackImpact: 0.52
+  leftFootrest: {fileID: 100016}
+  rightFootrest: {fileID: 100018}
+  idleState: Base Layer.Idle_A
+  walkState: Base Layer.Walk
+  runState: Base Layer.Run
+  attackState: Base Layer.Attack
 --- !u!1 &100015
 GameObject:
   m_ObjectHideFlags: 0

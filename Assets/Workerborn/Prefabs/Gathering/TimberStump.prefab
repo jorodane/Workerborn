@@ -134,7 +134,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: ''
   seatOffset: {x: 0, y: 0.415, z: 0}
   facingDegrees: 0
-  seatedRootOffset: {x: 0, y: -0.46, z: 0.32}
+  seatedRootOffset: {x: 0, y: -0.415, z: 0.32}
   approachWidth: 0.8
   approachDepth: 1.5
   heightTolerance: 0.7

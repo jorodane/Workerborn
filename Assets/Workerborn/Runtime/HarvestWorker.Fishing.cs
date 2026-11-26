@@ -16,6 +16,8 @@ namespace Workerborn
                 return;
             if (!SharesMap(point) || !village.CanHarvest(this, water))
                 return;
+            if (DeferUntilStanding(() => CommandFish(water, point, progress)))
+                return;
             if (!TryFindCastPath(water, point, out var path, out var stand))
             {
                 Message?.Invoke("이 지점에 찌를 던질 수 있는 물가를 찾지 못했어요.");

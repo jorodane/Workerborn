@@ -88,7 +88,8 @@ namespace Workerborn
                 if (localSeatOccupied?.Invoke(site) == true)
                     return true;
                 foreach (var avatar in avatars.Values)
-                    if (avatar.motion == (int)WorkerMotion.SeatSit && site.Point.DistanceSquared(new TimberPoint(avatar.seatX, avatar.seatZ)) <= .075f)
+                    if ((avatar.hasSeat || avatar.motion == (int)WorkerMotion.SeatSit) &&
+                        site.Point.DistanceSquared(new TimberPoint(avatar.seatX, avatar.seatZ)) <= .075f)
                         return true;
                 return false;
             }

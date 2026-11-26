@@ -33,7 +33,7 @@ namespace Workerborn
         private AnimationPlayableOutput animationOutput;
         private AnimationLayerMixerPlayable carryLayer;
         private AnimationClipPlayable carryPose;
-        private AnimationScriptPlayable stirrupPose;
+        private AnimationScriptPlayable mountFootPose;
         private AvatarMask carryMask;
         private AnimationClip timberToss;
         private bool humanoid, carrying;
@@ -92,7 +92,7 @@ namespace Workerborn
             else
                 waist = null;
             shownOvereating = 0f;
-            stirrupPose = default;
+            mountFootPose = default;
             graph = PlayableGraph.Create("Workerborn existing character animations");
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
             mixer = AnimationMixerPlayable.Create(graph, clips.Length);
@@ -124,7 +124,12 @@ namespace Workerborn
         }
 
         public int CurrentAction => target;
-        internal float SeatExitSeconds => seatSitFinish != null ? Mathf.Max(.2f, seatSitFinish.length / (float)SitSpeed) : .45f;
+        internal bool IsStandingUp => sitInput == SitFinish && graph.IsValid();
+        internal void SkipStandUp()
+        {
+            if (IsStandingUp)
+                FinishSitTransition();
+        }
         public double ActionTime => graph.IsValid() ? clips[Input].GetTime() : 0d;
         internal WorkerGesture Gesture { get; private set; }
         internal float GestureProgress => Gesture == WorkerGesture.None || !graph.IsValid()
@@ -138,10 +143,10 @@ namespace Workerborn
                 if (clips[input].IsValid())
                 {
                     graph.Disconnect(mixer, input);
-                    if (input == RideInput && stirrupPose.IsValid())
+                    if (input == RideInput && mountFootPose.IsValid())
                     {
-                        graph.DestroyPlayable(stirrupPose);
-                        stirrupPose = default;
+                        graph.DestroyPlayable(mountFootPose);
+                        mountFootPose = default;
                     }
                     graph.DestroyPlayable(clips[input]);
                 }
@@ -250,11 +255,12 @@ namespace Workerborn
                 return;
             if (graph.IsValid())
             {
+                bool stillSittingDown = sitInput == SitBegin && clips[SitBegin].GetTime() < lengths[SitBegin];
                 sitInput = -1;
                 if (next == (int)WorkerMotion.GroundSit || next == (int)WorkerMotion.SeatSit)
                     PlaySitTransition(SitBegin, next == (int)WorkerMotion.SeatSit ? seatSitBegin : groundSitBegin);
                 else if (next == (int)WorkerMotion.Idle && target >= (int)WorkerMotion.GroundSit)
-                    PlaySitTransition(SitFinish, target == (int)WorkerMotion.SeatSit ? seatSitFinish : groundSitFinish);
+                    PlayStandUp(stillSittingDown);
                 if ((next == Work && !timedWork) || next >= (int)WorkerMotion.GroundSit)
                     clips[next].SetTime(0d);
                 else if ((next == 1 || next == 3) && (target == 1 || target == 3))
@@ -293,34 +299,35 @@ namespace Workerborn
 
         internal void SetRiding(VillageMount mount, Transform riderVisual = null)
         {
-            AnimationClip pose = mount != null ? mount.RiderPose : null;
-            riding = pose != null;
+            riding = mount != null;
             if (!riding || !graph.IsValid())
                 return;
+            SkipStandUp();
             SetGesture(WorkerGesture.None);
+            AnimationClip pose = mount.RiderPose != null ? mount.RiderPose : clips[0].GetAnimationClip();
             BindClip(RideInput, pose, sampled: true);
             clips[RideInput].SetTime(0d);
             if (!humanoid || !pose.isHumanMotion || riderVisual == null)
                 return;
 
-            // The rider and the stirrups inherit the same animated saddle transform.
-            var job = stirrupPose.IsValid() ? stirrupPose.GetJobData<StirrupPose>() :
-                new StirrupPose { Root = rig.BindSceneTransform(riderVisual) };
-            bool hasStirrups = mount.TryGetStirrups(out job.Left, out job.Right);
-            job.Enabled = hasStirrups ? 1 : 0;
-            if (stirrupPose.IsValid())
-                stirrupPose.SetJobData(job);
-            else if (hasStirrups)
+            // Footrests are relative to the rider anchor so they follow the animated mount.
+            var job = mountFootPose.IsValid() ? mountFootPose.GetJobData<MountFootPose>() :
+                new MountFootPose { Root = rig.BindSceneTransform(riderVisual) };
+            bool hasFootrests = mount.TryGetFootrests(out job.Left, out job.Right);
+            job.Enabled = hasFootrests ? 1 : 0;
+            if (mountFootPose.IsValid())
+                mountFootPose.SetJobData(job);
+            else if (hasFootrests)
             {
                 graph.Disconnect(mixer, RideInput);
-                stirrupPose = AnimationScriptPlayable.Create(graph, job, 1);
-                graph.Connect(clips[RideInput], 0, stirrupPose, 0);
-                graph.Connect(stirrupPose, 0, mixer, RideInput);
+                mountFootPose = AnimationScriptPlayable.Create(graph, job, 1);
+                graph.Connect(clips[RideInput], 0, mountFootPose, 0);
+                graph.Connect(mountFootPose, 0, mixer, RideInput);
                 mixer.SetInputWeight(RideInput, weights[RideInput]);
             }
         }
 
-        private struct StirrupPose : IAnimationJob
+        private struct MountFootPose : IAnimationJob
         {
             public TransformSceneHandle Root;
             public Vector3 Left, Right;
@@ -434,15 +441,41 @@ namespace Workerborn
             sitInput = input;
         }
 
+        private void PlayStandUp(bool stillSittingDown)
+        {
+            if (!stillSittingDown)
+            {
+                PlaySitTransition(SitFinish, target == (int)WorkerMotion.SeatSit ? seatSitFinish : groundSitFinish);
+                return;
+            }
+
+            double time = clips[SitBegin].GetTime();
+            if (time <= 0d)
+                return;
+            PlaySitTransition(SitFinish, clips[SitBegin].GetAnimationClip());
+            clips[SitFinish].SetTime(time);
+            clips[SitFinish].SetSpeed(-SitSpeed);
+        }
+
+        private void FinishSitTransition()
+        {
+            var clip = clips[sitInput];
+            clip.SetTime(clip.GetSpeed() < 0d ? 0d : lengths[sitInput]);
+            clip.SetSpeed(0d);
+            if (sitInput == SitBegin)
+                clips[target].SetTime(0d);
+            sitInput = -1;
+        }
+
         private void Update()
         {
             if (!graph.IsValid())
                 return;
-            if (sitInput >= 0 && clips[sitInput].GetTime() >= lengths[sitInput])
+            if (sitInput >= 0)
             {
-                if (sitInput == SitBegin)
-                    clips[target].SetTime(0);
-                sitInput = -1;
+                var clip = clips[sitInput];
+                if (clip.GetSpeed() < 0d ? clip.GetTime() <= 0d : clip.GetTime() >= lengths[sitInput])
+                    FinishSitTransition();
             }
             if (Gesture != WorkerGesture.None && clips[GestureInput].GetTime() >= lengths[GestureInput])
             {

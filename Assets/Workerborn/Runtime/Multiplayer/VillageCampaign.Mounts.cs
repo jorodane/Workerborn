@@ -54,7 +54,7 @@ namespace Workerborn
                 if (mountGround(character.playerX, character.playerZ) && float.IsFinite(character.yaw))
                     UpdateMountPose(current, character.playerX, character.playerZ, character.yaw);
                 current.rider = null;
-                message = "말에서 내렸어요.";
+                message = "탑승물에서 내렸어요.";
                 return true;
             }
 
@@ -71,11 +71,11 @@ namespace Workerborn
             float reach = site.Reach + .2f;
             if (x * x + z * z > reach * reach)
             {
-                message = "말에게 조금 더 가까이 가야 해요.";
+                message = "탑승물에 조금 더 가까이 가야 해요.";
                 return false;
             }
             site.Pose.rider = profile.id;
-            message = "말에 탔어요. C를 누르면 내려요.";
+            message = "탑승했어요. C를 누르면 내려요.";
             return true;
         }
 

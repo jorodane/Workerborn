@@ -36283,6 +36283,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Horse - village square
       objectReference: {fileID: 0}
+    - target: {fileID: 100014, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+      propertyPath: persistentId
+      value: village-chestnut-horse
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

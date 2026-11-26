@@ -111,7 +111,7 @@ namespace Workerborn
             if (!worker.CanInteractWith(this))
             {
                 if (worker.CurrentMount != null && worker.IsLocallyControlled && worker.AcceptsMovementCommands)
-                    worker.Village.Hud.ShowToast("말에서 내린 뒤 이용해 주세요. C를 누르면 내려요.");
+                    worker.Village.Hud.ShowToast("탑승물에서 내린 뒤 이용해 주세요. C를 누르면 내려요.");
                 return false;
             }
             onInteractionRequested.Invoke();

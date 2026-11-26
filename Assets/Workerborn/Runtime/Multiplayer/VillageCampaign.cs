@@ -371,7 +371,8 @@ namespace Workerborn
             target.yaw = pose.yaw;
             target.motion = pose.motion;
             float dx = pose.seatX - pose.x, dy = pose.seatY - pose.y, dz = pose.seatZ - pose.z;
-            target.hasSeat = pose.motion == (int)WorkerMotion.SeatSit && pose.hasSeat &&
+            bool holdsSeat = pose.motion == (int)WorkerMotion.SeatSit || pose.motion == (int)WorkerMotion.Idle && target.hasSeat;
+            target.hasSeat = holdsSeat && pose.hasSeat &&
                 FiniteCoordinate(pose.seatX) && FiniteCoordinate(pose.seatY) && FiniteCoordinate(pose.seatZ) &&
                 dx * dx + dy * dy + dz * dz <= 1f;
             target.seatX = target.hasSeat ? pose.seatX : pose.x;

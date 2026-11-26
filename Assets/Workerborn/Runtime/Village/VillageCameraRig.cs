@@ -63,7 +63,7 @@ namespace Workerborn
             yaw = initialYaw;
             pitch = initialPitch;
             distance = Mathf.Clamp(initialDistance, minimumDistance, maximumDistance);
-            focus = FollowPosition + Vector3.up * pivotHeight;
+            focus = target.position + Vector3.up * pivotHeight;
             UpdatePose();
         }
 
@@ -142,7 +142,7 @@ namespace Workerborn
 
         private void UpdatePose()
         {
-            Vector3 anchor = FollowPosition;
+            Vector3 anchor = target.position;
             focus = anchor + Vector3.up * pivotHeight;
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
             Vector3 direction = rotation * Vector3.back;
@@ -164,8 +164,5 @@ namespace Workerborn
             }
             transform.SetPositionAndRotation(position, Quaternion.LookRotation(focus - position, Vector3.up));
         }
-
-        private Vector3 FollowPosition => game?.Worker is { } worker && worker.transform == target ?
-            worker.CameraFollowPosition : target.position;
     }
 }

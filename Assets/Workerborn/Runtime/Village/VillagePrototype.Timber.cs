@@ -227,17 +227,7 @@ namespace Workerborn
             }
         }
 
-        internal bool IsTimberGround(TimberPoint point)
-        {
-            var terrain = GroundTerrain;
-            if (!point.IsFinite || terrain == null || terrain.terrainData == null)
-                return false;
-            Vector3 origin = terrain.transform.position;
-            Vector3 size = terrain.terrainData.size;
-            return point.x >= origin.x && point.z >= origin.z &&
-                point.x <= origin.x + size.x && point.z <= origin.z + size.z &&
-                InteriorAt(point.x, point.z) == null && rebirthZone?.Contains(point.x, point.z) != true;
-        }
+        internal bool IsTimberGround(TimberPoint point) => IsOutdoorGround(point.x, point.z);
 
         internal bool TimberStumpOccupied(TimberSite site) => felledPieces.TryGetValue((site.Id, TimberPart.Stump), out var stump) &&
             stump.Seat != null && SeatInUse(stump.Seat.Position);

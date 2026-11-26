@@ -14,6 +14,8 @@ namespace Workerborn
         private Vector3 seatPosition;
         private Quaternion yaw;
         private bool hasPose;
+        private bool hasSeatPose;
+        private SessionAvatar afterStanding;
         private Transform modularModel;
         private int lookSelection;
         private Vector3 visualBase;
@@ -63,7 +65,8 @@ namespace Workerborn
             animationDriver?.SetCarrying(assets?.Carry, carrying);
         }
         internal bool OccupiesSeat(Vector3 position) => hasPose && animationDriver != null &&
-            animationDriver.CurrentAction == (int)WorkerMotion.SeatSit && (position - seatPosition).sqrMagnitude < .04f;
+            hasSeatPose && (animationDriver.CurrentAction == (int)WorkerMotion.SeatSit || animationDriver.IsStandingUp) &&
+            (position - seatPosition).sqrMagnitude < .04f;
 
         internal void SetPose(SessionAvatar avatar, float surfaceY)
         {
@@ -74,11 +77,33 @@ namespace Workerborn
             }
             float height = Mathf.Abs(avatar.y - surfaceY) < 3f ? avatar.y : surfaceY;
             destination = new Vector3(avatar.x, height, avatar.z);
-            seatPosition = avatar.hasSeat ? new Vector3(avatar.seatX, avatar.seatY, avatar.seatZ) : destination;
             yaw = Quaternion.Euler(0, avatar.yaw, 0);
-            if (!hasPose || Vector3.SqrMagnitude(destination - transform.position) > 64f)
+            bool standing = animationDriver?.IsStandingUp == true;
+            bool enteringSeat = avatar.motion == (int)WorkerMotion.SeatSit &&
+                animationDriver?.CurrentAction != (int)WorkerMotion.SeatSit && !standing;
+            bool teleport = hasPose && Vector3.SqrMagnitude(destination - transform.position) > 64f;
+            if (!hasPose || teleport || enteringSeat)
                 transform.SetPositionAndRotation(destination, yaw);
             hasPose = true;
+
+            if (animationDriver != null && animationDriver.CurrentAction >= (int)WorkerMotion.GroundSit &&
+                avatar.motion < (int)WorkerMotion.GroundSit)
+                animationDriver.SetAction((int)WorkerMotion.Idle);
+            if (teleport)
+                animationDriver?.SkipStandUp();
+            if (animationDriver?.IsStandingUp == true)
+            {
+                afterStanding = avatar;
+                return;
+            }
+            afterStanding = null;
+            PresentMotion(avatar);
+        }
+
+        private void PresentMotion(SessionAvatar avatar)
+        {
+            hasSeatPose = avatar.motion == (int)WorkerMotion.SeatSit;
+            seatPosition = avatar.hasSeat ? new Vector3(avatar.seatX, avatar.seatY, avatar.seatZ) : destination;
             IsUsingMountAttack = avatar.motion == (int)WorkerMotion.Work;
             PresentTimberSwing(avatar);
             animationDriver?.SetAction(avatar.motion);
@@ -120,8 +145,13 @@ namespace Workerborn
 
         private void Update()
         {
-            if (!hasPose)
+            if (!hasPose || animationDriver?.IsStandingUp == true)
                 return;
+            if (afterStanding != null)
+            {
+                PresentMotion(afterStanding);
+                afterStanding = null;
+            }
             float factor = 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime);
             transform.SetPositionAndRotation(Vector3.Lerp(transform.position, destination, factor),
                 Quaternion.Slerp(transform.rotation, yaw, factor));

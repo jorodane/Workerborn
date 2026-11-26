@@ -15,26 +15,31 @@ namespace Workerborn
             foreach (var mount in mapRoot.GetComponentsInChildren<VillageMount>(true))
             {
                 var point = mount.transform.position;
-                if (string.IsNullOrEmpty(mount.PersistentId) || !IsMountGround(point.x, point.z) ||
-                    !mounts.TryAdd(mount.PersistentId, mount))
+                if (!IsOutdoorGround(point.x, point.z))
                     continue;
+                if (string.IsNullOrWhiteSpace(mount.PersistentId) || !mounts.TryAdd(mount.PersistentId, mount))
+                {
+                    Debug.LogWarning("Each placed mount needs a unique Persistent Id.", mount);
+                    continue;
+                }
                 if (!headless)
                     mount.transform.position = SurfacePosition(point.x, point.z);
             }
             if (IsOnline || headless)
-                Session.ConfigureMounts(mounts.Values.Select(mount => (mount.Capture(), mount.InteractionDistance)), IsMountGround);
+                Session.ConfigureMounts(mounts.Values.Select(mount => (mount.Capture(), mount.InteractionDistance)), IsOutdoorGround);
             if (headless)
                 return;
             PresentMounts(Session?.StartingMounts ?? restoredWorld?.mounts);
         }
 
-        private bool IsMountGround(float x, float z) => IsTimberGround(new TimberPoint(x, z));
+        internal bool IsRegisteredMount(VillageMount mount) => mount != null && !string.IsNullOrWhiteSpace(mount.PersistentId) &&
+            mounts.TryGetValue(mount.PersistentId, out var registered) && registered == mount;
 
         private MountSave[] CaptureSoloMounts() => IsOnline ? null : mounts.Values.Select(mount => mount.Capture()).ToArray();
 
         internal VillageMount FindNearbyMount(VillageMount preferred)
         {
-            if (InReach(preferred))
+            if (IsRegisteredMount(preferred) && InReach(preferred))
                 return preferred;
             VillageMount closest = null;
             float nearestDistance = float.PositiveInfinity;
@@ -61,7 +66,7 @@ namespace Workerborn
                 return;
             if (mount != null)
             {
-                if (!worker.CanMount || !mount.CanInteract || !worker.SharesMap(mount.transform.position) ||
+                if (!worker.CanMount || !IsRegisteredMount(mount) || !mount.CanInteract || !worker.SharesMap(mount.transform.position) ||
                     !worker.InReach(mount.transform.position, mount.InteractionDistance))
                     return;
                 if (!string.IsNullOrEmpty(mount.Rider))
@@ -69,6 +74,8 @@ namespace Workerborn
                     hud.ShowToast("다른 사람이 타고 있어요.");
                     return;
                 }
+                if (worker.DeferUntilStanding(() => RequestMount(mount)))
+                    return;
             }
             else if (worker.CurrentMount == null)
                 return;
@@ -80,16 +87,16 @@ namespace Workerborn
             if (mount == null)
             {
                 worker.EndRiding(true);
-                hud.ShowToast("말에서 내렸어요.");
+                hud.ShowToast("탑승물에서 내렸어요.");
             }
             else if (worker.BeginRiding(mount))
             {
                 mount.Present(worker.CharacterId, worker.transform, default, 0f, true);
-                hud.ShowToast("말에 탔어요. C를 누르면 내려요.");
+                hud.ShowToast("탑승했어요. C를 누르면 내려요.");
             }
             else
             {
-                hud.ShowToast("말 옆에 설 수 있는 곳으로 이동해 주세요.");
+                hud.ShowToast("탑승물 옆에 설 수 있는 곳으로 이동해 주세요.");
                 return;
             }
             SaveGame(false);
@@ -113,7 +120,7 @@ namespace Workerborn
             foreach (var row in states)
             {
                 if (row == null || string.IsNullOrEmpty(row.id) || !mounts.TryGetValue(row.id, out var mount) ||
-                    !row.IsFinite || !IsMountGround(row.x, row.z))
+                    !row.IsFinite || !IsOutdoorGround(row.x, row.z))
                     continue;
                 Vector3 point = SurfacePosition(row.x, row.z);
                 bool localRider = localId != null && row.rider == localId;
@@ -131,7 +138,7 @@ namespace Workerborn
                         if (!worker.BeginRiding(mount))
                         {
                             parkedMount = row.id;
-                            hud.ShowToast("말 옆에 설 수 있는 곳으로 이동해 주세요.");
+                            hud.ShowToast("탑승물 옆에 설 수 있는 곳으로 이동해 주세요.");
                             continue;
                         }
                     }

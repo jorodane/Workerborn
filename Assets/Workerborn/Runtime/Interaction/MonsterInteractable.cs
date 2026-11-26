@@ -36,8 +36,10 @@ namespace Workerborn
         public override float InteractionDistance => reach;
         public override bool CanInteract => base.CanInteract && !IsDefeated;
         public override string InteractionVerb => combat == null ? "다가가기" : "공격하기";
+        public override string InteractionVerbFor(HarvestWorker worker) => combat != null && worker?.CurrentMount is { CanAttack: false }
+            ? "내린 뒤 공격하기" : InteractionVerb;
         internal override InteractionCursor CursorFor(HarvestWorker worker) =>
-            combat == null ? InteractionCursor.Inspect : InteractionCursor.Attack;
+            combat == null || worker?.CurrentMount is { CanAttack: false } ? InteractionCursor.Inspect : InteractionCursor.Attack;
         public AnimalCombatProfile Combat => combat;
         public int Health { get; private set; }
         public bool IsDefeated => combat != null && Health == 0;

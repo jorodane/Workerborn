@@ -19,7 +19,8 @@ namespace Workerborn
 
         internal void InteractWithMount(VillageMount mount)
         {
-            if (!IsLocallyControlled || !CanMount || !AcceptsMovementCommands || !SharesMap(mount.transform.position))
+            if (!IsLocallyControlled || !CanMount || !AcceptsMovementCommands ||
+                village?.IsRegisteredMount(mount) != true || !SharesMap(mount.transform.position))
                 return;
             if (!string.IsNullOrEmpty(mount.Rider))
             {
@@ -39,7 +40,7 @@ namespace Workerborn
                 RequestDismount();
                 return;
             }
-            if (CanMount && AcceptsMovementCommands && Action is (WorkerAction.Idle or WorkerAction.Moving) &&
+            if (CanMount && !IsStandingUp && AcceptsMovementCommands && Action is (WorkerAction.Idle or WorkerAction.Moving) &&
                 village?.FindNearbyMount(Targeting?.CurrentTarget as VillageMount) is VillageMount mount && mount != null)
             {
                 village.RequestMount(mount);
@@ -66,7 +67,7 @@ namespace Workerborn
 
             Cancel();
             FinishVisualJump();
-            FinishSeatExit();
+            ClearStandUp();
             StandUpFromBed();
             if (!agent.Warp(point.position))
                 return false;
@@ -74,7 +75,7 @@ namespace Workerborn
             transform.rotation = mount.transform.rotation;
             CurrentMount = mount;
             footRadius = agent.radius;
-            agent.radius = Mathf.Max(footRadius, .48f);
+            agent.radius = Mathf.Max(footRadius, mount.NavigationRadius);
             agent.speed = TravelSpeed(false);
             ridingVisual = actor?.VisualRoot;
             if (ridingVisual != null)
@@ -118,11 +119,11 @@ namespace Workerborn
                 return;
             agent.radius = footRadius;
             agent.speed = TravelSpeed(false);
-            if (stepAside && agent.isOnNavMesh)
-                StepOffMount();
+            if (stepAside && mount != null && agent.isOnNavMesh)
+                StepOffMount(mount.DismountDistance);
         }
 
-        private void StepOffMount()
+        private void StepOffMount(float distance)
         {
             Vector3 center = transform.position;
             Vector3 right = transform.right;
@@ -131,7 +132,7 @@ namespace Workerborn
 
             bool TryStep(Vector3 direction)
             {
-                Vector3 side = center + direction * .95f;
+                Vector3 side = center + direction * distance;
                 Vector3 surface = village.SurfacePosition(side.x, side.z);
                 return NavMesh.SamplePosition(surface, out var landing, .3f, NavMesh.AllAreas) &&
                     SharesMap(landing.position) && !agent.Raycast(landing.position, out _) && agent.Warp(landing.position);

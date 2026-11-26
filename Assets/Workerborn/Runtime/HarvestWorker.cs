@@ -68,9 +68,8 @@ namespace Workerborn
         private bool onSeat;
         private SeatSlot occupiedSeat;
         private Quaternion occupiedSeatFacing;
-        private Transform seatExitVisual;
-        private Vector3 seatExitBase, seatExitOffset;
-        private float seatExitStarted;
+        private Vector3 occupiedSeatRoot;
+        private System.Action afterStanding;
         private float nextCollect;
         private int consecutiveCollections;
         private Transform jumpingVisual;
@@ -87,7 +86,8 @@ namespace Workerborn
             (!IsLocallyControlled || !village.AwaitingWorldCommand && village.Hud.AllowsGroundItems);
         internal bool CanInteractWith(WorldInteractable target) => target is GroundPickup ? AcceptsGroundItemCommands :
             AcceptsMovementCommands && (CurrentMount == null ||
-                target is VillageInteractable { CanTarget: true } or MonsterInteractable { Combat: not null });
+                target is VillageInteractable { CanTarget: true } ||
+                CurrentMount.CanAttack && target is MonsterInteractable { Combat: not null });
         public PointerTargeting Targeting => village != null && IsLocallyControlled ? village.Targeting : null;
         internal VillagePrototype Village => village;
         internal VillageState CharacterState => characterState;
@@ -96,22 +96,20 @@ namespace Workerborn
         internal string PlayerId { get; private set; }
         internal bool HasPlayerOwner => !string.IsNullOrEmpty(PlayerId);
         internal SeatSlot OccupiedSeat => occupiedSeat;
+        private bool IsStandingUp => animationDriver?.IsStandingUp == true;
         public bool IsWalking => Action == WorkerAction.Moving &&
             (manualMoving ? manualWalking : walkPath);
         public bool HasPendingDrop => pendingDrop != null;
         internal bool IsApproachingInteraction => Action == WorkerAction.Moving &&
             (pendingDrop != null || pickupTarget.IsAssigned || interactionTarget != null);
         internal float VisualJumpOffset { get; private set; }
-        internal Vector3 CameraFollowPosition => seatExitVisual != null
-            ? transform.position + transform.TransformVector(seatExitVisual.localPosition - seatExitBase)
-            : transform.position;
         internal SkillId? DisplayedWorkSkill => ActiveCrop?.Definition.Skill ??
             (CurrentTimberSwing != TimberSwing.None ? SkillId.Woodcutting :
                 Time.unscaledTime < workFeedbackUntil ? completedWorkSkill : null);
         internal (float Confirmed, float Next) DisplayedWorkSteps => ActiveCrop != null ?
             animationDriver?.WorkSteps(ActiveCrop.Progress) ?? (0f, 1f) :
             (CurrentTimberSwing == TimberSwing.None || struck ? 1f : 0f, 1f);
-        internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
+        internal Vector3 StandingPosition => transform.position;
         public WorkerAction Action { get; private set; }
         public HarvestableCrop HoveredCrop { get; private set; }
         public GroundPickup HoveredPickup { get; private set; }
@@ -188,14 +186,20 @@ namespace Workerborn
             if (agent == null || !agent.isOnNavMesh && (village == null || !EnsureNavigation()))
                 return;
             RefreshEquipment();
+            if (Action != WorkerAction.Sitting && !IsStandingUp)
+            {
+                ReleaseSeat();
+                var resume = afterStanding;
+                afterStanding = null;
+                resume?.Invoke();
+            }
             if (IsLocallyControlled)
                 ReadLocalControls();
-            if (onSeat && (occupiedSeat == null || !occupiedSeat.isActiveAndEnabled ||
-                (occupiedSeat.SittingRoot(occupiedSeatFacing) - transform.position).sqrMagnitude > .0004f ||
+            if (Action == WorkerAction.Sitting && onSeat && (occupiedSeat == null || !occupiedSeat.isActiveAndEnabled ||
+                (occupiedSeat.AnimationRoot(occupiedSeatFacing) - occupiedSeatRoot).sqrMagnitude > .0004f ||
                 Quaternion.Angle(occupiedSeatFacing, transform.rotation) > .5f))
                 Cancel();
             UpdateVisualJump();
-            UpdateSeatExit();
             bool working = Action is WorkerAction.Harvesting or WorkerAction.Attacking;
             bool carried = UpdateTimberCarry();
             bool awaitingAutomaticHarvest = IsLocallyControlled && village?.AwaitingAutomaticHarvest == true;
@@ -263,7 +267,7 @@ namespace Workerborn
 
         internal void CommandJump()
         {
-            if (jumpingVisual != null || seatExitVisual != null || CarriedLogs > 0 || !AcceptsInteractionCommands ||
+            if (jumpingVisual != null || IsStandingUp || CarriedLogs > 0 || !AcceptsInteractionCommands ||
                 Action is not (WorkerAction.Idle or WorkerAction.Moving))
                 return;
             jumpingVisual = actor?.VisualRoot;
@@ -287,7 +291,7 @@ namespace Workerborn
 
         internal bool ToggleSit(SeatSlot preferred = null)
         {
-            if (CarriedLogs > 0 || !AcceptsInteractionCommands || agent == null || !agent.isOnNavMesh)
+            if (CarriedLogs > 0 || IsStandingUp || !AcceptsInteractionCommands || agent == null || !agent.isOnNavMesh)
                 return false;
             if (Action == WorkerAction.Sitting)
             {
@@ -299,33 +303,45 @@ namespace Workerborn
 
             Cancel();
             FinishVisualJump();
-            FinishSeatExit();
             SeatSlot nearest = null;
+            Vector3 foothold = default;
+            Quaternion facing = default;
             float bestDistance = float.PositiveInfinity;
+            var filter = new NavMeshQueryFilter { agentTypeID = agent.agentTypeID, areaMask = agent.areaMask };
             foreach (var seat in FindObjectsByType<SeatSlot>(FindObjectsSortMode.None))
             {
                 if (preferred != null && preferred != seat || !seat.isActiveAndEnabled || !seat.Covers(transform.position) ||
                     village?.SeatInUse(seat.Position) == true)
                     continue;
                 float distance = (seat.Position - transform.position).sqrMagnitude;
-                if (distance < bestDistance)
-                {
-                    nearest = seat;
-                    bestDistance = distance;
-                }
+                if (distance >= bestDistance)
+                    continue;
+                Quaternion direction = seat.FacingFor(transform.position, transform.rotation);
+                if (!NavMesh.SamplePosition(seat.AnimationRoot(direction), out var hit, .36f, filter) ||
+                    !SharesMap(hit.position) || agent.Raycast(hit.position, out _))
+                    continue;
+                nearest = seat;
+                bestDistance = distance;
+                foothold = hit.position;
+                facing = direction;
             }
             if (preferred != null && nearest == null)
                 return false;
-            onSeat = nearest != null;
-            occupiedSeat = nearest;
-            if (onSeat)
+            if (nearest != null)
             {
-                agent.updatePosition = false;
+                // The seated pose lowers and shifts the hips while its feet stay at this point.
+                if (!agent.Warp(foothold))
+                    return false;
+                agent.isStopped = true;
                 agent.updateRotation = false;
-                occupiedSeatFacing = nearest.FacingFor(StandingPosition, transform.rotation);
-                transform.SetPositionAndRotation(nearest.SittingRoot(occupiedSeatFacing), occupiedSeatFacing);
+                transform.rotation = facing;
+                onSeat = true;
+                occupiedSeat = nearest;
+                occupiedSeatFacing = facing;
+                occupiedSeatRoot = nearest.AnimationRoot(facing);
             }
             Action = WorkerAction.Sitting;
+            animationDriver?.SetAction((int)(onSeat ? WorkerMotion.SeatSit : WorkerMotion.GroundSit));
             return true;
         }
 
@@ -336,6 +352,14 @@ namespace Workerborn
             {
                 if (manualMoving)
                     Cancel();
+                return false;
+            }
+
+            if (Action == WorkerAction.Sitting)
+                Cancel();
+            if (IsStandingUp)
+            {
+                afterStanding = null;
                 return false;
             }
 
@@ -492,6 +516,8 @@ namespace Workerborn
             }
             if (village != null && (!AcceptsInteractionCommands || !village.CanHarvest(this, crop)))
                 return;
+            if (DeferUntilStanding(() => CommandHarvest(crop)))
+                return;
 
             if (!NavigateNear(crop.transform.position, crop.InteractionDistance * 0.85f))
                 return;
@@ -536,6 +562,12 @@ namespace Workerborn
                 return;
             if (pickupTarget.Target == item && Action == WorkerAction.Moving)
                 return;
+            if (Action == WorkerAction.Sitting || IsStandingUp)
+            {
+                var pickup = new WorldTargetReference(item);
+                if (DeferUntilStanding(() => CommandPickup(pickup.Target as GroundPickup)))
+                    return;
+            }
             if (NavigateNear(item.LandingPosition, pickupDistance * .8f))
                 pickupTarget = new WorldTargetReference(item);
         }
@@ -564,7 +596,7 @@ namespace Workerborn
 
         public void CommandMove(Vector3 destination, bool walk = false)
         {
-            if (!AcceptsMovementCommands)
+            if (!AcceptsMovementCommands || DeferUntilStanding(() => CommandMove(destination, walk)))
                 return;
             if (NavigateNear(destination, 0f, walk) && IsLocallyControlled)
                 village?.ShowClick(destination);
@@ -576,6 +608,8 @@ namespace Workerborn
         {
             if (village == null || CarriedLogs > 0 || target == null || !CanInteractWith(target) || !target.CanReceiveStrike ||
                 CharacterState.Health <= 0 || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
+                return;
+            if (DeferUntilStanding(() => CommandAttack(target)))
                 return;
             if (InReach(target.transform.position, InteractionReach(target)))
                 StartAttack(target);
@@ -655,23 +689,22 @@ namespace Workerborn
                 Cancel();
         }
 
-        public void CommandApproach(WorldInteractable target, System.Action arrival = null)
-        {
-            if (target != null)
-                Approach(target, target.transform.position, InteractionReach(target) * .7f, arrival);
-        }
+        public void CommandApproach(WorldInteractable target, System.Action arrival = null) => Approach(target, null, arrival);
 
         private float InteractionReach(WorldInteractable target) =>
             CurrentMount != null && target is MonsterInteractable { Combat: not null }
                 ? CurrentMount.AttackReach : target.InteractionDistance;
 
         internal void CommandApproachAt(WorldInteractable target, Vector3 point, System.Action arrival = null) =>
-            Approach(target, point, 0f, arrival);
+            Approach(target, point, arrival);
 
-        private void Approach(WorldInteractable target, Vector3 point, float offset, System.Action arrival)
+        private void Approach(WorldInteractable target, Vector3? point, System.Action arrival)
         {
             if (village == null || target == null || !CanInteractWith(target) || !SharesMap(target.transform.position) ||
-                !NavigateNear(point, offset))
+                DeferUntilStanding(() => Approach(target, point, arrival)))
+                return;
+            float offset = point.HasValue ? 0f : InteractionReach(target) * .7f;
+            if (!NavigateNear(point ?? target.transform.position, offset))
                 return;
             interactionTarget = target;
             onInteractionArrival = arrival;
@@ -690,6 +723,8 @@ namespace Workerborn
                 Message?.Invoke("아이템을 손이 닿는 바닥에 놓아 주세요.");
                 return false;
             }
+            if (DeferUntilStanding(() => CommandDrop(entryId, destination)))
+                return true;
             if (!inReach && !NavigateNear(destination, Mathf.Max(0f, pickupDistance - .85f)) &&
                 !NavigateNear(destination, 0f))
             {
@@ -707,8 +742,6 @@ namespace Workerborn
 
         private bool NavigateNear(Vector3 target, float offset, bool walk = false)
         {
-            if (Action == WorkerAction.Sitting)
-                Cancel();
             if (!TryApproachPath(target, offset, out var path, out _) || !FollowPath(path, walk))
                 return false;
             approachTargetPosition = target;
@@ -958,8 +991,6 @@ namespace Workerborn
 
         private void ClearInteractionTargets()
         {
-            if (onSeat && agent != null)
-                LeaveSeat();
             if (manualMoving && agent != null)
                 agent.updateRotation = true;
             manualMoving = false;
@@ -976,62 +1007,36 @@ namespace Workerborn
             pendingDrop = null;
         }
 
-        private void LeaveSeat()
+        internal bool DeferUntilStanding(System.Action command)
         {
-            Vector3 seated = transform.position;
-            Vector3 ground = StandingPosition;
-            if (agent.isOnNavMesh && occupiedSeat != null)
-            {
-                Vector3 forward = occupiedSeatFacing * Vector3.forward;
-                for (float step = .18f; step <= .70f; step += .13f)
-                {
-                    Vector3 candidate = seated + forward * step;
-                    Vector3 surface = village != null ? village.SurfacePosition(candidate.x, candidate.z) :
-                        new Vector3(candidate.x, ground.y, candidate.z);
-                    if (NavMesh.SamplePosition(surface, out var hit, .24f, NavMesh.AllAreas) &&
-                        SharesMap(hit.position) && !agent.Raycast(hit.position, out _))
-                    {
-                        ground = hit.position;
-                        break;
-                    }
-                }
-            }
+            if (Action == WorkerAction.Sitting)
+                Cancel();
+            if (!IsStandingUp)
+                return false;
+            afterStanding = command;
+            return true;
+        }
+
+        private void ReleaseSeat()
+        {
+            if (!onSeat)
+                return;
             onSeat = false;
             occupiedSeat = null;
-            agent.updatePosition = true;
-            agent.updateRotation = true;
-            if (agent.isOnNavMesh && !agent.Warp(ground))
-                transform.position = agent.nextPosition;
-            seatExitVisual = actor?.VisualRoot;
-            if (seatExitVisual == null)
-                return;
-            seatExitStarted = Time.time;
-            seatExitBase = seatExitVisual.localPosition;
-            seatExitOffset = seated - transform.position;
-            UpdateSeatExit();
+            if (agent != null)
+                agent.updateRotation = true;
         }
 
-        private void UpdateSeatExit()
+        private void ClearStandUp()
         {
-            if (seatExitVisual == null)
-                return;
-            float progress = (Time.time - seatExitStarted) / (animationDriver?.SeatExitSeconds ?? .45f);
-            if (progress >= 1f)
-                FinishSeatExit();
-            else
-                seatExitVisual.localPosition = seatExitBase + transform.InverseTransformVector(seatExitOffset) *
-                    (1f - Mathf.SmoothStep(0f, 1f, progress));
-        }
-
-        private void FinishSeatExit()
-        {
-            if (seatExitVisual != null)
-                seatExitVisual.localPosition = seatExitBase;
-            seatExitVisual = null;
+            afterStanding = null;
+            animationDriver?.SkipStandUp();
+            ReleaseSeat();
         }
 
         public void Cancel()
         {
+            afterStanding = null;
             ClearInteractionTargets();
             Action = WorkerAction.Idle;
             if (agent != null && agent.isOnNavMesh)
@@ -1041,6 +1046,8 @@ namespace Workerborn
             }
 
             animationDriver?.SetAction((int)WorkerMotion.Idle);
+            if (!IsStandingUp)
+                ReleaseSeat();
             if (animationDriver?.Gesture is WorkerGesture.GatherSuccess or WorkerGesture.GatherFailure)
                 animationDriver.SetGesture(WorkerGesture.None);
         }
@@ -1058,7 +1065,7 @@ namespace Workerborn
             FinishTimberTravel();
             Cancel();
             FinishVisualJump();
-            FinishSeatExit();
+            ClearStandUp();
             StandUpFromBed();
             ResetCollectHold();
             inventory.Clear();
@@ -1078,7 +1085,7 @@ namespace Workerborn
             FinishTimberTravel();
             Cancel();
             FinishVisualJump();
-            FinishSeatExit();
+            ClearStandUp();
             StandUpFromBed();
             return agent.Warp(position);
         }
@@ -1102,7 +1109,7 @@ namespace Workerborn
         internal void LieOnBed(Transform pose)
         {
             FinishVisualJump();
-            FinishSeatExit();
+            ClearStandUp();
             restingVisual = actor?.VisualRoot;
             if (restingVisual == null)
                 return;
@@ -1122,7 +1129,7 @@ namespace Workerborn
         {
             Cancel();
             FinishVisualJump();
-            FinishSeatExit();
+            ClearStandUp();
             StandUpFromBed();
             ResetCollectHold();
         }

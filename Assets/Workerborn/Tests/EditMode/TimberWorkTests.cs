@@ -288,7 +288,9 @@ namespace Workerborn.Tests
             var split = new TimberOrder { action = TimberAction.Split, target = site.Id, part = TimberPart.Stump };
             campaign.Move("second", new SessionAvatar { x = .32f, z = 0, hasSeat = true, seatY = .415f, motion = (int)WorkerMotion.SeatSit });
             Assert.That(Perform("first", split), Is.False);
-            campaign.Move("second", new SessionAvatar { x = 0, z = 0, motion = (int)WorkerMotion.Run });
+            campaign.Move("second", new SessionAvatar { x = .32f, z = 0, hasSeat = true, seatY = .415f, motion = (int)WorkerMotion.Idle });
+            Assert.That(Perform("first", split), Is.False);
+            campaign.Move("second", new SessionAvatar { x = .32f, z = 0, motion = (int)WorkerMotion.Idle });
             Assert.That(Perform("first", split), Is.True);
             Assert.That(campaign.Woodland.logs, Is.Empty);
             Assert.That(campaign.SharedGroundDrops.Single(drop => drop.itemId == ItemIds.Timber).quantity, Is.EqualTo(2));

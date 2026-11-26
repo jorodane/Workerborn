@@ -75,6 +75,28 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void EachMountKeepsItsOwnRiderAndBoardingDistance()
+        {
+            var campaign = new VillageCampaign(Rules(), Sites, 0f, -4.4f);
+            campaign.ConfigureMounts(new[]
+            {
+                (new MountSave { id = "mount-a", x = 2f, z = -4.4f }, 1f),
+                (new MountSave { id = "mount-b", x = -2f, z = -4.4f }, 3f)
+            }, (x, z) => Math.Abs(x) < 25f && Math.Abs(z) < 25f);
+            Assert.That(campaign.Connect("a", "하나", out var first), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out var second), Is.True);
+            Incarnate(campaign, "a");
+            Incarnate(campaign, "b");
+
+            Assert.That(campaign.TryChangeMount("a", "mount-a", out _), Is.False);
+            Assert.That(campaign.TryChangeMount("a", "mount-b", out _), Is.True);
+            second.character.playerX = 2f;
+            Assert.That(campaign.TryChangeMount("b", "mount-a", out _), Is.True);
+            Assert.That(campaign.Mounts().Single(row => row.id == "mount-a").rider, Is.EqualTo(second.id));
+            Assert.That(campaign.Mounts().Single(row => row.id == "mount-b").rider, Is.EqualTo(first.id));
+        }
+
+        [Test]
         public void GroundOwnershipSurvivesWorldReloadAndOnlyOnePlayerCanClaimTheDrop()
         {
             const long now = 100_000;
