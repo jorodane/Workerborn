@@ -7,6 +7,8 @@ namespace Workerborn
     {
         private WoodlandSave initialWoodland;
         private VillagePrototype headlessTimber;
+        private int timberReplyRequest;
+        private Action<TimberResult, int> finishTimberWork;
         internal WoodlandSave StartingWoodland => authority?.Woodland ?? initialWoodland;
         internal bool OwnsTimberPhysics => authority != null;
 
@@ -46,25 +48,48 @@ namespace Workerborn
             nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
         }
 
-        internal bool SubmitTimberWork(TimberOrder order) => SubmitCommand(new SessionPacket
+        internal bool SubmitTimberWork(TimberOrder order, Action<TimberResult, int> completed)
         {
-            type = SessionMessage.TimberWork,
-            timberOrder = order
-        });
+            if (Submitting)
+                return false;
+            timberReplyRequest = requestSequence + 1;
+            finishTimberWork = completed;
+            if (SubmitCommand(new SessionPacket { type = SessionMessage.TimberWork, timberOrder = order }))
+                return true;
+            ClearTimberWorkReply();
+            return false;
+        }
+
+        private void ReceiveTimberWorkReply(SessionPacket packet)
+        {
+            if (packet.request == 0 || packet.request != timberReplyRequest)
+                return;
+            var completed = finishTimberWork;
+            ClearTimberWorkReply();
+            completed?.Invoke(packet.timberResult, packet.timberCutProgress);
+        }
+
+        private void ClearTimberWorkReply()
+        {
+            timberReplyRequest = 0;
+            finishTimberWork = null;
+        }
 
         private void TimberCommand(string identity, SessionPacket packet, Connection connection)
         {
             Func<TimberSite, bool> occupation = village != null ? village.TimberStumpOccupied : null;
-            bool changed = authority.PerformTimber(identity, packet.character, packet.timberOrder, GroundDropSave.UtcNow,
-                occupation, out string message, out var drops, out var acquired);
+            var result = authority.PerformTimber(identity, packet.character, packet.timberOrder, GroundDropSave.UtcNow,
+                occupation, out string message, out var drops, out var acquired, out int cutProgress);
+            bool changed = result != TimberResult.Rejected;
             if (changed)
             {
                 QueueCreatedDrops(drops);
                 if (packet.timberOrder?.action == TimberAction.Split)
                     RelayTimberImpact(connection, packet.timberOrder);
             }
-            SendProfile(identity, connection, message, packet.request, changed, transition: false, timberAcquired: acquired);
-            if (changed)
+            SendProfile(identity, connection, message, packet.request, changed, transition: false, timberAcquired: acquired,
+                timberResult: result, timberCutProgress: cutProgress);
+            if (changed && result != TimberResult.InProgress)
                 nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
         }
 

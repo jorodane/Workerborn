@@ -15,6 +15,7 @@ namespace Workerborn
         private Quaternion yaw;
         private bool hasPose;
         private bool hasSeatPose;
+        private float seatLift;
         private SessionAvatar afterStanding;
         private Transform modularModel;
         private int lookSelection;
@@ -103,6 +104,7 @@ namespace Workerborn
         private void PresentMotion(SessionAvatar avatar)
         {
             hasSeatPose = avatar.motion == (int)WorkerMotion.SeatSit;
+            seatLift = avatar.hasSeat ? avatar.seatLift : 0f;
             seatPosition = avatar.hasSeat ? new Vector3(avatar.seatX, avatar.seatY, avatar.seatZ) : destination;
             IsUsingMountAttack = avatar.motion == (int)WorkerMotion.Work;
             PresentTimberSwing(avatar);
@@ -125,7 +127,7 @@ namespace Workerborn
                 switch (swing)
                 {
                     case TimberSwing.Fell:
-                        animationDriver.BeginWork(timber.Felling.WorkAnimation, timber.Felling.HarvestSeconds);
+                        animationDriver.BeginStrike(timber.Felling.WorkAnimation?.Loop);
                         break;
                     case TimberSwing.Split:
                     case TimberSwing.Strike:
@@ -137,9 +139,7 @@ namespace Workerborn
                         break;
                 }
             }
-            if (swing == TimberSwing.Fell)
-                animationDriver.SampleWork(avatar.timberProgress);
-            else if (swing is TimberSwing.Split or TimberSwing.Strike)
+            if (swing != TimberSwing.None)
                 animationDriver.SampleStrike(avatar.timberProgress);
         }
 
@@ -168,7 +168,8 @@ namespace Workerborn
                     mount.PlaceRider(visual, visualBase, visualRotation);
                 else
                 {
-                    visual.localPosition = visualBase + Vector3.up * shownJumpOffset;
+                    float seated = seatLift * (animationDriver?.SeatLiftWeight ?? 0f);
+                    visual.localPosition = visualBase + Vector3.up * (shownJumpOffset + seated);
                     visual.localRotation = visualRotation;
                 }
             }

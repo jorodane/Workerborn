@@ -6,7 +6,7 @@ namespace Workerborn
 {
     public enum TimberPart { Stump, Lower, Upper, Log, Trunk }
     internal enum TimberAction { Strike, Fell, Split, Lift, Place, Throw }
-    internal enum TimberResult { Rejected, Failed, Succeeded }
+    internal enum TimberResult { Rejected, Failed, Succeeded, InProgress }
     internal enum TimberSwing { None, Fell, Split, Strike }
 
     [Serializable]
@@ -73,15 +73,28 @@ namespace Workerborn
     {
         public string id;
         public int productDay, usedSlots, felledDay, parts, separatingParts;
+        public int fellingCut, stumpCut, trunkCut, lowerCut, upperCut;
         public float fallYaw, fallAngle;
         public TimberPose landingPose, restingPose, lowerPose, upperPose;
         public bool falling;
         public string crownOwner;
         public TimberYield[] crownProducts;
+        internal bool restoredCrown;
 
         internal float RestAngle => fallAngle > 0f ? fallAngle : 90f;
         internal bool Has(TimberPart part) => felledDay > 0 && (parts & (1 << (int)part)) != 0;
         internal bool IsSeparating(TimberPart part) => (separatingParts & (1 << (int)part)) != 0;
+        internal ref int CutOf(TimberPart part)
+        {
+            switch (part)
+            {
+                case TimberPart.Stump: return ref stumpCut;
+                case TimberPart.Lower: return ref lowerCut;
+                case TimberPart.Upper: return ref upperCut;
+                case TimberPart.Trunk: return ref trunkCut;
+                default: throw new ArgumentOutOfRangeException(nameof(part));
+            }
+        }
         internal TimberTreeSave Copy() => (TimberTreeSave)MemberwiseClone();
     }
 
@@ -95,6 +108,7 @@ namespace Workerborn
         public TimberPart sourcePart;
         public int half;
         public int throwSlot;
+        public int cut;
         public bool thrown, moved, separating;
 
         internal TimberLogSave Copy() => (TimberLogSave)MemberwiseClone();
@@ -106,6 +120,16 @@ namespace Workerborn
         public int revision;
         public TimberTreeSave[] trees = Array.Empty<TimberTreeSave>();
         public TimberLogSave[] logs = Array.Empty<TimberLogSave>();
+
+        internal int CutProgress(TimberOrder order)
+        {
+            if (order.action == TimberAction.Split && order.part == TimberPart.Log)
+                return Array.Find(logs, log => log.id == order.target)?.cut ?? 0;
+            var tree = Array.Find(trees, tree => tree.id == order.target);
+            if (tree == null)
+                return 0;
+            return order.action == TimberAction.Fell ? tree.fellingCut : tree.CutOf(order.part);
+        }
     }
 
     [Serializable]
@@ -151,12 +175,12 @@ namespace Workerborn
         internal readonly TimberPoint Point;
         internal readonly string Tool;
         internal readonly int Slots;
-        internal readonly float Reach, StrikeChance, FellChance, BaseHeight, CutHeight, TopHeight, BarkRadius;
+        internal readonly float Reach, StrikeChance, BaseHeight, CutHeight, TopHeight, BarkRadius;
         internal readonly TreeProduct[] Products;
         internal readonly int TotalWeight;
 
         internal TimberSite(string id, TimberPoint point, string tool, int slots, float reach,
-            float strikeChance, float fellChance, float baseHeight, float cutHeight, float topHeight, float barkRadius,
+            float strikeChance, float baseHeight, float cutHeight, float topHeight, float barkRadius,
             TreeProduct[] products)
         {
             Id = id;
@@ -165,7 +189,6 @@ namespace Workerborn
             Slots = Math.Clamp(slots, 1, 32);
             Reach = reach;
             StrikeChance = strikeChance;
-            FellChance = fellChance;
             BaseHeight = baseHeight;
             CutHeight = cutHeight;
             TopHeight = topHeight;
@@ -220,6 +243,7 @@ namespace Workerborn
         public TimberPoint point;
         public float crownHeight;
         public bool fromCrown;
+        internal bool settled;
 
         internal TimberYield(string item, int quantity, TimberPoint point)
         {
@@ -228,6 +252,7 @@ namespace Workerborn
             this.point = point;
             crownHeight = 0f;
             fromCrown = false;
+            settled = false;
         }
     }
 
@@ -235,6 +260,7 @@ namespace Workerborn
     {
         internal const float PieceReach = 1.8f;
         internal const int MaximumLogs = 512;
+        internal const int FullCut = 10_000;
         private const int Trunk = 1 << (int)TimberPart.Trunk;
         private const int Stump = 1 << (int)TimberPart.Stump;
         private const int Halves = 1 << (int)TimberPart.Lower | 1 << (int)TimberPart.Upper;
@@ -246,7 +272,8 @@ namespace Workerborn
         private WoodlandSave snapshot;
         private int revision;
 
-        internal TimberWork(IEnumerable<TimberSite> sites, Func<float> roll, WoodlandSave saved = null)
+        internal TimberWork(IEnumerable<TimberSite> sites, Func<float> roll, WoodlandSave saved = null,
+            Func<TimberPoint, bool> ground = null, Func<TimberPoint, float> height = null)
         {
             foreach (var site in sites)
                 if (!string.IsNullOrEmpty(site.Id))
@@ -263,12 +290,23 @@ namespace Workerborn
                 {
                     var copy = tree.Copy();
                     copy.separatingParts &= copy.parts & Halves;
+                    copy.fellingCut = copy.felledDay == 0 ? ValidCut(copy.fellingCut) : 0;
+                    copy.stumpCut = ValidCut(copy.stumpCut);
+                    copy.trunkCut = ValidCut(copy.trunkCut);
+                    copy.lowerCut = ValidCut(copy.lowerCut);
+                    copy.upperCut = ValidCut(copy.upperCut);
+                    if (copy.Has(TimberPart.Trunk))
+                        RestoreFallenTrunk(this.sites[tree.id], copy, ground, height);
+                    copy.falling = false;
                     if (copy.felledDay > 0 && !string.IsNullOrEmpty(copy.crownOwner) &&
-                        copy.crownProducts is { Length: > 0 and <= 64 } && (copy.falling || copy.restingPose.IsValid))
+                        copy.crownProducts is { Length: > 0 and <= 64 } && (copy.landingPose.IsValid || copy.restingPose.IsValid))
                     {
                         copy.crownProducts = Array.FindAll(copy.crownProducts, item => ItemCatalog.Contains(item.itemId) && item.quantity > 0);
                         if (copy.crownProducts.Length > 0)
+                        {
+                            copy.restoredCrown = true;
                             pendingCrowns.Add(copy);
+                        }
                         else
                             copy.crownProducts = null;
                     }
@@ -284,6 +322,7 @@ namespace Workerborn
                     float.IsFinite(log.yaw) && logs.Count < MaximumLogs)
                 {
                     var copy = log.Copy();
+                    copy.cut = ValidCut(copy.cut);
                     copy.carrier = null;
                     copy.thrown &= copy.throwSlot is > 0 and <= MaximumLogs && copy.throwOrigin.IsFinite;
                     if (string.IsNullOrEmpty(copy.sourceTree) || !this.sites.ContainsKey(copy.sourceTree) ||
@@ -293,6 +332,43 @@ namespace Workerborn
                     copy.separating &= copy.sourceTree != null && copy.cutPose.IsValid && !copy.moved;
                     logs[log.id] = copy;
                 }
+        }
+
+        private static int ValidCut(int cut) => Math.Clamp(cut, 0, FullCut - 1);
+
+        private static void RestoreFallenTrunk(TimberSite site, TimberTreeSave tree, Func<TimberPoint, bool> ground,
+            Func<TimberPoint, float> height)
+        {
+            if (!CanRestore(tree.landingPose))
+                tree.landingPose = default;
+            if (CanRestore(tree.restingPose))
+                return;
+            if (tree.landingPose.IsValid)
+            {
+                tree.restingPose = tree.landingPose;
+                return;
+            }
+            // Older records can contain only the cut and fall direction. Place that trunk at rest on load.
+            float center = site.Section(TimberPart.Trunk).Center;
+            float tilt = tree.RestAngle;
+            var point = site.RestPoint(center, tree.fallYaw, tilt);
+            if (ground?.Invoke(point) == false)
+                point = site.Point;
+            float floor = (height?.Invoke(point) ?? site.BaseHeight) + site.BarkRadius;
+            float elevation = tilt >= 85f ? floor : Math.Max(floor, site.RestHeight(center, tilt));
+            tree.restingPose = TimberPose.AtTilt(point, elevation, tree.fallYaw, tilt);
+
+            bool CanRestore(TimberPose pose) => pose.IsValid && ground?.Invoke(pose.point) != false &&
+                (height == null || pose.height >= height(pose.point) - site.BarkRadius);
+        }
+
+        internal int CutProgress(TimberOrder order)
+        {
+            if (order.action == TimberAction.Split && order.part == TimberPart.Log)
+                return logs.TryGetValue(order.target, out var log) ? log.cut : 0;
+            if (!trees.TryGetValue(order.target, out var tree))
+                return 0;
+            return order.action == TimberAction.Fell ? tree.fellingCut : tree.CutOf(order.part);
         }
 
         internal WoodlandSave Capture()
@@ -348,7 +424,7 @@ namespace Workerborn
         {
             var expired = new List<string>();
             foreach (var tree in trees.Values)
-                if (tree.felledDay == 0 && tree.productDay < day ||
+                if (tree.felledDay == 0 && tree.productDay < day && tree.fellingCut == 0 ||
                     tree.felledDay > 0 && tree.felledDay < day && tree.parts == 0 && tree.crownProducts == null)
                     expired.Add(tree.id);
             if (expired.Count == 0)
@@ -433,7 +509,10 @@ namespace Workerborn
                     : site.PoseAt(tree, site.Section(TimberPart.Upper).Center);
                 var rewards = new List<TimberYield>(tree.crownProducts.Length);
                 foreach (var item in tree.crownProducts)
-                    rewards.Add(new TimberYield(item.itemId, item.quantity, crown.point) { fromCrown = true, crownHeight = crown.height });
+                    rewards.Add(new TimberYield(item.itemId, item.quantity, crown.point)
+                    {
+                        fromCrown = true, crownHeight = crown.height, settled = tree.restoredCrown
+                    });
                 if (!deliver(tree.crownOwner, site.Point, rewards))
                     continue;
                 tree.crownProducts = null;
@@ -491,8 +570,17 @@ namespace Workerborn
             if (message != null)
                 return TimberResult.Rejected;
 
-            if (!Succeeds(worker, fell ? site.FellChance : site.StrikeChance))
-                return Finish(worker, false, 0, fell ? "나무를 베지 못했어요." : "이번에는 아무것도 떨어지지 않았어요.", out message);
+            if (fell)
+            {
+                if (!AdvanceCut(worker, TimberAction.Fell, ref tree.fellingCut))
+                {
+                    trees[site.Id] = tree;
+                    return TimberResult.InProgress;
+                }
+                tree.fellingCut = 0;
+            }
+            else if (!Succeeds(worker, site.StrikeChance))
+                return Finish(worker, false, 0, "이번에는 아무것도 떨어지지 않았어요.", out message);
 
             var products = new List<TimberYield>();
             if (fell)
@@ -546,22 +634,24 @@ namespace Workerborn
                 message = "누군가 밑동에 앉아 있어요.";
                 return TimberResult.Rejected;
             }
+            ref int cut = ref tree.CutOf(part);
+            if (!AdvanceCut(worker, TimberAction.Split, ref cut))
+                return TimberResult.InProgress;
             if (part == TimberPart.Stump)
             {
                 var result = ProcessLog(worker, point, deliver, out message);
                 if (result != TimberResult.Rejected)
                 {
+                    cut = 0;
                     tree.parts &= ~Stump;
                     Changed();
                 }
                 return result;
             }
 
-            bool success = Succeeds(worker, .85f);
             if (part == TimberPart.Trunk)
             {
-                if (!success)
-                    return Finish(worker, false, 0, "넘어진 줄기를 가르지 못했어요.", out message);
+                cut = 0;
                 tree.lowerPose = site.PoseAt(tree, site.Section(TimberPart.Lower).Center);
                 tree.upperPose = site.PoseAt(tree, site.Section(TimberPart.Upper).Center);
                 tree.parts = (tree.parts & ~Trunk) | Halves;
@@ -570,24 +660,26 @@ namespace Workerborn
                 return Finish(worker, true, 0, "줄기를 상단과 하단으로 갈랐어요.", out message);
             }
 
+            bool success = Succeeds(worker, .85f);
             const int count = 2;
             if (success && logs.Count > MaximumLogs - count ||
                 !success && !deliver(new List<TimberYield> { new TimberYield(ItemIds.ScrapWood, 10, point) }))
                 return NoSpace(out message);
 
+            cut = 0;
             tree.parts &= ~(1 << (int)part);
             if (success)
                 for (int i = 0; i < count; i++)
                 {
                     string id = Guid.NewGuid().ToString("N");
-                    var cut = piece.ShiftAlongTrunk(section.Half(i).Center - section.Center);
+                    var cutPose = piece.ShiftAlongTrunk(section.Half(i).Center - section.Center);
                     logs.Add(id, new TimberLogSave
                     {
                         id = id, yaw = tree.fallYaw,
-                        point = cut.point,
+                        point = cutPose.point,
                         sourceTree = site.Id,
                         sourcePart = part, half = i, cutYaw = tree.fallYaw,
-                        cutPose = cut, separating = true
+                        cutPose = cutPose, separating = true
                     });
                 }
             Changed();
@@ -619,6 +711,8 @@ namespace Workerborn
             }
             if (carried > 0 || !CanSplit(worker, ItemIds.Axe, at, log.point, out message))
                 return TimberResult.Rejected;
+            if (!AdvanceCut(worker, TimberAction.Split, ref log.cut))
+                return TimberResult.InProgress;
 
             var result = ProcessLog(worker, log.point, deliver, out message);
             if (result != TimberResult.Rejected)
@@ -627,6 +721,16 @@ namespace Workerborn
                 Changed();
             }
             return result;
+        }
+
+        private bool AdvanceCut(VillageState worker, TimberAction action, ref int cut)
+        {
+            int next = worker.TimberCutAfter(action, cut);
+            if (next == FullCut)
+                return true;
+            cut = next;
+            Changed();
+            return false;
         }
 
         private TimberResult ProcessLog(VillageState worker, TimberPoint point, Func<List<TimberYield>, bool> deliver, out string message)

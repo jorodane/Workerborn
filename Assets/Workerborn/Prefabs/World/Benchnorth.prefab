@@ -155,7 +155,7 @@ PrefabInstance:
         guid: b0e5077bcdd916645bfc6e991f0f7572
         type: 3
       propertyPath: m_LocalScale.x
-      value: '1.15'
+      value: '2.0358581'
       objectReference:
         fileID: 0
     - target:
@@ -163,7 +163,7 @@ PrefabInstance:
         guid: b0e5077bcdd916645bfc6e991f0f7572
         type: 3
       propertyPath: m_LocalScale.y
-      value: '1'
+      value: '2.0358581'
       objectReference:
         fileID: 0
     - target:
@@ -305,13 +305,13 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 3
   m_Size:
-    x: 2.05
-    y: 0.44
+    x: 3.4
+    y: 0.87
     z: 0.42
   m_Center:
     x: 0
-    y: 0.22
-    z: -0.09
+    y: 0.435
+    z: -0.16
 --- !u!114 &100121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -422,7 +422,7 @@ Transform:
   m_GameObject: {fileID: 100226}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0.018474, y: 0.0047707, z: 0.037101}
-  m_LocalScale: {x: 1.15, y: 1, z: 0.9}
+  m_LocalScale: {x: 2.0358581, y: 2.0358581, z: 0.9}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 100225}
@@ -459,15 +459,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: m_LocalPosition.x
-      value: '-0.48'
+      value: '-0.72'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: m_LocalPosition.y
-      value: '0.44'
+      value: '0.87'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: m_LocalPosition.z
-      value: '0.16'
+      value: '0.22'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: m_LocalScale.x
@@ -503,11 +503,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100003, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: seatedRootOffset.y
-      value: '-0.44'
+      value: '-0.52'
       objectReference: {fileID: 0}
     - target: {fileID: 100003, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: seatedRootOffset.z
-      value: '0.37'
+      value: '0.38'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100003, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
+      propertyPath: approachWidth
+      value: '1.55'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100003, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
+      propertyPath: approachDepth
+      value: '1.6'
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -529,15 +537,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: m_LocalPosition.x
-      value: '0.48'
+      value: '0.72'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: m_LocalPosition.y
-      value: '0.44'
+      value: '0.87'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: m_LocalPosition.z
-      value: '0.16'
+      value: '0.22'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: m_LocalScale.x
@@ -573,11 +581,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100003, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: seatedRootOffset.y
-      value: '-0.44'
+      value: '-0.52'
       objectReference: {fileID: 0}
     - target: {fileID: 100003, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
       propertyPath: seatedRootOffset.z
-      value: '0.37'
+      value: '0.38'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100003, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
+      propertyPath: approachWidth
+      value: '1.55'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100003, guid: c0f58bf726195be38df2c153b971b53c, type: 3}
+      propertyPath: approachDepth
+      value: '1.6'
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

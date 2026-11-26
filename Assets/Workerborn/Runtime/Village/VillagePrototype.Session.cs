@@ -138,7 +138,7 @@ namespace Workerborn
             return new SessionAvatar { x = pose.position.x, y = pose.position.y, z = pose.position.z,
                 yaw = pose.eulerAngles.y, motion = animation.CurrentAction, jumpOffset = worker.VisualJumpOffset,
                 mountId = worker.CurrentMount != null ? worker.CurrentMount.PersistentId : null, parkedMountId = ParkedMountId,
-                hasSeat = seat != null, seatX = seatPoint.x, seatY = seatPoint.y, seatZ = seatPoint.z,
+                hasSeat = seat != null, seatX = seatPoint.x, seatY = seatPoint.y, seatZ = seatPoint.z, seatLift = worker.SeatLift,
                 gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress,
                 timberSwing = (int)worker.CurrentTimberSwing, timberProgress = worker.CurrentTimberProgress,
                 overeating = worker.CharacterState.Overeating };

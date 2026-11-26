@@ -108,3 +108,8 @@ MonoBehaviour:
     effect: 13
     amount: 4
     increasePerRank: 0
+  - fromRank: 1
+    throughRank: 100
+    effect: 19
+    amount: 100
+    increasePerRank: 0

@@ -138,20 +138,33 @@ namespace Workerborn.Tests
             worker.ToggleSit();
             Assert.That(worker.Action, Is.EqualTo(WorkerAction.Idle));
 
-            var bench = GameObject.Find("Bench square");
+            var benches = new[] { GameObject.Find("Bench square"), GameObject.Find("Bench north") };
+            foreach (var furniture in benches)
+                foreach (var slot in furniture.GetComponentsInChildren<SeatSlot>())
+                {
+                    Vector3 approach = slot.ApproachPosition;
+                    Assert.That(NavMesh.SamplePosition(game.SurfacePosition(approach.x, approach.z), out var reachable, .4f, NavMesh.AllAreas), Is.True);
+                    Assert.That(worker.WarpTo(reachable.position), Is.True);
+                    Assert.That(worker.ToggleSit(slot), Is.True, slot.transform.parent.name + " " + slot.name);
+                    Assert.That(worker.OccupiedSeat, Is.SameAs(slot));
+                }
+
+            var bench = benches[0];
             var seat = bench.GetComponentInChildren<SeatSlot>();
-            Assert.That(seat.Position.y - bench.transform.position.y, Is.InRange(.38f, .50f));
+            Assert.That(seat.Position.y - bench.transform.position.y, Is.InRange(.83f, .92f));
             Vector3 front = seat.Position + seat.Facing * Vector3.forward * .85f;
             Assert.That(seat.Covers(front), Is.True);
             Assert.That(seat.Covers(seat.Position - seat.Facing * Vector3.forward * .5f), Is.False);
             Assert.That(NavMesh.SamplePosition(game.SurfacePosition(front.x, front.z), out var standing, .35f, NavMesh.AllAreas), Is.True);
             Assert.That(worker.WarpTo(standing.position), Is.True);
+            var actorVisual = worker.Actor.VisualRoot;
+            Vector3 visualRest = actorVisual.localPosition;
             Assert.That(worker.ToggleSit(seat), Is.True);
             yield return new WaitForSeconds(1.1f);
             Assert.That(worker.Action, Is.EqualTo(WorkerAction.Sitting));
             Assert.That(worker.OccupiedSeat, Is.SameAs(seat));
             Assert.That(Quaternion.Angle(worker.transform.rotation, seat.Facing), Is.LessThan(.1f));
-            var actorVisual = worker.Actor.VisualRoot;
+            Assert.That(actorVisual.localPosition.y, Is.GreaterThan(visualRest.y + .15f));
             var animation = worker.GetComponent<WorkerAnimation>();
             var agent = worker.GetComponent<NavMeshAgent>();
             Vector3 foothold = worker.transform.position;
@@ -167,11 +180,48 @@ namespace Workerborn.Tests
                 Assert.That(agent.isStopped, Is.True);
                 Assert.That(worker.OccupiedSeat, Is.SameAs(seat));
                 Assert.That(Vector3.Distance(worker.transform.position, foothold), Is.LessThan(.01f));
-                Assert.That(Vector3.Distance(actorVisual.position, visibleBefore), Is.LessThan(.01f));
+                Assert.That(Vector3.ProjectOnPlane(actorVisual.position - visibleBefore, Vector3.up).magnitude, Is.LessThan(.01f));
                 return false;
             }, 2f);
             yield return Until(() => Vector3.Distance(worker.transform.position, destination) < .25f, 4f);
             Assert.That(worker.OccupiedSeat, Is.Null);
+            Assert.That(actorVisual.localPosition, Is.EqualTo(visualRest));
+        }
+
+        [UnityTest]
+        public IEnumerator ReloadingALandedTrunkKeepsItAndItsSavedDropsInPlace()
+        {
+            var tree = game.Crops.OfType<LoggingTree>().First();
+            var site = tree.Site();
+            var midpoint = site.Point.Offset(0f, site.Section(TimberPart.Trunk).Length * .5f);
+            float floor = game.SurfacePosition(midpoint.x, midpoint.z).y;
+            var landed = TimberPose.AtTilt(midpoint, floor + site.BarkRadius, 0f, 90f);
+            var save = game.CaptureSave();
+            save.woodland = new WoodlandSave { trees = new[] { new TimberTreeSave
+            {
+                id = site.Id, felledDay = save.day, falling = true, landingPose = landed,
+                parts = (1 << (int)TimberPart.Stump) | (1 << (int)TimberPart.Trunk)
+            } } };
+            var drop = new GroundDropSave
+            {
+                id = Guid.NewGuid().ToString("N"), itemId = ItemIds.Branch, quantity = 2,
+                x = midpoint.x, z = midpoint.z, crownYield = true, harvestYield = true
+            };
+            drop.ReserveFor(game.Worker.PlayerId, GroundDropSave.UtcNow);
+            save.drops = new[] { drop };
+            Assert.That(VillageSaveStore.TrySave(save, out _), Is.True);
+
+            yield return SceneManager.LoadSceneAsync(Scene, LoadSceneMode.Single);
+            game = UnityEngine.Object.FindFirstObjectByType<VillagePrototype>();
+            game.FindInteraction(VillageRole.Farmer).Routine.enabled = false;
+            var trunk = WorldInteractable.Active.OfType<TimberPiece>().Single(piece => piece.TargetId == site.Id && piece.Part == TimberPart.Trunk);
+            Assert.That(trunk.CanInteract, Is.True);
+            Assert.That(UnityEngine.Object.FindFirstObjectByType<TimberFall>(), Is.Null);
+            Assert.That(Vector3.Distance(trunk.transform.position, TimberLocation.Position(landed)), Is.LessThan(.02f));
+            yield return new WaitForSeconds(1.2f);
+            var record = game.CaptureSave();
+            Assert.That(record.woodland.trees.Single().falling, Is.False);
+            Assert.That(record.drops.Where(item => item.crownYield).Select(item => item.id), Is.EqualTo(new[] { drop.id }));
         }
 
         [UnityTest]
@@ -554,14 +604,18 @@ namespace Workerborn.Tests
 
             Assert.That(game.State.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
             Assert.That(game.State.TryEquip(game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Axe).Id), Is.True);
-            game.State.LearnSkill(SkillId.Woodcutting, SkillProgression.MaxRank);
+            game.State.LearnSkill(SkillId.Woodcutting, 30);
             tree.RequestInteraction(game.Worker);
             yield return Until(() => game.Worker.ActiveCrop == tree, 3f);
             Assert.That(Quaternion.Angle(visual.localRotation, rest), Is.LessThan(.01f));
-            yield return Until(() => Quaternion.Angle(visual.localRotation, rest) > .2f, tree.Definition.HarvestSeconds);
+            Assert.That(game.Worker.DisplayedWorkSteps.Value.Next, Is.EqualTo(.35f).Within(.001f));
+            float swingTime = tree.Definition.WorkAnimation.Loop.length;
+            yield return Until(() => Quaternion.Angle(visual.localRotation, rest) > .2f, swingTime + 1f);
             Assert.That(game.Worker.ActiveCrop, Is.SameAs(tree));
+            Assert.That(game.Worker.DisplayedWorkSteps.Value.Confirmed, Is.EqualTo(.35f).Within(.001f));
+            Assert.That(tree.Felled, Is.False);
             Assert.That(visual.localScale, Is.EqualTo(scale));
-            yield return Until(() => tree.Felled, tree.Definition.HarvestSeconds + 1f);
+            yield return Until(() => tree.Felled, swingTime * 3f + 1f);
             Assert.That(blocker.gameObject.activeInHierarchy, Is.False);
             yield return Until(() => NavMesh.SamplePosition(foot, out _, .18f, NavMesh.AllAreas), 1.5f);
             var parts = WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId).ToArray();
@@ -593,7 +647,11 @@ namespace Workerborn.Tests
             Assert.That(game.Worker.WarpTo(splitAt.position), Is.True);
             game.UseSkill(SkillId.Woodcutting);
             yield return Until(() => game.Worker.CurrentTimberSwing == TimberSwing.Split, 2f);
-            yield return Until(() => trunk == null, 4f);
+            float splitTime = game.Settings.Timber.Split.length;
+            yield return Until(() => game.Worker.DisplayedWorkSteps is { Confirmed: > 0f }, splitTime + 1f);
+            Assert.That(trunk.CanInteract, Is.True);
+            Assert.That(game.Worker.DisplayedWorkSteps.Value.Confirmed, Is.EqualTo(.4f).Within(.001f));
+            yield return Until(() => trunk == null, splitTime * 3f + 1f);
             Assert.That(GameObject.Find("TimberAxeImpact(Clone)"), Is.Not.Null);
             var splitPieces = WorldInteractable.Active.OfType<TimberPiece>().Where(piece => piece.TargetId == tree.PersistentId).ToArray();
             Assert.That(splitPieces.Select(piece => piece.Part), Is.EquivalentTo(new[] { TimberPart.Stump, TimberPart.Lower, TimberPart.Upper }));
@@ -628,7 +686,7 @@ namespace Workerborn.Tests
             try
             {
                 var site = new TimberSite("test tree", TimberLocation.Planar(platform.transform.position), ItemIds.Axe,
-                    1, layout.Reach, 1f, 1f, platform.transform.position.y, layout.CutHeight, layout.TopHeight, layout.BarkRadius,
+                    1, layout.Reach, 1f, platform.transform.position.y, layout.CutHeight, layout.TopHeight, layout.BarkRadius,
                     layout.Products);
                 TimberPose resting = default;
                 int landings = 0;
@@ -703,14 +761,16 @@ namespace Workerborn.Tests
             try
             {
                 var site = new TimberSite("test tree", TimberLocation.Planar(platform.transform.position), ItemIds.Axe,
-                    1, layout.Reach, 1f, 1f, platform.transform.position.y, layout.CutHeight, layout.TopHeight, layout.BarkRadius, layout.Products);
+                    1, layout.Reach, 1f, platform.transform.position.y, layout.CutHeight, layout.TopHeight, layout.BarkRadius, layout.Products);
                 var work = new TimberWork(new[] { site }, () => 0f);
                 var lumberjack = new VillageState();
                 lumberjack.Inventory.TryAdd(ItemIds.Axe, 1);
                 lumberjack.TryEquip(lumberjack.Inventory.Entries.Single().Id);
                 var order = new TimberOrder { action = TimberAction.Fell, target = site.Id };
-                Assert.That(work.Perform(order, lumberjack, "test", site.Point.Offset(180f, 1f), 0f, 1,
-                    _ => false, _ => true, _ => throw new InvalidOperationException("Yield before settling"), out _), Is.EqualTo(TimberResult.Succeeded));
+                for (int hit = 1; hit <= 20; hit++)
+                    Assert.That(work.Perform(order, lumberjack, "test", site.Point.Offset(180f, 1f), 0f, 1,
+                        _ => false, _ => true, _ => throw new InvalidOperationException("Yield before settling"), out _),
+                        Is.EqualTo(hit < 20 ? TimberResult.InProgress : TimberResult.Succeeded));
 
                 var bark = source.CutGeometry(game.Settings.Timber.CutSurface).Slice(site.Section(TimberPart.Trunk), barkOnly: true);
                 TimberPose impact = default;
@@ -2951,6 +3011,11 @@ namespace Workerborn.Tests
                     ring.SetWorkSteps(done.Confirmed, done.Next, 1);
                     return ring.Progress.fillAmount >= done.Confirmed && outline.fillAmount >= done.Next - .001f;
                 }, .5f);
+                animation.BeginWork(game.Crops.First(crop => crop.Definition.Skill == SkillId.Harvesting).Definition.WorkAnimation, 2.4f);
+                var continuous = animation.WorkSteps(.27f);
+                ring.SetProgress(continuous.Confirmed);
+                Assert.That(ring.Progress.fillAmount, Is.EqualTo(.27f).Within(.001f));
+                Assert.That(outline.fillAmount, Is.Zero);
             }
             finally
             {

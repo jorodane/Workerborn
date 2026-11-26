@@ -7,6 +7,12 @@ namespace Workerborn
     public sealed partial class HarvestWorker
     {
         private bool choosingLog, aimingThrow;
+        private TimberOrder axeCut;
+        private TimberResult? axeCutResult;
+        private AnimationClip axeCutClip;
+        private float axeCutImpact;
+        private int axeCutStamina;
+        private int confirmedCut, plannedCut;
         private Vector3 lastCarryPosition;
         private bool trackingCarry;
         internal int CarriedLogs => village?.CarriedLogCount(CharacterId) ?? 0;
@@ -22,8 +28,116 @@ namespace Workerborn
             WorkerAction.Attacking when strikeTarget is LoggingTree => TimberSwing.Strike,
             _ => TimberSwing.None
         };
-        internal float CurrentTimberProgress => Action == WorkerAction.Harvesting
-            ? cropTarget?.Progress ?? 0f : Mathf.InverseLerp(strikeStartedAt, nextStrikeAt, Time.time);
+        internal float CurrentTimberProgress => StrikePhase;
+
+        private void BeginAxeCut(TimberOrder order, AnimationClip clip, float impact, int stamina)
+        {
+            axeCut = order;
+            axeCutClip = clip;
+            axeCutImpact = impact > 0f ? Mathf.Clamp(impact, .05f, .95f) : .5f;
+            axeCutStamina = stamina;
+            confirmedCut = 0;
+            StartAxeSwing();
+        }
+
+        private void StartAxeSwing()
+        {
+            confirmedCut = Mathf.Max(confirmedCut, village.TimberCutProgress(axeCut));
+            plannedCut = CharacterState.TimberCutAfter(axeCut.action, confirmedCut);
+            axeCutResult = null;
+            float duration = axeCutClip != null ? axeCutClip.length : attackDelay;
+            StartStrikeClock(duration / CharacterState.ActionSpeed);
+            animationDriver?.BeginStrike(axeCutClip);
+        }
+
+        private void UpdateAxeCut()
+        {
+            bool felling = axeCut.action == TimberAction.Fell;
+            WorldInteractable target = felling ? cropTarget : strikeTarget;
+            if (CharacterState.Health <= 0)
+            {
+                Cancel();
+                return;
+            }
+
+            float phase = StrikePhase;
+            if (!struck)
+            {
+                if (IsLocallyControlled && village.AwaitingWorldCommand)
+                {
+                    strikeStartedAt += Time.deltaTime;
+                    nextStrikeAt += Time.deltaTime;
+                    return;
+                }
+                string tool = felling && cropTarget != null ? cropTarget.Definition.RequiredTool.Id : ItemIds.Axe;
+                if (target == null || !target.CanInteract || CarriedLogs > 0 || !CharacterState.HasTool(tool) ||
+                    !SharesMap(target.transform.position) || !InReach(target.transform.position, target.InteractionDistance + .15f))
+                {
+                    Cancel();
+                    return;
+                }
+                double effort = Mathf.Min(1f, phase / axeCutImpact);
+                double cost = (double)axeCutStamina * (plannedCut - confirmedCut) / TimberWork.FullCut;
+                if (!CharacterState.SpendWorkProgress(cost, strikePaidProgress, effort))
+                {
+                    Cancel();
+                    ReportWorkExhaustion();
+                    return;
+                }
+                strikePaidProgress = effort;
+                if (effort >= 1d)
+                    HitWithAxe(target);
+            }
+
+            animationDriver?.SampleStrike(phase);
+            if (phase < 1f || !axeCutResult.HasValue)
+                return;
+            if (axeCutResult == TimberResult.InProgress && target != null && target.CanInteract)
+            {
+                StartAxeSwing();
+                return;
+            }
+
+            bool finished = axeCutResult is TimberResult.Succeeded or TimberResult.Failed;
+            var tree = target as LoggingTree;
+            Cancel();
+            if (finished)
+            {
+                completedWorkSkill = SkillId.Woodcutting;
+                workFeedbackUntil = Time.unscaledTime + .22f;
+                if (tree != null)
+                    tree.FinishFelling();
+            }
+            if (felling)
+                HarvestAttemptFinished?.Invoke();
+        }
+
+        private void HitWithAxe(WorldInteractable target)
+        {
+            struck = true;
+            if (target is LoggingTree tree)
+                tree.ShowImpact(this, withAxe: true);
+            else if (target is TimberPiece piece)
+                piece.PlayAxeImpact();
+
+            var order = axeCut;
+            if (!village.RequestTimberWork(this, order, Confirm) && !axeCutResult.HasValue)
+                Confirm(TimberResult.Rejected, 0);
+
+            void Confirm(TimberResult result, int progress)
+            {
+                if (!ReferenceEquals(axeCut, order))
+                    return;
+                axeCutResult = result;
+                if (result == TimberResult.Rejected)
+                {
+                    plannedCut = confirmedCut;
+                    return;
+                }
+                confirmedCut = result == TimberResult.InProgress ? progress : TimberWork.FullCut;
+                plannedCut = CharacterState.TimberCutAfter(order.action, confirmedCut);
+            }
+        }
 
         internal void PrepareTimberSkill(SkillId skill)
         {

@@ -42,7 +42,8 @@ namespace Workerborn
                 PresentWoodland(Session?.StartingWoodland);
                 return;
             }
-            soloTimber = new TimberWork(sites, () => UnityEngine.Random.value, restoredWorld?.woodland);
+            var saved = restoredWorld?.woodland ?? (usesSelectedWorld ? Session?.StartingWoodland : null);
+            soloTimber = new TimberWork(sites, () => UnityEngine.Random.value, saved, IsTimberGround, TimberSurfaceHeight);
             soloTimber.StartDay(State.Day);
             PresentWoodland(soloTimber.Capture());
         }
@@ -233,13 +234,15 @@ namespace Workerborn
             stump.Seat != null && SeatInUse(stump.Seat.Position);
         private float TimberSurfaceHeight(TimberPoint point) => SurfacePosition(point.x, point.z).y;
 
-        internal bool RequestTimberWork(HarvestWorker source, TimberOrder order)
+        internal int TimberCutProgress(TimberOrder cut) => soloTimber?.CutProgress(cut) ?? presentedWoodland?.CutProgress(cut) ?? 0;
+
+        internal bool RequestTimberWork(HarvestWorker source, TimberOrder order, Action<TimberResult, int> completed = null)
         {
             TimberPoint location = TimberLocation.Planar(source.StandingPosition);
             if (!IsTimberGround(location) || source.CharacterState.AwaitingIncarnation)
                 return false;
             if (IsOnline)
-                return source == worker && Session?.SubmitTimberWork(order) == true;
+                return source == worker && Session?.SubmitTimberWork(order, completed) == true;
             if (soloTimber == null)
                 return false;
 
@@ -248,13 +251,18 @@ namespace Workerborn
             var result = soloTimber.Perform(order, state, source.CharacterId, location, source.transform.eulerAngles.y,
                 State.Day, TimberStumpOccupied, IsTimberGround, rewards => DeliverTimberYield(source, rewards), out string message);
             TimberNotice(source, message);
-            if (result == TimberResult.Rejected)
-                return false;
-            PresentWoodland(soloTimber.Capture());
-            ShowLevelUp(source, level);
-            if (source == worker)
-                SaveGame(false);
-            return true;
+            if (result != TimberResult.Rejected)
+            {
+                PresentWoodland(soloTimber.Capture());
+                if (result != TimberResult.InProgress)
+                {
+                    ShowLevelUp(source, level);
+                    if (source == worker)
+                        SaveGame(false);
+                }
+            }
+            completed?.Invoke(result, result == TimberResult.InProgress ? soloTimber.CutProgress(order) : 0);
+            return result != TimberResult.Rejected;
         }
 
         private void RetryCrownProducts()
@@ -300,8 +308,9 @@ namespace Workerborn
                 var drop = CaptureGroundDrop(item.itemId, item.quantity, origin, landing);
                 drop.harvestYield = true;
                 drop.crownYield = item.fromCrown;
-                drop.flightMilliseconds = prefab.FlightMilliseconds;
-                SpawnLocalPlayerDrop(drop, source.PlayerId, PickupUtcNow, prefab, null, origin, landing);
+                drop.hasDropOrigin = !item.settled;
+                drop.flightMilliseconds = item.settled ? 0 : prefab.FlightMilliseconds;
+                SpawnLocalPlayerDrop(drop, source.PlayerId, PickupUtcNow, prefab, null, origin, landing, settled: item.settled);
             }
             return true;
         }

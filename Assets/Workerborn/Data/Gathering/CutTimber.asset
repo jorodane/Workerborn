@@ -23,7 +23,7 @@ MonoBehaviour:
   skillIcon: {fileID: 21300000, guid: 3a6c1825591d530f82d7c3fa599990e3, type: 3}
   workAnimation: {fileID: 11400000, guid: 13dc56ef8e6b5936913e8aa47ee80219, type: 2}
   staminaCost: 4
-  successChance: 0.92
+  successChance: 1
   scatterTowardWorker: 1
   scatterAngle: 64
   scatterRadius: {x: 0.57, y: 1.38}

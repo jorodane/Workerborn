@@ -28,7 +28,8 @@ namespace Workerborn
         LiftSpeedPercent,
         LiftStaminaSaving,
         ThrowRangeDecimeters,
-        SeatedRecoveryPercent
+        SeatedRecoveryPercent,
+        TimberCutBasisPoints
     }
 
     [Serializable]
@@ -166,6 +167,7 @@ namespace Workerborn
             var rows = new List<SkillRankEffect>(GatheringRows(2, new SkillRankEffect(20, 20, SkillEffect.StaminaSaving, 1)));
             rows.AddRange(GradeEffects(SkillEffect.TreeSlots, 0, 1,
                 new SkillRankEffect(1, MaxRank, SkillEffect.TreeChanceBasisPoints, 50),
+                new SkillRankEffect(1, MaxRank, SkillEffect.TimberCutBasisPoints, 100),
                 new SkillRankEffect(1, MaxRank, SkillEffect.TreeYieldPercent, 4)));
             return rows.ToArray();
         }

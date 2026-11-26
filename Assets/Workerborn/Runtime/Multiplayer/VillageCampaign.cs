@@ -30,7 +30,7 @@ namespace Workerborn
         public float timberProgress;
         public float overeating;
         public bool hasSeat;
-        public float seatX, seatY, seatZ;
+        public float seatX, seatY, seatZ, seatLift;
         public int motion, gesture;
         public int timberSwing;
     }
@@ -199,6 +199,7 @@ namespace Workerborn
         public void StoreSolo(string identity, VillageWorldRecord world, VillageSave save)
         {
             World = world;
+            storedWoodland = save.woodland ?? storedWoodland;
             savedMounts = save.mounts ?? savedMounts;
             var profile = profiles[identity];
             profile.enteredEra = world.era;
@@ -374,10 +375,11 @@ namespace Workerborn
             bool holdsSeat = pose.motion == (int)WorkerMotion.SeatSit || pose.motion == (int)WorkerMotion.Idle && target.hasSeat;
             target.hasSeat = holdsSeat && pose.hasSeat &&
                 FiniteCoordinate(pose.seatX) && FiniteCoordinate(pose.seatY) && FiniteCoordinate(pose.seatZ) &&
-                dx * dx + dy * dy + dz * dz <= 1f;
+                dx * dx + dz * dz <= 1f && Math.Abs(dy) <= 1.25f;
             target.seatX = target.hasSeat ? pose.seatX : pose.x;
             target.seatY = target.hasSeat ? pose.seatY : pose.y;
             target.seatZ = target.hasSeat ? pose.seatZ : pose.z;
+            target.seatLift = target.hasSeat && float.IsFinite(pose.seatLift) ? Math.Clamp(pose.seatLift, -.12f, .65f) : 0f;
             target.jumpOffset = float.IsNaN(pose.jumpOffset) ? 0f : Math.Max(0f, Math.Min(.6f, pose.jumpOffset));
             target.gesture = pose.gesture >= (int)WorkerGesture.None && pose.gesture <= (int)WorkerGesture.TimberToss
                 ? pose.gesture : (int)WorkerGesture.None;
@@ -542,6 +544,7 @@ namespace Workerborn
             avatar.yaw = origin?.yaw ?? 0f;
             avatar.motion = (int)WorkerMotion.Idle;
             avatar.hasSeat = false;
+            avatar.seatLift = 0f;
             avatar.jumpOffset = 0f;
             avatar.gesture = (int)WorkerGesture.None;
             avatar.gestureProgress = 0f;

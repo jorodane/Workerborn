@@ -188,7 +188,7 @@ namespace Workerborn.Tests
         {
             const long now = 100_000;
             var rules = Rules();
-            var site = new TimberSite("pine", default, ItemIds.Axe, 1, 2.2f, 1f, 1f, 0f, .44f, 7f, .19f,
+            var site = new TimberSite("pine", default, ItemIds.Axe, 1, 2.2f, 1f, 0f, .44f, 7f, .19f,
                 new[] { new TreeProduct(ItemIds.Branch, 1, 1) });
             var campaign = new VillageCampaign(rules, Sites, 0f, -1f);
             Assert.That(campaign.Connect("a", "하나", out var owner), Is.True);
@@ -201,14 +201,18 @@ namespace Workerborn.Tests
             var order = new TimberOrder { action = TimberAction.Fell, target = site.Id };
             var checkpoint = state.Export();
             checkpoint.CopyPoseAndAction(owner.character);
-            Assert.That(campaign.PerformTimber("a", checkpoint, order, now, null, out var message, out var drops, out var acquired), Is.True, message);
+            for (int hit = 1; hit < 20; hit++)
+            {
+                Assert.That(campaign.PerformTimber("a", checkpoint, order, now, null, out _, out _, out _, out int cut),
+                    Is.EqualTo(TimberResult.InProgress));
+                Assert.That(cut, Is.EqualTo(hit * 500));
+            }
+            Assert.That(campaign.PerformTimber("a", checkpoint, order, now, null, out var message, out var drops, out var acquired, out _),
+                Is.EqualTo(TimberResult.Succeeded), message);
             Assert.That(drops, Is.Empty);
             Assert.That(acquired, Is.Null);
             Assert.That(campaign.SharedGroundDrops, Is.Empty);
 
-            campaign = new VillageCampaign(rules, Sites, 0f, -1f, campaign.Export());
-            Assert.That(campaign.Connect("a", "하나", out owner), Is.True);
-            campaign.ConfigureTimber(new[] { site }, _ => true, _ => 0f, () => .99f);
             var impact = TimberPose.AtTilt(new TimberPoint(4f, .7f), 1.2f, -35f, 61f);
             Assert.That(campaign.LandTimberTrunk(site.Id, impact, now, out drops), Is.True);
             Assert.That(campaign.Woodland.trees.Single().falling, Is.True);
@@ -222,13 +226,36 @@ namespace Workerborn.Tests
             campaign = new VillageCampaign(rules, Sites, 0f, -1f, campaign.Export());
             Assert.That(campaign.Connect("a", "하나", out owner), Is.True);
             campaign.ConfigureTimber(new[] { site }, _ => true, _ => 0f, () => .99f);
-            var resting = TimberPose.AtTilt(new TimberPoint(4.3f, .8f), .4f, -32f, 85f);
-            Assert.That(campaign.SettleTimberMotion(site.Id, TimberPart.Trunk, resting, now, out var afterSettlement), Is.True);
-            Assert.That(afterSettlement, Is.Empty);
+            Assert.That(campaign.Woodland.trees.Single().falling, Is.False);
+            Assert.That(campaign.Woodland.trees.Single().restingPose, Is.EqualTo(impact));
+            Assert.That(campaign.LandTimberTrunk(site.Id, impact, now, out _), Is.False);
             Assert.That(campaign.ReleaseTimberCrownDrops(now), Is.Empty);
+            Assert.That(campaign.SharedGroundDrops.Single().id, Is.EqualTo(drop.id));
+            Assert.That(campaign.SharedGroundDrops.Single().hasDropOrigin, Is.False);
             Assert.That(campaign.CollectAutomaticHarvests("a", owner.character, new[] { drop.id }, now + drop.flightMilliseconds - 1), Is.Empty);
             Assert.That(campaign.CollectAutomaticHarvests("a", owner.character, new[] { drop.id }, now + drop.flightMilliseconds).Single().quantity, Is.EqualTo(1));
             Assert.That(campaign.SharedGroundDrops, Is.Empty);
+        }
+
+        [Test]
+        public void ASelectedSoloWorldExportsTheLatestWoodlandSnapshot()
+        {
+            var rules = Rules();
+            var campaign = new VillageCampaign(rules, Sites, 0f, -1f);
+            Assert.That(campaign.Connect("solo", "일꾼", out var player), Is.True);
+            Incarnate(campaign, "solo");
+            var save = player.character;
+            var earlier = new WoodlandSave { revision = 8 };
+            save.woodland = earlier;
+            campaign.StoreSolo("solo", campaign.World, save);
+
+            var latest = new WoodlandSave { revision = 9 };
+            save.woodland = latest;
+            campaign.StoreSolo("solo", campaign.World, save);
+            var stored = campaign.Export();
+            Assert.That(stored.woodland, Is.SameAs(latest));
+            Assert.That(stored.profiles.Single().character.woodland, Is.SameAs(latest));
+            Assert.That(new VillageCampaign(rules, Sites, 0f, -1f, stored).Woodland, Is.SameAs(latest));
         }
 
         [Test]

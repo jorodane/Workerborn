@@ -12,6 +12,11 @@ namespace Workerborn
         internal int LiftStaminaSaving => Math.Clamp(SkillBonus(SkillId.Lifting, SkillEffect.LiftStaminaSaving), 0, 20);
         internal float ThrowRange => Math.Clamp(SkillBonus(SkillId.Throwing, SkillEffect.ThrowRangeDecimeters), 0, 250) * .1f;
 
+        internal int TimberCutPerHit(TimberAction action) => Math.Clamp((action == TimberAction.Fell ? 500 : 1_000) +
+            SkillBonus(SkillId.Woodcutting, SkillEffect.TimberCutBasisPoints), 1, TimberWork.FullCut);
+
+        internal int TimberCutAfter(TimberAction action, int progress) => Math.Min(TimberWork.FullCut, progress + TimberCutPerHit(action));
+
         internal bool TreeWorkSucceeds(float baseChance, float roll)
         {
             float chance = Math.Clamp(baseChance + TreeChanceBonus / 10_000f, 0f, 1f);

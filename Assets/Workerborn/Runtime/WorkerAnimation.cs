@@ -125,6 +125,20 @@ namespace Workerborn
 
         public int CurrentAction => target;
         internal bool IsStandingUp => sitInput == SitFinish && graph.IsValid();
+        internal float SeatLiftWeight
+        {
+            get
+            {
+                if (sitInput < 0 || !graph.IsValid())
+                    return target == (int)WorkerMotion.SeatSit ? 1f : 0f;
+                var clip = clips[sitInput];
+                float phase = Mathf.Clamp01((float)clip.GetTime() / lengths[sitInput]);
+                if (sitInput == SitFinish && clip.GetSpeed() >= 0d)
+                    phase = 1f - phase;
+                // The pose moves vertically as it seats or rises. The world-space foothold stays fixed.
+                return Mathf.SmoothStep(0f, 1f, phase);
+            }
+        }
         internal void SkipStandUp()
         {
             if (IsStandingUp)
@@ -241,7 +255,7 @@ namespace Workerborn
         internal (float Confirmed, float Next) WorkSteps(float progress)
         {
             if (!timedWork || loopImpact <= 0f || loopCycles < 1f)
-                return (progress >= 1f ? 1f : 0f, 1f);
+                return (Mathf.Clamp01(progress), 0f);
             float hits = Mathf.Clamp(Mathf.Floor(WorkLoopPosition(progress) - loopImpact) + 1f, 0f, loopCycles);
             return (hits / loopCycles, Mathf.Min(hits + 1f, loopCycles) / loopCycles);
         }

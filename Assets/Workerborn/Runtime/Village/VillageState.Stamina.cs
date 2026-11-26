@@ -21,7 +21,7 @@ namespace Workerborn
             return sitting ? rate * Math.Max(1f, Rules.SeatedRecoveryMultiplier) * (1d + SeatedRecoveryBonus / 100d) : rate;
         }
 
-        internal bool SpendWorkProgress(int totalCost, double previousProgress, double progress)
+        internal bool SpendWorkProgress(double totalCost, double previousProgress, double progress)
         {
             bool covered = SpendWorkStamina(totalCost * (progress - previousProgress));
             return covered && (progress >= 1d || Stamina > 0d);

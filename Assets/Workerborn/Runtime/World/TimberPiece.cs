@@ -200,14 +200,6 @@ namespace Workerborn
                 worker.CommandAttack(this);
         }
 
-        internal override void ReceiveStrike(HarvestWorker worker, int damage)
-        {
-            if (!CanInteract)
-                return;
-            PlayAxeImpact();
-            worker.Village.RequestTimberWork(worker, new TimberOrder { action = TimberAction.Split, target = target, part = part });
-        }
-
         internal void PlayAxeImpact()
         {
             Vector3 above = TargetCenter + Vector3.up * (hitVolume.bounds.extents.y + .15f);

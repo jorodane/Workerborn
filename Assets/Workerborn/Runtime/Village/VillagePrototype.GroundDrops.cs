@@ -171,12 +171,12 @@ namespace Workerborn
         }
 
         private void SpawnLocalPlayerDrop(GroundDropSave drop, string playerId, long now, GroundPickup prefab,
-            CropDefinition crop, Vector3 origin, Vector3 landing)
+            CropDefinition crop, Vector3 origin, Vector3 landing, bool settled = false)
         {
             drop.id = Guid.NewGuid().ToString("N");
             drop.ReserveFor(playerId, now);
             localGroundDrops.Add(drop);
-            TrackGroundPickup(SpawnPickup(prefab, crop, drop.quantity, origin, landing), drop, shared: false);
+            TrackGroundPickup(SpawnPickup(prefab, crop, drop.quantity, origin, landing, settled), drop, shared: false);
         }
 
         private void TrackGroundPickup(GroundPickup item, GroundDropSave drop, bool shared)

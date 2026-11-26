@@ -55,33 +55,37 @@ namespace Workerborn
         {
             timberGround = ground;
             timberHeight = height;
-            timber = new TimberWork(sites, roll, storedWoodland);
+            timber = new TimberWork(sites, roll, storedWoodland, ground, height);
             timber.StartDay(World.day);
         }
 
-        internal bool PerformTimber(string identity, VillageSave save, TimberOrder order, long now,
-            Func<TimberSite, bool> localSeatOccupied, out string message, out GroundDropSave[] drops, out TimberYield[] acquired)
+        internal TimberResult PerformTimber(string identity, VillageSave save, TimberOrder order, long now,
+            Func<TimberSite, bool> localSeatOccupied, out string message, out GroundDropSave[] drops, out TimberYield[] acquired,
+            out int cutProgress)
         {
             drops = Array.Empty<GroundDropSave>();
             acquired = null;
+            cutProgress = 0;
             message = "지금은 이 나무 작업을 할 수 없어요.";
             if (timber == null || !connected.Contains(identity) || !TryCheckpoint(identity, save, out var state))
-                return false;
+                return TimberResult.Rejected;
             var player = profiles[identity];
             var point = new TimberPoint(save.playerX, save.playerZ);
             if (!string.IsNullOrEmpty(save.interior.id) || !timberGround(point))
-                return false;
+                return TimberResult.Rejected;
 
             var created = new List<GroundDropSave>();
             TimberYield[] collected = null;
             var result = timber.Perform(order, state, player.id, point, save.yaw, World.day,
                 IsOccupied, timberGround, Deliver, out message);
             if (result == TimberResult.Rejected)
-                return false;
+                return result;
             SaveCharacter(player, state, teleport: false);
             drops = created.ToArray();
             acquired = collected;
-            return true;
+            if (result == TimberResult.InProgress)
+                cutProgress = timber.CutProgress(order);
+            return result;
 
             bool IsOccupied(TimberSite site)
             {
@@ -123,9 +127,9 @@ namespace Workerborn
                 created.Add(AddGroundDrop(new GroundDropSave
                 {
                     itemId = reward.itemId, quantity = reward.quantity, x = landing.x, z = landing.z,
-                    hasDropOrigin = true, originX = reward.point.x, originZ = reward.point.z,
+                    hasDropOrigin = !reward.settled, originX = reward.point.x, originZ = reward.point.z,
                     originY = reward.fromCrown ? reward.crownHeight + .12f : timberHeight(reward.point) + 1f,
-                    flightMilliseconds = 480
+                    flightMilliseconds = reward.settled ? 0 : 480
                 }, owner, now, harvestYield: true, crownYield: reward.fromCrown));
             }
         }

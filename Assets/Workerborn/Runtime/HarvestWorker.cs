@@ -69,6 +69,8 @@ namespace Workerborn
         private SeatSlot occupiedSeat;
         private Quaternion occupiedSeatFacing;
         private Vector3 occupiedSeatRoot;
+        private Transform seatVisual;
+        private Vector3 seatVisualBase;
         private System.Action afterStanding;
         private float nextCollect;
         private int consecutiveCollections;
@@ -96,6 +98,7 @@ namespace Workerborn
         internal string PlayerId { get; private set; }
         internal bool HasPlayerOwner => !string.IsNullOrEmpty(PlayerId);
         internal SeatSlot OccupiedSeat => occupiedSeat;
+        internal float SeatLift { get; private set; }
         private bool IsStandingUp => animationDriver?.IsStandingUp == true;
         public bool IsWalking => Action == WorkerAction.Moving &&
             (manualMoving ? manualWalking : walkPath);
@@ -106,9 +109,20 @@ namespace Workerborn
         internal SkillId? DisplayedWorkSkill => ActiveCrop?.Definition.Skill ??
             (CurrentTimberSwing != TimberSwing.None ? SkillId.Woodcutting :
                 Time.unscaledTime < workFeedbackUntil ? completedWorkSkill : null);
-        internal (float Confirmed, float Next) DisplayedWorkSteps => ActiveCrop != null ?
-            animationDriver?.WorkSteps(ActiveCrop.Progress) ?? (0f, 1f) :
-            (CurrentTimberSwing == TimberSwing.None || struck ? 1f : 0f, 1f);
+        internal float DisplayedWorkProgress => ActiveCrop?.Progress ?? 1f;
+        internal (float Confirmed, float Next)? DisplayedWorkSteps
+        {
+            get
+            {
+                if (axeCut != null)
+                    return (confirmedCut / (float)TimberWork.FullCut, plannedCut / (float)TimberWork.FullCut);
+                if (CurrentTimberSwing == TimberSwing.Strike)
+                    return (struck ? 1f : 0f, 1f);
+                var crop = ActiveCrop;
+                return crop != null && crop.Definition.WorkAnimation?.LoopImpact > 0f
+                    ? animationDriver?.WorkSteps(crop.Progress) : null;
+            }
+        }
         internal Vector3 StandingPosition => transform.position;
         public WorkerAction Action { get; private set; }
         public HarvestableCrop HoveredCrop { get; private set; }
@@ -210,6 +224,8 @@ namespace Workerborn
                     agent.speed = speed;
                 UpdateMovement();
             }
+            else if (axeCut != null && !awaitingAutomaticHarvest)
+                UpdateAxeCut();
             else if (Action == WorkerAction.Harvesting && !awaitingAutomaticHarvest)
                 UpdateHarvest();
             else if (Action == WorkerAction.Attacking && !awaitingAutomaticHarvest)
@@ -225,6 +241,12 @@ namespace Workerborn
             };
             animationDriver?.SetAction((int)motion);
             animationDriver?.SetOvereating(characterState?.Overeating ?? 0f);
+        }
+
+        private void LateUpdate()
+        {
+            if (seatVisual != null)
+                seatVisual.localPosition = seatVisualBase + Vector3.up * (SeatLift * (animationDriver?.SeatLiftWeight ?? 1f));
         }
 
         private void RefreshEquipment()
@@ -307,7 +329,6 @@ namespace Workerborn
             Vector3 foothold = default;
             Quaternion facing = default;
             float bestDistance = float.PositiveInfinity;
-            var filter = new NavMeshQueryFilter { agentTypeID = agent.agentTypeID, areaMask = agent.areaMask };
             foreach (var seat in FindObjectsByType<SeatSlot>(FindObjectsSortMode.None))
             {
                 if (preferred != null && preferred != seat || !seat.isActiveAndEnabled || !seat.Covers(transform.position) ||
@@ -316,20 +337,17 @@ namespace Workerborn
                 float distance = (seat.Position - transform.position).sqrMagnitude;
                 if (distance >= bestDistance)
                     continue;
-                Quaternion direction = seat.FacingFor(transform.position, transform.rotation);
-                if (!NavMesh.SamplePosition(seat.AnimationRoot(direction), out var hit, .36f, filter) ||
-                    !SharesMap(hit.position) || agent.Raycast(hit.position, out _))
+                if (!TrySeatFooting(seat, transform.position, out var point, out var direction))
                     continue;
                 nearest = seat;
                 bestDistance = distance;
-                foothold = hit.position;
+                foothold = point;
                 facing = direction;
             }
             if (preferred != null && nearest == null)
                 return false;
             if (nearest != null)
             {
-                // The seated pose lowers and shifts the hips while its feet stay at this point.
                 if (!agent.Warp(foothold))
                     return false;
                 agent.isStopped = true;
@@ -339,9 +357,32 @@ namespace Workerborn
                 occupiedSeat = nearest;
                 occupiedSeatFacing = facing;
                 occupiedSeatRoot = nearest.AnimationRoot(facing);
+                SeatLift = Mathf.Clamp(occupiedSeatRoot.y - foothold.y, -.12f, .65f);
+                seatVisual = actor?.VisualRoot;
+                if (seatVisual != null)
+                    seatVisualBase = seatVisual.localPosition;
             }
             Action = WorkerAction.Sitting;
             animationDriver?.SetAction((int)(onSeat ? WorkerMotion.SeatSit : WorkerMotion.GroundSit));
+            return true;
+        }
+
+        internal bool TrySeatFooting(SeatSlot seat, Vector3 approach, out Vector3 point, out Quaternion facing)
+        {
+            point = default;
+            facing = seat.FacingFor(approach, transform.rotation);
+            if (agent == null || !agent.isOnNavMesh)
+                return false;
+
+            Vector3 root = seat.AnimationRoot(facing);
+            var ground = village != null ? village.SurfacePosition(root.x, root.z) : new Vector3(root.x, transform.position.y, root.z);
+            var filter = new NavMeshQueryFilter { agentTypeID = agent.agentTypeID, areaMask = agent.areaMask };
+            if (!NavMesh.SamplePosition(ground, out var hit, .45f, filter) || !seat.Covers(hit.position) || !SharesMap(hit.position))
+                return false;
+            var path = new NavMeshPath();
+            if (!agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete)
+                return false;
+            point = hit.position;
             return true;
         }
 
@@ -636,28 +677,38 @@ namespace Workerborn
             Action = WorkerAction.Attacking;
             WorkSequence++;
             workFeedbackUntil = 0f;
-            strikeStartedAt = Time.time;
             var clip = mount == null ? target.StrikeClip(this) ?? attackClip : null;
-            float swingDuration = mount != null ? mount.AttackSeconds :
-                (target is TimberPiece && clip != null ? clip.length : attackDelay) / CharacterState.ActionSpeed;
-            nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, swingDuration);
             strikeStaminaCost = mount == null ? target.StrikeStaminaCost(CharacterState, attackStaminaCost) : 0;
-            strikePaidProgress = 0d;
-            struck = false;
+            if (target is TimberPiece piece)
+            {
+                BeginAxeCut(new TimberOrder { action = TimberAction.Split, target = piece.TargetId, part = piece.Part },
+                    clip, target.StrikeImpact, strikeStaminaCost);
+                return;
+            }
+
+            StartStrikeClock(mount != null ? mount.AttackSeconds : attackDelay / CharacterState.ActionSpeed);
             if (mount == null)
                 animationDriver?.BeginStrike(clip);
         }
 
+        private void StartStrikeClock(float duration)
+        {
+            strikeStartedAt = Time.time;
+            nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, duration);
+            strikePaidProgress = 0d;
+            struck = false;
+        }
+
+        private float StrikePhase => Mathf.InverseLerp(strikeStartedAt, nextStrikeAt, Time.time);
+
         private void UpdateAttack()
         {
-            bool completingTimberSwing = struck && strikeTarget is TimberPiece;
-            if (CharacterState.Health <= 0 || !completingTimberSwing &&
-                (strikeTarget == null || !CanInteractWith(strikeTarget) || !SharesMap(strikeTarget.transform.position)))
+            if (CharacterState.Health <= 0 || strikeTarget == null || !CanInteractWith(strikeTarget) || !SharesMap(strikeTarget.transform.position))
             {
                 Cancel();
                 return;
             }
-            float progress = Mathf.InverseLerp(strikeStartedAt, nextStrikeAt, Time.time);
+            float progress = StrikePhase;
             var mount = CurrentMount;
             if (mount == null)
                 animationDriver?.SampleStrike(progress);
@@ -914,6 +965,16 @@ namespace Workerborn
             FinishVisualJump();
             harvestOrigin = HarvestPoint;
             Face(harvestOrigin);
+            if (cropTarget is LoggingTree tree && village != null)
+            {
+                var definition = tree.Definition;
+                var work = definition.WorkAnimation;
+                int stamina = CharacterState.WorkEnergyCost(definition.Skill, definition.ItemId,
+                    definition.StaminaCost > 0 ? definition.StaminaCost : CharacterState.Rules.HarvestEnergy);
+                BeginAxeCut(new TimberOrder { action = TimberAction.Fell, target = tree.PersistentId },
+                    work?.Loop ?? attackClip, work?.LoopImpact ?? .5f, stamina);
+                return;
+            }
             animationDriver?.BeginWork(cropTarget.Definition.WorkAnimation, cropTarget.Definition.HarvestSeconds);
             animationDriver?.SampleWork(cropTarget.Progress);
             if (FishingPoint is Vector3 spot)
@@ -943,8 +1004,7 @@ namespace Workerborn
             }
 
             bool completed = cropTarget.Advance(this, Time.deltaTime * (CharacterState?.ActionSpeed ?? 1f));
-            if (animationDriver?.SampleWork(cropTarget.Progress) == true && cropTarget is LoggingTree tree)
-                tree.ShowImpact(this, withAxe: true);
+            animationDriver?.SampleWork(cropTarget.Progress);
             if (!completed)
                 return;
 
@@ -1003,6 +1063,7 @@ namespace Workerborn
             pickupTarget = default;
             interactionTarget = null;
             strikeTarget = null;
+            axeCut = null;
             onInteractionArrival = null;
             pendingDrop = null;
         }
@@ -1023,6 +1084,10 @@ namespace Workerborn
                 return;
             onSeat = false;
             occupiedSeat = null;
+            if (seatVisual != null)
+                seatVisual.localPosition = seatVisualBase;
+            seatVisual = null;
+            SeatLift = 0f;
             if (agent != null)
                 agent.updateRotation = true;
         }

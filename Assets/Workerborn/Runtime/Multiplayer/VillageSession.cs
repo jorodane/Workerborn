@@ -32,6 +32,8 @@ namespace Workerborn
         public WoodlandSave woodland;
         public MountSave[] mounts;
         public TimberOrder timberOrder;
+        public TimberResult timberResult;
+        public int timberCutProgress;
         public TimberYield[] timberAcquired;
         public Vector3 timberContact;
         public CampaignStatus status;
@@ -54,7 +56,7 @@ namespace Workerborn
     [DefaultExecutionOrder(-200)]
     internal sealed partial class VillageSession : MonoBehaviour
     {
-        public const int ProtocolVersion = 26;
+        public const int ProtocolVersion = 27;
         public const string MenuScene = "MainMenu";
         public const string VillageScene = "VillagePrototype";
         private const float ConnectionTimeout = 15f;
@@ -1045,7 +1047,8 @@ namespace Workerborn
 
         private void SendProfile(string identity, Connection connection, string message, int request, bool includeCharacter, bool transition,
             string collectedDropId = null, int collectedQuantity = 0, GroundDropSave remainder = null,
-            HarvestPickupResult[] automaticHarvests = null, TimberYield[] timberAcquired = null, MountSave[] mounts = null)
+            HarvestPickupResult[] automaticHarvests = null, TimberYield[] timberAcquired = null, MountSave[] mounts = null,
+            TimberResult timberResult = default, int timberCutProgress = 0)
         {
             var packet = new SessionPacket
             {
@@ -1054,7 +1057,7 @@ namespace Workerborn
                 request = request, value = transition ? 1 : 0, collectedDropId = collectedDropId,
                 collectedQuantity = collectedQuantity, groundDrop = remainder,
                 automaticHarvest = automaticHarvests != null, automaticHarvests = automaticHarvests,
-                timberAcquired = timberAcquired, mounts = mounts
+                timberAcquired = timberAcquired, timberResult = timberResult, timberCutProgress = timberCutProgress, mounts = mounts
             };
             if (connection == null)
                 ApplyProfile(packet);
@@ -1229,6 +1232,7 @@ namespace Workerborn
                 village.PresentMounts(packet.mounts);
                 if (packet.timberAcquired is { Length: > 0 })
                     village.PlayTimberAcquisitions(village.Worker, packet.timberAcquired);
+                ReceiveTimberWorkReply(packet);
                 if (!string.IsNullOrEmpty(packet.collectedDropId))
                     ApplyGroundPickupReply(packet);
                 if (!packet.automaticHarvest && packet.request != 0 && packet.request == requestSequence)
@@ -1428,6 +1432,7 @@ namespace Workerborn
             Status = null;
             initialWoodland = null;
             initialMounts = null;
+            ClearTimberWorkReply();
             pendingSoloReload = null;
             reloadNotice = null;
             Administration = null;

@@ -95,7 +95,8 @@ namespace Workerborn
             if (skill == SkillId.CriticalHit)
                 return $"치명타 확률 {state.CriticalChance:P1} · 피해 ×{state.CriticalDamagePercent / 100f:0.##}";
             if (skill == SkillId.Woodcutting)
-                return $"생산물 슬롯 +{state.TreeExtraSlots}\n작업 성공률 +{state.TreeChanceBonus / 100f:0.#}%p · 생산량 +{state.TreeYieldBonus}%";
+                return $"타격당 벌목 {state.TimberCutPerHit(TimberAction.Fell) / 100f:0.##}% · 내려찍기 {state.TimberCutPerHit(TimberAction.Split) / 100f:0.##}%\n" +
+                    $"생산물 슬롯 +{state.TreeExtraSlots}\n생산물·가공 성공률 +{state.TreeChanceBonus / 100f:0.#}%p · 생산량 +{state.TreeYieldBonus}%";
             if (skill == SkillId.Lifting)
                 return $"통나무 최대 {state.LiftCapacity}개 · 이동 속도 {state.LiftSpeedPercent}%\n사용 후 통나무를 클릭하세요. Esc로 앞에 내려놓습니다.";
             if (skill == SkillId.Throwing)

@@ -9,7 +9,7 @@ namespace Workerborn
         private Vector3 seatOffset;
         [SerializeField, Tooltip("Facing relative to the slot's rotation.")]
         private float facingDegrees;
-        [SerializeField, Tooltip("Offset from the seat surface to the ground anchor of the sit and stand animations, in the character's facing axes.")]
+        [SerializeField, Tooltip("Offset from the seat surface to the root of the seated pose, in the character's facing axes.")]
         private Vector3 seatedRootOffset;
         [SerializeField, Min(.1f)] private float approachWidth = .8f;
         [SerializeField, Min(.1f)] private float approachDepth = 1.1f;
@@ -19,7 +19,7 @@ namespace Workerborn
 
         internal Vector3 Position => transform.position + Facing * seatOffset;
         internal Quaternion Facing => Quaternion.Euler(0f, transform.eulerAngles.y + facingDegrees, 0f);
-        internal Vector3 ApproachPosition => Position + Facing * Vector3.forward * (approachDepth * .75f);
+        internal Vector3 ApproachPosition => Position + Facing * new Vector3(0f, seatedRootOffset.y, approachDepth * .75f);
         internal Vector3 AnimationRoot(Quaternion facing) => Position + facing * seatedRootOffset;
         internal void SetSurfaceHeight(float height) => seatOffset.y = height;
 
@@ -35,6 +35,7 @@ namespace Workerborn
         internal bool Covers(Vector3 position)
         {
             Vector3 local = Quaternion.Inverse(Facing) * (position - Position);
+            local.y -= seatedRootOffset.y;
             if (radial)
                 return Mathf.Abs(local.y) <= heightTolerance && new Vector2(local.x, local.z).sqrMagnitude <= approachDepth * approachDepth;
             return Mathf.Abs(local.x) <= approachWidth * .5f && Mathf.Abs(local.y) <= heightTolerance &&
@@ -47,12 +48,14 @@ namespace Workerborn
             var color = Gizmos.color;
             Gizmos.matrix = Matrix4x4.TRS(Position, Facing, Vector3.one);
             Gizmos.color = Color.yellow;
+            var approachBase = Vector3.up * seatedRootOffset.y;
             if (radial)
-                Gizmos.DrawWireSphere(Vector3.zero, approachDepth);
+                Gizmos.DrawWireSphere(approachBase, approachDepth);
             else
             {
-                Gizmos.DrawWireCube(Vector3.forward * (approachDepth * .5f), new Vector3(approachWidth, heightTolerance * 2f, approachDepth));
-                Gizmos.DrawLine(Vector3.zero, Vector3.forward * approachDepth);
+                Gizmos.DrawWireCube(approachBase + Vector3.forward * (approachDepth * .5f),
+                    new Vector3(approachWidth, heightTolerance * 2f, approachDepth));
+                Gizmos.DrawLine(approachBase, approachBase + Vector3.forward * approachDepth);
             }
             Gizmos.DrawSphere(Vector3.zero, .06f);
             Gizmos.color = Color.cyan;

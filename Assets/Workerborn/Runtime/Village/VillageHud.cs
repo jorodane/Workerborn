@@ -387,11 +387,10 @@ namespace Workerborn
                 skillBalloon.SetIcon(game.Settings.FindSkill(skill.Value)?.Icon ?? active?.Definition.SkillIcon);
                 if (worker.TimberSkill.HasValue)
                     skillBalloon.SetProgress(1f);
+                else if (worker.DisplayedWorkSteps is { } steps)
+                    skillBalloon.SetWorkSteps(steps.Confirmed, steps.Next, worker.WorkSequence);
                 else
-                {
-                    var (confirmed, next) = worker.DisplayedWorkSteps;
-                    skillBalloon.SetWorkSteps(confirmed, next, worker.WorkSequence);
-                }
+                    skillBalloon.SetProgress(worker.DisplayedWorkProgress);
                 PlaceWorld(skillBubble, worker.transform.position + Vector3.up * skillWorldHeight);
             }
 

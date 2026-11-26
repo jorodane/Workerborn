@@ -115,8 +115,8 @@ namespace Workerborn
             }
             if (target.Seat != null)
             {
-                if (!TrySit())
-                    character.CommandMove(goalPosition, walk: true);
+                if (!TrySit() && character.TrySeatFooting(target.Seat, target.Position, out var footing, out _))
+                    character.CommandMove(footing, walk: true);
                 return;
             }
             if (character.InReach(goalPosition, .25f))
@@ -166,8 +166,12 @@ namespace Workerborn
                 Vector3 point = target.Position;
                 float distance = (point - character.StandingPosition).sqrMagnitude;
                 float offset = target.Crop != null ? target.Crop.InteractionDistance * .85f : 0f;
-                if (distance >= bestDistance || !character.TryGetReachablePoint(point, offset, out var approach) ||
-                    target.Seat != null && !target.Seat.Covers(approach))
+                if (distance >= bestDistance)
+                    return;
+                bool reachable = target.Seat != null
+                    ? character.TrySeatFooting(target.Seat, point, out _, out _)
+                    : character.TryGetReachablePoint(point, offset, out _);
+                if (!reachable)
                     return;
                 bestDistance = distance;
                 nearest = target;

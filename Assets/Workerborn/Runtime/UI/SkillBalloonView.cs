@@ -19,6 +19,7 @@ namespace Workerborn
 
         private Sprite defaultIcon;
         private int workSequence = -1;
+        private float stepTarget, fillPerSecond;
         private void Awake() => defaultIcon = icon.sprite;
         public void SetIcon(Sprite sprite) => icon.sprite = sprite != null ? sprite : defaultIcon;
         public void SetProgress(float amount)
@@ -34,12 +35,22 @@ namespace Workerborn
             if (workSequence != sequence)
             {
                 workSequence = sequence;
-                progress.fillAmount = confirmed;
+                stepTarget = progress.fillAmount = confirmed;
             }
             else
-                progress.fillAmount = Mathf.MoveTowards(progress.fillAmount, confirmed, Time.unscaledDeltaTime * 8f);
+            {
+                if (stepTarget != confirmed)
+                {
+                    stepTarget = confirmed;
+                    fillPerSecond = Mathf.Abs(confirmed - progress.fillAmount) / .12f;
+                }
+                progress.fillAmount = Mathf.MoveTowards(progress.fillAmount, confirmed, Time.unscaledDeltaTime * fillPerSecond);
+            }
             if (nextAction != null)
-                nextAction.fillAmount = progress.fillAmount < confirmed - .001f ? confirmed : next;
+            {
+                float preview = progress.fillAmount < confirmed - .001f ? confirmed : next;
+                nextAction.fillAmount = preview > progress.fillAmount + .001f ? preview : 0f;
+            }
         }
     }
 }

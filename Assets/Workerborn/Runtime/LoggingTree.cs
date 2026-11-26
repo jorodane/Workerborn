@@ -55,7 +55,7 @@ namespace Workerborn
                     Mathf.Abs(world.m12) * bounds.extents.z;
             }
             return site = new TimberSite(PersistentId, TimberLocation.Planar(transform.position),
-                Definition.RequiredTool.Id, Definition.HarvestsPerPlant, InteractionDistance, strikeChance, Definition.SuccessChance,
+                Definition.RequiredTool.Id, Definition.HarvestsPerPlant, InteractionDistance, strikeChance,
                 transform.position.y, cutHeight, Mathf.Max(cutHeight + .4f, top), barkRadius,
                 Array.ConvertAll(products ?? Array.Empty<Product>(),
                     product => new TreeProduct(product.item != null ? product.item.Id : "", product.weight, product.quantity)));
@@ -106,12 +106,10 @@ namespace Workerborn
                 NotifyInteractionCompleted();
         }
 
-        protected override bool Gather(HarvestWorker worker)
-        {
-            worker.Village?.RequestTimberWork(worker, new TimberOrder { action = TimberAction.Fell, target = PersistentId });
-            // The work cycle times the swing. The woodland record owns the remaining products and the cut state.
-            return false;
-        }
+        // Felling uses the woodland's cut progress while the base crop reserves the worker's target.
+        protected override bool Gather(HarvestWorker worker) => false;
+
+        internal void FinishFelling() => NotifyInteractionCompleted();
 
         internal void Present(bool isFelled)
         {

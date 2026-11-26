@@ -139,8 +139,7 @@ namespace Workerborn
             if (saved == null)
                 return;
             foreach (var drop in saved)
-                if (ValidGroundDrop(drop) && Guid.TryParseExact(drop.id, "N", out _) && !string.IsNullOrEmpty(drop.ownerId))
-                    groundDrops.Add(drop);
+                RestoreGroundDrop(drop);
         }
 
         private void LoadSoloGroundDrops(VillageSave save)
@@ -149,11 +148,20 @@ namespace Workerborn
                 return;
             var personalDrops = new List<GroundDropSave>();
             foreach (var drop in save.drops)
-                if (ValidGroundDrop(drop) && Guid.TryParseExact(drop.id, "N", out _) && !string.IsNullOrEmpty(drop.ownerId))
-                    groundDrops.Add(drop);
-                else
+                if (!RestoreGroundDrop(drop))
                     personalDrops.Add(drop);
             save.drops = personalDrops.ToArray();
+        }
+
+        private bool RestoreGroundDrop(GroundDropSave drop)
+        {
+            if (!ValidGroundDrop(drop) || !Guid.TryParseExact(drop.id, "N", out _) || string.IsNullOrEmpty(drop.ownerId))
+                return false;
+            var restored = drop.Copy();
+            if (restored.crownYield)
+                restored.hasDropOrigin = false;
+            groundDrops.Add(restored);
+            return true;
         }
     }
 }
