@@ -46,6 +46,7 @@ namespace Workerborn
         private float staminaRecoveryPerSecond = 2f;
         [SerializeField, Min(1f)]
         private float seatedRecoveryMultiplier = 2.5f;
+        [SerializeField] private NutritionRules nutrition = new NutritionRules();
         [Header("Progression")]
         [SerializeField, Min(1)]
         private int rebirthDays = 7;
@@ -135,6 +136,7 @@ namespace Workerborn
             var rules = new VillageRules
             {
                 MinutesPerSecond = minutesPerSecond,
+                Nutrition = nutrition ?? new NutritionRules(),
                 WakeMinute = wakeHour * 60,
                 CollapseMinute = collapseHour * 60,
                 RoomPrice = roomPrice,

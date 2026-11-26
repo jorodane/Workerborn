@@ -20,8 +20,9 @@ namespace Workerborn
         private Sprite defaultFrame;
         private bool hovered, equipped, occupied;
         private Vector2 hoverPosition;
-        private int shownBinding = -1;
+        private float keySize;
         internal int Index { get; private set; }
+        internal int Binding { get; private set; } = -1;
 
         internal void Bind(VillageHud owner, int index)
         {
@@ -29,18 +30,23 @@ namespace Workerborn
             Index = index;
             idleColor = frame.color;
             defaultFrame = frame.sprite;
+            keySize = keyLabel.fontSize;
             keyLabel.text = ((index + 1) % VillageState.ItemShortcutCount).ToString();
             item.ShowIconOnly(showQuantity: true);
         }
 
         internal void ShowBinding(int binding)
         {
-            if (shownBinding == binding)
+            if (Binding == binding)
                 return;
-            shownBinding = binding;
-            frame.sprite = binding >= VillageState.ItemShortcutCount ? alternateFrame : defaultFrame;
+            Binding = binding;
+            bool shifted = binding >= VillageState.ItemShortcutCount;
+            frame.sprite = shifted ? alternateFrame : defaultFrame;
+            keyLabel.fontSize = shifted ? keySize * .75f : keySize;
+            string key = ((Index + 1) % VillageState.ItemShortcutCount).ToString();
+            keyLabel.text = shifted ? $"Shift+{key}" : key;
             if (hovered && occupied)
-                hud.ShowShortcutTooltip(Index, hoverPosition);
+                hud.ShowShortcutTooltip(Binding, hoverPosition);
         }
 
         internal void ShowItem(ItemDefinition definition, string id, int quantity, bool worn)
@@ -75,7 +81,7 @@ namespace Workerborn
 
         private void RefreshFrame() => frame.color = equipped ? equippedColor : hovered ? hoverColor : idleColor;
 
-        public void OnPointerClick(PointerEventData data) => hud?.ClickItemShortcut(Index, data.button);
+        public void OnPointerClick(PointerEventData data) => hud?.ClickItemShortcut(Binding, data.button);
 
         public void OnPointerEnter(PointerEventData data)
         {
@@ -85,7 +91,7 @@ namespace Workerborn
             hoverPosition = data.position;
             RefreshFrame();
             if (occupied)
-                hud.ShowShortcutTooltip(Index, data.position);
+                hud.ShowShortcutTooltip(Binding, data.position);
         }
 
         public void OnPointerExit(PointerEventData data) => ResetHover();

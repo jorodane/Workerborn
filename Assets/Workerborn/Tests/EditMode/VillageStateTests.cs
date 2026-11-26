@@ -473,7 +473,7 @@ namespace Workerborn.Tests
             Assert.That(state.LearnSkill(SkillId.SoulGrowth), Is.True);
             Assert.That(state.TryHarvest(2, false, out int drops), Is.True);
             Assert.That(drops, Is.EqualTo(2));
-            Assert.That(state.Energy, Is.EqualTo(95));
+            Assert.That(state.Energy, Is.EqualTo(85));
             Assert.That(state.Experience, Is.EqualTo(8));
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.Zero);
         }
@@ -707,6 +707,7 @@ namespace Workerborn.Tests
         public void SkillEffectRowsAccumulateByRankAndChangeActualStats()
         {
             var rules = new VillageRules();
+            rules.Nutrition.nourishmentLossPerHour = 0f;
             rules.SetSkill(new SkillProgression(SkillId.UnarmedCombat, "맨손전투", new[]
             {
                 new SkillRankEffect(0, 0, SkillEffect.MaxStamina, 4),
@@ -867,16 +868,62 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void FullEnergyDoesNotWasteFoodAndEatingClampsAtMaximum()
+        public void BreadRestoresStaminaCapacityAndEatingStopsWhenFull()
         {
-            var state = Funded();
-            state.TrySleep(true);
-            state.TryBuy(ItemIds.Bread);
-            Assert.That(state.TryEatBread(), Is.False);
-            state.TryHarvest(2, false, out _);
+            var state = new VillageState();
+            Assert.That(state.Inventory.TryAdd(ItemIds.Bread, 6), Is.True);
+            Assert.That(state.AdvanceTime(8f * 60f / state.Rules.MinutesPerSecond), Is.False);
+            int hungryLimit = state.StaminaLimit;
+            Assert.That(hungryLimit, Is.LessThan(state.WellFedStaminaLimit));
+            double before = state.Stamina;
             Assert.That(state.TryEatBread(), Is.True);
-            Assert.That(state.Energy, Is.EqualTo(state.StaminaLimit));
-            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.Zero);
+            Assert.That(state.StaminaLimit, Is.GreaterThan(hungryLimit));
+            Assert.That(state.Stamina, Is.EqualTo(before));
+            Assert.That(state.Fullness, Is.EqualTo(20));
+            Assert.That(state.Overeating, Is.Zero);
+            for (int i = 0; i < 4; i++)
+                Assert.That(state.TryEatBread(), Is.True);
+            Assert.That(state.Fullness, Is.EqualTo(state.FullnessLimit));
+            Assert.That(state.LastMessage, Does.Contain("너무 많이 먹은"));
+            Assert.That(state.ActionSpeed, Is.LessThan(1f));
+            Assert.That(state.TryEatBread(), Is.False);
+            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.EqualTo(1));
+
+            var restored = VillageState.Restore(state.Export());
+            Assert.That(restored.Fullness, Is.EqualTo(state.Fullness));
+            restored.AdvanceTime(2f * 60f / restored.Rules.MinutesPerSecond);
+            Assert.That(restored.Fullness, Is.LessThan(state.Fullness));
+            Assert.That(restored.ActionSpeed, Is.GreaterThan(state.ActionSpeed));
+            Assert.That(restored.TryEatBread(), Is.True);
+        }
+
+        [Test]
+        public void GritRaisesTheHungryFloorAndDigestionClearsFullnessFaster()
+        {
+            var save = new VillageState().Export();
+            save.level = 3;
+            save.totalLevel = 3;
+            save.attributePoints = 2;
+            save.nourishment = 0d;
+            save.fullness = 60d;
+            var character = VillageState.Restore(save);
+            int hungryFloor = character.StaminaLimit;
+            Assert.That(character.TrySpendAttribute(LifeAttribute.Grit), Is.True);
+            Assert.That(character.StaminaLimit, Is.EqualTo(hungryFloor + 1));
+            Assert.That(character.TrySpendAttribute(LifeAttribute.Digestion), Is.True);
+            character = VillageState.Restore(character.Export());
+            Assert.That(character.Grit, Is.EqualTo(1));
+            Assert.That(character.Digestion, Is.EqualTo(1));
+            var peer = VillageState.Restore(save);
+            character.AdvanceTime(3f * 60f / character.Rules.MinutesPerSecond);
+            peer.AdvanceTime(3f * 60f / peer.Rules.MinutesPerSecond);
+            Assert.That(character.StaminaLimit, Is.EqualTo(character.MinimumStaminaLimit));
+            Assert.That(character.FullnessFill, Is.LessThan(peer.FullnessFill));
+
+            save.schema = 18;
+            var migrated = VillageState.Restore(save);
+            Assert.That(migrated.Fullness, Is.Zero);
+            Assert.That(migrated.StaminaLimit, Is.EqualTo(migrated.WellFedStaminaLimit));
         }
 
         [Test]
@@ -957,6 +1004,7 @@ namespace Workerborn.Tests
             var state = new VillageState(new VillageRules { HarvestExperience = 0 });
             for (int i = 0; i < 20; i++) state.TryHarvest(2, false, out _);
             Assert.That(state.TryHarvest(2, false, out _), Is.False);
+            Assert.That(state.SpendWorkStamina(state.Stamina), Is.True);
             Assert.That(state.WillAdvanceDay(0f, paused: false), Is.False);
             Assert.That(state.AdvanceTime(0f), Is.False);
             Assert.That(state.RecoverInSharedWorld(), Is.False);

@@ -148,8 +148,14 @@ namespace Workerborn.Tests
             Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Sitting));
             Assert.That(Vector3.Distance(game.Worker.transform.position, seat.Position), Is.LessThan(.01f));
             Assert.That(Quaternion.Angle(game.Worker.transform.rotation, seat.Facing), Is.LessThan(.1f));
+            var actorVisual = game.Worker.Actor.VisualRoot;
+            Vector3 visibleBefore = actorVisual.position;
+            Vector3 cameraAnchorBefore = game.Worker.CameraFollowPosition;
             game.Worker.ToggleSit();
-            Assert.That(Vector3.Distance(game.Worker.transform.position, standing.position), Is.LessThan(.02f));
+            Assert.That(Vector3.Distance(actorVisual.position, visibleBefore), Is.LessThan(.02f));
+            Assert.That(Vector3.Distance(game.Worker.CameraFollowPosition, cameraAnchorBefore), Is.LessThan(.02f));
+            Assert.That(game.Worker.GetComponent<NavMeshAgent>().isOnNavMesh, Is.True);
+            yield return Until(() => (actorVisual.position - game.Worker.transform.position).sqrMagnitude < .04f, 2f);
         }
 
         [UnityTest]
@@ -461,6 +467,20 @@ namespace Workerborn.Tests
                 Assert.That(state.ItemShortcutAt(9), Is.EqualTo(ItemIds.HealthPotion));
                 Assert.That(state.Inventory.Find(potion.Id).Quantity, Is.EqualTo(2));
                 Assert.That(game.Hud.IsHoldingItem, Is.False);
+
+                Assert.That(state.Inventory.TryAdd(ItemIds.Bread, 1), Is.True);
+                game.Hud.BeginItemDrag(state.Inventory.Entries.Single(item => item.ItemId == ItemIds.Bread).Id, Center(first.transform));
+                GameObject upper = null;
+                yield return Until(() => (upper = GameObject.Find("Shift shortcuts")) != null, 1f);
+                var shifted = upper.GetComponentsInChildren<ItemShortcutSlotView>();
+                Assert.That(shifted.Length, Is.EqualTo(10));
+                Assert.That(first.Binding, Is.Zero);
+                var upperFirst = shifted.Single(slot => slot.Binding == VillageState.ItemShortcutCount);
+                Assert.That(upperFirst.transform.position.y, Is.GreaterThan(first.transform.position.y));
+                upperFirst.OnPointerClick(new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left });
+                Assert.That(state.ItemShortcutAt(VillageState.ItemShortcutCount), Is.EqualTo(ItemIds.Bread));
+                Assert.That(state.ItemShortcutAt(0), Is.EqualTo(ItemIds.Axe));
+                yield return Until(() => !upper.activeInHierarchy, 1f);
 
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Digit1));
                 yield return Until(() => state.Equipment.TryGetValue(EquipmentSlot.MainHand, out var id) && id == ItemIds.Axe, 1f);
@@ -2798,7 +2818,17 @@ namespace Workerborn.Tests
             float onFoot = agent.speed;
             float standingHeight = worker.Actor.VisualRoot.localPosition.y;
             horse.RequestInteraction(worker);
-            yield return Until(() => worker.InReach(horse.transform.position, horse.InteractionDistance), 4f);
+            yield return Until(() => worker.CurrentMount == horse, 4f);
+            Vector2 screen = new Vector2(Screen.width, Screen.height) * .5f;
+            game.Hud.OpenWorldContext(horse, screen);
+            var menu = UnityEngine.Object.FindFirstObjectByType<WorldContextView>();
+            FindButton(menu, "내리기").onClick.Invoke();
+            Assert.That(worker.CurrentMount, Is.Null);
+            game.Hud.OpenWorldContext(horse, screen);
+            FindButton(menu, "타기").onClick.Invoke();
+            Assert.That(worker.CurrentMount, Is.SameAs(horse));
+            game.Hud.OpenWorldContext(horse, screen);
+            FindButton(menu, "내리기").onClick.Invoke();
             Assert.That(worker.CurrentMount, Is.Null);
             var keyboard = InputSystem.AddDevice<Keyboard>();
             try
@@ -2838,6 +2868,75 @@ namespace Workerborn.Tests
             Assert.That(saved.rider, Is.Null);
             Assert.That(saved.x, Is.EqualTo(horse.transform.position.x));
             Assert.That(saved.z, Is.EqualTo(horse.transform.position.z));
+        }
+
+        [UnityTest]
+        public IEnumerator ThrownTimberSpinsAndStopsAtAnObstacleBeforeTheAimPoint()
+        {
+            Vector3 center = new Vector3(200f, 60f, 200f);
+            var floor = new GameObject("Throw test floor");
+            floor.transform.position = center - Vector3.up * .5f;
+            floor.AddComponent<BoxCollider>().size = new Vector3(24f, 1f, 16f);
+            var wall = new GameObject("Throw test wall");
+            wall.transform.position = center + new Vector3(2.4f, 2.5f, 0f);
+            wall.AddComponent<BoxCollider>().size = new Vector3(.6f, 5f, 12f);
+            TimberPose settled = default;
+            TimberFall flight = null;
+            try
+            {
+                var release = TimberLocation.Pose(center + Vector3.up * 2.13f, Quaternion.Euler(90f, 0f, 0f));
+                Vector3 aim = center + new Vector3(7f, .20f, 0f);
+                flight = TimberFall.Throw(release, aim, .20f, 1.2f, null, 0f, 0f, null,
+                    pose => settled = pose, null);
+                yield return new WaitForFixedUpdate();
+                var body = flight.GetComponent<Rigidbody>();
+                Assert.That(body.isKinematic, Is.False);
+                Assert.That(body.angularVelocity.sqrMagnitude, Is.GreaterThan(1f));
+                yield return Until(() => settled.IsValid, 8f);
+                Assert.That(settled.point.x, Is.LessThan(wall.transform.position.x));
+                Assert.That(settled.point.DistanceSquared(TimberLocation.Planar(aim)), Is.GreaterThan(1f));
+            }
+            finally
+            {
+                if (flight != null)
+                    UnityEngine.Object.Destroy(flight.gameObject);
+                UnityEngine.Object.Destroy(floor);
+                UnityEngine.Object.Destroy(wall);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator WorkRingPreviewsTheNextAxeSwingAndCommitsAtImpact()
+        {
+            var animation = game.Worker.GetComponent<WorkerAnimation>();
+            var work = game.Settings.Timber.Felling;
+            animation.BeginWork(work.WorkAnimation, work.HarvestSeconds);
+            var first = animation.WorkSteps(0f);
+            Assert.That(first.Confirmed, Is.Zero);
+            Assert.That(first.Next, Is.GreaterThan(0f));
+            float hit = Enumerable.Range(1, 1000).Select(step => step / 1000f)
+                .First(progress => animation.WorkSteps(progress).Confirmed > 0f);
+            Assert.That(animation.WorkSteps(hit - .0011f).Confirmed, Is.Zero);
+            Assert.That(animation.WorkSteps(hit).Confirmed, Is.EqualTo(first.Next).Within(.001f));
+
+            var ring = UnityEngine.Object.Instantiate(game.Hud.Library.SkillBalloon);
+            try
+            {
+                ring.SetWorkSteps(first.Confirmed, first.Next, 1);
+                var outline = ring.transform.Find("Next action outline").GetComponent<Image>();
+                Assert.That(outline.fillAmount, Is.EqualTo(first.Next).Within(.001f));
+                Assert.That(ring.Progress.fillAmount, Is.Zero);
+                var done = animation.WorkSteps(hit);
+                yield return Until(() =>
+                {
+                    ring.SetWorkSteps(done.Confirmed, done.Next, 1);
+                    return ring.Progress.fillAmount >= done.Confirmed && outline.fillAmount >= done.Next - .001f;
+                }, .5f);
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(ring.gameObject);
+            }
         }
 
         [UnityTest]

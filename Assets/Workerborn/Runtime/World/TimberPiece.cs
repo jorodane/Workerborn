@@ -10,6 +10,11 @@ namespace Workerborn
             new System.Numerics.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w));
         internal static Vector3 Position(TimberPose pose) => new Vector3(pose.point.x, pose.height, pose.point.z);
         internal static Quaternion Rotation(TimberPose pose) => new Quaternion(pose.rotationX, pose.rotationY, pose.rotationZ, pose.rotationW);
+        internal static Vector3 CarryOffset(int index)
+        {
+            float depth = (index % 3) switch { 1 => -.40f, 2 => .40f, _ => 0f };
+            return new Vector3(0f, 2.13f + index / 3 * .40f, .13f + depth);
+        }
     }
 
     [DisallowMultipleComponent]
@@ -26,10 +31,6 @@ namespace Workerborn
         private string target;
         private string carrier;
         private int carryingIndex;
-        private bool moving;
-        private float started, duration, dropHeight;
-        private Vector3 from, landing;
-        private Quaternion landingRotation;
         private TimberFall motion;
         private float groundClearance;
         private bool hasCutMesh;
@@ -52,7 +53,7 @@ namespace Workerborn
             part == TimberPart.Log && worker.CanSelectLog ? "들어 올리기" : InteractionVerb;
         internal override InteractionCursor CursorFor(HarvestWorker worker) =>
             part == TimberPart.Log && worker.CanSelectLog ? InteractionCursor.PickUp : InteractionCursor.Chop;
-        public override bool CanInteract => base.CanInteract && carrier == null && !moving && motion == null;
+        public override bool CanInteract => base.CanInteract && carrier == null && motion == null;
         internal override bool CanReceiveStrike => CanInteract;
         internal override AnimationClip StrikeClip(HarvestWorker worker) => worker.Village.Settings.Timber.Split;
         internal override float StrikeImpact => .52f;
@@ -108,9 +109,6 @@ namespace Workerborn
 
         private void Place(Vector3 point, Quaternion rotation)
         {
-            landing = point;
-            landingRotation = rotation;
-            moving = false;
             motion = null;
             carrier = null;
             transform.SetPositionAndRotation(point, rotation);
@@ -140,7 +138,7 @@ namespace Workerborn
 
         private Quaternion SectionRotation(Quaternion rotation) => hasCutMesh ? rotation : rotation * Quaternion.Euler(-90f, 0f, 0f);
 
-        internal void PresentLog(TimberLogSave log, int index, bool animate, TimberFall body)
+        internal void PresentLog(TimberLogSave log, int index, TimberFall body)
         {
             if (body != null)
             {
@@ -149,10 +147,14 @@ namespace Workerborn
                 RefreshAppearance();
                 return;
             }
-            string previousCarrier = carrier;
             Vector3 point = village.SurfacePosition(log.point.x, log.point.z);
             Quaternion rotation = Quaternion.Euler(hasCutMesh ? 90f : 0f, log.yaw, 0f);
-            if (hasCutMesh)
+            if (log.throwRest.IsValid)
+            {
+                point = TimberLocation.Position(log.throwRest);
+                rotation = SectionRotation(TimberLocation.Rotation(log.throwRest));
+            }
+            else if (hasCutMesh)
             {
                 if (!log.moved && log.cutPose.IsValid)
                 {
@@ -166,24 +168,10 @@ namespace Workerborn
             if (log.carrier != null)
             {
                 carrier = log.carrier;
-                moving = false;
                 UpdateCarriedPose();
                 RefreshAppearance();
             }
-            else if (animate && log.thrown && previousCarrier != null)
-            {
-                from = transform.position;
-                if (!model.activeSelf)
-                    from = village.SurfacePosition(log.throwOrigin.x, log.throwOrigin.z) + Vector3.up * 1.15f;
-                Place(point, rotation);
-                dropHeight = Mathf.Clamp(Vector3.Distance(from, point) * .34f + .65f, 1.2f, 4f);
-                duration = Mathf.Clamp(Vector3.Distance(from, point) * .055f + .42f, .45f, 1.18f);
-                started = Time.time + .22f;
-                moving = true;
-                UpdateFlight(0f);
-                RefreshAppearance();
-            }
-            else if (!moving || previousCarrier != null || (point - landing).sqrMagnitude > .0001f)
+            else
                 Place(point, rotation);
         }
 
@@ -232,20 +220,6 @@ namespace Workerborn
                 UpdateCarriedPose();
             else if (motion != null && part != TimberPart.Stump)
                 transform.SetPositionAndRotation(motion.transform.position, SectionRotation(motion.transform.rotation));
-            else if (moving)
-            {
-                float progress = Mathf.Max(0f, (Time.time - started) / duration);
-                if (progress >= 1f)
-                    Place(landing, landingRotation);
-                else
-                    UpdateFlight(progress);
-            }
-        }
-
-        private void UpdateFlight(float progress)
-        {
-            var point = Vector3.Lerp(from, landing, progress) + Vector3.up * (dropHeight * 4f * progress * (1f - progress));
-            transform.SetPositionAndRotation(point, landingRotation * Quaternion.AngleAxis(Mathf.Sin(progress * Mathf.PI) * 45f, Vector3.forward));
         }
 
         private void UpdateCarriedPose()
@@ -254,10 +228,8 @@ namespace Workerborn
             model.SetActive(holder != null);
             if (holder == null)
                 return;
-            int inRow = carryingIndex % 3;
-            float x = carryingIndex == 0 ? 0f : (inRow == 1 ? -.27f : .27f);
-            Vector3 offset = new Vector3(x, 1.04f + (carryingIndex / 3) * .19f, .58f + (carryingIndex > 0 && inRow == 0 ? .17f : 0f));
-            transform.SetPositionAndRotation(holder.TransformPoint(offset), Quaternion.Euler(hasCutMesh ? 90f : 0f, holder.eulerAngles.y + 90f, 0f));
+            transform.SetPositionAndRotation(holder.TransformPoint(TimberLocation.CarryOffset(carryingIndex)),
+                Quaternion.Euler(hasCutMesh ? 90f : 0f, holder.eulerAngles.y + 90f, 0f));
         }
 
         private void RefreshAppearance()

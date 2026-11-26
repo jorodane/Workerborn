@@ -230,8 +230,15 @@ namespace Workerborn
                     target = PickTarget(cursor, control && !game.ControlsBlocked);
             }
 
-            if (target != null && (target == worker.CurrentMount || !target.CanInteract || !game.SharesMap(target.transform.position) ||
+            if (target != null && (!target.CanInteract || !game.SharesMap(target.transform.position) ||
                 game.ControlsBlocked && !(target is GroundPickup)))
+                target = null;
+            if (rightPressed)
+            {
+                rightTarget = new WorldTargetReference(target);
+                game.Hud.CloseWorldContext();
+            }
+            if (target == worker.CurrentMount)
                 target = null;
             ShowCursor(game.CameraRig.IsOrbiting ? InteractionCursor.Orbit :
                 ThrowAim != TimberThrowAim.None ? InteractionCursor.Throw :
@@ -241,11 +248,6 @@ namespace Workerborn
                 Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
                 IsHoveringPlayer = playerCollider.Raycast(ray, out var playerHit, PointerDistance) &&
                     (!TryWorldHit(ray, out var cover) || cover.distance >= playerHit.distance);
-            }
-            if (rightPressed)
-            {
-                rightTarget = new WorldTargetReference(target);
-                game.Hud.CloseWorldContext();
             }
             if (WorkerbornInput.Released("Camera/OrbitRight"))
             {
@@ -354,7 +356,7 @@ namespace Workerborn
                 if (hit.distance >= nearest || !hit.collider.isTrigger)
                     continue;
                 var target = hit.collider.GetComponentInParent<WorldInteractable>();
-                if (target == null || target == game.Worker.CurrentMount || !target.CanInteract || target.gameObject.scene != game.gameObject.scene ||
+                if (target == null || !target.CanInteract || target.gameObject.scene != game.gameObject.scene ||
                     !game.SharesMap(target.transform.position) || fallbackOnly && target is not (VillageBuildingDoor or VillageBed or VillageMount))
                     continue;
 
@@ -558,7 +560,7 @@ namespace Workerborn
                 if (item == null || item.gameObject.scene != game.gameObject.scene || !game.SharesMap(item.transform.position))
                     continue;
                 int id = item == selected ? 1 : 0;
-                if (!forOutline && item.CanInteract && item != game.Worker.CurrentMount)
+                if (!forOutline && item.CanInteract)
                 {
                     id = frameTargets.Count;
                     frameTargets.Add(new WorldTargetReference(item));

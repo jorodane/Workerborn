@@ -82,6 +82,7 @@ namespace Workerborn
             IsUsingMountAttack = avatar.motion == (int)WorkerMotion.Work;
             PresentTimberSwing(avatar);
             animationDriver?.SetAction(avatar.motion);
+            animationDriver?.SetOvereating(avatar.overeating);
             if (animationDriver != null && float.IsFinite(avatar.gestureProgress))
                 animationDriver.SetGesture((WorkerGesture)avatar.gesture, avatar.gestureProgress);
             jumpOffset = animationDriver?.Gesture != WorkerGesture.Jump && float.IsFinite(avatar.jumpOffset)

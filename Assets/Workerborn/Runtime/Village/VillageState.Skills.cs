@@ -47,13 +47,14 @@ namespace Workerborn
                 maxStamina += SkillBonus(skill, SkillEffect.MaxStamina);
                 damage += SkillBonus(skill, SkillEffect.UnarmedDamage);
             }
-            StaminaLimit = Math.Max(1, Math.Min(1000000, maxStamina));
+            restedStaminaLimit = Math.Max(1, Math.Min(1000000, maxStamina));
+            RefreshUsableStaminaLimit();
             UnarmedDamageBonus = damage;
         }
 
         public int WorkEnergyCost(string itemId, int baseCost) => WorkEnergyCost(SkillProgression.ForItem(itemId), itemId, baseCost);
         public int WorkEnergyCost(SkillId skill, string itemId, int baseCost) =>
-            (int)Math.Max(1, Math.Min(int.MaxValue,
+            (int)Math.Min(int.MaxValue, WorkStaminaMultiplier * Math.Max(1L,
                 (long)baseCost - Dexterity / 5 - SkillBonus(skill, SkillEffect.StaminaSaving) - (itemId == ItemIds.Potato && HasHoe ? 1 : 0)));
 
         public int ScaledYield(SkillId skill, int baseYield, int bonus = 1) =>
@@ -115,7 +116,6 @@ namespace Workerborn
             learnedSkills[(int)skill] = true;
             skillRanks[(int)skill] = rank;
             RefreshSkillStats();
-            SetStamina(Stamina);
             return true;
         }
 

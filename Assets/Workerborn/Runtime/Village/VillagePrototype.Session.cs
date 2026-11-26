@@ -140,7 +140,8 @@ namespace Workerborn
                 mountId = worker.CurrentMount != null ? worker.CurrentMount.PersistentId : null, parkedMountId = ParkedMountId,
                 hasSeat = seat != null, seatX = seatPoint.x, seatY = seatPoint.y, seatZ = seatPoint.z,
                 gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress,
-                timberSwing = (int)worker.CurrentTimberSwing, timberProgress = worker.CurrentTimberProgress };
+                timberSwing = (int)worker.CurrentTimberSwing, timberProgress = worker.CurrentTimberProgress,
+                overeating = worker.CharacterState.Overeating };
         }
 
         internal bool SeatInUse(Vector3 position, NpcRoutine searchingNpc = null)

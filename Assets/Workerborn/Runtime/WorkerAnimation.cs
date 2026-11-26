@@ -25,6 +25,9 @@ namespace Workerborn
         [SerializeField] private AnimationClip gatherSuccess;
         [SerializeField] private AnimationClip gatherFailure;
         private Animator rig;
+        private Transform waist, upperTorso;
+        private Vector3 waistScale, torsoScale;
+        private float overeating, shownOvereating;
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
         private AnimationPlayableOutput animationOutput;
@@ -79,6 +82,16 @@ namespace Workerborn
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             humanoid = animator.isHuman;
             rig = animator;
+            waist = humanoid ? rig.GetBoneTransform(HumanBodyBones.Spine) : null;
+            upperTorso = humanoid ? rig.GetBoneTransform(HumanBodyBones.Chest) : null;
+            if (waist != null && upperTorso != null && upperTorso.parent == waist)
+            {
+                waistScale = waist.localScale;
+                torsoScale = upperTorso.localScale;
+            }
+            else
+                waist = null;
+            shownOvereating = 0f;
             stirrupPose = default;
             graph = PlayableGraph.Create("Workerborn existing character animations");
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
@@ -111,6 +124,7 @@ namespace Workerborn
         }
 
         public int CurrentAction => target;
+        internal float SeatExitSeconds => seatSitFinish != null ? Mathf.Max(.2f, seatSitFinish.length / (float)SitSpeed) : .45f;
         public double ActionTime => graph.IsValid() ? clips[Input].GetTime() : 0d;
         internal WorkerGesture Gesture { get; private set; }
         internal float GestureProgress => Gesture == WorkerGesture.None || !graph.IsValid()
@@ -191,7 +205,7 @@ namespace Workerborn
 
             float elapsed = Mathf.Clamp01(progress) * workDuration;
             float finishAt = workDuration - finishDuration;
-            float loopPosition = loopCycles * Mathf.Clamp01((elapsed - beginDuration) / (finishAt - beginDuration));
+            float loopPosition = WorkLoopPosition(progress);
             bool impact = loopImpact > 0f && Mathf.FloorToInt(loopPosition - loopImpact) > Mathf.FloorToInt(lastLoopPosition - loopImpact);
             lastLoopPosition = loopPosition;
             float phase;
@@ -213,6 +227,18 @@ namespace Workerborn
 
             clips[workInput].SetTime(phase * lengths[workInput]);
             return impact;
+        }
+
+        private float WorkLoopPosition(float progress) =>
+            loopCycles * Mathf.Clamp01((Mathf.Clamp01(progress) * workDuration - beginDuration) /
+                (workDuration - finishDuration - beginDuration));
+
+        internal (float Confirmed, float Next) WorkSteps(float progress)
+        {
+            if (!timedWork || loopImpact <= 0f || loopCycles < 1f)
+                return (progress >= 1f ? 1f : 0f, 1f);
+            float hits = Mathf.Clamp(Mathf.Floor(WorkLoopPosition(progress) - loopImpact) + 1f, 0f, loopCycles);
+            return (hits / loopCycles, Mathf.Min(hits + 1f, loopCycles) / loopCycles);
         }
 
         public void SetAction(int action)
@@ -331,6 +357,19 @@ namespace Workerborn
             SetGesture(WorkerGesture.TimberToss);
         }
 
+        internal void SetOvereating(float amount) => overeating = Mathf.Clamp01(amount);
+
+        private void LateUpdate()
+        {
+            if (waist == null || upperTorso == null || shownOvereating <= 0f && overeating <= 0f)
+                return;
+            shownOvereating = Mathf.MoveTowards(shownOvereating, overeating, Time.deltaTime * 2.5f);
+            Vector3 shape = new Vector3(1f + .18f * shownOvereating, 1f, 1f + .42f * shownOvereating);
+            waist.localScale = Vector3.Scale(waistScale, shape);
+            // Compensate at the chest so the head and shoulders keep their proportions.
+            upperTorso.localScale = Vector3.Scale(torsoScale, new Vector3(1f / shape.x, 1f, 1f / shape.z));
+        }
+
         internal void SetCarrying(AnimationClip clip, bool active)
         {
             carrying = active;
@@ -348,11 +387,41 @@ namespace Workerborn
             carryPose = AnimationClipPlayable.Create(graph, clip);
             carryPose.SetApplyFootIK(false);
             graph.Connect(mixer, 0, carryLayer, 0);
-            graph.Connect(carryPose, 0, carryLayer, 1);
+            var hands = AnimationScriptPlayable.Create(graph, new OverheadCarry { Root = rig.BindSceneTransform(transform) }, 1);
+            graph.Connect(carryPose, 0, hands, 0);
+            graph.Connect(hands, 0, carryLayer, 1);
             carryLayer.SetLayerMaskFromAvatarMask(1, carryMask);
             carryLayer.SetInputWeight(0, 1f);
             carryLayer.SetInputWeight(1, 0f);
             animationOutput.SetSourcePlayable(carryLayer);
+        }
+
+        private struct OverheadCarry : IAnimationJob
+        {
+            public TransformSceneHandle Root;
+
+            public void ProcessRootMotion(AnimationStream stream) { }
+
+            public void ProcessAnimation(AnimationStream stream)
+            {
+                if (!stream.isHumanStream || !Root.IsValid(stream))
+                    return;
+                var human = stream.AsHuman();
+                Vector3 position = Root.GetPosition(stream);
+                Quaternion rotation = Root.GetRotation(stream);
+                Vector3 underLog = TimberLocation.CarryOffset(0) + Vector3.down * .22f;
+                PositionHand(AvatarIKGoal.LeftHand, AvatarIKHint.LeftElbow, -.34f);
+                PositionHand(AvatarIKGoal.RightHand, AvatarIKHint.RightElbow, .34f);
+                human.SolveIK();
+
+                void PositionHand(AvatarIKGoal goal, AvatarIKHint elbow, float side)
+                {
+                    human.SetGoalPosition(goal, position + rotation * (underLog + Vector3.right * side));
+                    human.SetGoalWeightPosition(goal, 1f);
+                    human.SetHintPosition(elbow, position + rotation * new Vector3(side * 1.6f, underLog.y - .27f, .03f));
+                    human.SetHintWeightPosition(elbow, .75f);
+                }
+            }
         }
 
         private void PlaySitTransition(int input, AnimationClip clip)

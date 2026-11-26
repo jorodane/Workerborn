@@ -57,6 +57,9 @@ namespace Workerborn
         private Vector3 approachTargetPosition;
         private Vector3 harvestOrigin;
         private float savedHarvestProgress;
+        private SkillId? completedWorkSkill;
+        private float workFeedbackUntil;
+        internal int WorkSequence { get; private set; }
         private VillagePrototype village;
         private int collectedCount;
         private bool walkPath;
@@ -65,6 +68,9 @@ namespace Workerborn
         private bool onSeat;
         private SeatSlot occupiedSeat;
         private Quaternion occupiedSeatFacing;
+        private Transform seatExitVisual;
+        private Vector3 seatExitBase, seatExitOffset;
+        private float seatExitStarted;
         private float nextCollect;
         private int consecutiveCollections;
         private Transform jumpingVisual;
@@ -96,6 +102,15 @@ namespace Workerborn
         internal bool IsApproachingInteraction => Action == WorkerAction.Moving &&
             (pendingDrop != null || pickupTarget.IsAssigned || interactionTarget != null);
         internal float VisualJumpOffset { get; private set; }
+        internal Vector3 CameraFollowPosition => seatExitVisual != null
+            ? transform.position + transform.TransformVector(seatExitVisual.localPosition - seatExitBase)
+            : transform.position;
+        internal SkillId? DisplayedWorkSkill => ActiveCrop?.Definition.Skill ??
+            (CurrentTimberSwing != TimberSwing.None ? SkillId.Woodcutting :
+                Time.unscaledTime < workFeedbackUntil ? completedWorkSkill : null);
+        internal (float Confirmed, float Next) DisplayedWorkSteps => ActiveCrop != null ?
+            animationDriver?.WorkSteps(ActiveCrop.Progress) ?? (0f, 1f) :
+            (CurrentTimberSwing == TimberSwing.None || struck ? 1f : 0f, 1f);
         internal Vector3 StandingPosition => onSeat && agent != null && agent.isOnNavMesh ? agent.nextPosition : transform.position;
         public WorkerAction Action { get; private set; }
         public HarvestableCrop HoveredCrop { get; private set; }
@@ -180,11 +195,17 @@ namespace Workerborn
                 Quaternion.Angle(occupiedSeatFacing, transform.rotation) > .5f))
                 Cancel();
             UpdateVisualJump();
+            UpdateSeatExit();
             bool working = Action is WorkerAction.Harvesting or WorkerAction.Attacking;
             bool carried = UpdateTimberCarry();
             bool awaitingAutomaticHarvest = IsLocallyControlled && village?.AwaitingAutomaticHarvest == true;
             if (!manualMoving && Action == WorkerAction.Moving)
+            {
+                float speed = TravelSpeed(IsWalking);
+                if (!Mathf.Approximately(agent.speed, speed))
+                    agent.speed = speed;
                 UpdateMovement();
+            }
             else if (Action == WorkerAction.Harvesting && !awaitingAutomaticHarvest)
                 UpdateHarvest();
             else if (Action == WorkerAction.Attacking && !awaitingAutomaticHarvest)
@@ -199,6 +220,7 @@ namespace Workerborn
                 _ => WorkerMotion.Idle
             };
             animationDriver?.SetAction((int)motion);
+            animationDriver?.SetOvereating(characterState?.Overeating ?? 0f);
         }
 
         private void RefreshEquipment()
@@ -241,7 +263,8 @@ namespace Workerborn
 
         internal void CommandJump()
         {
-            if (jumpingVisual != null || CarriedLogs > 0 || !AcceptsInteractionCommands || Action is not (WorkerAction.Idle or WorkerAction.Moving))
+            if (jumpingVisual != null || seatExitVisual != null || CarriedLogs > 0 || !AcceptsInteractionCommands ||
+                Action is not (WorkerAction.Idle or WorkerAction.Moving))
                 return;
             jumpingVisual = actor?.VisualRoot;
             if (jumpingVisual == null)
@@ -275,6 +298,8 @@ namespace Workerborn
                 return false;
 
             Cancel();
+            FinishVisualJump();
+            FinishSeatExit();
             SeatSlot nearest = null;
             float bestDistance = float.PositiveInfinity;
             foreach (var seat in FindObjectsByType<SeatSlot>(FindObjectsSortMode.None))
@@ -408,7 +433,7 @@ namespace Workerborn
             float progress = Mathf.Clamp01((consecutiveCollections - 1f) / (ramp - 1));
             float initialInterval = Mathf.Max(.04f, collectRepeatSeconds);
             float fastestInterval = Mathf.Clamp(collectFastestRepeatSeconds, .01f, initialInterval);
-            nextCollect = now + Mathf.Lerp(initialInterval, fastestInterval, progress * progress);
+            nextCollect = now + Mathf.Lerp(initialInterval, fastestInterval, progress * progress) / (CharacterState?.ActionSpeed ?? 1f);
         }
 
         private void ResetCollectHold()
@@ -575,9 +600,12 @@ namespace Workerborn
             Face(target.transform.position);
             strikeTarget = target;
             Action = WorkerAction.Attacking;
+            WorkSequence++;
+            workFeedbackUntil = 0f;
             strikeStartedAt = Time.time;
             var clip = mount == null ? target.StrikeClip(this) ?? attackClip : null;
-            float swingDuration = mount != null ? mount.AttackSeconds : target is TimberPiece && clip != null ? clip.length : attackDelay;
+            float swingDuration = mount != null ? mount.AttackSeconds :
+                (target is TimberPiece && clip != null ? clip.length : attackDelay) / CharacterState.ActionSpeed;
             nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, swingDuration);
             strikeStaminaCost = mount == null ? target.StrikeStaminaCost(CharacterState, attackStaminaCost) : 0;
             strikePaidProgress = 0d;
@@ -847,6 +875,8 @@ namespace Workerborn
             }
 
             Action = WorkerAction.Harvesting;
+            WorkSequence++;
+            workFeedbackUntil = 0f;
             savedHarvestProgress = 0f;
             FinishVisualJump();
             harvestOrigin = HarvestPoint;
@@ -879,12 +909,17 @@ namespace Workerborn
                 return;
             }
 
-            bool completed = cropTarget.Advance(this, Time.deltaTime);
+            bool completed = cropTarget.Advance(this, Time.deltaTime * (CharacterState?.ActionSpeed ?? 1f));
             if (animationDriver?.SampleWork(cropTarget.Progress) == true && cropTarget is LoggingTree tree)
                 tree.ShowImpact(this, withAxe: true);
             if (!completed)
                 return;
 
+            if (cropTarget.Progress >= 1f)
+            {
+                completedWorkSkill = cropTarget.Definition.Skill;
+                workFeedbackUntil = Time.unscaledTime + .22f;
+            }
             if (village == null)
             {
                 ShowGatherResult(true);
@@ -924,14 +959,7 @@ namespace Workerborn
         private void ClearInteractionTargets()
         {
             if (onSeat && agent != null)
-            {
-                if (agent.isOnNavMesh)
-                    transform.position = agent.nextPosition;
-                agent.updatePosition = true;
-                agent.updateRotation = true;
-                onSeat = false;
-                occupiedSeat = null;
-            }
+                LeaveSeat();
             if (manualMoving && agent != null)
                 agent.updateRotation = true;
             manualMoving = false;
@@ -946,6 +974,60 @@ namespace Workerborn
             strikeTarget = null;
             onInteractionArrival = null;
             pendingDrop = null;
+        }
+
+        private void LeaveSeat()
+        {
+            Vector3 seated = transform.position;
+            Vector3 ground = StandingPosition;
+            if (agent.isOnNavMesh && occupiedSeat != null)
+            {
+                Vector3 forward = occupiedSeatFacing * Vector3.forward;
+                for (float step = .18f; step <= .70f; step += .13f)
+                {
+                    Vector3 candidate = seated + forward * step;
+                    Vector3 surface = village != null ? village.SurfacePosition(candidate.x, candidate.z) :
+                        new Vector3(candidate.x, ground.y, candidate.z);
+                    if (NavMesh.SamplePosition(surface, out var hit, .24f, NavMesh.AllAreas) &&
+                        SharesMap(hit.position) && !agent.Raycast(hit.position, out _))
+                    {
+                        ground = hit.position;
+                        break;
+                    }
+                }
+            }
+            onSeat = false;
+            occupiedSeat = null;
+            agent.updatePosition = true;
+            agent.updateRotation = true;
+            if (agent.isOnNavMesh && !agent.Warp(ground))
+                transform.position = agent.nextPosition;
+            seatExitVisual = actor?.VisualRoot;
+            if (seatExitVisual == null)
+                return;
+            seatExitStarted = Time.time;
+            seatExitBase = seatExitVisual.localPosition;
+            seatExitOffset = seated - transform.position;
+            UpdateSeatExit();
+        }
+
+        private void UpdateSeatExit()
+        {
+            if (seatExitVisual == null)
+                return;
+            float progress = (Time.time - seatExitStarted) / (animationDriver?.SeatExitSeconds ?? .45f);
+            if (progress >= 1f)
+                FinishSeatExit();
+            else
+                seatExitVisual.localPosition = seatExitBase + transform.InverseTransformVector(seatExitOffset) *
+                    (1f - Mathf.SmoothStep(0f, 1f, progress));
+        }
+
+        private void FinishSeatExit()
+        {
+            if (seatExitVisual != null)
+                seatExitVisual.localPosition = seatExitBase;
+            seatExitVisual = null;
         }
 
         public void Cancel()
@@ -976,6 +1058,7 @@ namespace Workerborn
             FinishTimberTravel();
             Cancel();
             FinishVisualJump();
+            FinishSeatExit();
             StandUpFromBed();
             ResetCollectHold();
             inventory.Clear();
@@ -995,6 +1078,7 @@ namespace Workerborn
             FinishTimberTravel();
             Cancel();
             FinishVisualJump();
+            FinishSeatExit();
             StandUpFromBed();
             return agent.Warp(position);
         }
@@ -1018,6 +1102,7 @@ namespace Workerborn
         internal void LieOnBed(Transform pose)
         {
             FinishVisualJump();
+            FinishSeatExit();
             restingVisual = actor?.VisualRoot;
             if (restingVisual == null)
                 return;
@@ -1037,6 +1122,7 @@ namespace Workerborn
         {
             Cancel();
             FinishVisualJump();
+            FinishSeatExit();
             StandUpFromBed();
             ResetCollectHold();
         }

@@ -150,7 +150,7 @@ namespace Workerborn
                 return false;
 
             float step = 1.5f + CharacterState.LiftStaminaSaving * .35f;
-            if (!CharacterState.SpendWorkStamina((double)distance / step) || CharacterState.Stamina <= 0d)
+            if (!CharacterState.SpendWorkStamina(VillageState.WorkStaminaMultiplier * (double)distance / step) || CharacterState.Stamina <= 0d)
             {
                 TryCancelTimberSkill();
                 ReportWorkExhaustion("스태미나가 바닥나 통나무를 내려놓았어요.");

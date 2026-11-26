@@ -97,7 +97,7 @@ namespace Workerborn.Tests
             Assert.That(state.HasHoe, Is.False);
             Assert.That(state.TryEquip(state.Inventory.Entries[0].Id), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.Hoe), Is.Zero);
-            Assert.That(state.HarvestEnergyCost, Is.EqualTo(cost - 1));
+            Assert.That(state.HarvestEnergyCost, Is.EqualTo(cost - 3));
             var restored = VillageState.Restore(state.Export());
             Assert.That(restored.HasHoe, Is.True);
             Assert.That(restored.TryUnequip(EquipmentSlot.MainHand), Is.True);

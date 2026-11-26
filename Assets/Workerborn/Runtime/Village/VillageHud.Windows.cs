@@ -350,7 +350,7 @@ namespace Workerborn
             else if (hit.GetComponentInParent<EquipmentSlotPointer>() is EquipmentSlotPointer equipment)
                 ClickEquipment(equipment.Slot, screen);
             else if (hit.GetComponentInParent<ItemShortcutSlotView>() is ItemShortcutSlotView shortcut)
-                AssignHeldItemShortcut(shortcut.Index);
+                AssignHeldItemShortcut(shortcut.Binding);
             else
                 EndItemDrag(screen);
         }

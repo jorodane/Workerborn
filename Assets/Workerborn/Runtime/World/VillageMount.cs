@@ -37,9 +37,7 @@ namespace Workerborn
         public override string DisplayName => displayName;
         public override bool ShowNameByDefault => string.IsNullOrEmpty(Rider);
         public override Vector3 NamePosition => transform.TransformPoint(NameOffset);
-        public override string InteractionVerb => string.IsNullOrEmpty(Rider) ? "C로 타기" : "탑승 중";
-        public override string InteractionVerbFor(HarvestWorker worker) =>
-            string.IsNullOrEmpty(Rider) && !worker.InReach(transform.position, InteractionDistance) ? "다가가기" : InteractionVerb;
+        public override string InteractionVerb => string.IsNullOrEmpty(Rider) ? "타기 (C)" : "탑승 중";
         internal override InteractionCursor CursorFor(HarvestWorker worker) => InteractionCursor.Enter;
         internal string Rider { get; private set; }
         internal AnimationClip RiderPose => riderPose;
@@ -105,9 +103,10 @@ namespace Workerborn
 
         public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
         {
-            if (village.Worker.CanMount && string.IsNullOrEmpty(Rider) &&
-                !village.Worker.InReach(transform.position, InteractionDistance))
-                actions.Add(new WorldContextAction("말에게 다가가기", () => RequestInteraction(village.Worker)));
+            if (village.Worker.CurrentMount == this)
+                actions.Add(new WorldContextAction("내리기", village.Worker.RequestDismount));
+            else if (village.Worker.CanMount && string.IsNullOrEmpty(Rider))
+                actions.Add(new WorldContextAction("타기", () => RequestInteraction(village.Worker)));
         }
 
         protected override void Interact(HarvestWorker worker) => worker.InteractWithMount(this);

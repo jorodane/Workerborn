@@ -50,6 +50,7 @@ namespace Workerborn
         private HealthBarView healthBar;
         [SerializeField]
         private Image energyFill;
+        [SerializeField] private Image fullnessFill;
         [SerializeField]
         private Image experienceFill;
         [SerializeField]
@@ -124,7 +125,7 @@ namespace Workerborn
             if (dialogueBackdrop != null)
                 backdropTransitions = dialogueBackdrop.GetComponentsInChildren<WindowTransition>(true);
             BuildWorldFeedback();
-            itemShortcuts?.Bind(this);
+            BindShortcuts();
             InitializeChat();
             floatingTexts = new PrefabPool<TMP_Text>(library.FloatingText, transform);
             floatingTexts.Prewarm(12);
@@ -308,10 +309,15 @@ namespace Workerborn
             }
             UpdatePlayerOverhead();
             int stamina = state.StaminaLimit;
-            energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}";
+            energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}   만복도 {state.Fullness}/{state.FullnessLimit}";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
             healthBar.SetValue(state.Health, state.HealthLimit);
             energyFill.fillAmount = state.StaminaFill;
+            if (fullnessFill != null)
+            {
+                fullnessFill.fillAmount = state.FullnessFill;
+                fullnessFill.color = state.Overeating > 0f ? new Color(1f, .52f, .32f) : new Color(.87f, .70f, .37f);
+            }
             growthText.text = $"Lv.{state.Level}";
             experienceFill.fillAmount = state.Level == VillageState.LevelLimit ? 1f : (float)state.Experience / state.NextLevelExperience;
             if (state.NoticeSerial != seenNotice)
@@ -325,8 +331,7 @@ namespace Workerborn
             UpdateToast();
             UpdateAreaAnnouncement();
 
-            if (shownShortcutOffset != ShortcutOffset)
-                RefreshItemShortcutBar();
+            UpdateShortcutRows();
 
             if (state.Version != seenVersion || state.Inventory.Version != seenInventoryVersion)
             {
@@ -375,13 +380,18 @@ namespace Workerborn
         {
             var worker = game.Worker;
             var active = worker.ActiveCrop;
-            bool timberWork = worker.CurrentTimberSwing != TimberSwing.None;
-            SkillId? skill = worker.TimberSkill ?? active?.Definition.Skill ?? (timberWork ? SkillId.Woodcutting : null);
+            SkillId? skill = worker.TimberSkill ?? worker.DisplayedWorkSkill;
             skillBubble.gameObject.SetActive(skill.HasValue && !HasModal);
             if (skill.HasValue && !HasModal)
             {
                 skillBalloon.SetIcon(game.Settings.FindSkill(skill.Value)?.Icon ?? active?.Definition.SkillIcon);
-                skillBalloon.SetProgress(active?.Progress ?? (timberWork ? worker.CurrentTimberProgress : 1f));
+                if (worker.TimberSkill.HasValue)
+                    skillBalloon.SetProgress(1f);
+                else
+                {
+                    var (confirmed, next) = worker.DisplayedWorkSteps;
+                    skillBalloon.SetWorkSteps(confirmed, next, worker.WorkSequence);
+                }
                 PlaceWorld(skillBubble, worker.transform.position + Vector3.up * skillWorldHeight);
             }
 

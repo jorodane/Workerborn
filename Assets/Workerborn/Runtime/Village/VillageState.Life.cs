@@ -2,7 +2,7 @@ using System;
 
 namespace Workerborn
 {
-    public enum LifeAttribute { Strength, Dexterity, Knowledge }
+    public enum LifeAttribute { Strength, Dexterity, Knowledge, Grit, Digestion }
 
     [Serializable]
     public sealed class VillageWorldRecord
@@ -41,7 +41,7 @@ namespace Workerborn
     {
         private const int LoadoutSaveSchema = 17;
         private const int EquipmentSetsSaveSchema = 18;
-        public const int CurrentSaveSchema = EquipmentSetsSaveSchema;
+        public const int CurrentSaveSchema = NutritionSaveSchema;
         public const int LevelLimit = 200;
         private double lifeStartedAt;
         public bool AwaitingIncarnation { get; private set; }
@@ -61,6 +61,8 @@ namespace Workerborn
         public int Strength { get; private set; }
         public int Dexterity { get; private set; }
         public int Knowledge { get; private set; }
+        public int Grit { get; private set; }
+        public int Digestion { get; private set; }
 
         public bool TrySpendAttribute(LifeAttribute attribute)
         {
@@ -71,6 +73,8 @@ namespace Workerborn
                 case LifeAttribute.Strength: Strength++; break;
                 case LifeAttribute.Dexterity: Dexterity++; break;
                 case LifeAttribute.Knowledge: Knowledge++; break;
+                case LifeAttribute.Grit: Grit++; RefreshUsableStaminaLimit(); break;
+                case LifeAttribute.Digestion: Digestion++; break;
                 default: return false;
             }
             AttributePoints--;
@@ -115,7 +119,8 @@ namespace Workerborn
             LifeDay = 1;
             Level = 1;
             Experience = 0;
-            AttributePoints = Strength = Dexterity = Knowledge = 0;
+            AttributePoints = Strength = Dexterity = Knowledge = Grit = Digestion = 0;
+            RestoreNutritionForNewLife();
             RefreshSkillStats();
             Health = HealthLimit;
             RestoreStamina(StaminaLimit);
@@ -173,7 +178,7 @@ namespace Workerborn
         }
 
         private bool HasVillageProgress => Level != 1 || Experience != 0 || LifeDay != 1 || AttributePoints != 0 ||
-            Strength != 0 || Dexterity != 0 || Knowledge != 0 || Job != JobStatus.None ||
+            Strength != 0 || Dexterity != 0 || Knowledge != 0 || Grit != 0 || Digestion != 0 || Job != JobStatus.None ||
             Inventory.Entries.Count != 0 || ActiveEquipment.Items.Count != 0 || OtherEquipment.Items.Count != 0 ||
             CursorItem != null || pendingHarvests.Count != 0;
 
@@ -208,6 +213,7 @@ namespace Workerborn
             Era = world.era;
             Day = world.day;
             Minute = world.minute;
+            SyncNutrition();
             LifeDay = AwaitingIncarnation ? 1 : Math.Max(1, Day - (int)(lifeStartedAt / 1440d));
             FarmLevel = world.farmLevel;
             FoundationStage = (FarmFoundationStage)world.foundationStage;
@@ -233,6 +239,7 @@ namespace Workerborn
         internal void BeginInWorld(VillageWorldRecord world)
         {
             lifeStartedAt = world.Clock;
+            nutritionAt = world.Clock;
             ApplyWorld(world);
         }
 

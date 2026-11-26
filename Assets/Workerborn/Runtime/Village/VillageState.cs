@@ -110,6 +110,7 @@ namespace Workerborn
         public int strength;
         public int dexterity;
         public int knowledge;
+        public int grit, digestion;
         public int timberDelivered;
         public int characterLimit;
         public int requirementCharacters = 1;
@@ -119,6 +120,9 @@ namespace Workerborn
         public int energy = 100;
         public double staminaFraction;
         public double staminaRecoveryDelay;
+        public double nourishment = VillageState.FedNourishment;
+        public double nutritionAt = -1d;
+        public double fullness;
         public int gold;
         public int level = 1;
         public long experience;
@@ -305,6 +309,7 @@ namespace Workerborn
             Health = HealthLimit;
             Minute = Rules.JobStart;
             lifeStartedAt = WorldMinute;
+            nutritionAt = WorldMinute;
             if (Rules.Foundation == null)
                 FoundationStage = FarmFoundationStage.Built;
         }
@@ -461,6 +466,7 @@ namespace Workerborn
             if (paused)
                 return false;
             Minute += seconds * Rules.MinutesPerSecond;
+            SyncNutrition();
             if (AwaitingIncarnation)
             {
                 int elapsedDays = (int)(Minute / 1440f);
@@ -795,16 +801,6 @@ namespace Workerborn
             return Result(true, $"{quantity:N0}개를 나눴어요.");
         }
 
-        public bool TryEatBread()
-        {
-            if (Stamina >= StaminaLimit)
-                return Result(false, "에너지가 이미 가득해요.");
-            if (!Inventory.TryRemove(ItemIds.Bread, 1))
-                return Result(false, "가방에 빵이 없어요.");
-            SetStamina(Stamina + 25);
-            return Result(true, "빵을 먹고 에너지를 25 회복했어요.");
-        }
-
         internal string ItemShortcutAt(int index) => (uint)index < ShortcutCount ? itemShortcuts[index] : null;
 
         internal SkillId? SkillShortcutAt(int index) => (uint)index < ShortcutCount && skillShortcuts[index] > 0
@@ -826,7 +822,7 @@ namespace Workerborn
         {
             if (AwaitingIncarnation || (uint)index >= ShortcutCount)
                 return false;
-            var entry = Inventory.Find(entryId);
+            var entry = CarriedItem(entryId);
             if (entry == null || !CanAssignItemShortcut(entry.Spec))
                 return Result(false, "장비나 사용할 수 있는 소모품을 등록해 주세요.");
             itemShortcuts[index] = entry.ItemId;
@@ -963,6 +959,7 @@ namespace Workerborn
             Day++;
             LifeDay++;
             Minute = Rules.WakeMinute;
+            SyncNutrition();
             RestoreStamina(energy);
             Health = HealthLimit;
             if (Job == JobStatus.Active)
@@ -976,6 +973,7 @@ namespace Workerborn
             if (Minute >= Rules.JobStart)
                 return Result(false, "이미 접수 시간이 지났습니다.");
             Minute = Rules.JobStart;
+            SyncNutrition();
             return Result(true, $"{Rules.JobStart / 60:00}:{Rules.JobStart % 60:00}까지 기다렸습니다.");
         }
 
@@ -1004,6 +1002,8 @@ namespace Workerborn
                 strength = Strength,
                 dexterity = Dexterity,
                 knowledge = Knowledge,
+                grit = Grit,
+                digestion = Digestion,
                 timberDelivered = TimberDelivered,
                 characterLimit = CharacterLimit,
                 requirementCharacters = RequirementCharacters,
@@ -1013,6 +1013,9 @@ namespace Workerborn
                 energy = (int)Math.Floor(Stamina),
                 staminaFraction = Stamina - Math.Floor(Stamina),
                 staminaRecoveryDelay = staminaRecoveryDelay,
+                nourishment = nourishment,
+                nutritionAt = Math.Min(nutritionAt, WorldMinute),
+                fullness = fullness,
                 gold = 0,
                 level = Level,
                 experience = Experience,
@@ -1085,10 +1088,18 @@ namespace Workerborn
                 throw new ArgumentException("Invalid active job.");
             var foundationStage = RestoreFoundationStage(save, rules);
             double worldMinute = (save.day - 1) * 1440d + save.minute;
+            bool hasNutrition = save.schema >= NutritionSaveSchema;
+            int grit = hasNutrition ? save.grit : 0;
+            int digestion = hasNutrition ? save.digestion : 0;
+            if (hasNutrition && (grit < 0 || digestion < 0 ||
+                !double.IsFinite(save.nourishment) || save.nourishment < 0d || save.nourishment > FedNourishment ||
+                !double.IsFinite(save.nutritionAt) || save.nutritionAt < -1d || save.nutritionAt > worldMinute ||
+                !double.IsFinite(save.fullness) || save.fullness < 0d))
+                throw new ArgumentException("Invalid nutrition state.");
             if (save.schema >= 6 && (double.IsNaN(save.lifeStartedAt) || save.lifeStartedAt < 0 || save.lifeStartedAt > worldMinute ||
                 save.era < 1 || save.era > 1000000 || save.health < 0 || save.health > 1000000 || save.attributePoints < 0 ||
                 save.strength < 0 || save.dexterity < 0 || save.knowledge < 0 ||
-                (long)save.attributePoints + save.strength + save.dexterity + save.knowledge > save.level - 1 ||
+                (long)save.attributePoints + save.strength + save.dexterity + save.knowledge + grit + digestion > save.level - 1 ||
                 save.lifetimeTimber < 0 || save.timberDelivered < 0 ||
                 save.timberDelivered > WorldCapacity.ScaleRequirement(rules.Foundation?.TimberCount ?? 0, highestScale)))
                 throw new ArgumentException("Invalid life or era progress.");
@@ -1124,6 +1135,11 @@ namespace Workerborn
                 Strength = save.schema >= 6 ? save.strength : 0,
                 Dexterity = save.schema >= 6 ? save.dexterity : 0,
                 Knowledge = save.schema >= 6 ? save.knowledge : 0,
+                Grit = grit,
+                Digestion = digestion,
+                nourishment = hasNutrition ? save.nourishment : FedNourishment,
+                nutritionAt = hasNutrition && save.nutritionAt >= 0d ? save.nutritionAt : worldMinute,
+                fullness = hasNutrition ? Math.Min(save.fullness, Math.Max(1, rules.Nutrition.fullnessCapacity)) : 0d,
                 TimberDelivered = save.schema >= 6 ? save.timberDelivered :
                     (int)foundationStage >= (int)FarmFoundationStage.SelectingSite ? rules.Foundation?.TimberCount ?? 0 : 0,
                 CharacterLimit = save.characterLimit,
@@ -1178,6 +1194,7 @@ namespace Workerborn
                     }
                 }
             state.RefreshSkillStats();
+            state.SyncNutrition();
             state.Health = save.schema >= 6 ? Math.Min(save.health, state.HealthLimit) : state.HealthLimit;
             state.Stamina = Math.Min(state.Stamina, state.StaminaLimit);
             bool fullSets = save.schema >= EquipmentSetsSaveSchema;

@@ -21,7 +21,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: ''
   id: bread
   displayName: 빵
-  description: 먹으면 에너지가 25 회복된다.
+  description: 만복도를 채우고 허기로 줄어든 최대 스태미나를 늘려 줍니다.
   icon:
     fileID: 21300000
     guid: 8a5d12d31a9859f8813a95b366266e29

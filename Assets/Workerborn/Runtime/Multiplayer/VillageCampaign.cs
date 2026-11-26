@@ -28,6 +28,7 @@ namespace Workerborn
         public CharacterLook look;
         public float x, y, z, yaw, jumpOffset, gestureProgress;
         public float timberProgress;
+        public float overeating;
         public bool hasSeat;
         public float seatX, seatY, seatZ;
         public int motion, gesture;
@@ -383,6 +384,8 @@ namespace Workerborn
             target.timberSwing = pose.motion == (int)WorkerMotion.Work && pose.timberSwing is >= 0 and <= (int)TimberSwing.Strike
                 ? pose.timberSwing : 0;
             target.timberProgress = float.IsFinite(pose.timberProgress) ? Math.Clamp(pose.timberProgress, 0f, 1f) : 0f;
+            target.overeating = !profiles[identity].character.awaitingIncarnation && float.IsFinite(pose.overeating)
+                ? Math.Clamp(pose.overeating, 0f, 1f) : 0f;
             MoveMount(target.id, pose);
         }
 
@@ -543,6 +546,7 @@ namespace Workerborn
             avatar.gestureProgress = 0f;
             avatar.timberSwing = 0;
             avatar.timberProgress = 0f;
+            avatar.overeating = 0f;
             if (character.hasLifeLook)
                 avatar.look = character.lifeLook.Validated();
         }

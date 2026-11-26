@@ -55,6 +55,7 @@ namespace Workerborn
         public int CollapseEnergy = 45;
         public float StaminaRecoveryPerSecond = 2f;
         public float SeatedRecoveryMultiplier = 2.5f;
+        public NutritionRules Nutrition = new NutritionRules();
         public int RebirthDays = 7;
         public int LegendFoundingTimber = 100;
         public int LegendTrialTimber = 25;

@@ -108,7 +108,7 @@ namespace Workerborn
         private static readonly ItemSpec[] items =
         {
             new ItemSpec(ItemIds.Potato, "감자", "직접 수확한 감자. 농부에게 납품하거나 잡화점에서 개당 3G에 팔 수 있습니다.", 1, 1, 20, 3),
-            new ItemSpec(ItemIds.Bread, "갓 구운 빵", "먹으면 에너지를 25 회복합니다. 인벤토리에서 우클릭하거나 사용 버튼을 누르세요.", 1, 1, 10, 10),
+            new ItemSpec(ItemIds.Bread, "갓 구운 빵", "만복도를 채우고 허기로 줄어든 최대 스태미나를 늘려 줍니다.", 1, 1, 10, 10),
             new ItemSpec(ItemIds.HealthPotion, "생명력 포션", "마시면 생명력을 회복합니다.", 1, 1, 10, 15, healthRestore: 30),
             new ItemSpec(ItemIds.Hoe, "튼튼한 괭이", "손에 장착하면 밭에서 작업할 때 스태미나 소모가 1 줄어듭니다.", 1, 3, 1, 60, EquipmentSlot.MainHand),
             new ItemSpec(ItemIds.Bag, "작은 여행 가방", "장착하면 소지품 공간이 2줄 늘어납니다.", 2, 2, 1, 100, EquipmentSlot.Bag),

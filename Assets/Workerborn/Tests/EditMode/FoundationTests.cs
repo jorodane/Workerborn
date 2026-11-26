@@ -154,7 +154,7 @@ namespace Workerborn.Tests
             var state = new VillageState();
             Assert.That(state.TryGather(ItemIds.Egg, 1, 2, WorkOutcome.Failure, out int failed), Is.False);
             Assert.That(failed, Is.Zero);
-            Assert.That(state.Energy, Is.EqualTo(98));
+            Assert.That(state.Energy, Is.EqualTo(94));
             Assert.That(state.LifetimeHarvests, Is.Zero);
 
             var expert = VillageState.Restore(new VillageSave { skillRank = 8 });

@@ -12,9 +12,11 @@ namespace Workerborn
             "Gameplay/Shortcut6", "Gameplay/Shortcut7", "Gameplay/Shortcut8", "Gameplay/Shortcut9", "Gameplay/Shortcut0"
         };
         private int shownShortcutOffset = -1;
+        private ItemShortcutBarView shiftShortcuts;
         private RectTransform skillShortcutGhost;
 
         private static int ShortcutOffset => WorkerbornInput.Held("Gameplay/ShortcutBank") ? VillageState.ItemShortcutCount : 0;
+        private bool ShowBothShortcutRows => IsHoldingItem || skillShortcutGhost != null;
         private static bool IsTextInputFocused => EventSystem.current?.currentSelectedGameObject != null &&
             EventSystem.current.currentSelectedGameObject.GetComponent<TMP_InputField>() is { isFocused: true };
 
@@ -26,12 +28,41 @@ namespace Workerborn
         {
             if (itemShortcuts != null)
                 itemShortcuts.gameObject.SetActive(!game.State.AwaitingIncarnation);
+            RefreshItemShortcutBar();
+        }
+
+        private void BindShortcuts()
+        {
+            if (itemShortcuts == null)
+                return;
+            itemShortcuts.Bind(this);
+            var lower = itemShortcuts.Rect;
+            shiftShortcuts = Instantiate(itemShortcuts, lower.parent);
+            shiftShortcuts.name = "Shift shortcuts";
+            shiftShortcuts.Rect.anchoredPosition = lower.anchoredPosition + Vector2.up * (lower.rect.height + 6f);
+            shiftShortcuts.Bind(this);
+            shiftShortcuts.gameObject.SetActive(false);
         }
 
         private void RefreshItemShortcutBar()
         {
-            shownShortcutOffset = ShortcutOffset;
+            bool both = itemShortcuts != null && itemShortcuts.gameObject.activeSelf && ShowBothShortcutRows;
+            shownShortcutOffset = both ? 0 : ShortcutOffset;
             itemShortcuts?.Refresh(game.State, game.Settings, shownShortcutOffset);
+            if (shiftShortcuts != null)
+            {
+                if (both)
+                    shiftShortcuts.Refresh(game.State, game.Settings, VillageState.ItemShortcutCount);
+                if (shiftShortcuts.gameObject.activeSelf != both)
+                    shiftShortcuts.gameObject.SetActive(both);
+            }
+        }
+
+        private void UpdateShortcutRows()
+        {
+            bool both = itemShortcuts != null && itemShortcuts.gameObject.activeSelf && ShowBothShortcutRows;
+            if (shownShortcutOffset != (both ? 0 : ShortcutOffset) || shiftShortcuts != null && shiftShortcuts.gameObject.activeSelf != both)
+                RefreshItemShortcutBar();
         }
 
         private void ReadItemShortcuts()
@@ -44,11 +75,10 @@ namespace Workerborn
                     UseShortcut(index + ShortcutOffset);
         }
 
-        internal void ClickItemShortcut(int index, PointerEventData.InputButton button)
+        internal void ClickItemShortcut(int binding, PointerEventData.InputButton button)
         {
             if (!ShortcutsAvailable || skillShortcutGhost != null)
                 return;
-            int binding = index + ShortcutOffset;
             if (button == PointerEventData.InputButton.Right)
             {
                 if (suppressRightContext)
@@ -65,16 +95,16 @@ namespace Workerborn
             else if (button == PointerEventData.InputButton.Left)
             {
                 if (IsHoldingItem)
-                    AssignHeldItemShortcut(index);
+                    AssignHeldItemShortcut(binding);
                 else
                     UseShortcut(binding);
             }
         }
 
-        private void AssignHeldItemShortcut(int index)
+        private void AssignHeldItemShortcut(int binding)
         {
-            if (ShortcutsAvailable && draggedEntry != 0 && game.State.CursorItem == null &&
-                game.Perform(() => game.State.TryAssignItemShortcut(index + ShortcutOffset, draggedEntry)))
+            if (ShortcutsAvailable && IsHoldingItem &&
+                game.Perform(() => game.State.TryAssignItemShortcut(binding, draggedEntry)))
                 CancelItemDrag();
         }
 
@@ -103,7 +133,6 @@ namespace Workerborn
             if (IsHoldingItem || skillShortcutGhost != null)
                 return;
             var state = game.State;
-            index += ShortcutOffset;
             if (state.SkillShortcutAt(index) is SkillId skill)
             {
                 var view = OpenWindow("tooltip") as ItemTooltipView;
@@ -136,6 +165,7 @@ namespace Workerborn
             skillShortcutGhost.pivot = new Vector2(.5f, .5f);
             skillShortcutGhost.sizeDelta = new Vector2(42f, 42f);
             MoveSkillShortcutDrag(screen);
+            UpdateShortcutRows();
             return true;
         }
 
@@ -149,9 +179,10 @@ namespace Workerborn
         {
             if (skillShortcutGhost == null)
                 return;
+            var slot = game.Targeting?.UiAt(screen)?.GetComponentInParent<ItemShortcutSlotView>();
             CancelSkillShortcutDrag();
-            if (ShortcutsAvailable && game.Targeting?.UiAt(screen)?.GetComponentInParent<ItemShortcutSlotView>() is { } slot)
-                game.Perform(() => game.State.TryAssignSkillShortcut(slot.Index + ShortcutOffset, skill));
+            if (ShortcutsAvailable && slot != null)
+                game.Perform(() => game.State.TryAssignSkillShortcut(slot.Binding, skill));
         }
 
         internal void CancelSkillShortcutDrag()

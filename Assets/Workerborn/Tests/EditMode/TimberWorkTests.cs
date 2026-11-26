@@ -236,10 +236,20 @@ namespace Workerborn.Tests
 
             worker.LearnSkill(SkillId.Throwing, 11);
             Assert.That(Perform(TimberAction.Throw, null, TimberPart.Log, lower, aim: lower.Offset(0, 4f)), Is.EqualTo(TimberResult.Succeeded));
-            var landed = work.Capture().logs.Single(row => row.id == logs[0].id);
-            Assert.That(landed.thrown, Is.True);
-            Assert.That(landed.carrier, Is.Null);
-            Assert.That(landed.point.z, Is.EqualTo(lower.z + 4f).Within(.001f));
+            var airborne = work.Capture().logs.Single(row => row.id == logs[0].id);
+            Assert.That(airborne.thrown, Is.True);
+            Assert.That(airborne.carrier, Is.Null);
+            Assert.That(airborne.point.z, Is.EqualTo(lower.z + 4f).Within(.001f));
+            Assert.That(Perform(TimberAction.Lift, airborne.id, TimberPart.Log, airborne.point), Is.EqualTo(TimberResult.Rejected));
+            work = new TimberWork(new[] { site }, () => roll, work.Capture());
+            Assert.That(work.Capture().logs.Single(row => row.id == airborne.id).thrown, Is.True);
+            var actualRest = TimberPose.AtTilt(lower.Offset(0, 2.1f), .23f, 27f, 75f);
+            Assert.That(work.SettlePiece(airborne.id, TimberPart.Log, actualRest), Is.True);
+            work = new TimberWork(new[] { site }, () => roll, work.Capture());
+            var landed = work.Capture().logs.Single(row => row.id == airborne.id);
+            Assert.That(landed.thrown, Is.False);
+            Assert.That(landed.point, Is.EqualTo(actualRest.point));
+            Assert.That(landed.throwRest, Is.EqualTo(actualRest));
 
             roll = .97f;
             Assert.That(Perform(TimberAction.Split, landed.id, TimberPart.Log, landed.point), Is.EqualTo(TimberResult.Failed));

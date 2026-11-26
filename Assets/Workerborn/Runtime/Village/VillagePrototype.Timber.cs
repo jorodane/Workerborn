@@ -58,20 +58,30 @@ namespace Workerborn
                 ground.transform.SetPositionAndRotation(terrain.transform.position, terrain.transform.rotation);
                 ground.AddComponent<TerrainCollider>().terrainData = terrain.terrainData;
             }
+            var standingBoxes = new HashSet<BoxCollider>();
             foreach (var pair in timberTrees)
             {
                 var source = pair.Value.StandingCollision;
                 if (source == null || !source.enabled || !source.gameObject.activeInHierarchy)
                     continue;
-                var standing = new GameObject(pair.Key) { layer = source.gameObject.layer };
-                standing.transform.SetParent(headlessTimberPhysics, false);
-                standing.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
-                standing.transform.localScale = source.transform.lossyScale;
-                var collider = standing.AddComponent<BoxCollider>();
+                standingBoxes.Add(source);
+                serverStandingTrees.Add(pair.Key, CopyCollision(source));
+            }
+            foreach (var obstacle in mapRoot.GetComponentsInChildren<VillageNavigationBlocker>())
+                if (obstacle.TryGetComponent<BoxCollider>(out var source) && source.enabled && !source.isTrigger && !standingBoxes.Contains(source))
+                    CopyCollision(source);
+
+            BoxCollider CopyCollision(BoxCollider source)
+            {
+                var collision = new GameObject(source.gameObject.name) { layer = source.gameObject.layer };
+                collision.transform.SetParent(headlessTimberPhysics, false);
+                collision.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
+                collision.transform.localScale = source.transform.lossyScale;
+                var collider = collision.AddComponent<BoxCollider>();
                 collider.center = source.center;
                 collider.size = source.size;
                 collider.sharedMaterial = source.sharedMaterial;
-                serverStandingTrees.Add(pair.Key, collider);
+                return collider;
             }
         }
 
@@ -98,8 +108,12 @@ namespace Workerborn
                     Start(tree, record.id, TimberPart.Upper, site.Section(TimberPart.Upper), record.fallYaw, site.PoseOf(record, TimberPart.Upper), 1);
             }
             foreach (var log in snapshot.logs)
-                if (log.separating && log.cutPose.IsValid && log.sourceTree != null && timberTrees.TryGetValue(log.sourceTree, out var source))
+            {
+                if (log.thrown)
+                    StartThrow(log, pending, authority);
+                else if (log.separating && log.cutPose.IsValid && log.sourceTree != null && timberTrees.TryGetValue(log.sourceTree, out var source))
                     Start(source, log.id, TimberPart.Log, source.Site().Section(log.sourcePart).Half(log.half), log.cutYaw, log.cutPose, log.half == 0 ? -1 : 1);
+            }
             if (standing != null)
                 foreach (var pair in serverStandingTrees)
                     pair.Value.enabled = standing.Contains(pair.Key);
@@ -121,6 +135,42 @@ namespace Workerborn
                     ? TimberFall.Begin(site, cutYaw, bark, parent, settled, landed, initial)
                     : TimberFall.Separate(site, section, initial, cutYaw, bark, slice.Center - section.Center, side, parent, settled);
                 timberMotions.Add(key, motion);
+            }
+        }
+
+        private void StartThrow(TimberLogSave log, HashSet<(string Id, TimberPart Part)> pending, bool authority)
+        {
+            var key = (log.id, TimberPart.Log);
+            pending.Add(key);
+            if (timberMotions.ContainsKey(key))
+                return;
+            float radius = .20f;
+            float length = 1.35f;
+            float meshOffset = 0f;
+            Mesh bark = null;
+            if (!string.IsNullOrEmpty(log.sourceTree) && timberTrees.TryGetValue(log.sourceTree, out var tree))
+            {
+                var site = tree.Site();
+                var section = site.Section(log.sourcePart).Half(log.half);
+                var slice = site.TrimCutFaces(section);
+                bark = tree.CutGeometry(settings.Timber?.CutSurface)?.Slice(slice, barkOnly: true);
+                radius = site.BarkRadius;
+                length = section.Length;
+                meshOffset = slice.Center - section.Center;
+            }
+            Vector3 origin = SurfacePosition(log.throwOrigin.x, log.throwOrigin.z) + Quaternion.Euler(0f, log.yaw, 0f) *
+                TimberLocation.CarryOffset(log.throwSlot - 1);
+            var release = TimberLocation.Pose(origin, Quaternion.Euler(90f, log.yaw + 90f, 0f));
+            Vector3 aim = SurfacePosition(log.point.x, log.point.z) + Vector3.up * radius;
+            timberMotions.Add(key, TimberFall.Throw(release, aim, radius, length, bark, meshOffset, log.cutYaw,
+                headlessTimberPhysics ?? droppedItems, authority ? Settle : null,
+                headlessTimberPhysics == null ? (_, contact) => PlayTimberLanding(contact) : null));
+
+            void Settle(TimberPose pose)
+            {
+                if (!pose.IsValid || !IsTimberGround(pose.point) || pose.height < TimberSurfaceHeight(pose.point) - radius)
+                    pose = TimberLocation.Pose(aim, TimberLocation.Rotation(release));
+                CommitTimberMotion(log.id, TimberPart.Log, pose);
             }
         }
 
@@ -161,6 +211,11 @@ namespace Workerborn
                     pose = TimberPose.AtTilt(recovery, TimberSurfaceHeight(recovery) + site.BarkRadius, facing, 90f);
                 }
             }
+            CommitTimberMotion(id, part, pose);
+        }
+
+        private void CommitTimberMotion(string id, TimberPart part, TimberPose pose)
+        {
             if (IsOnline)
                 Session?.FinishTimberMotion(id, part, pose);
             else if (soloTimber?.SettlePiece(id, part, pose) == true)
@@ -333,7 +388,6 @@ namespace Workerborn
             if (snapshot == null || assets == null || ReferenceEquals(presentedWoodland, snapshot) ||
                 presentedWoodland != null && snapshot.revision <= presentedWoodland.revision)
                 return;
-            bool animate = presentedWoodland != null;
             presentedWoodland = snapshot;
             PresentTimberMotions(snapshot);
             var fallen = new HashSet<string>();
@@ -391,7 +445,7 @@ namespace Workerborn
                     logModels.Add(log.id, view);
                 }
                 timberMotions.TryGetValue((log.id, TimberPart.Log), out var body);
-                view.PresentLog(log, index, animate, body);
+                view.PresentLog(log, index, body);
             }
             RemoveMissing(logModels, logs);
             worker?.RefreshTimberSkill();

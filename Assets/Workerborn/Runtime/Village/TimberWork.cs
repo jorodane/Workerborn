@@ -91,9 +91,10 @@ namespace Workerborn
         public string id, carrier, sourceTree;
         public TimberPoint point, throwOrigin;
         public float yaw, cutYaw;
-        public TimberPose cutPose;
+        public TimberPose cutPose, throwRest;
         public TimberPart sourcePart;
         public int half;
+        public int throwSlot;
         public bool thrown, moved, separating;
 
         internal TimberLogSave Copy() => (TimberLogSave)MemberwiseClone();
@@ -284,7 +285,7 @@ namespace Workerborn
                 {
                     var copy = log.Copy();
                     copy.carrier = null;
-                    copy.thrown = false;
+                    copy.thrown &= copy.throwSlot is > 0 and <= MaximumLogs && copy.throwOrigin.IsFinite;
                     if (string.IsNullOrEmpty(copy.sourceTree) || !this.sites.ContainsKey(copy.sourceTree) ||
                         copy.sourcePart is not (TimberPart.Lower or TimberPart.Upper) || copy.half is < 0 or > 1 ||
                         !float.IsFinite(copy.cutYaw))
@@ -372,9 +373,16 @@ namespace Workerborn
                 return false;
             if (part == TimberPart.Log)
             {
-                if (!logs.TryGetValue(id, out var log) || !log.separating)
+                if (!logs.TryGetValue(id, out var log) || !log.separating && !log.thrown)
                     return false;
-                log.cutPose = pose;
+                if (log.thrown)
+                {
+                    log.throwRest = pose;
+                    log.thrown = false;
+                    log.throwSlot = 0;
+                }
+                else
+                    log.cutPose = pose;
                 log.point = pose.point;
                 log.separating = false;
             }
@@ -590,13 +598,13 @@ namespace Workerborn
             Func<List<TimberYield>, bool> deliver, out string message)
         {
             message = "지금은 이 통나무를 사용할 수 없어요.";
-            if (!logs.TryGetValue(order.target, out var log) || log.carrier != null || log.separating ||
+            if (!logs.TryGetValue(order.target, out var log) || log.carrier != null || log.separating || log.thrown ||
                 at.DistanceSquared(log.point) > Square(PieceReach + .2f))
                 return TimberResult.Rejected;
             int carried = CountCarried(workerId);
             if (order.action == TimberAction.Lift)
             {
-                int liftCost = Math.Max(1, 4 - worker.LiftStaminaSaving);
+                int liftCost = VillageState.WorkStaminaMultiplier * Math.Max(1, 4 - worker.LiftStaminaSaving);
                 if (carried >= worker.LiftCapacity || worker.Stamina < liftCost)
                 {
                     message = carried >= worker.LiftCapacity ? "지금은 통나무를 더 들 수 없어요." : "스태미나가 부족해요.";
@@ -604,7 +612,7 @@ namespace Workerborn
                 }
                 worker.SpendWorkStamina(liftCost);
                 log.carrier = workerId;
-                log.thrown = false;
+                log.throwRest = default;
                 Changed();
                 message = "통나무를 들어 올렸어요.";
                 return TimberResult.Succeeded;
@@ -636,7 +644,7 @@ namespace Workerborn
         {
             bool throwing = order.action == TimberAction.Throw;
             int count = CountCarried(workerId);
-            int cost = throwing ? Math.Max(1, count + 2 - worker.LiftStaminaSaving) : 0;
+            int cost = throwing ? VillageState.WorkStaminaMultiplier * Math.Max(1, count + 2 - worker.LiftStaminaSaving) : 0;
             message = "들고 있는 통나무가 없어요.";
             if (count == 0)
                 return TimberResult.Rejected;
@@ -687,13 +695,16 @@ namespace Workerborn
             foreach (var log in logs.Values)
                 if (log.carrier == workerId)
                 {
-                    var spread = point.Offset(yaw + 90f, (index++ - (count - 1) * .5f) * .48f);
+                    var spread = point.Offset(yaw + 90f, (index - (count - 1) * .5f) * .48f);
                     log.carrier = null;
                     log.yaw = yaw;
                     log.point = canPlace(spread) ? spread : point;
                     log.throwOrigin = origin;
                     log.thrown = throwing;
+                    log.throwSlot = throwing ? index + 1 : 0;
+                    log.throwRest = default;
                     log.moved = true;
+                    index++;
                 }
             if (count > 0)
                 Changed();

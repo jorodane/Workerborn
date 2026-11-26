@@ -15,7 +15,7 @@ namespace Workerborn
             CharacterState is { AwaitingIncarnation: false, Health: > 0 };
 
         private float TravelSpeed(bool walking) => CurrentMount != null ? CurrentMount.Speed(walking) :
-            (walking ? walkSpeed : runSpeed) * CarrySpeed;
+            (walking ? walkSpeed : runSpeed) * CarrySpeed * (CharacterState?.ActionSpeed ?? 1f);
 
         internal void InteractWithMount(VillageMount mount)
         {
@@ -26,8 +26,10 @@ namespace Workerborn
                 Message?.Invoke("다른 사람이 타고 있어요.");
                 return;
             }
-            if (!InReach(mount.transform.position, mount.InteractionDistance))
-                CommandApproach(mount);
+            if (InReach(mount.transform.position, mount.InteractionDistance))
+                village.RequestMount(mount);
+            else
+                CommandApproach(mount, () => village.RequestMount(mount));
         }
 
         private void ToggleSitOrRide()
@@ -46,7 +48,7 @@ namespace Workerborn
             ToggleSit();
         }
 
-        private void RequestDismount()
+        internal void RequestDismount()
         {
             if (CurrentMount == null || !AcceptsMovementCommands)
                 return;
@@ -64,6 +66,7 @@ namespace Workerborn
 
             Cancel();
             FinishVisualJump();
+            FinishSeatExit();
             StandUpFromBed();
             if (!agent.Warp(point.position))
                 return false;

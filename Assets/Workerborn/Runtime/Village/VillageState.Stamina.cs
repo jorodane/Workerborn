@@ -5,6 +5,7 @@ namespace Workerborn
     public sealed partial class VillageState
     {
         private const int StaminaSaveSchema = 16;
+        internal const int WorkStaminaMultiplier = 3;
         private const double RecoveryDelaySeconds = 1d;
         private const double StaminaTolerance = .000001d;
         private double staminaRecoveryDelay;
