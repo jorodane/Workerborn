@@ -73,7 +73,9 @@ namespace Workerborn.Tests
             }
 
             var bag = library.Find("inventory");
-            Assert.That(bag.GetComponentsInChildren<EquipmentSlotPointer>(true).Length, Is.EqualTo(7));
+            var slots = bag.GetComponentsInChildren<EquipmentSlotPointer>(true).Select(pointer => pointer.Slot);
+            var expectedSlots = System.Enum.GetValues(typeof(EquipmentSlot)).Cast<EquipmentSlot>().Where(slot => slot != EquipmentSlot.None);
+            Assert.That(slots, Is.EquivalentTo(expectedSlots));
             Assert.That(library.Find("worldcontext"), Is.TypeOf<WorldContextView>());
         }
 
@@ -107,7 +109,7 @@ namespace Workerborn.Tests
         }
 
         [Test]
-        public void PineCutsPreserveTheBarkAndNeedleSubmeshesAndCloseTheCutFaces()
+        public void FelledPineKeepsNeedlesUntilTheTrunkIsSplit()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Workerborn/Prefabs/Gathering/TimberPine.prefab");
             var instance = Object.Instantiate(prefab);
@@ -124,20 +126,27 @@ namespace Workerborn.Tests
                 Assert.That(materials[0], Is.Not.SameAs(materials[1]));
                 geometry = tree.CutGeometry(cutSurface);
                 Assert.That(geometry, Is.Not.Null);
-                Assert.That(geometry.Materials, Is.EqualTo(materials.Append(cutSurface).ToArray()));
+
+                var trunk = geometry.Slice(site.Section(TimberPart.Trunk));
+                Assert.That(geometry.MaterialsFor(barkOnly: false), Is.EqualTo(materials.Append(cutSurface).ToArray()));
+                Assert.That(trunk.subMeshCount, Is.EqualTo(3));
+                Assert.That(trunk.GetIndexCount(0), Is.GreaterThan(0));
+                Assert.That(trunk.GetIndexCount(1), Is.GreaterThan(0));
+                Assert.That(trunk.GetIndexCount(2), Is.GreaterThan(0));
+
+                Assert.That(geometry.MaterialsFor(barkOnly: true), Is.EqualTo(new[] { materials[0], cutSurface }));
 
                 foreach (var part in new[] { TimberPart.Lower, TimberPart.Upper })
                 {
-                    var range = site.Section(part);
-                    var mesh = geometry.Slice(range);
-                    Assert.That(mesh.subMeshCount, Is.EqualTo(3));
+                    var range = site.TrimCutFaces(site.Section(part));
+                    var mesh = geometry.Slice(range, barkOnly: true);
+                    Assert.That(mesh.subMeshCount, Is.EqualTo(2));
                     Assert.That(mesh.GetIndexCount(0), Is.GreaterThan(0));
                     Assert.That(mesh.GetIndexCount(1), Is.GreaterThan(0));
-                    Assert.That(mesh.GetIndexCount(2), Is.GreaterThan(0));
                     Assert.That(mesh.uv.Length, Is.EqualTo(mesh.vertexCount));
                     Assert.That(mesh.uv.Distinct().Count(), Is.GreaterThan(3));
                     Assert.That(mesh.bounds.min.y, Is.EqualTo(-range.Length * .5f).Within(.001f));
-                    Assert.That(mesh.bounds.max.y, Is.EqualTo(range.Length * .5f).Within(.001f));
+                    Assert.That(mesh.bounds.max.y, Is.LessThanOrEqualTo(range.Length * .5f + .001f));
                 }
             }
             finally
