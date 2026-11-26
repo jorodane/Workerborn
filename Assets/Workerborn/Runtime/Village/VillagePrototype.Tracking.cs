@@ -4,6 +4,8 @@ namespace Workerborn
 {
     public sealed partial class VillagePrototype
     {
+        internal Transform GroundGuideRoot => effects != null ? effects.transform : transform;
+
         internal Rect TrackingGroundBounds
         {
             get

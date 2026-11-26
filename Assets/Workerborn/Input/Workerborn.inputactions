@@ -6,6 +6,24 @@
             "id": "8f17f841-120b-56ef-90dc-9bfb9b33ada2",
             "actions": [
                 {
+                    "name": "ShortcutBank",
+                    "type": "Button",
+                    "id": "ce7963f3-1e4c-4809-b027-1ae2fde52de5",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
+                    "name": "SwitchHandSet",
+                    "type": "Button",
+                    "id": "f5473d84-bd18-478a-945b-e42da6e51566",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Point",
                     "type": "PassThrough",
                     "id": "79b473a9-2ca4-5ccb-8946-21bf171fd422",
@@ -250,6 +268,39 @@
                 }
             ],
             "bindings": [
+                {
+                    "name": "",
+                    "id": "5f819aae-39dd-47e5-9432-90957ef73d21",
+                    "path": "<Keyboard>/leftShift",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "ShortcutBank",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "c6ffac8b-3ee6-4105-8d49-e0c119b436d3",
+                    "path": "<Keyboard>/rightShift",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "ShortcutBank",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "eefd9508-9adc-49f8-9e47-ef03a90b3f3e",
+                    "path": "<Keyboard>/tab",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "SwitchHandSet",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
                 {
                     "name": "",
                     "id": "57db6958-bf1c-5541-9f98-131aded59727",

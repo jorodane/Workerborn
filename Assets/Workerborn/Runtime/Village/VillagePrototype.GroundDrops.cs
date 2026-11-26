@@ -75,7 +75,8 @@ namespace Workerborn
             {
                 if (item == null || !item.CanCollect || !item.ReadyForAutoPickup ||
                     item.DropRecord?.CanAutoCollect(worker.PlayerId, now) != true ||
-                    !worker.SharesMap(item.LandingPosition) || !worker.IsInPickupRange(item))
+                    !worker.SharesMap(item.LandingPosition) ||
+                    !worker.IsInPickupRange(item) && !(instant && item.DropRecord.CanAcquireFromCrown(worker.PlayerId, now)))
                     continue;
                 Vector3 delta = worker.StandingPosition - item.LandingPosition;
                 nearbyHarvests.Add((item, delta.x * delta.x + delta.z * delta.z));

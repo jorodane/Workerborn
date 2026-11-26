@@ -24,6 +24,9 @@ namespace Workerborn
         private EquipmentSlotPointer[] equipment;
         [SerializeField]
         private RectTransform[] equipmentIcons;
+        [SerializeField] private Button[] handSetTabs;
+        [SerializeField] private Color activeHandSetColor = new Color(.34f, .59f, .73f);
+        private Color idleHandSetColor;
         private UiItemView[] equippedItems;
         public RectTransform ItemLayer => itemLayer;
         public RectTransform ItemViewport => itemViewport;
@@ -47,6 +50,12 @@ namespace Workerborn
             equippedItems = new UiItemView[equipment.Length];
             foreach (var slot in equipment)
                 slot.Bind(hud);
+            idleHandSetColor = handSetTabs[0].targetGraphic.color;
+            for (int i = 0; i < handSetTabs.Length; i++)
+            {
+                int set = i;
+                handSetTabs[i].onClick.AddListener(() => hud.SelectHandSet(set));
+            }
             itemLayer.GetComponent<InventoryGridPointer>().Hud = hud;
         }
 
@@ -69,6 +78,8 @@ namespace Workerborn
             cellLayer.sizeDelta = size;
             // Keep the authored panel height; its inventory viewport scrolls when the bag expands.
             gold.text = Game.State.Gold.ToString("N0");
+            for (int i = 0; i < handSetTabs.Length; i++)
+                handSetTabs[i].targetGraphic.color = i == Game.State.HandSet ? activeHandSetColor : idleHandSetColor;
             for (int i = 0; i < equipment.Length; i++)
             {
                 var visual = equippedItems[i];

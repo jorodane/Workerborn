@@ -13,15 +13,19 @@ namespace Workerborn
                 slots[index].Bind(hud, index);
         }
 
-        internal void Refresh(VillageState state, VillageSettings settings)
+        internal void Refresh(VillageState state, VillageSettings settings, int offset)
         {
             for (int index = 0; index < slots.Length; index++)
             {
-                string id = state.ItemShortcutAt(index);
-                if (id == null)
-                    slots[index].Clear();
+                int binding = index + offset;
+                string id = state.ItemShortcutAt(binding);
+                if (state.SkillShortcutAt(binding) is SkillId skill)
+                    slots[index].ShowSkill(settings.FindSkill(skill)?.Icon, state.Rules.Skill(skill).Name);
+                else if (id != null)
+                    slots[index].ShowItem(settings.FindItem(id), id, state.Inventory.Count(id), state.IsEquipped(ItemCatalog.Get(id)));
                 else
-                    slots[index].Show(settings.FindItem(id), id, state.Inventory.Count(id), state.IsEquipped(ItemCatalog.Get(id)));
+                    slots[index].Clear();
+                slots[index].ShowKey(binding);
             }
         }
     }

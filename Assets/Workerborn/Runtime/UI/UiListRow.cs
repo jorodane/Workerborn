@@ -19,6 +19,15 @@ namespace Workerborn
         private Button select;
         private Color titleColor;
 
+        internal SkillShortcutDrag AddSkillShortcut(VillageHud hud, SkillId skill)
+        {
+            var drag = icon.gameObject.AddComponent<SkillShortcutDrag>();
+            drag.Hud = hud;
+            drag.Skill = skill;
+            drag.enabled = false;
+            return drag;
+        }
+
         private void Awake() => titleColor = title.color;
         public void HighlightTitle(bool selected) => title.color = selected ? new Color(1f, .88f, .55f) : titleColor;
 

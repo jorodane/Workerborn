@@ -17,7 +17,7 @@ namespace Workerborn
             foreach (var view in views.Values)
                 if (view != null && view.IsOpen)
                     view.Refresh();
-            itemShortcuts?.Refresh(game.State, game.Settings);
+            RefreshItemShortcutBar();
         }
 
         private void RefreshInventoryItems()

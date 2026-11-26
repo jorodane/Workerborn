@@ -5,6 +5,8 @@ Shader "Workerborn/Ground Tracking Guide"
         _Color ("Guide Color", Color) = (1, 1, 1, 0.75)
         [HideInInspector] _FloorBounds ("Ground Bounds", Vector) = (0, 0, 0, 0)
         [HideInInspector] _HasDirection ("Show Pointer", Float) = 1
+        [HideInInspector] _GuideRadius ("Radius", Float) = 0.78
+        [HideInInspector] _GuideHalfWidth ("Half Width", Float) = 0.034
     }
     SubShader
     {
@@ -27,6 +29,8 @@ Shader "Workerborn/Ground Tracking Guide"
                 half4 _Color;
                 float4 _FloorBounds;
                 float _HasDirection;
+                float _GuideRadius;
+                float _GuideHalfWidth;
             CBUFFER_END
 
             struct Attributes
@@ -55,7 +59,7 @@ Shader "Workerborn/Ground Tracking Guide"
             half4 Frag(Varyings input) : SV_Target
             {
                 float2 p = input.plane;
-                float ring = abs(length(p) - 0.78) - 0.034;
+                float ring = abs(length(p) - _GuideRadius) - _GuideHalfWidth;
                 float pointer = max(0.76 - p.y, 0.86 * abs(p.x) + 0.48 * (p.y - 1.06));
                 float edge = min(ring, lerp(2.0, pointer, _HasDirection));
                 float coverage = saturate(0.5 - edge / max(fwidth(edge), 0.0001));

@@ -64,6 +64,8 @@ namespace Workerborn
         private WorldTargetReference currentTarget;
         public WorldInteractable CurrentTarget => currentTarget.Target;
         internal InteractionCursor CursorKind { get; private set; }
+        internal TimberThrowAim ThrowAim { get; private set; }
+        internal Vector3 ThrowDestination { get; private set; }
 
         public void Initialize(VillagePrototype owner, TargetLinkView targetLink)
         {
@@ -187,6 +189,7 @@ namespace Workerborn
         private void Update()
         {
             pointerOnWorld = IsHoveringPlayer = false;
+            ThrowAim = TimberThrowAim.None;
             if (game == null)
                 return;
             if (!WorkerbornInput.TryGetPointerPosition(out var cursor) || !WorkerbornInput.IsInView(game.WorldCamera, cursor))
@@ -199,13 +202,17 @@ namespace Workerborn
             var ui = UiAt(cursor);
             var plate = ui != null ? ui.GetComponentInParent<WorldNameplateView>() : null;
             bool overUi = ui != null && plate == null;
+            var worker = game.Worker;
+            bool aimingThrow = worker.AimingTimberThrow && !game.ControlsBlocked;
             worldPointer = cursor;
-            pointerOnWorld = !overUi && game.Hud.AllowsGroundItems && !game.Hud.IsHoldingItem;
+            pointerOnWorld = !overUi && !aimingThrow && game.Hud.AllowsGroundItems && !game.Hud.IsHoldingItem;
             bool control = WorkerbornInput.Held("Gameplay/Target");
             bool pressed = WorkerbornInput.Pressed("Gameplay/Interact");
             bool rightPressed = WorkerbornInput.Pressed("Camera/OrbitRight");
             WorldInteractable target = null;
-            if (game.Hud.AllowsGroundItems && !game.Hud.IsHoldingItem)
+            if (aimingThrow && !overUi && !game.CameraRig.IsOrbiting)
+                UpdateThrowAim(cursor, worker);
+            if (!aimingThrow && game.Hud.AllowsGroundItems && !game.Hud.IsHoldingItem)
             {
                 if (plate != null)
                     target = plate.Target;
@@ -217,8 +224,8 @@ namespace Workerborn
                 game.ControlsBlocked && !(target is GroundPickup)))
                 target = null;
             ShowCursor(game.CameraRig.IsOrbiting ? InteractionCursor.Orbit :
-                !overUi && !game.ControlsBlocked && game.Worker.AimingTimberThrow ? InteractionCursor.Throw :
-                target != null ? target.CursorFor(game.Worker) : InteractionCursor.Default);
+                ThrowAim != TimberThrowAim.None ? InteractionCursor.Throw :
+                target != null ? target.CursorFor(worker) : InteractionCursor.Default);
             if (pointerOnWorld && target == null && playerCollider != null)
             {
                 Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
@@ -260,13 +267,32 @@ namespace Workerborn
                     game.Hud.DropHeldOnGround(cursor);
                 return;
             }
-            if (!overUi && game.Worker.HandleTimberClick(target, cursor))
+            if (aimingThrow)
+            {
+                if (ThrowAim != TimberThrowAim.None)
+                    worker.ThrowLogs(ThrowAim, ThrowDestination);
+                return;
+            }
+            if (!overUi && worker.HandleTimberClick(target))
                 return;
             if (target != null)
                 target.RequestInteraction(game.Worker, game.WorldCamera.ScreenPointToRay(cursor));
             else if (!game.ControlsBlocked && !overUi && !control && (HasMask || maskMaterial == null) &&
                 TryWorldHit(cursor, out var hit) && game.IsGround(hit.collider))
                 game.Worker.CommandMove(hit.point, WorkerbornInput.Held("Gameplay/Walk"));
+        }
+
+        private void UpdateThrowAim(Vector2 screen, HarvestWorker worker)
+        {
+            ThrowAim = TimberThrowAim.NoGround;
+            if (!TryWorldHit(screen, out var hit) || !game.IsGround(hit.collider))
+                return;
+            var destination = TimberLocation.Planar(hit.point);
+            if (!game.IsTimberGround(destination))
+                return;
+            ThrowDestination = hit.point;
+            ThrowAim = TimberWork.WithinThrowRange(TimberLocation.Planar(worker.StandingPosition), destination, worker.CharacterState.ThrowRange)
+                ? TimberThrowAim.Ready : TimberThrowAim.OutOfRange;
         }
 
         private WorldInteractable SnapshotTarget(int id) => snapshot != null && id > 0 && id < snapshot.Length ? snapshot[id].Target : null;

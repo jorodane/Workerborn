@@ -20,7 +20,6 @@ namespace Workerborn
         [SerializeField, Range(0f, 1f)] private float strikeChance = .60f;
         [SerializeField, Min(.2f)] private float cutHeight = .44f;
         [SerializeField, Min(.04f)] private float barkRadius = .19f;
-        [SerializeField, Min(.8f)] private float upperDistance = 3.55f;
         [SerializeField] private GameObject standingNavigation;
         private TimberSite site;
         private MeshFilter cutSource;
@@ -36,6 +35,7 @@ namespace Workerborn
         internal override int StrikeStaminaCost(VillageState state, int baseCost) =>
             state.WorkEnergyCost(SkillId.Woodcutting, ItemIds.Timber, 2);
         internal bool Felled => felled;
+        internal BoxCollider StandingCollision => standingNavigation != null ? standingNavigation.GetComponent<BoxCollider>() : null;
 
         internal TimberSite Site()
         {
@@ -56,7 +56,7 @@ namespace Workerborn
             }
             return site = new TimberSite(PersistentId, TimberLocation.Planar(transform.position),
                 Definition.RequiredTool.Id, Definition.HarvestsPerPlant, InteractionDistance, strikeChance, Definition.SuccessChance,
-                transform.position.y, cutHeight, Mathf.Max(cutHeight + .4f, top), barkRadius, upperDistance,
+                transform.position.y, cutHeight, Mathf.Max(cutHeight + .4f, top), barkRadius,
                 Array.ConvertAll(products ?? Array.Empty<Product>(),
                     product => new TreeProduct(product.item != null ? product.item.Id : "", product.weight, product.quantity)));
         }

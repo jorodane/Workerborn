@@ -15,12 +15,16 @@ namespace Workerborn
         {
             headlessTimber = headless;
             authority?.ConfigureTimber(sites, ground, height, () => UnityEngine.Random.value);
+            if (authority != null)
+                QueueCreatedDrops(authority.ReleaseTimberCrownDrops(GroundDropSave.UtcNow));
         }
 
         internal void FinishTimberMotion(string id, TimberPart part, TimberPose pose)
         {
-            if (authority?.SettleTimberMotion(id, part, pose) == true)
-                nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
+            if (authority?.SettleTimberMotion(id, part, pose, GroundDropSave.UtcNow, out var drops) != true)
+                return;
+            QueueCreatedDrops(drops);
+            nextSave = Mathf.Min(nextSave, Time.unscaledTime + 1f);
         }
 
         internal bool SubmitTimberWork(TimberOrder order) => SubmitCommand(new SessionPacket

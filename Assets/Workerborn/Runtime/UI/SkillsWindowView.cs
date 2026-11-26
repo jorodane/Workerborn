@@ -17,13 +17,19 @@ namespace Workerborn
         [SerializeField] private TMP_Text details;
 
         private readonly Dictionary<SkillId, UiListRow> rows = new Dictionary<SkillId, UiListRow>();
+        private readonly Dictionary<SkillId, SkillShortcutDrag> shortcuts = new Dictionary<SkillId, SkillShortcutDrag>();
         private SkillId selected;
 
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
             foreach (var skill in SkillProgression.All)
-                rows.Add(skill, Instantiate(hud.Library.ListRow, skillRows));
+            {
+                var row = Instantiate(hud.Library.ListRow, skillRows);
+                rows.Add(skill, row);
+                if (SkillProgression.CanActivate(skill))
+                    shortcuts.Add(skill, row.AddSkillShortcut(hud, skill));
+            }
             use.onClick.AddListener(() => game.UseSkill(selected));
             advance.onClick.AddListener(() => game.UpgradeSkill(selected));
             advanceGrade.onClick.AddListener(() => game.UpgradeSkillToNextGrade(selected));
@@ -36,8 +42,11 @@ namespace Workerborn
             {
                 var skill = pair.Key;
                 int rank = state.RankOf(skill);
+                bool available = state.IsSkillLearned(skill);
+                if (shortcuts.TryGetValue(skill, out var shortcut))
+                    shortcut.enabled = available && !state.AwaitingIncarnation;
                 var icon = Game.Settings.FindSkill(skill)?.Icon;
-                pair.Value.Bind(state.Rules.Skill(skill).Name, state.IsSkillLearned(skill) ? SkillProgression.RankLabel(rank) : "미습득", icon,
+                pair.Value.Bind(state.Rules.Skill(skill).Name, available ? SkillProgression.RankLabel(rank) : "미습득", icon,
                     rank / (float)SkillProgression.MaxRank, () =>
                     {
                         selected = skill;
@@ -57,7 +66,8 @@ namespace Workerborn
             advanceGradeText.text = !learned ? "다음 급수" : gradeRank == 0
                 ? "최고 급수" : $"{SkillProgression.GradeAtRank(gradeRank)}급까지  AP {gradeCost}";
             advanceGrade.interactable = gradeRank > 0 && state.AP >= gradeCost;
-            use.gameObject.SetActive(SkillProgression.IsGathering(selected) || SkillProgression.IsTimberActive(selected));
+            bool active = SkillProgression.CanActivate(selected);
+            use.gameObject.SetActive(active);
             use.interactable = learned && !state.AwaitingIncarnation && (selected != SkillId.Throwing || Game.Worker.CarriedLogs > 0);
             details.text = learned ? Describe(state, selected) : selected switch
             {
@@ -66,6 +76,8 @@ namespace Workerborn
                 SkillId.SoulGrowth => "운명의 인도자와 환생을 마치면 배울 수 있어요.",
                 _ => $"잡화점의 {state.Rules.Skill(selected).Name} 입문서를 읽으면 배울 수 있어요."
             };
+            if (learned && active && !state.AwaitingIncarnation)
+                details.text += "\n스킬 아이콘을 단축칸에 끌어 등록할 수 있어요.";
         }
 
         private static string Describe(VillageState state, SkillId skill)

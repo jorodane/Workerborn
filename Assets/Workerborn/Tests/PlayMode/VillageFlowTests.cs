@@ -562,7 +562,7 @@ namespace Workerborn.Tests
             {
                 var site = new TimberSite("test tree", TimberLocation.Planar(platform.transform.position), ItemIds.Axe,
                     1, layout.Reach, 1f, 1f, platform.transform.position.y, layout.CutHeight, layout.TopHeight, layout.BarkRadius,
-                    layout.CrownDropDistance, layout.Products);
+                    layout.Products);
                 TimberPose resting = default;
                 int landings = 0;
                 Vector3 contact = default;
@@ -607,6 +607,58 @@ namespace Workerborn.Tests
                     var collider = source.CutGeometry(game.Settings.Timber.CutSurface).Slice(slice, barkOnly: true);
                     TimberFall.Separate(site, section, start, 0f, collider, slice.Center - section.Center, side, platform.transform, settled);
                 }
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(platform);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator CrownProductsWaitForTheTrunkToSettleAgainstAnotherTree()
+        {
+            var source = game.Crops.OfType<LoggingTree>().First();
+            var layout = source.Site();
+            var platform = new GameObject("Timber collision test platform");
+            platform.transform.position = new Vector3(-120f, 12f, -120f);
+            var ground = platform.AddComponent<BoxCollider>();
+            ground.size = new Vector3(24f, .5f, 24f);
+            ground.center = Vector3.down * .25f;
+            var standingTree = new GameObject("Standing tree collision");
+            standingTree.transform.SetParent(platform.transform, false);
+            standingTree.transform.localPosition = new Vector3(.3f, 0f, 3.1f);
+            var blocker = standingTree.AddComponent<BoxCollider>();
+            blocker.size = source.StandingCollision.size;
+            blocker.center = source.StandingCollision.center;
+
+            try
+            {
+                var site = new TimberSite("test tree", TimberLocation.Planar(platform.transform.position), ItemIds.Axe,
+                    1, layout.Reach, 1f, 1f, platform.transform.position.y, layout.CutHeight, layout.TopHeight, layout.BarkRadius, layout.Products);
+                var work = new TimberWork(new[] { site }, () => 0f);
+                var lumberjack = new VillageState();
+                lumberjack.Inventory.TryAdd(ItemIds.Axe, 1);
+                lumberjack.TryEquip(lumberjack.Inventory.Entries.Single().Id);
+                var order = new TimberOrder { action = TimberAction.Fell, target = site.Id };
+                Assert.That(work.Perform(order, lumberjack, "test", site.Point.Offset(180f, 1f), 0f, 1,
+                    _ => false, _ => true, _ => throw new InvalidOperationException("Yield before settling"), out _), Is.EqualTo(TimberResult.Succeeded));
+
+                var bark = source.CutGeometry(game.Settings.Timber.CutSurface).Slice(site.Section(TimberPart.Trunk), barkOnly: true);
+                TimberPose resting = default;
+                List<TimberYield> products = null;
+                var fall = TimberFall.Begin(site, 0f, bark, platform.transform, pose =>
+                {
+                    resting = pose;
+                    work.SettlePiece(site.Id, TimberPart.Trunk, pose);
+                    work.ReleaseCrownProducts((_, _, items) => { products = items; return true; });
+                });
+                yield return Until(() => Vector3.Angle(Vector3.up, fall.transform.up) >= 8f, 2f);
+                Assert.That(products, Is.Null);
+                yield return Until(() => products != null, 13f);
+                var crown = resting.ShiftAlongTrunk(site.Section(TimberPart.Trunk).Length * .25f);
+                Assert.That(products.Single().point.DistanceSquared(crown.point), Is.LessThan(.0001f));
+                Assert.That(products[0].crownHeight, Is.EqualTo(crown.height).Within(.001f));
+                Assert.That(Vector3.Distance(TimberLocation.Position(crown), platform.transform.position + Vector3.forward * 4.7f), Is.GreaterThan(1f));
             }
             finally
             {

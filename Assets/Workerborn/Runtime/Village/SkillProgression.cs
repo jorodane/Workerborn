@@ -125,6 +125,7 @@ namespace Workerborn
         public static bool IsGathering(SkillId id) =>
             id == SkillId.Harvesting || id == SkillId.Woodcutting || id == SkillId.EggGathering || id == SkillId.Fishing;
         internal static bool IsTimberActive(SkillId id) => id is SkillId.Lifting or SkillId.Throwing;
+        internal static bool CanActivate(SkillId id) => IsGathering(id) || IsTimberActive(id);
         public static int GradeAtRank(int rank) => (rank + RanksPerGrade - 1) / RanksPerGrade;
         public static string RankLabel(int rank) => $"{GradeAtRank(rank)}급 · 랭크 {rank}";
 

@@ -89,6 +89,67 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void ShiftShortcutsPersistActiveSkillsAndReplaceOnlyTheirOwnBanksBinding()
+        {
+            var state = new VillageState();
+            Assert.That(state.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
+            int axe = state.Inventory.Entries.Single().Id;
+            int shifted = VillageState.ItemShortcutCount + 1;
+            Assert.That(state.TryAssignItemShortcut(1, axe), Is.True);
+            var older = state.Export();
+            older.schema = 16;
+            older.itemShortcuts = older.itemShortcuts.Take(VillageState.ItemShortcutCount).ToArray();
+            state = VillageState.Restore(older);
+            Assert.That(state.ItemShortcutAt(1), Is.EqualTo(ItemIds.Axe));
+            Assert.That(state.SkillShortcutAt(shifted), Is.Null);
+            Assert.That(state.TryAssignSkillShortcut(shifted, SkillId.Throwing), Is.False);
+            state.LearnSkill(SkillId.Throwing);
+            state.LearnSkill(SkillId.RestMaster);
+            Assert.That(state.TryAssignSkillShortcut(shifted, SkillId.RestMaster), Is.False);
+            Assert.That(state.TryAssignSkillShortcut(shifted, SkillId.Throwing), Is.True);
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.ItemShortcutAt(1), Is.EqualTo(ItemIds.Axe));
+            Assert.That(state.SkillShortcutAt(shifted), Is.EqualTo(SkillId.Throwing));
+            Assert.That(state.TryAssignItemShortcut(shifted, state.Inventory.Entries.Single().Id), Is.True);
+            Assert.That(state.SkillShortcutAt(shifted), Is.Null);
+            Assert.That(state.TryAssignSkillShortcut(shifted, SkillId.Throwing), Is.True);
+            Assert.That(state.ItemShortcutAt(shifted), Is.Null);
+            Assert.That(state.TryClearItemShortcut(shifted), Is.True);
+            Assert.That(state.SkillShortcutAt(shifted), Is.Null);
+            Assert.That(state.ItemShortcutAt(1), Is.EqualTo(ItemIds.Axe));
+        }
+
+        [Test]
+        public void HandSetsKeepConditionsAndSharedEquipmentAcrossSaveAndClearOnRebirth()
+        {
+            var state = new VillageState();
+            var worn = new EquipmentCondition(5, 24);
+            Equip(ItemIds.Axe, worn);
+            Equip(ItemIds.Bag);
+            Assert.That(state.TrySelectHandSet(1), Is.True);
+            Assert.That(state.HasTool(ItemIds.Axe), Is.False);
+            Assert.That(state.BagExpanded, Is.True);
+            Equip(ItemIds.FishingRod);
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.HandSet, Is.EqualTo(1));
+            Assert.That(state.HasTool(ItemIds.FishingRod), Is.True);
+            Assert.That(state.TrySelectHandSet(0), Is.True);
+            Assert.That(state.HasTool(ItemIds.Axe), Is.True);
+            Assert.That(state.EquippedCondition(EquipmentSlot.MainHand), Is.EqualTo(worn));
+            Assert.That(state.Inventory.Entries, Is.Empty);
+            Assert.That(state.BagExpanded, Is.True);
+            state.RebirthPersonalLife();
+            Assert.That(state.Export().otherHandEquipment, Is.Empty);
+            Assert.That(VillageState.Restore(state.Export()).Equipment, Is.Empty);
+
+            void Equip(string item, EquipmentCondition condition = default)
+            {
+                Assert.That(state.Inventory.TryAdd(item, 1, condition), Is.True);
+                Assert.That(state.TryEquip(state.Inventory.Entries.Single().Id), Is.True);
+            }
+        }
+
+        [Test]
         public void HealthPotionHealsUpToTheLimitAndConsumesOnlyTheSelectedStack()
         {
             var state = new VillageState();

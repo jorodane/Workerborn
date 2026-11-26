@@ -38,6 +38,14 @@ namespace Workerborn
             count.text = quantity > 1 ? quantity.ToString() : "";
         }
 
+        internal void DisplaySkill(Sprite sprite, string name)
+        {
+            icon.sprite = sprite;
+            icon.enabled = sprite != null;
+            fallback.text = icon.enabled ? "" : name;
+            count.text = "";
+        }
+
         public void Inventory(VillageHud hud, int id)
         {
             tooltipHud = hud;

@@ -13,6 +13,8 @@ namespace Workerborn
         private readonly Dictionary<(string Id, TimberPart Part), TimberFall> timberMotions =
             new Dictionary<(string, TimberPart), TimberFall>();
         private Transform headlessTimberPhysics;
+        private readonly Dictionary<string, BoxCollider> serverStandingTrees = new Dictionary<string, BoxCollider>();
+        private float nextCrownDelivery;
         private readonly Dictionary<(string Tree, TimberPart Part), TimberPiece> felledPieces =
             new Dictionary<(string, TimberPart), TimberPiece>();
         private readonly Dictionary<string, TimberPiece> logModels = new Dictionary<string, TimberPiece>();
@@ -49,12 +51,28 @@ namespace Workerborn
         {
             headlessTimberPhysics = new GameObject("Server timber physics").transform;
             var terrain = GroundTerrain;
-            if (terrain == null)
-                return;
-            var ground = new GameObject("Terrain collision");
-            ground.transform.SetParent(headlessTimberPhysics, false);
-            ground.transform.SetPositionAndRotation(terrain.transform.position, terrain.transform.rotation);
-            ground.AddComponent<TerrainCollider>().terrainData = terrain.terrainData;
+            if (terrain != null)
+            {
+                var ground = new GameObject("Terrain collision");
+                ground.transform.SetParent(headlessTimberPhysics, false);
+                ground.transform.SetPositionAndRotation(terrain.transform.position, terrain.transform.rotation);
+                ground.AddComponent<TerrainCollider>().terrainData = terrain.terrainData;
+            }
+            foreach (var pair in timberTrees)
+            {
+                var source = pair.Value.StandingCollision;
+                if (source == null || !source.enabled || !source.gameObject.activeInHierarchy)
+                    continue;
+                var standing = new GameObject(pair.Key) { layer = source.gameObject.layer };
+                standing.transform.SetParent(headlessTimberPhysics, false);
+                standing.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
+                standing.transform.localScale = source.transform.lossyScale;
+                var collider = standing.AddComponent<BoxCollider>();
+                collider.center = source.center;
+                collider.size = source.size;
+                collider.sharedMaterial = source.sharedMaterial;
+                serverStandingTrees.Add(pair.Key, collider);
+            }
         }
 
         internal void PresentTimberMotions(WoodlandSave snapshot)
@@ -63,12 +81,14 @@ namespace Workerborn
                 return;
             presentedMotions = snapshot;
             var pending = new HashSet<(string Id, TimberPart Part)>();
+            var standing = headlessTimberPhysics != null ? new HashSet<string>(serverStandingTrees.Keys) : null;
             bool authority = !IsOnline || Session?.OwnsTimberPhysics == true;
             foreach (var record in snapshot.trees)
             {
                 if (record.felledDay <= 0 || !timberTrees.TryGetValue(record.id, out var tree))
                     continue;
                 tree.Present(true);
+                standing?.Remove(record.id);
                 var site = tree.Site();
                 if (record.falling && record.Has(TimberPart.Trunk))
                     Start(tree, record.id, TimberPart.Trunk, site.Section(TimberPart.Trunk), record.fallYaw, default, 0);
@@ -80,6 +100,9 @@ namespace Workerborn
             foreach (var log in snapshot.logs)
                 if (log.separating && log.cutPose.IsValid && log.sourceTree != null && timberTrees.TryGetValue(log.sourceTree, out var source))
                     Start(source, log.id, TimberPart.Log, source.Site().Section(log.sourcePart).Half(log.half), log.cutYaw, log.cutPose, log.half == 0 ? -1 : 1);
+            if (standing != null)
+                foreach (var pair in serverStandingTrees)
+                    pair.Value.enabled = standing.Contains(pair.Key);
             RemoveMissing(timberMotions, pending);
 
             void Start(LoggingTree tree, string id, TimberPart part, TimberSection section, float cutYaw, TimberPose initial, int side)
@@ -121,6 +144,7 @@ namespace Workerborn
                 Session?.FinishTimberMotion(id, part, pose);
             else if (soloTimber?.SettlePiece(id, part, pose) == true)
             {
+                soloTimber.ReleaseCrownProducts(DeliverCrownProducts);
                 PresentWoodland(soloTimber.Capture());
                 SaveGame(false);
             }
@@ -165,9 +189,24 @@ namespace Workerborn
             return true;
         }
 
-        private bool DeliverTimberYield(HarvestWorker source, List<TimberYield> items)
+        private void RetryCrownProducts()
         {
-            if (!source.HasPlayerOwner || source.CharacterState.HasInstantHarvestAcquisition)
+            if (soloTimber == null || Time.unscaledTime < nextCrownDelivery)
+                return;
+            nextCrownDelivery = Time.unscaledTime + 1f;
+            if (soloTimber.ReleaseCrownProducts(DeliverCrownProducts))
+                SaveGame(false);
+        }
+
+        private bool DeliverCrownProducts(string character, TimberPoint stump, List<TimberYield> items)
+        {
+            var source = FindCharacter(character);
+            return source != null && DeliverTimberYield(source, items, stump);
+        }
+
+        private bool DeliverTimberYield(HarvestWorker source, List<TimberYield> items, TimberPoint? stump = null)
+        {
+            if (!source.HasPlayerOwner || !stump.HasValue && source.CharacterState.HasInstantHarvestAcquisition)
             {
                 var updated = source.CharacterState.Inventory.Copy();
                 foreach (var item in items)
@@ -186,12 +225,13 @@ namespace Workerborn
             {
                 TimberPoint end = item.point.Offset(UnityEngine.Random.Range(0f, 360f), UnityEngine.Random.Range(.24f, .85f));
                 if (!IsTimberGround(end))
-                    end = TimberLocation.Planar(source.StandingPosition);
-                Vector3 origin = SurfacePosition(item.point.x, item.point.z) + Vector3.up * 1f;
+                    end = IsTimberGround(item.point) ? item.point : stump ?? TimberLocation.Planar(source.StandingPosition);
+                Vector3 origin = TimberYieldOrigin(item);
                 Vector3 landing = SurfacePosition(end.x, end.z) + Vector3.up * .08f;
                 var prefab = settings.FindItem(item.itemId).GroundPrefab;
                 var drop = CaptureGroundDrop(item.itemId, item.quantity, origin, landing);
                 drop.harvestYield = true;
+                drop.crownYield = item.fromCrown;
                 drop.flightMilliseconds = prefab.FlightMilliseconds;
                 SpawnLocalPlayerDrop(drop, source.PlayerId, PickupUtcNow, prefab, null, origin, landing);
             }
@@ -201,9 +241,12 @@ namespace Workerborn
         internal void PlayTimberAcquisitions(HarvestWorker source, IEnumerable<TimberYield> items)
         {
             foreach (var item in items)
-                PlayHarvestAcquisition(source, SurfacePosition(item.point.x, item.point.z) + Vector3.up * .9f,
-                    item.itemId, item.quantity);
+                PlayHarvestAcquisition(source, TimberYieldOrigin(item), item.itemId, item.quantity);
         }
+
+        private Vector3 TimberYieldOrigin(TimberYield item) => item.fromCrown
+            ? new Vector3(item.point.x, item.crownHeight + .12f, item.point.z)
+            : SurfacePosition(item.point.x, item.point.z) + Vector3.up;
 
         internal void TimberNotice(HarvestWorker source, string message)
         {

@@ -43,7 +43,10 @@ namespace Workerborn
                     WorkerbornInput.IsFinite(target.transform.position))
                     TrackedTarget = game.SharesMap(target.transform.position) ? target : game.CurrentInterior?.Exit;
             }
-            trackingGuide?.Display(game, TrackedTarget);
+            bool aiming = game.Worker.AimingTimberThrow && !game.ControlsBlocked && skillShortcutGhost == null &&
+                game.Targeting != null && game.IsTimberGround(TimberLocation.Planar(game.Worker.StandingPosition));
+            trackingGuide?.Display(game, aiming ? null : TrackedTarget);
+            trackingGuide?.DisplayThrow(game, aiming, game.Targeting != null ? game.Targeting.ThrowAim : TimberThrowAim.None);
         }
     }
 }

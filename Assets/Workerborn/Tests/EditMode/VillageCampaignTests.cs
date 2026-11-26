@@ -112,6 +112,47 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void FellingDropsUseTheAuthoritativeCrownAndPreserveTheOriginalOwner()
+        {
+            const long now = 100_000;
+            var rules = Rules();
+            var site = new TimberSite("pine", default, ItemIds.Axe, 1, 2.2f, 1f, 1f, 0f, .44f, 7f, .19f,
+                new[] { new TreeProduct(ItemIds.Branch, 1, 1) });
+            var campaign = new VillageCampaign(rules, Sites, 0f, -1f);
+            Assert.That(campaign.Connect("a", "하나", out var owner), Is.True);
+            Incarnate(campaign, "a");
+            var state = VillageState.Restore(owner.character, rules);
+            state.LearnSkill(SkillId.HarvestAcquisition, SkillProgression.MaxRank);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Axe, 1), Is.True);
+            Assert.That(state.TryEquip(state.Inventory.Entries.Single().Id), Is.True);
+            campaign.ConfigureTimber(new[] { site }, _ => true, _ => 0f, () => 0f);
+            var order = new TimberOrder { action = TimberAction.Fell, target = site.Id };
+            var checkpoint = state.Export();
+            checkpoint.CopyPoseAndAction(owner.character);
+            Assert.That(campaign.PerformTimber("a", checkpoint, order, now, null, out var message, out var drops, out var acquired), Is.True, message);
+            Assert.That(drops, Is.Empty);
+            Assert.That(acquired, Is.Null);
+            Assert.That(campaign.SharedGroundDrops, Is.Empty);
+
+            campaign = new VillageCampaign(rules, Sites, 0f, -1f, campaign.Export());
+            Assert.That(campaign.Connect("a", "하나", out owner), Is.True);
+            campaign.ConfigureTimber(new[] { site }, _ => true, _ => 0f, () => .99f);
+            var resting = TimberPose.AtTilt(new TimberPoint(4f, .7f), 1.2f, -35f, 61f);
+            Assert.That(campaign.SettleTimberMotion(site.Id, TimberPart.Trunk, resting, now, out drops), Is.True);
+            var drop = drops.Single();
+            var crown = resting.ShiftAlongTrunk(site.Section(TimberPart.Trunk).Length * .25f);
+            Assert.That(drop.itemId, Is.EqualTo(ItemIds.Branch));
+            Assert.That(drop.ownerId, Is.EqualTo(owner.id));
+            Assert.That(drop.originX, Is.EqualTo(crown.point.x).Within(.001f));
+            Assert.That(drop.originZ, Is.EqualTo(crown.point.z).Within(.001f));
+            Assert.That(drop.originY, Is.GreaterThan(crown.height));
+            Assert.That(campaign.ReleaseTimberCrownDrops(now), Is.Empty);
+            Assert.That(campaign.CollectAutomaticHarvests("a", owner.character, new[] { drop.id }, now + drop.flightMilliseconds - 1), Is.Empty);
+            Assert.That(campaign.CollectAutomaticHarvests("a", owner.character, new[] { drop.id }, now + drop.flightMilliseconds).Single().quantity, Is.EqualTo(1));
+            Assert.That(campaign.SharedGroundDrops, Is.Empty);
+        }
+
+        [Test]
         public void DroppedEquipmentKeepsItsConditionAndDoesNotMergeWithNewEquipment()
         {
             const long now = 100_000;

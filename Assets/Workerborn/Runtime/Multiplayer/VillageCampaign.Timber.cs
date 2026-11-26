@@ -11,7 +11,26 @@ namespace Workerborn
         private Func<TimberPoint, float> timberHeight;
         internal WoodlandSave Woodland => timber?.Capture() ?? storedWoodland;
 
-        internal bool SettleTimberMotion(string id, TimberPart part, TimberPose pose) => timber?.SettlePiece(id, part, pose) == true;
+        internal bool SettleTimberMotion(string id, TimberPart part, TimberPose pose, long now, out GroundDropSave[] drops)
+        {
+            drops = Array.Empty<GroundDropSave>();
+            if (timber?.SettlePiece(id, part, pose) != true)
+                return false;
+            if (part == TimberPart.Trunk)
+                drops = ReleaseTimberCrownDrops(now);
+            return true;
+        }
+
+        internal GroundDropSave[] ReleaseTimberCrownDrops(long now)
+        {
+            var created = new List<GroundDropSave>();
+            timber?.ReleaseCrownProducts((owner, stump, rewards) =>
+            {
+                CreateTimberDrops(owner, stump, rewards, now, created);
+                return true;
+            });
+            return created.Count > 0 ? created.ToArray() : Array.Empty<GroundDropSave>();
+        }
 
         private WoodlandSave CaptureWoodlandForSave() => timber?.CaptureForSave(CarrierPose, timberGround) ?? storedWoodland;
 
@@ -78,23 +97,26 @@ namespace Workerborn
                     return true;
                 }
 
-                for (int n = 0; n < rewards.Count; n++)
-                {
-                    var reward = rewards[n];
-                    var landing = reward.point.Offset(n * 137.5f, .36f + n % 3 * .18f);
-                    if (!timberGround(landing))
-                        landing = point;
-                    created.Add(AddGroundDrop(new GroundDropSave
-                    {
-                        itemId = reward.itemId,
-                        quantity = reward.quantity,
-                        x = landing.x, z = landing.z,
-                        hasDropOrigin = true,
-                        originX = reward.point.x, originY = timberHeight(reward.point) + 1f, originZ = reward.point.z,
-                        flightMilliseconds = 480
-                    }, player.id, now, harvestYield: true));
-                }
+                CreateTimberDrops(player.id, point, rewards, now, created);
                 return true;
+            }
+        }
+
+        private void CreateTimberDrops(string owner, TimberPoint fallback, List<TimberYield> rewards, long now, List<GroundDropSave> created)
+        {
+            for (int n = 0; n < rewards.Count; n++)
+            {
+                var reward = rewards[n];
+                var landing = reward.point.Offset(n * 137.5f, .36f + n % 3 * .18f);
+                if (!timberGround(landing))
+                    landing = timberGround(reward.point) ? reward.point : fallback;
+                created.Add(AddGroundDrop(new GroundDropSave
+                {
+                    itemId = reward.itemId, quantity = reward.quantity, x = landing.x, z = landing.z,
+                    hasDropOrigin = true, originX = reward.point.x, originZ = reward.point.z,
+                    originY = reward.fromCrown ? reward.crownHeight + .12f : timberHeight(reward.point) + 1f,
+                    flightMilliseconds = 480
+                }, owner, now, harvestYield: true, crownYield: reward.fromCrown));
             }
         }
 

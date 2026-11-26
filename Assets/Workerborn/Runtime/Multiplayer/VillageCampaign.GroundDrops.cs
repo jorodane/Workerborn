@@ -60,7 +60,8 @@ namespace Workerborn
                 (!state.HasInstantHarvestAcquisition && now < profile.NextHarvestPickupAt))
                 return Array.Empty<HarvestPickupResult>();
 
-            var collected = groundDrops.CollectHarvests(state, profile.id, now, ids, drop => InPickupRange(character, drop));
+            var collected = groundDrops.CollectHarvests(state, profile.id, now, ids, drop => InPickupRange(character, drop) ||
+                state.HasInstantHarvestAcquisition && string.IsNullOrEmpty(character.interior.id) && drop.CanAcquireFromCrown(profile.id, now));
             if (collected.Length > 0)
             {
                 profile.NextHarvestPickupAt = now + GroundDropSave.AutoPickupPeriodMilliseconds;
@@ -119,14 +120,14 @@ namespace Workerborn
         }
 
         private GroundDropSave AddGroundDrop(GroundDropSave draft, string owner, long now,
-            EquipmentCondition condition = default, bool harvestYield = false)
+            EquipmentCondition condition = default, bool harvestYield = false, bool crownYield = false)
         {
             var drop = new GroundDropSave
             {
                 id = Guid.NewGuid().ToString("N"), itemId = draft.itemId, quantity = draft.quantity, condition = condition,
                 x = draft.x, z = draft.z, interior = draft.interior, hasDropOrigin = draft.hasDropOrigin,
                 originX = draft.originX, originY = draft.originY, originZ = draft.originZ,
-                harvestYield = harvestYield, flightMilliseconds = harvestYield ? draft.flightMilliseconds : 0
+                harvestYield = harvestYield, crownYield = crownYield, flightMilliseconds = harvestYield ? draft.flightMilliseconds : 0
             };
             drop.ReserveFor(owner, now);
             groundDrops.Add(drop);

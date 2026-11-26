@@ -2,6 +2,8 @@ using UnityEngine;
 
 namespace Workerborn
 {
+    internal enum TimberThrowAim { None, Ready, OutOfRange, NoGround }
+
     public sealed partial class HarvestWorker
     {
         private bool choosingLog, aimingThrow;
@@ -54,18 +56,10 @@ namespace Workerborn
                 village.TimberNotice(this, "들어 올릴 통나무를 클릭하세요.");
         }
 
-        internal bool HandleTimberClick(WorldInteractable target, Vector2 screen)
+        internal bool HandleTimberClick(WorldInteractable target)
         {
             if (!AcceptsInteractionCommands)
                 return false;
-            if (AimingTimberThrow)
-            {
-                if (Targeting.TryDropPoint(screen, out Vector3 destination))
-                    ThrowLogs(destination);
-                else
-                    village.TimberNotice(this, "통나무를 던질 바닥을 클릭하세요.");
-                return true;
-            }
             if (CanSelectLog && target is TimberPiece { Part: TimberPart.Log } log)
             {
                 LiftLog(log);
@@ -111,12 +105,15 @@ namespace Workerborn
             return true;
         }
 
-        private void ThrowLogs(Vector3 destination)
+        internal void ThrowLogs(TimberThrowAim aim, Vector3 destination)
         {
-            float range = CharacterState.ThrowRange;
-            if (TimberLocation.Planar(destination).DistanceSquared(TimberLocation.Planar(StandingPosition)) > range * range)
+            if (!AimingTimberThrow || !AcceptsInteractionCommands)
+                return;
+            if (aim != TimberThrowAim.Ready)
             {
-                village.TimberNotice(this, $"던질 수 있는 범위는 {range:0.#}m예요.");
+                village.TimberNotice(this, aim == TimberThrowAim.OutOfRange
+                    ? $"던질 수 있는 범위는 {CharacterState.ThrowRange:0.#}m예요."
+                    : "통나무를 던질 바닥을 클릭하세요.");
                 return;
             }
             Cancel();

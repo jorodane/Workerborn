@@ -15,23 +15,36 @@ namespace Workerborn
         [SerializeField] private Color equippedColor = new Color(.38f, .63f, .77f);
 
         private VillageHud hud;
-        private string itemId;
         private Color idleColor;
-        private bool hovered, equipped;
+        private bool hovered, equipped, occupied;
+        private Vector2 hoverPosition;
+        private int shownBinding = -1;
+        private float defaultKeySize;
         internal int Index { get; private set; }
 
         internal void Bind(VillageHud owner, int index)
         {
             hud = owner;
             Index = index;
-            keyLabel.text = ((index + 1) % 10).ToString();
             idleColor = frame.color;
+            defaultKeySize = keyLabel.fontSize;
             item.ShowIconOnly(showQuantity: true);
         }
 
-        internal void Show(ItemDefinition definition, string id, int quantity, bool worn)
+        internal void ShowKey(int binding)
         {
-            itemId = id;
+            if (shownBinding == binding)
+                return;
+            shownBinding = binding;
+            keyLabel.text = VillageState.ShortcutKey(binding);
+            keyLabel.fontSize = binding < VillageState.ItemShortcutCount ? defaultKeySize : defaultKeySize * .85f;
+            if (hovered && occupied)
+                hud.ShowShortcutTooltip(Index, hoverPosition);
+        }
+
+        internal void ShowItem(ItemDefinition definition, string id, int quantity, bool worn)
+        {
+            occupied = true;
             equipped = worn;
             item.Display(definition, id, quantity);
             item.gameObject.SetActive(true);
@@ -39,11 +52,21 @@ namespace Workerborn
             RefreshFrame();
         }
 
+        internal void ShowSkill(Sprite sprite, string name)
+        {
+            occupied = true;
+            equipped = false;
+            item.DisplaySkill(sprite, name);
+            item.gameObject.SetActive(true);
+            content.alpha = 1f;
+            RefreshFrame();
+        }
+
         internal void Clear()
         {
-            if (itemId != null && hovered)
+            if (occupied && hovered)
                 hud.HideItemTooltip();
-            itemId = null;
+            occupied = false;
             equipped = false;
             item.gameObject.SetActive(false);
             RefreshFrame();
@@ -58,8 +81,9 @@ namespace Workerborn
             if (hud == null)
                 return;
             hovered = true;
+            hoverPosition = data.position;
             RefreshFrame();
-            if (itemId != null)
+            if (occupied)
                 hud.ShowShortcutTooltip(Index, data.position);
         }
 

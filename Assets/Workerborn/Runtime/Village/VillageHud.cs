@@ -241,6 +241,11 @@ namespace Workerborn
                 return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
+                if (skillShortcutGhost != null)
+                {
+                    CancelSkillShortcutDrag();
+                    return;
+                }
                 if (!HasModal && !IsHoldingItem && game.Worker.TryCancelTimberSkill())
                     return;
                 if (IsShopOpen)
@@ -265,6 +270,8 @@ namespace Workerborn
                 ToggleWindow("character");
             if (WorkerbornInput.Pressed("Gameplay/Map"))
                 ToggleWindow("map");
+            if (WorkerbornInput.Pressed("Gameplay/SwitchHandSet"))
+                SelectHandSet(1 - game.State.HandSet);
             ReadItemShortcuts();
             if (hasPointer)
             {
@@ -318,6 +325,9 @@ namespace Workerborn
             UpdateToast();
             UpdateAreaAnnouncement();
 
+            if (shownShortcutOffset != ShortcutOffset)
+                RefreshItemShortcutBar();
+
             if (state.Version != seenVersion || state.Inventory.Version != seenInventoryVersion)
             {
                 seenVersion = state.Version;
@@ -354,7 +364,10 @@ namespace Workerborn
 
         private void OnApplicationFocus(bool focused)
         {
-            if (!focused && draggedEntry != 0)
+            if (focused)
+                return;
+            CancelSkillShortcutDrag();
+            if (draggedEntry != 0)
                 CancelItemDrag();
         }
 
@@ -373,11 +386,20 @@ namespace Workerborn
             }
 
             var target = game.Targeting != null ? game.Targeting.CurrentTarget : null;
-            bool show = target != null && target.CanInteract && !IsHoldingItem;
+            var throwAim = game.Targeting != null && worker.AimingTimberThrow && !game.ControlsBlocked
+                ? game.Targeting.ThrowAim : TimberThrowAim.None;
+            string verb = throwAim switch
+            {
+                TimberThrowAim.Ready => "던지기",
+                TimberThrowAim.OutOfRange => "범위 초과",
+                TimberThrowAim.NoGround => "바닥을 선택하세요",
+                _ => target != null && target.CanInteract ? target.InteractionVerbFor(worker) : null
+            };
+            bool show = !string.IsNullOrEmpty(verb) && !IsHoldingItem && skillShortcutGhost == null;
             hoverTip.gameObject.SetActive(show);
             if (show)
             {
-                hoverText.text = target.InteractionVerbFor(worker);
+                hoverText.text = verb;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(CanvasRect, WorkerbornInput.Point, null, out var cursor);
                 var offset = hoverTip.GetComponent<WorldTooltipView>().CursorOffset;
                 Vector2 at = cursor + offset;

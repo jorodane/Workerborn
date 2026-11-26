@@ -60,7 +60,7 @@ namespace Workerborn
         public InteriorPositionSave interior;
         public bool hasDropOrigin;
         public float originX, originY, originZ;
-        public bool harvestYield;
+        public bool harvestYield, crownYield;
         public int flightMilliseconds;
 
         internal bool CanCollect(string playerId, long now) =>
@@ -69,6 +69,8 @@ namespace Workerborn
         internal bool CanAutoCollect(string playerId, long now) => harvestYield &&
             now >= reservedUntilUtc - ReservationMilliseconds + flightMilliseconds &&
             IsVisibleTo(playerId) && CanCollect(playerId, now);
+
+        internal bool CanAcquireFromCrown(string playerId, long now) => crownYield && ownerId == playerId && now < reservedUntilUtc;
 
         internal bool IsVisibleTo(string playerId) => interior.id?.EndsWith("/guest", StringComparison.Ordinal) != true || ownerId == playerId;
 
@@ -148,6 +150,7 @@ namespace Workerborn
         public int inventoryRows = VillageState.BaseInventoryRows;
         public InventoryEntrySave[] inventory = Array.Empty<InventoryEntrySave>();
         public string[] itemShortcuts = Array.Empty<string>();
+        public int[] skillShortcuts = Array.Empty<int>();
         public CursorItemSave pendingPurchase; // Retains the original save field for items without a source cell.
         public HarvestAcquisitionSave[] pendingHarvests = Array.Empty<HarvestAcquisitionSave>();
         public float playerX;
@@ -165,6 +168,8 @@ namespace Workerborn
         public bool hasLifeLook;
         public CharacterLook lifeLook;
         public EquipmentEntrySave[] equipment = Array.Empty<EquipmentEntrySave>();
+        public EquipmentEntrySave[] otherHandEquipment = Array.Empty<EquipmentEntrySave>();
+        public int handSet;
 
         internal void CopyPoseAndAction(CharacterSave source, bool teleport = false)
         {
@@ -201,7 +206,9 @@ namespace Workerborn
     public sealed partial class VillageState
     {
         internal const int ItemShortcutCount = 10;
-        private readonly string[] itemShortcuts = new string[ItemShortcutCount];
+        private const int ShortcutCount = ItemShortcutCount * 2;
+        private readonly string[] itemShortcuts = new string[ShortcutCount];
+        private readonly int[] skillShortcuts = new int[ShortcutCount];
         internal const int InventoryColumns = 6;
         internal const int LegacyInventoryColumns = 8;
         internal const int BaseInventoryRows = 4;
@@ -247,6 +254,9 @@ namespace Workerborn
 
         private readonly Dictionary<EquipmentSlot, string> equipment = new Dictionary<EquipmentSlot, string>();
         private readonly Dictionary<EquipmentSlot, EquipmentCondition> equipmentConditions = new Dictionary<EquipmentSlot, EquipmentCondition>();
+        private readonly Dictionary<EquipmentSlot, (string ItemId, EquipmentCondition Condition)> otherHandEquipment =
+            new Dictionary<EquipmentSlot, (string, EquipmentCondition)>();
+        internal int HandSet { get; private set; }
         public IReadOnlyDictionary<EquipmentSlot, string> Equipment => equipment;
         public EquipmentCondition EquippedCondition(EquipmentSlot slot) =>
             equipmentConditions.TryGetValue(slot, out var condition) ? condition : default;
@@ -328,6 +338,28 @@ namespace Workerborn
         {
             equipment[slot] = item.Id;
             equipmentConditions[slot] = condition.ForItem(item);
+        }
+
+        internal bool TrySelectHandSet(int set)
+        {
+            if (AwaitingIncarnation || CursorItem != null || (uint)set >= 2 || HandSet == set)
+                return false;
+            SwapHand(EquipmentSlot.MainHand);
+            SwapHand(EquipmentSlot.OffHand);
+            HandSet = set;
+            return Result(true, $"손 장비 {set + 1}번");
+        }
+
+        private void SwapHand(EquipmentSlot slot)
+        {
+            bool hasOther = otherHandEquipment.Remove(slot, out var other);
+            if (equipment.Remove(slot, out var current))
+            {
+                equipmentConditions.Remove(slot, out var condition);
+                otherHandEquipment.Add(slot, (current, condition));
+            }
+            if (hasOther)
+                SetEquippedItem(slot, ItemCatalog.Get(other.ItemId), other.Condition);
         }
 
         private bool Result(bool success, string message)
@@ -698,7 +730,10 @@ namespace Workerborn
             return Result(true, "빵을 먹고 에너지를 25 회복했어요.");
         }
 
-        internal string ItemShortcutAt(int index) => (uint)index < ItemShortcutCount ? itemShortcuts[index] : null;
+        internal string ItemShortcutAt(int index) => (uint)index < ShortcutCount ? itemShortcuts[index] : null;
+
+        internal SkillId? SkillShortcutAt(int index) => (uint)index < ShortcutCount && skillShortcuts[index] > 0
+            ? (SkillId)(skillShortcuts[index] - 1) : null;
 
         internal bool IsEquipped(ItemSpec item) => equipment.TryGetValue(item.EquipmentSlot, out string id) && id == item.Id;
 
@@ -714,22 +749,35 @@ namespace Workerborn
 
         internal bool TryAssignItemShortcut(int index, int entryId)
         {
-            if (AwaitingIncarnation || (uint)index >= ItemShortcutCount)
+            if (AwaitingIncarnation || (uint)index >= ShortcutCount)
                 return false;
             var entry = Inventory.Find(entryId);
             if (entry == null || !CanAssignItemShortcut(entry.Spec))
                 return Result(false, "장비나 사용할 수 있는 소모품을 등록해 주세요.");
             itemShortcuts[index] = entry.ItemId;
-            return Result(true, $"{(index + 1) % 10}번 단축키에 {entry.Spec.Name} 등록");
+            skillShortcuts[index] = 0;
+            return Result(true, $"{ShortcutKey(index)} 단축키에 {entry.Spec.Name} 등록");
+        }
+
+        internal bool TryAssignSkillShortcut(int index, SkillId skill)
+        {
+            if (AwaitingIncarnation || (uint)index >= ShortcutCount || !IsSkillLearned(skill) || !SkillProgression.CanActivate(skill))
+                return false;
+            skillShortcuts[index] = (int)skill + 1;
+            itemShortcuts[index] = null;
+            return Result(true, $"{ShortcutKey(index)} 단축키에 {Rules.Skill(skill).Name} 등록");
         }
 
         internal bool TryClearItemShortcut(int index)
         {
-            if (AwaitingIncarnation || ItemShortcutAt(index) == null)
+            if (AwaitingIncarnation || ItemShortcutAt(index) == null && !SkillShortcutAt(index).HasValue)
                 return false;
             itemShortcuts[index] = null;
-            return Result(true, $"{(index + 1) % 10}번 단축키 등록을 해제했어요.");
+            skillShortcuts[index] = 0;
+            return Result(true, $"{ShortcutKey(index)} 단축키 등록을 해제했어요.");
         }
+
+        internal static string ShortcutKey(int index) => (index < ItemShortcutCount ? "" : "Shift+") + ((index + 1) % ItemShortcutCount);
 
         private static bool CanAssignItemShortcut(ItemSpec item) => item.EquipmentSlot != EquipmentSlot.None ||
             item.HealthRestore > 0 || item.Id == ItemIds.Bread || item.TaughtSkill.HasValue;
@@ -863,6 +911,10 @@ namespace Workerborn
             var worn = new List<EquipmentEntrySave>();
             foreach (var entry in equipment)
                 worn.Add(new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value, condition = EquippedCondition(entry.Key) });
+            var otherHands = new EquipmentEntrySave[otherHandEquipment.Count];
+            int hand = 0;
+            foreach (var entry in otherHandEquipment)
+                otherHands[hand++] = new EquipmentEntrySave { slot = entry.Key, itemId = entry.Value.ItemId, condition = entry.Value.Condition };
             return new T
             {
                 schema = CurrentSaveSchema,
@@ -870,6 +922,8 @@ namespace Workerborn
                 hasLifeLook = LifeLook.HasValue,
                 lifeLook = LifeLook.GetValueOrDefault(),
                 equipment = worn.ToArray(),
+                otherHandEquipment = otherHands,
+                handSet = HandSet,
                 day = Day,
                 lifeDay = LifeDay,
                 life = Life,
@@ -919,6 +973,7 @@ namespace Workerborn
                 inventoryRows = Inventory.Rows,
                 inventory = Inventory.Export(),
                 itemShortcuts = (string[])itemShortcuts.Clone(),
+                skillShortcuts = (int[])skillShortcuts.Clone(),
                 pendingHarvests = pendingHarvests.ToArray(),
                 pendingPurchase = CursorItem == null ? null :
                     new CursorItemSave
@@ -1036,11 +1091,21 @@ namespace Workerborn
             state.RestoreSkills(save);
             state.RestoreHarvestAcquisitions(save);
             if (save.itemShortcuts != null)
-                for (int index = 0; index < Math.Min(save.itemShortcuts.Length, ItemShortcutCount); index++)
+                for (int index = 0; index < Math.Min(save.itemShortcuts.Length, ShortcutCount); index++)
                 {
                     string id = save.itemShortcuts[index];
                     if (ItemCatalog.Contains(id) && CanAssignItemShortcut(ItemCatalog.Get(id)))
                         state.itemShortcuts[index] = id;
+                }
+            if (save.schema >= LoadoutSaveSchema && save.skillShortcuts != null)
+                for (int index = 0; index < Math.Min(save.skillShortcuts.Length, ShortcutCount); index++)
+                {
+                    int id = save.skillShortcuts[index];
+                    if (id > 0 && SkillProgression.CanActivate((SkillId)(id - 1)) && state.IsSkillLearned((SkillId)(id - 1)))
+                    {
+                        state.skillShortcuts[index] = id;
+                        state.itemShortcuts[index] = null;
+                    }
                 }
             state.RefreshSkillStats();
             state.Health = save.schema >= 6 ? Math.Min(save.health, state.HealthLimit) : state.HealthLimit;
@@ -1052,6 +1117,19 @@ namespace Workerborn
                         throw new ArgumentException("Invalid equipped item.");
                     state.SetEquippedItem(entry.slot, ItemCatalog.Get(entry.itemId), entry.condition);
                 }
+            if (save.schema >= LoadoutSaveSchema)
+            {
+                if ((uint)save.handSet >= 2)
+                    throw new ArgumentException("Invalid hand equipment set.");
+                state.HandSet = save.handSet;
+                foreach (var entry in save.otherHandEquipment ?? Array.Empty<EquipmentEntrySave>())
+                {
+                    if (entry == null || entry.slot is not (EquipmentSlot.MainHand or EquipmentSlot.OffHand) ||
+                        !ItemCatalog.Contains(entry.itemId) || ItemCatalog.Get(entry.itemId).EquipmentSlot != entry.slot ||
+                        !state.otherHandEquipment.TryAdd(entry.slot, (entry.itemId, entry.condition.ForItem(ItemCatalog.Get(entry.itemId)))))
+                        throw new ArgumentException("Invalid equipment in the other hand set.");
+                }
+            }
 
             if (save.schema < 4 && save.bagExpanded)
             {

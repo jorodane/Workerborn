@@ -1096,6 +1096,7 @@ namespace Workerborn
                     return;
             }
 
+            RetryCrownProducts();
             State.CollectReadyHarvests(now, showAcquiredHarvest ??= ShowAcquiredHarvest);
             CollectNearbyHarvests(now);
             if (AwaitingWorldCommand)
