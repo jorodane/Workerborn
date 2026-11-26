@@ -14,7 +14,9 @@ namespace Workerborn
         internal void EnableCarving()
         {
             var volume = Volume;
-            var obstacle = GetComponent<NavMeshObstacle>() ?? gameObject.AddComponent<NavMeshObstacle>();
+            if (!TryGetComponent<NavMeshObstacle>(out var obstacle))
+                obstacle = gameObject.AddComponent<NavMeshObstacle>();
+
             obstacle.shape = NavMeshObstacleShape.Box;
             obstacle.center = volume.center;
             obstacle.size = volume.size;
