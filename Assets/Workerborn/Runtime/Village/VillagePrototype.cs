@@ -227,6 +227,7 @@ namespace Workerborn
             targeting?.Initialize(this, hud.TargetLink);
             worldCamera.GetComponent<CameraVisibility>()?.Initialize(player.transform);
             cameraRig.Initialize(worker.transform, this);
+            InitializeMounts();
             InitializeTimber();
             RestoreWorldObjects();
             RestoreVillageCharacters();
@@ -1044,6 +1045,7 @@ namespace Workerborn
             var save = CaptureCharacter<VillageSave>(worker);
             save.characters = CaptureVillageCharacters();
             save.woodland = CaptureSoloWoodland();
+            save.mounts = CaptureSoloMounts();
             if (State.AwaitingIncarnation)
                 return save;
             save.cropStates = new CropStateSave[allCrops.Count];

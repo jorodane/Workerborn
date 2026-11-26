@@ -17,6 +17,7 @@ namespace Workerborn
         private Transform modularModel;
         private int lookSelection;
         private Vector3 visualBase;
+        private VillageMount mount;
         private float jumpOffset, shownJumpOffset;
         private TimberAssets timber;
         private TimberSwing timberSwing;
@@ -44,6 +45,14 @@ namespace Workerborn
         }
 
         internal void Say(string message) => label?.Say(message);
+
+        internal void ShowMount(VillageMount next)
+        {
+            if (ReferenceEquals(mount, next))
+                return;
+            mount = next;
+            animationDriver?.SetRiding(mount);
+        }
         internal void ShowTimberCarry(TimberAssets assets, bool carrying)
         {
             timber = assets;
@@ -113,7 +122,7 @@ namespace Workerborn
                 Quaternion.Slerp(transform.rotation, yaw, factor));
             shownJumpOffset = Mathf.Lerp(shownJumpOffset, jumpOffset, factor);
             if (visual != null)
-                visual.localPosition = visualBase + Vector3.up * shownJumpOffset;
+                visual.localPosition = visualBase + (mount != null ? mount.RiderOffset : Vector3.up * shownJumpOffset);
             if (label != null && hud != null)
             {
                 Vector3 namePosition = head != null ? head.position + Vector3.up * .32f

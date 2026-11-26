@@ -300,7 +300,7 @@ namespace Workerborn
         private WorldInteractable PickTarget(Vector2 cursor, bool control)
         {
             if (!HasMask)
-                return control ? null : PickHoverAssist(cursor, interiorActionsOnly: true);
+                return control ? null : PickHoverAssist(cursor, fallbackOnly: true);
             if (!control)
             {
                 int id = TargetMaskGeometry.IdAtScreen(pixels, mask.width, mask.height, flipReadback,
@@ -319,7 +319,7 @@ namespace Workerborn
             return target != null && target.CanTarget && target.CanInteract;
         }
 
-        private WorldInteractable PickHoverAssist(Vector2 cursor, bool interiorActionsOnly = false)
+        private WorldInteractable PickHoverAssist(Vector2 cursor, bool fallbackOnly = false)
         {
             Ray ray = game.WorldCamera.ScreenPointToRay(cursor);
             const int layer = 1 << HoverAssistLayer;
@@ -342,7 +342,7 @@ namespace Workerborn
                     continue;
                 var target = hit.collider.GetComponentInParent<WorldInteractable>();
                 if (target == null || !target.CanInteract || target.gameObject.scene != game.gameObject.scene ||
-                    !game.SharesMap(target.transform.position) || interiorActionsOnly && target is not (VillageBuildingDoor or VillageBed))
+                    !game.SharesMap(target.transform.position) || fallbackOnly && target is not (VillageBuildingDoor or VillageBed or VillageMount))
                     continue;
 
                 target.GetComponentsInChildren(false, actorGeometry);

@@ -108,16 +108,21 @@ namespace Workerborn.Tests
             Assert.That(work.Capture().trees.Single().Has(TimberPart.Stump), Is.True);
 
             occupied = false;
+            Assert.That(Perform(TimberAction.Split, acceptYield: false), Is.EqualTo(TimberResult.Rejected));
+            Assert.That(work.Capture().trees.Single().Has(TimberPart.Stump), Is.True);
             Assert.That(Perform(TimberAction.Split), Is.EqualTo(TimberResult.Succeeded));
-            Assert.That(work.Capture().logs.Length, Is.EqualTo(1));
+            Assert.That(rewards.Single().itemId, Is.EqualTo(ItemIds.Timber));
+            Assert.That(rewards.Single().quantity, Is.EqualTo(worker.TreeYield(2, 0f)));
+            Assert.That(rewards.Single().point, Is.EqualTo(site.Point));
+            Assert.That(work.Capture().logs, Is.Empty);
             var loaded = new TimberWork(new[] { site }, () => 0f, work.Capture());
             Assert.That(loaded.Capture().trees.Single().Has(TimberPart.Stump), Is.False);
             Assert.That(loaded.Capture().trees.Single().Has(TimberPart.Trunk), Is.True);
             Assert.That(loaded.Capture().trees.Single().restingPose, Is.EqualTo(restingPose));
 
-            TimberResult Perform(TimberAction action) => work.Perform(new TimberOrder { action = action, target = "pine" },
+            TimberResult Perform(TimberAction action, bool acceptYield = true) => work.Perform(new TimberOrder { action = action, target = "pine" },
                 worker, "worker", new TimberPoint(0, -1), 0, 1, _ => occupied, _ => true,
-                yields => { rewards = yields; return true; }, out _);
+                yields => { rewards = yields; return acceptYield; }, out _);
         }
 
         [Test]
@@ -208,8 +213,9 @@ namespace Workerborn.Tests
             Assert.That(work.SettlePiece(site.Id, TimberPart.Trunk, RestPose(site, 0f, 90f)), Is.True);
             roll = .97f;
             Assert.That(Perform(TimberAction.Split, "pine", TimberPart.Stump, origin), Is.EqualTo(TimberResult.Failed));
-            Assert.That(yields.Single().quantity, Is.EqualTo(10));
+            Assert.That(yields.Single().quantity, Is.EqualTo(5));
             Assert.That(yields.Single().itemId, Is.EqualTo(ItemIds.ScrapWood));
+            Assert.That(work.Capture().logs, Is.Empty);
 
             roll = 0f;
             var middle = site.RestPoint(site.Section(TimberPart.Trunk).Center, 0f, 90f);
@@ -274,23 +280,42 @@ namespace Workerborn.Tests
             Assert.That(Perform("first", split), Is.False);
             campaign.Move("second", new SessionAvatar { x = 0, z = 0, motion = (int)WorkerMotion.Run });
             Assert.That(Perform("first", split), Is.True);
-            string logId = campaign.Woodland.logs.Single().id;
+            Assert.That(campaign.Woodland.logs, Is.Empty);
+            Assert.That(campaign.SharedGroundDrops.Single(drop => drop.itemId == ItemIds.Timber).quantity, Is.EqualTo(2));
+            var tree = campaign.Woodland.trees.Single();
+            SetPlayerPosition("first", tree.restingPose.point);
+            Assert.That(Perform("first", new TimberOrder { action = TimberAction.Split, target = site.Id, part = TimberPart.Trunk }), Is.True);
+            var lower = site.PoseOf(campaign.Woodland.trees.Single(), TimberPart.Lower);
+            Assert.That(campaign.SettleTimberMotion(site.Id, TimberPart.Lower, lower, 1000, out _), Is.True);
+            SetPlayerPosition("first", lower.point);
+            Assert.That(Perform("first", new TimberOrder { action = TimberAction.Split, target = site.Id, part = TimberPart.Lower }), Is.True);
+            var log = campaign.Woodland.logs.First();
+            Assert.That(campaign.SettleTimberMotion(log.id, TimberPart.Log, log.cutPose, 1000, out _), Is.True);
+            SetPlayerPosition("first", log.cutPose.point);
+            SetPlayerPosition("second", log.cutPose.point);
+            string logId = log.id;
             var lift = new TimberOrder { action = TimberAction.Lift, target = logId, part = TimberPart.Log };
             Assert.That(Perform("first", lift), Is.True);
             Assert.That(Perform("second", lift), Is.False);
             campaign.Move("first", new SessionAvatar { x = 12f, z = 4f, yaw = 90f });
 
             var saved = campaign.Export();
-            Assert.That(campaign.Woodland.logs.Single().carrier, Is.Not.Null);
-            Assert.That(saved.woodland.logs.Single().carrier, Is.Null);
-            Assert.That(saved.woodland.logs.Single().point.x, Is.EqualTo(13.25f).Within(.01f));
+            Assert.That(campaign.Woodland.logs.Single(row => row.id == logId).carrier, Is.Not.Null);
+            Assert.That(saved.woodland.logs.Single(row => row.id == logId).carrier, Is.Null);
+            Assert.That(saved.woodland.logs.Single(row => row.id == logId).point.x, Is.EqualTo(13.25f).Within(.01f));
             campaign = new VillageCampaign(rules, new Dictionary<string, string>(), 0f, -1f, saved);
             campaign.ConfigureTimber(new[] { site }, _ => true, _ => 0f, () => 0f);
-            Assert.That(campaign.Woodland.logs.Single().point.x, Is.EqualTo(13.25f).Within(.01f));
+            Assert.That(campaign.Woodland.logs.Single(row => row.id == logId).point.x, Is.EqualTo(13.25f).Within(.01f));
             Assert.That(campaign.Woodland.trees.Single().Has(TimberPart.Stump), Is.False);
 
             bool Perform(string id, TimberOrder order) =>
                 campaign.PerformTimber(id, campaign.Profile(id).character, order, 1000, null, out _, out _, out _);
+            void SetPlayerPosition(string id, TimberPoint point)
+            {
+                var character = campaign.Profile(id).character;
+                character.playerX = point.x;
+                character.playerZ = point.z;
+            }
         }
     }
 }

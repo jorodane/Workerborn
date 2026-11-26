@@ -159,6 +159,7 @@ Transform:
   - {fileID: 920000020}
   - {fileID: 920100002}
   - {fileID: 950000002}
+  - {fileID: 970010002}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &100003
@@ -36246,6 +36247,52 @@ Transform:
   m_Children: []
   m_Father: {fileID: 100010}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &970010001
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 100002}
+    m_Modifications:
+    - target: {fileID: 100002, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: '-4.4'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: '0.0'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: '-4.1'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: '0.57357644'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: '0.81915204'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: '70'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+      propertyPath: m_Name
+      value: Horse - village square
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+--- !u!4 &970010002 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 100002, guid: b3013afb2cee562d92d5e1bcbb13a720, type: 3}
+  m_PrefabInstance: {fileID: 970010001}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

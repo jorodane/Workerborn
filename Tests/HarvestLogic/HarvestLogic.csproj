@@ -38,6 +38,7 @@
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.cs" Link="VillageCampaign.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.GroundDrops.cs" Link="VillageCampaign.GroundDrops.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.Timber.cs" Link="VillageCampaign.Timber.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageCampaign.Mounts.cs" Link="VillageCampaign.Mounts.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/WorldCapacity.cs" Link="WorldCapacity.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/DedicatedAdminProtocol.cs" Link="DedicatedAdminProtocol.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageChatText.cs" Link="VillageChatText.cs" />

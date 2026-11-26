@@ -132,7 +132,7 @@ namespace Workerborn
             if (village != null)
                 animationDriver?.SetCarrying(village.Settings.Timber?.Carry, CarriedLogs > 0);
             if (agent != null && Action == WorkerAction.Moving)
-                agent.speed = (IsWalking ? walkSpeed : runSpeed) * CarrySpeed;
+                agent.speed = TravelSpeed(IsWalking);
         }
 
         private bool UpdateTimberCarry()

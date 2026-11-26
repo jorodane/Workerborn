@@ -59,6 +59,7 @@ namespace Workerborn
             farmSites = mapRoot.GetComponentsInChildren<VillageFarmSite>(true);
             npcs.AddRange(mapRoot.GetComponentsInChildren<VillageInteractable>(true));
             Session.InitializeAuthority(CreateVillageRules(), AuthoredSites(), spawnPoint.position, rebirthZone);
+            InitializeMounts(headless: true);
             Session.ConfigureTimber(TimberSites(), IsTimberGround, TimberSurfaceHeight, this);
             var roots = gameObject.scene.GetRootGameObjects();
             StartHeadlessTimberPhysics();
@@ -136,6 +137,7 @@ namespace Workerborn
             Vector3 seatPoint = seat != null ? seat.Position : pose.position;
             return new SessionAvatar { x = pose.position.x, y = pose.position.y, z = pose.position.z,
                 yaw = pose.eulerAngles.y, motion = animation.CurrentAction, jumpOffset = worker.VisualJumpOffset,
+                mountId = worker.CurrentMount != null ? worker.CurrentMount.PersistentId : null, parkedMountId = ParkedMountId,
                 hasSeat = seat != null, seatX = seatPoint.x, seatY = seatPoint.y, seatZ = seatPoint.z,
                 gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress,
                 timberSwing = (int)worker.CurrentTimberSwing, timberProgress = worker.CurrentTimberProgress };

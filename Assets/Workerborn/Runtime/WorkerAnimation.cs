@@ -13,6 +13,7 @@ namespace Workerborn
         private const int SitBegin = 8;
         private const int SitFinish = 9;
         private const int GestureInput = 10;
+        private const int RideInput = 11;
         private const double SitSpeed = .85d;
         [SerializeField] private AnimationClip groundSit;
         [SerializeField] private AnimationClip groundSitBegin;
@@ -23,17 +24,20 @@ namespace Workerborn
         [SerializeField] private AnimationClip jump;
         [SerializeField] private AnimationClip gatherSuccess;
         [SerializeField] private AnimationClip gatherFailure;
+        private Animator rig;
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
         private AnimationPlayableOutput animationOutput;
         private AnimationLayerMixerPlayable carryLayer;
         private AnimationClipPlayable carryPose;
+        private AnimationScriptPlayable stirrupPose;
         private AvatarMask carryMask;
         private AnimationClip timberToss;
         private bool humanoid, carrying;
-        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[GestureInput + 1];
-        private readonly float[] lengths = new float[GestureInput + 1];
-        private readonly float[] weights = new float[GestureInput + 1];
+        private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[RideInput + 1];
+        private readonly float[] lengths = new float[RideInput + 1];
+        private readonly float[] weights = new float[RideInput + 1];
+        private bool riding;
         private AnimationClip fallbackWork;
         private int workInput = Work;
         private int sitInput = -1;
@@ -65,6 +69,7 @@ namespace Workerborn
             walk = walk != null ? walk : move;
             fallbackWork = work != null ? work : idle;
             timedWork = false;
+            riding = false;
             workInput = Work;
             sitInput = -1;
             target = 0;
@@ -73,6 +78,8 @@ namespace Workerborn
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             humanoid = animator.isHuman;
+            rig = animator;
+            stirrupPose = default;
             graph = PlayableGraph.Create("Workerborn existing character animations");
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
             mixer = AnimationMixerPlayable.Create(graph, clips.Length);
@@ -86,6 +93,7 @@ namespace Workerborn
                 walk,
                 groundSit != null ? groundSit : idle,
                 seatSit != null ? seatSit : idle,
+                idle,
                 idle,
                 idle,
                 idle,
@@ -116,6 +124,11 @@ namespace Workerborn
                 if (clips[input].IsValid())
                 {
                     graph.Disconnect(mixer, input);
+                    if (input == RideInput && stirrupPose.IsValid())
+                    {
+                        graph.DestroyPlayable(stirrupPose);
+                        stirrupPose = default;
+                    }
                     graph.DestroyPlayable(clips[input]);
                 }
                 clips[input] = AnimationClipPlayable.Create(graph, clip);
@@ -252,6 +265,66 @@ namespace Workerborn
 
         internal void ConfigureTimberToss(AnimationClip clip) => timberToss = clip;
 
+        internal void SetRiding(VillageMount mount)
+        {
+            AnimationClip pose = mount != null ? mount.RiderPose : null;
+            riding = pose != null;
+            if (!riding || !graph.IsValid())
+                return;
+            SetGesture(WorkerGesture.None);
+            BindClip(RideInput, pose, sampled: true);
+            clips[RideInput].SetTime(0d);
+            if (!humanoid || !pose.isHumanMotion)
+                return;
+
+            // Use the rider's ground root to keep the stirrup goals steady during movement.
+            var job = stirrupPose.IsValid() ? stirrupPose.GetJobData<StirrupPose>() :
+                new StirrupPose { Root = rig.BindSceneTransform(transform) };
+            bool hasStirrups = mount.TryGetStirrups(out job.Left, out job.Right);
+            job.Enabled = hasStirrups ? 1 : 0;
+            if (stirrupPose.IsValid())
+                stirrupPose.SetJobData(job);
+            else if (hasStirrups)
+            {
+                graph.Disconnect(mixer, RideInput);
+                stirrupPose = AnimationScriptPlayable.Create(graph, job, 1);
+                graph.Connect(clips[RideInput], 0, stirrupPose, 0);
+                graph.Connect(stirrupPose, 0, mixer, RideInput);
+                mixer.SetInputWeight(RideInput, weights[RideInput]);
+            }
+        }
+
+        private struct StirrupPose : IAnimationJob
+        {
+            public TransformSceneHandle Root;
+            public Vector3 Left, Right;
+            public int Enabled;
+
+            public void ProcessRootMotion(AnimationStream stream) { }
+
+            public void ProcessAnimation(AnimationStream stream)
+            {
+                if (Enabled == 0 || !stream.isHumanStream || !Root.IsValid(stream))
+                    return;
+                var body = stream.AsHuman();
+                Vector3 position = Root.GetPosition(stream);
+                Quaternion rotation = Root.GetRotation(stream);
+                PositionFoot(body, AvatarIKGoal.LeftFoot, AvatarIKHint.LeftKnee, Left, position, rotation);
+                PositionFoot(body, AvatarIKGoal.RightFoot, AvatarIKHint.RightKnee, Right, position, rotation);
+                body.SolveIK();
+            }
+
+            private static void PositionFoot(AnimationHumanStream body, AvatarIKGoal goal, AvatarIKHint knee,
+                Vector3 offset, Vector3 position, Quaternion rotation)
+            {
+                body.SetGoalPosition(goal, position + rotation * offset);
+                body.SetGoalWeightPosition(goal, 1f);
+                var bend = new Vector3(offset.x * 1.2f, offset.y + .34f, offset.z + .28f);
+                body.SetHintPosition(knee, position + rotation * bend);
+                body.SetHintWeightPosition(knee, .85f);
+            }
+        }
+
         internal void PlayTimberToss(AnimationClip clip)
         {
             ConfigureTimberToss(clip);
@@ -308,7 +381,7 @@ namespace Workerborn
                 SetGesture(WorkerGesture.None);
             }
             float total = 0f;
-            int activeInput = Gesture != WorkerGesture.None ? GestureInput : Input;
+            int activeInput = riding ? RideInput : Gesture != WorkerGesture.None ? GestureInput : Input;
             for (int i = 0; i < clips.Length; i++)
             {
                 if ((i != Work || !timedWork) && i < WorkBegin && clips[i].GetTime() >= lengths[i])

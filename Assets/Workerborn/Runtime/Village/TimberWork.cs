@@ -538,6 +538,16 @@ namespace Workerborn
                 message = "누군가 밑동에 앉아 있어요.";
                 return TimberResult.Rejected;
             }
+            if (part == TimberPart.Stump)
+            {
+                var result = ProcessLog(worker, point, deliver, out message);
+                if (result != TimberResult.Rejected)
+                {
+                    tree.parts &= ~Stump;
+                    Changed();
+                }
+                return result;
+            }
 
             bool success = Succeeds(worker, .85f);
             if (part == TimberPart.Trunk)
@@ -552,7 +562,7 @@ namespace Workerborn
                 return Finish(worker, true, 0, "줄기를 상단과 하단으로 갈랐어요.", out message);
             }
 
-            int count = part == TimberPart.Stump ? 1 : 2;
+            const int count = 2;
             if (success && logs.Count > MaximumLogs - count ||
                 !success && !deliver(new List<TimberYield> { new TimberYield(ItemIds.ScrapWood, 10, point) }))
                 return NoSpace(out message);
@@ -562,14 +572,14 @@ namespace Workerborn
                 for (int i = 0; i < count; i++)
                 {
                     string id = Guid.NewGuid().ToString("N");
-                    var cut = part == TimberPart.Stump ? default : piece.ShiftAlongTrunk(section.Half(i).Center - section.Center);
+                    var cut = piece.ShiftAlongTrunk(section.Half(i).Center - section.Center);
                     logs.Add(id, new TimberLogSave
                     {
                         id = id, yaw = tree.fallYaw,
-                        point = part == TimberPart.Stump ? point : cut.point,
-                        sourceTree = part == TimberPart.Stump ? null : site.Id,
+                        point = cut.point,
+                        sourceTree = site.Id,
                         sourcePart = part, half = i, cutYaw = tree.fallYaw,
-                        cutPose = cut, separating = part != TimberPart.Stump
+                        cutPose = cut, separating = true
                     });
                 }
             Changed();
@@ -602,12 +612,21 @@ namespace Workerborn
             if (carried > 0 || !CanSplit(worker, ItemIds.Axe, at, log.point, out message))
                 return TimberResult.Rejected;
 
+            var result = ProcessLog(worker, log.point, deliver, out message);
+            if (result != TimberResult.Rejected)
+            {
+                logs.Remove(log.id);
+                Changed();
+            }
+            return result;
+        }
+
+        private TimberResult ProcessLog(VillageState worker, TimberPoint point, Func<List<TimberYield>, bool> deliver, out string message)
+        {
             bool success = Succeeds(worker, .85f);
             int quantity = success ? worker.TreeYield(2, roll()) : 5;
-            if (!deliver(new List<TimberYield> { new TimberYield(success ? ItemIds.Timber : ItemIds.ScrapWood, quantity, log.point) }))
+            if (!deliver(new List<TimberYield> { new TimberYield(success ? ItemIds.Timber : ItemIds.ScrapWood, quantity, point) }))
                 return NoSpace(out message);
-            logs.Remove(log.id);
-            Changed();
             return Finish(worker, success, success ? quantity : 0,
                 success ? $"목재 {quantity}개를 얻었어요." : "못 쓰게 된 목재 5개가 남았어요.", out message);
         }

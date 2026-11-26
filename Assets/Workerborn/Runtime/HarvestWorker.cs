@@ -75,9 +75,10 @@ namespace Workerborn
         private Vector3 restBase;
         private Quaternion restRotation;
         internal bool IsLocallyControlled => worldCamera != null;
-        public bool AcceptsInteractionCommands => village == null || !IsLocallyControlled || !village.ControlsBlocked;
-        public bool AcceptsGroundItemCommands => village == null || !CharacterState.AwaitingIncarnation &&
-            (!IsLocallyControlled || !village.AwaitingWorldCommand && village.Hud.AllowsGroundItems);
+        internal bool AcceptsMovementCommands => village == null || !IsLocallyControlled || !village.ControlsBlocked;
+        public bool AcceptsInteractionCommands => CurrentMount == null && AcceptsMovementCommands;
+        public bool AcceptsGroundItemCommands => CurrentMount == null && (village == null || !CharacterState.AwaitingIncarnation &&
+            (!IsLocallyControlled || !village.AwaitingWorldCommand && village.Hud.AllowsGroundItems));
         public PointerTargeting Targeting => village != null && IsLocallyControlled ? village.Targeting : null;
         internal VillagePrototype Village => village;
         internal VillageState CharacterState => characterState;
@@ -164,6 +165,8 @@ namespace Workerborn
 
         private void Update()
         {
+            if (CurrentMount == null && !ReferenceEquals(CurrentMount, null))
+                EndRiding(false);
             if (agent == null || !agent.isOnNavMesh && (village == null || !EnsureNavigation()))
                 return;
             RefreshEquipment();
@@ -208,6 +211,8 @@ namespace Workerborn
             ReadInput();
             if (village != null && village.Hud.WorldActionsLocked && Action != WorkerAction.Idle)
                 Cancel();
+            if (WorkerbornInput.Pressed("Gameplay/Dismount"))
+                RequestDismount();
             if (WorkerbornInput.Pressed("Gameplay/Sit"))
                 ToggleSit();
             if (WorkerbornInput.Pressed("Gameplay/Jump"))
@@ -322,7 +327,7 @@ namespace Workerborn
             right.Normalize();
             Vector3 forward = Vector3.Cross(right, Vector3.up);
             Vector3 direction = Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
-            agent.speed = (IsWalking ? walkSpeed : runSpeed) * CarrySpeed;
+            agent.speed = TravelSpeed(IsWalking);
             MoveWithWorldCollision(direction * (agent.speed * Time.deltaTime));
             if (direction.sqrMagnitude > .001f)
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(direction),
@@ -533,7 +538,7 @@ namespace Workerborn
 
         public void CommandMove(Vector3 destination, bool walk = false)
         {
-            if (!AcceptsInteractionCommands)
+            if (!AcceptsMovementCommands)
                 return;
             if (NavigateNear(destination, 0f, walk) && IsLocallyControlled)
                 village?.ShowClick(destination);
@@ -704,7 +709,7 @@ namespace Workerborn
 
             ClearInteractionTargets();
             walkPath = walk;
-            agent.speed = (walk ? walkSpeed : runSpeed) * CarrySpeed;
+            agent.speed = TravelSpeed(walk);
             agent.isStopped = false;
             Action = WorkerAction.Moving;
             return true;
@@ -956,6 +961,7 @@ namespace Workerborn
 
         internal void ResetLifeActivity()
         {
+            EndRiding(false, parkForTravel: true);
             FinishTimberTravel();
             Cancel();
             FinishVisualJump();
@@ -974,6 +980,7 @@ namespace Workerborn
 
         public bool WarpTo(Vector3 position)
         {
+            EndRiding(false, parkForTravel: true);
             FinishTimberTravel();
             Cancel();
             FinishVisualJump();

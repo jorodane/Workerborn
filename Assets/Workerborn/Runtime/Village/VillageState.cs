@@ -197,6 +197,7 @@ namespace Workerborn
     public sealed class VillageSave : CharacterSave
     {
         public WoodlandSave woodland;
+        public MountSave[] mounts = Array.Empty<MountSave>();
         public int[] cropRemaining = Array.Empty<int>();
         public CropStateSave[] cropStates = Array.Empty<CropStateSave>();
         public AnimalStateSave[] animalStates = Array.Empty<AnimalStateSave>();

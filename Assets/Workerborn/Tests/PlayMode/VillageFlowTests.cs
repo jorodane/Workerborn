@@ -2782,6 +2782,53 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator RidingTheVillageHorseUsesBothMovementModesAndParksItOnDismount()
+        {
+            var worker = game.Worker;
+            var horse = UnityEngine.Object.FindFirstObjectByType<VillageMount>();
+            Assert.That(horse, Is.Not.Null);
+            Assert.That(horse.RiderPose.isHumanMotion, Is.True);
+            Assert.That(horse.GetComponentInChildren<Animator>().runtimeAnimatorController, Is.Not.Null);
+
+            var agent = worker.GetComponent<NavMeshAgent>();
+            float onFoot = agent.speed;
+            float standingHeight = worker.Actor.VisualRoot.localPosition.y;
+            horse.RequestInteraction(worker);
+            yield return Until(() => worker.CurrentMount == horse, 4f);
+            Assert.That(horse.Rider, Is.EqualTo(worker.CharacterId));
+            Assert.That(worker.Actor.VisualRoot.localPosition.y, Is.GreaterThan(standingHeight));
+            Assert.That(agent.speed, Is.GreaterThan(onFoot));
+
+            Vector3 destination = NearbyDestination();
+            worker.CommandMove(destination);
+            yield return Until(() => Vector3.Distance(horse.transform.position, destination) < .3f, 4f);
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            try
+            {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W, Key.LeftShift));
+                yield return null;
+                Assert.That(agent.speed, Is.EqualTo(horse.Speed(walk: true)));
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W));
+                yield return null;
+                Assert.That(agent.speed, Is.EqualTo(horse.Speed(walk: false)));
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.F));
+                yield return Until(() => worker.CurrentMount == null, 2f);
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(keyboard);
+            }
+
+            Assert.That(agent.speed, Is.EqualTo(onFoot));
+            Assert.That(worker.Actor.VisualRoot.localPosition.y, Is.EqualTo(standingHeight).Within(.01f));
+            Assert.That(horse.Rider, Is.Null);
+            var saved = game.CaptureSave().mounts.Single();
+            Assert.That(saved.rider, Is.Null);
+            Assert.That(saved.x, Is.EqualTo(horse.transform.position.x));
+            Assert.That(saved.z, Is.EqualTo(horse.transform.position.z));
+        }
+
+        [UnityTest]
         public IEnumerator KeyboardMovementWalksOnlyWhileShiftIsHeld()
         {
             var keyboard = InputSystem.AddDevice<Keyboard>();

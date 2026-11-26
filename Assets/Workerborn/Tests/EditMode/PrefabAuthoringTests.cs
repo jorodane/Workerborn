@@ -190,6 +190,7 @@ namespace Workerborn.Tests
                 "Gameplay/Interact",
                 "Gameplay/Target",
                 "Gameplay/Names",
+                "Gameplay/Dismount",
                 "Camera/OrbitMiddle",
                 "Camera/OrbitRight",
                 "Camera/Zoom",

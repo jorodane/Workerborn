@@ -25,6 +25,56 @@ namespace Workerborn.Tests
         };
 
         [Test]
+        public void MountsCanOnlyHaveOneRiderAndSaveWhereTheyWereLeft()
+        {
+            const string horseId = "horse";
+            var campaign = new VillageCampaign(Rules(), Sites, 0f, -4.4f);
+            Configure(campaign);
+            Assert.That(campaign.Connect("a", "하나", out var first), Is.True);
+            Assert.That(campaign.Connect("b", "둘", out var second), Is.True);
+            Assert.That(campaign.TryChangeMount("a", horseId, out _), Is.False);
+            Incarnate(campaign, "a");
+            Incarnate(campaign, "b");
+            first.character.playerX = 3f;
+            Assert.That(campaign.TryChangeMount("a", horseId, out _), Is.False);
+            first.character.playerX = 0f;
+            Assert.That(campaign.TryChangeMount("a", horseId, out _), Is.True);
+            Assert.That(campaign.TryChangeMount("b", horseId, out _), Is.False);
+            Assert.That(campaign.Mounts().Single().rider, Is.EqualTo(first.id));
+
+            campaign.Move("b", new SessionAvatar { x = 8f, z = -4.4f, mountId = horseId });
+            Assert.That(campaign.Mounts().Single().x, Is.Zero);
+            campaign.Move("a", new SessionAvatar { x = 6f, z = -3f, yaw = 80f, mountId = horseId });
+            Assert.That(campaign.Mounts().Single().x, Is.EqualTo(6f));
+            first.character.playerX = 6.2f;
+            first.character.playerZ = -3f;
+            first.character.yaw = 80f;
+            Assert.That(campaign.TryChangeMount("a", null, out _), Is.True);
+            Assert.That(campaign.Mounts().Single().rider, Is.Null);
+            Assert.That(campaign.TryChangeMount("b", horseId, out _), Is.False);
+            second.character.playerX = 6.2f;
+            second.character.playerZ = -3f;
+            Assert.That(campaign.TryChangeMount("b", horseId, out _), Is.True);
+            campaign.Move("b", new SessionAvatar { x = 7f, z = -2.5f, yaw = 95f, mountId = horseId });
+            var save = campaign.Export();
+            Assert.That(campaign.Mounts().Single().rider, Is.EqualTo(second.id));
+            Assert.That(save.mounts.Single().rider, Is.Null);
+            campaign.Disconnect("b");
+            Assert.That(campaign.Mounts().Single().rider, Is.Null);
+            campaign = new VillageCampaign(Rules(), Sites, 0f, -4.4f, save);
+            Configure(campaign);
+            var restored = campaign.Mounts().Single();
+            Assert.That(restored.rider, Is.Null);
+            Assert.That(restored.x, Is.EqualTo(7f));
+            Assert.That(restored.z, Is.EqualTo(-2.5f));
+            Assert.That(restored.yaw, Is.EqualTo(95f));
+
+            static void Configure(VillageCampaign world) => world.ConfigureMounts(
+                new[] { (new MountSave { id = horseId, z = -4.4f }, 2f) },
+                (x, z) => Math.Abs(x) < 25f && Math.Abs(z) < 25f);
+        }
+
+        [Test]
         public void GroundOwnershipSurvivesWorldReloadAndOnlyOnePlayerCanClaimTheDrop()
         {
             const long now = 100_000;
