@@ -36,6 +36,7 @@ namespace Workerborn
         private CapsuleCollider playerCollider;
         private Vector2 worldPointer;
         private bool pointerOnWorld;
+        private WorldNameplateView hoveredPlate;
         internal bool IsHoveringPlayer { get; private set; }
         public bool IsPressed => CurrentTarget != null && CurrentTarget == pressTarget.Target && WorkerbornInput.Held("Gameplay/Interact");
 
@@ -62,7 +63,14 @@ namespace Workerborn
         private int capturedWidth, capturedHeight;
         private int generation;
         private WorldTargetReference currentTarget;
-        public WorldInteractable CurrentTarget => currentTarget.Target;
+        public WorldInteractable CurrentTarget
+        {
+            get
+            {
+                var target = currentTarget.Target;
+                return target is VillageMount && target == game?.Worker?.CurrentMount ? null : target;
+            }
+        }
         internal InteractionCursor CursorKind { get; private set; }
         internal TimberThrowAim ThrowAim { get; private set; }
         internal Vector3 ThrowDestination { get; private set; }
@@ -189,6 +197,7 @@ namespace Workerborn
         private void Update()
         {
             pointerOnWorld = IsHoveringPlayer = false;
+            hoveredPlate = null;
             ThrowAim = TimberThrowAim.None;
             if (game == null)
                 return;
@@ -201,6 +210,7 @@ namespace Workerborn
 
             var ui = UiAt(cursor);
             var plate = ui != null ? ui.GetComponentInParent<WorldNameplateView>() : null;
+            hoveredPlate = plate;
             bool overUi = ui != null && plate == null;
             var worker = game.Worker;
             bool aimingThrow = worker.AimingTimberThrow && !game.ControlsBlocked;
@@ -220,7 +230,7 @@ namespace Workerborn
                     target = PickTarget(cursor, control && !game.ControlsBlocked);
             }
 
-            if (target != null && (!target.CanInteract || !game.SharesMap(target.transform.position) ||
+            if (target != null && (target == worker.CurrentMount || !target.CanInteract || !game.SharesMap(target.transform.position) ||
                 game.ControlsBlocked && !(target is GroundPickup)))
                 target = null;
             ShowCursor(game.CameraRig.IsOrbiting ? InteractionCursor.Orbit :
@@ -305,7 +315,10 @@ namespace Workerborn
             {
                 int id = TargetMaskGeometry.IdAtScreen(pixels, mask.width, mask.height, flipReadback,
                     cursor.x, cursor.y, Screen.width, Screen.height);
-                return (id != 0 ? SnapshotTarget(id) : null) ?? PickHoverAssist(cursor);
+                var target = id != 0 ? SnapshotTarget(id) : null;
+                if (target is VillageMount mount && !mount.CoversPointer(game.WorldCamera.ScreenPointToRay(cursor)))
+                    target = null;
+                return target ?? PickHoverAssist(cursor);
             }
             if (TargetMaskGeometry.Closest(pixels, mask.width, mask.height, flipReadback, cursor.x, cursor.y,
                 Screen.width, Screen.height, out var closest, IsLivingTarget))
@@ -341,7 +354,7 @@ namespace Workerborn
                 if (hit.distance >= nearest || !hit.collider.isTrigger)
                     continue;
                 var target = hit.collider.GetComponentInParent<WorldInteractable>();
-                if (target == null || !target.CanInteract || target.gameObject.scene != game.gameObject.scene ||
+                if (target == null || target == game.Worker.CurrentMount || !target.CanInteract || target.gameObject.scene != game.gameObject.scene ||
                     !game.SharesMap(target.transform.position) || fallbackOnly && target is not (VillageBuildingDoor or VillageBed or VillageMount))
                     continue;
 
@@ -427,7 +440,13 @@ namespace Workerborn
             var selected = CurrentTarget;
             if (selected != null && selected.CanInteract && silhouette != null && flatKitOutline != null &&
                 silhouette.width == camera.pixelWidth && silhouette.height == camera.pixelHeight)
-                DrawOutline(selected, IsPressed ? pressedColor : highlightColor);
+            {
+                if (selected is VillageMount mount && (hoveredPlate == null || hoveredPlate.Target != selected) &&
+                    !mount.CoversPointer(camera.ScreenPointToRay(worldPointer)))
+                    game.Hud.SetSelectionOutline(null);
+                else
+                    DrawOutline(selected, IsPressed ? pressedColor : highlightColor);
+            }
             RenderTexture.active = active;
         }
 
@@ -539,7 +558,7 @@ namespace Workerborn
                 if (item == null || item.gameObject.scene != game.gameObject.scene || !game.SharesMap(item.transform.position))
                     continue;
                 int id = item == selected ? 1 : 0;
-                if (!forOutline && item.CanInteract)
+                if (!forOutline && item.CanInteract && item != game.Worker.CurrentMount)
                 {
                     id = frameTargets.Count;
                     frameTargets.Add(new WorldTargetReference(item));

@@ -190,7 +190,7 @@ namespace Workerborn.Tests
                 "Gameplay/Interact",
                 "Gameplay/Target",
                 "Gameplay/Names",
-                "Gameplay/Dismount",
+                "Gameplay/Sit",
                 "Camera/OrbitMiddle",
                 "Camera/OrbitRight",
                 "Camera/Zoom",
@@ -200,6 +200,7 @@ namespace Workerborn.Tests
 
             )
                 Assert.That(asset.FindAction(name, true).bindings.Count, Is.GreaterThan(0), name);
+            Assert.That(asset.FindAction("Gameplay/Sit", true).bindings.Any(binding => binding.path == "<Keyboard>/c"), Is.True);
         }
 
         [TestCase(0)]

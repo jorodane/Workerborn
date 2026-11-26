@@ -106,17 +106,14 @@ namespace Workerborn
 
         protected bool BeginInteraction(HarvestWorker worker)
         {
-            if (worker == null || !CanInteract)
+            if (worker == null || !CanInteract || worker.CurrentMount == this)
                 return false;
-            if (worker.CurrentMount != null && this is not VillageMount && worker.AcceptsMovementCommands)
+            if (!worker.CanInteractWith(this))
             {
-                if (worker.IsLocallyControlled)
-                    worker.Village.Hud.ShowToast("말에서 내린 뒤 이용해 주세요. F를 누르면 내려요.");
+                if (worker.CurrentMount != null && worker.IsLocallyControlled && worker.AcceptsMovementCommands)
+                    worker.Village.Hud.ShowToast("말에서 내린 뒤 이용해 주세요. C를 누르면 내려요.");
                 return false;
             }
-            if (!(this is VillageMount ? worker.AcceptsMovementCommands :
-                this is GroundPickup ? worker.AcceptsGroundItemCommands : worker.AcceptsInteractionCommands))
-                return false;
             onInteractionRequested.Invoke();
             return true;
         }

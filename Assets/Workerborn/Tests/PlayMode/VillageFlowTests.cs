@@ -2789,29 +2789,41 @@ namespace Workerborn.Tests
             Assert.That(horse, Is.Not.Null);
             Assert.That(horse.RiderPose.isHumanMotion, Is.True);
             Assert.That(horse.GetComponentInChildren<Animator>().runtimeAnimatorController, Is.Not.Null);
+            var skin = horse.GetComponentsInChildren<SkinnedMeshRenderer>().Single(mesh => mesh.enabled);
+            var saddle = horse.GetComponentsInChildren<MeshFilter>().Single().transform;
+            Assert.That(saddle.parent.name, Is.EqualTo("body"));
+            Assert.That(saddle.Find("Rider root"), Is.Not.Null);
 
             var agent = worker.GetComponent<NavMeshAgent>();
             float onFoot = agent.speed;
             float standingHeight = worker.Actor.VisualRoot.localPosition.y;
             horse.RequestInteraction(worker);
-            yield return Until(() => worker.CurrentMount == horse, 4f);
-            Assert.That(horse.Rider, Is.EqualTo(worker.CharacterId));
-            Assert.That(worker.Actor.VisualRoot.localPosition.y, Is.GreaterThan(standingHeight));
-            Assert.That(agent.speed, Is.GreaterThan(onFoot));
-
-            Vector3 destination = NearbyDestination();
-            worker.CommandMove(destination);
-            yield return Until(() => Vector3.Distance(horse.transform.position, destination) < .3f, 4f);
+            yield return Until(() => worker.InReach(horse.transform.position, horse.InteractionDistance), 4f);
+            Assert.That(worker.CurrentMount, Is.Null);
             var keyboard = InputSystem.AddDevice<Keyboard>();
             try
             {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
+                yield return Until(() => worker.CurrentMount == horse, 2f);
+                Assert.That(horse.Rider, Is.EqualTo(worker.CharacterId));
+                Assert.That(worker.Actor.VisualRoot.localPosition.y, Is.GreaterThan(standingHeight));
+                Assert.That(agent.speed, Is.GreaterThan(onFoot));
+                horse.RequestInteraction(worker);
+                Assert.That(worker.CurrentMount, Is.SameAs(horse));
+
+                var oldRay = new Ray(skin.bounds.center + Vector3.up * 4f, Vector3.down);
+                Assert.That(horse.CoversPointer(oldRay), Is.True);
+                Vector3 destination = NearbyDestination();
+                worker.CommandMove(destination);
+                yield return Until(() => Vector3.Distance(horse.transform.position, destination) < .3f, 4f);
+                Assert.That(horse.CoversPointer(oldRay), Is.False);
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W, Key.LeftShift));
                 yield return null;
                 Assert.That(agent.speed, Is.EqualTo(horse.Speed(walk: true)));
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W));
                 yield return null;
                 Assert.That(agent.speed, Is.EqualTo(horse.Speed(walk: false)));
-                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.F));
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
                 yield return Until(() => worker.CurrentMount == null, 2f);
             }
             finally
@@ -2826,6 +2838,61 @@ namespace Workerborn.Tests
             Assert.That(saved.rider, Is.Null);
             Assert.That(saved.x, Is.EqualTo(horse.transform.position.x));
             Assert.That(saved.z, Is.EqualTo(horse.transform.position.z));
+        }
+
+        [UnityTest]
+        public IEnumerator MountedPlayerCanApproachDropsTalkAndAttackWithTheHorse()
+        {
+            var worker = game.Worker;
+            var horse = UnityEngine.Object.FindFirstObjectByType<VillageMount>();
+            var saddle = horse.GetComponentsInChildren<MeshFilter>().Single().transform;
+            var riderRoot = saddle.Find("Rider root");
+            Vector3 onFootOffset = worker.Actor.VisualRoot.localPosition;
+            Assert.That(worker.WarpTo(horse.transform.position), Is.True);
+            game.RequestMount(horse);
+            Assert.That(worker.CurrentMount, Is.SameAs(horse));
+
+            var item = UnityEngine.Object.Instantiate(game.Settings.FindItem(ItemIds.Potato).GroundPrefab);
+            try
+            {
+                Vector3 at = NearbyDestination();
+                item.Initialize(game.Crops[0].Definition, at, at, true);
+                Assert.That(worker.IsInPickupRange(item), Is.False);
+                int quantity = game.State.Inventory.Count(ItemIds.Potato) + item.Quantity;
+                item.RequestInteraction(worker);
+                yield return Until(() => game.State.Inventory.Count(ItemIds.Potato) == quantity, 4f);
+                Assert.That(worker.CurrentMount, Is.SameAs(horse));
+            }
+            finally
+            {
+                if (item != null)
+                    UnityEngine.Object.Destroy(item.gameObject);
+            }
+
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            farmer.RequestInteraction(worker);
+            yield return Until(() => game.Hud.IsSpeakingWith(farmer), 6f);
+            Assert.That(worker.CurrentMount, Is.SameAs(horse));
+            game.Hud.CloseDialogue();
+            yield return Until(() => !game.ControlsBlocked, 2f);
+
+            var enemy = UnityEngine.Object.FindObjectsByType<MonsterInteractable>(FindObjectsSortMode.None)
+                .Single(target => target.Combat != null);
+            var enemyAgent = enemy.GetComponent<NavMeshAgent>();
+            enemy.GetComponent<AnimalWander>().SetSuspended(true);
+            Assert.That(enemyAgent.Warp(NearbyDestination()), Is.True);
+            int health = enemy.Health;
+            double stamina = game.State.Stamina;
+            enemy.RequestInteraction(worker);
+            var horseAnimation = horse.GetComponentInChildren<Animator>();
+            int attack = Animator.StringToHash("Base Layer.Attack");
+            yield return Until(() => horseAnimation.GetCurrentAnimatorStateInfo(0).fullPathHash == attack, 4f);
+            Vector3 expectedPosition = riderRoot.position + worker.transform.TransformVector(onFootOffset);
+            Assert.That(Vector3.Distance(worker.Actor.VisualRoot.position, expectedPosition), Is.LessThan(.02f));
+            yield return Until(() => enemy.Health < health, 2f);
+            Assert.That(enemy.Health, Is.EqualTo(Mathf.Max(0, health - horse.AttackDamage)));
+            Assert.That(game.State.Stamina, Is.GreaterThanOrEqualTo(stamina));
+            Assert.That(worker.CurrentMount, Is.SameAs(horse));
         }
 
         [UnityTest]

@@ -8,6 +8,7 @@ namespace Workerborn
         internal VillageMount CurrentMount { get; private set; }
         private Transform ridingVisual;
         private Vector3 ridingVisualBase;
+        private Quaternion ridingVisualRotation;
         private float footRadius;
 
         internal bool CanMount => CurrentMount == null && CarriedLogs == 0 &&
@@ -18,27 +19,31 @@ namespace Workerborn
 
         internal void InteractWithMount(VillageMount mount)
         {
-            if (!IsLocallyControlled || !AcceptsMovementCommands || !SharesMap(mount.transform.position))
+            if (!IsLocallyControlled || !CanMount || !AcceptsMovementCommands || !SharesMap(mount.transform.position))
                 return;
-            if (CurrentMount == mount)
-            {
-                RequestDismount();
-                return;
-            }
-            if (!CanMount)
-            {
-                Message?.Invoke("지금은 말에 탈 수 없어요.");
-                return;
-            }
             if (!string.IsNullOrEmpty(mount.Rider))
             {
                 Message?.Invoke("다른 사람이 타고 있어요.");
                 return;
             }
-            if (InReach(mount.transform.position, mount.InteractionDistance))
+            if (!InReach(mount.transform.position, mount.InteractionDistance))
+                CommandApproach(mount);
+        }
+
+        private void ToggleSitOrRide()
+        {
+            if (CurrentMount != null)
+            {
+                RequestDismount();
+                return;
+            }
+            if (CanMount && AcceptsMovementCommands && Action is (WorkerAction.Idle or WorkerAction.Moving) &&
+                village?.FindNearbyMount(Targeting?.CurrentTarget as VillageMount) is VillageMount mount && mount != null)
+            {
                 village.RequestMount(mount);
-            else
-                CommandApproach(mount, () => village.RequestMount(mount));
+                return;
+            }
+            ToggleSit();
         }
 
         private void RequestDismount()
@@ -72,10 +77,17 @@ namespace Workerborn
             if (ridingVisual != null)
             {
                 ridingVisualBase = ridingVisual.localPosition;
-                ridingVisual.localPosition = ridingVisualBase + mount.RiderOffset;
+                ridingVisualRotation = ridingVisual.localRotation;
+                AlignToMount();
             }
-            animationDriver?.SetRiding(mount);
+            animationDriver?.SetRiding(mount, ridingVisual);
             return true;
+        }
+
+        internal void AlignToMount()
+        {
+            if (CurrentMount != null && ridingVisual != null)
+                CurrentMount.PlaceRider(ridingVisual, ridingVisualBase, ridingVisualRotation);
         }
 
         internal void EndRiding(bool stepAside, bool parkForTravel = false)
@@ -94,7 +106,10 @@ namespace Workerborn
             Cancel();
             animationDriver?.SetRiding(null);
             if (ridingVisual != null)
+            {
                 ridingVisual.localPosition = ridingVisualBase;
+                ridingVisual.localRotation = ridingVisualRotation;
+            }
             ridingVisual = null;
             if (agent == null)
                 return;

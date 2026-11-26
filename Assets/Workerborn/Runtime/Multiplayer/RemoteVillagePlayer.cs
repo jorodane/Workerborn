@@ -17,7 +17,9 @@ namespace Workerborn
         private Transform modularModel;
         private int lookSelection;
         private Vector3 visualBase;
+        private Quaternion visualRotation;
         private VillageMount mount;
+        internal bool IsUsingMountAttack { get; private set; }
         private float jumpOffset, shownJumpOffset;
         private TimberAssets timber;
         private TimberSwing timberSwing;
@@ -27,6 +29,7 @@ namespace Workerborn
             hud = display;
             gameObject.name = name;
             visualBase = visual != null ? visual.localPosition : Vector3.zero;
+            visualRotation = visual != null ? visual.localRotation : Quaternion.identity;
             if (visual != null && appearance != null && appearance.BasePrefab != null)
             {
                 var model = CharacterAssembler.Build(appearance, visual, look);
@@ -51,7 +54,7 @@ namespace Workerborn
             if (ReferenceEquals(mount, next))
                 return;
             mount = next;
-            animationDriver?.SetRiding(mount);
+            animationDriver?.SetRiding(mount, visual);
         }
         internal void ShowTimberCarry(TimberAssets assets, bool carrying)
         {
@@ -76,6 +79,7 @@ namespace Workerborn
             if (!hasPose || Vector3.SqrMagnitude(destination - transform.position) > 64f)
                 transform.SetPositionAndRotation(destination, yaw);
             hasPose = true;
+            IsUsingMountAttack = avatar.motion == (int)WorkerMotion.Work;
             PresentTimberSwing(avatar);
             animationDriver?.SetAction(avatar.motion);
             if (animationDriver != null && float.IsFinite(avatar.gestureProgress))
@@ -113,7 +117,7 @@ namespace Workerborn
                 animationDriver.SampleStrike(avatar.timberProgress);
         }
 
-        private void LateUpdate()
+        private void Update()
         {
             if (!hasPose)
                 return;
@@ -121,12 +125,26 @@ namespace Workerborn
             transform.SetPositionAndRotation(Vector3.Lerp(transform.position, destination, factor),
                 Quaternion.Slerp(transform.rotation, yaw, factor));
             shownJumpOffset = Mathf.Lerp(shownJumpOffset, jumpOffset, factor);
+        }
+
+        private void LateUpdate()
+        {
+            if (!hasPose)
+                return;
             if (visual != null)
-                visual.localPosition = visualBase + (mount != null ? mount.RiderOffset : Vector3.up * shownJumpOffset);
+            {
+                if (mount != null)
+                    mount.PlaceRider(visual, visualBase, visualRotation);
+                else
+                {
+                    visual.localPosition = visualBase + Vector3.up * shownJumpOffset;
+                    visual.localRotation = visualRotation;
+                }
+            }
             if (label != null && hud != null)
             {
                 Vector3 namePosition = head != null ? head.position + Vector3.up * .32f
-                    : transform.position + Vector3.up * (labelHeight + shownJumpOffset);
+                    : (visual != null ? visual.position : transform.position) + Vector3.up * labelHeight;
                 hud.PositionPlayerOverhead(label, transform.position, namePosition);
             }
         }

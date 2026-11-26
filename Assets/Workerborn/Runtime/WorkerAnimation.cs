@@ -265,7 +265,7 @@ namespace Workerborn
 
         internal void ConfigureTimberToss(AnimationClip clip) => timberToss = clip;
 
-        internal void SetRiding(VillageMount mount)
+        internal void SetRiding(VillageMount mount, Transform riderVisual = null)
         {
             AnimationClip pose = mount != null ? mount.RiderPose : null;
             riding = pose != null;
@@ -274,12 +274,12 @@ namespace Workerborn
             SetGesture(WorkerGesture.None);
             BindClip(RideInput, pose, sampled: true);
             clips[RideInput].SetTime(0d);
-            if (!humanoid || !pose.isHumanMotion)
+            if (!humanoid || !pose.isHumanMotion || riderVisual == null)
                 return;
 
-            // Use the rider's ground root to keep the stirrup goals steady during movement.
+            // The rider and the stirrups inherit the same animated saddle transform.
             var job = stirrupPose.IsValid() ? stirrupPose.GetJobData<StirrupPose>() :
-                new StirrupPose { Root = rig.BindSceneTransform(transform) };
+                new StirrupPose { Root = rig.BindSceneTransform(riderVisual) };
             bool hasStirrups = mount.TryGetStirrups(out job.Left, out job.Right);
             job.Enabled = hasStirrups ? 1 : 0;
             if (stirrupPose.IsValid())

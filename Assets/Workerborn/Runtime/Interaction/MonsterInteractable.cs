@@ -138,7 +138,18 @@ namespace Workerborn
             if (!CanReceiveStrike || worker.Village == null)
                 return;
             int resolvedDamage = worker.CharacterState.ResolveCombatDamage(damage, UnityEngine.Random.value, out bool critical);
-            int applied = Mathf.Min(Health, resolvedDamage);
+            ApplyStrike(worker, resolvedDamage, critical);
+        }
+
+        internal void ReceiveMountedStrike(HarvestWorker rider, int damage)
+        {
+            if (CanReceiveStrike && rider.Village != null)
+                ApplyStrike(rider, damage, critical: false);
+        }
+
+        private void ApplyStrike(HarvestWorker worker, int damage, bool critical)
+        {
+            int applied = Mathf.Min(Health, damage);
             if (applied == 0)
                 return;
             Health -= applied;
@@ -221,7 +232,7 @@ namespace Workerborn
             }
 
             wander?.StopCombatMovement();
-            if (Time.time < nextCounterAt || !opponent.AcceptsInteractionCommands)
+            if (Time.time < nextCounterAt || !opponent.AcceptsMovementCommands)
                 return;
             nextCounterAt = Time.time + combat.CounterDelay;
             Vector3 facing = destination - transform.position;

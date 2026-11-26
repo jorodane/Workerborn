@@ -32,6 +32,29 @@ namespace Workerborn
 
         private MountSave[] CaptureSoloMounts() => IsOnline ? null : mounts.Values.Select(mount => mount.Capture()).ToArray();
 
+        internal VillageMount FindNearbyMount(VillageMount preferred)
+        {
+            if (InReach(preferred))
+                return preferred;
+            VillageMount closest = null;
+            float nearestDistance = float.PositiveInfinity;
+            foreach (var mount in mounts.Values)
+            {
+                if (!InReach(mount))
+                    continue;
+                float distance = (mount.transform.position - worker.StandingPosition).sqrMagnitude;
+                if (distance < nearestDistance)
+                {
+                    closest = mount;
+                    nearestDistance = distance;
+                }
+            }
+            return closest;
+
+            bool InReach(VillageMount mount) => mount != null && mount.CanInteract && string.IsNullOrEmpty(mount.Rider) &&
+                worker.SharesMap(mount.transform.position) && worker.InReach(mount.transform.position, mount.InteractionDistance);
+        }
+
         internal void RequestMount(VillageMount mount)
         {
             if (!worker.AcceptsMovementCommands)
@@ -62,7 +85,7 @@ namespace Workerborn
             else if (worker.BeginRiding(mount))
             {
                 mount.Present(worker.CharacterId, worker.transform, default, 0f, true);
-                hud.ShowToast("말에 탔어요. F를 누르면 내려요.");
+                hud.ShowToast("말에 탔어요. C를 누르면 내려요.");
             }
             else
             {

@@ -75,7 +75,7 @@ namespace Workerborn
                 return false;
             }
             site.Pose.rider = profile.id;
-            message = "말에 탔어요. F를 누르면 내려요.";
+            message = "말에 탔어요. C를 누르면 내려요.";
             return true;
         }
 

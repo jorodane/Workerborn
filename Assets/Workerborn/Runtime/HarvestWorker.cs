@@ -77,8 +77,11 @@ namespace Workerborn
         internal bool IsLocallyControlled => worldCamera != null;
         internal bool AcceptsMovementCommands => village == null || !IsLocallyControlled || !village.ControlsBlocked;
         public bool AcceptsInteractionCommands => CurrentMount == null && AcceptsMovementCommands;
-        public bool AcceptsGroundItemCommands => CurrentMount == null && (village == null || !CharacterState.AwaitingIncarnation &&
-            (!IsLocallyControlled || !village.AwaitingWorldCommand && village.Hud.AllowsGroundItems));
+        public bool AcceptsGroundItemCommands => village == null || !CharacterState.AwaitingIncarnation &&
+            (!IsLocallyControlled || !village.AwaitingWorldCommand && village.Hud.AllowsGroundItems);
+        internal bool CanInteractWith(WorldInteractable target) => target is GroundPickup ? AcceptsGroundItemCommands :
+            AcceptsMovementCommands && (CurrentMount == null ||
+                target is VillageInteractable { CanTarget: true } or MonsterInteractable { Combat: not null });
         public PointerTargeting Targeting => village != null && IsLocallyControlled ? village.Targeting : null;
         internal VillagePrototype Village => village;
         internal VillageState CharacterState => characterState;
@@ -211,10 +214,8 @@ namespace Workerborn
             ReadInput();
             if (village != null && village.Hud.WorldActionsLocked && Action != WorkerAction.Idle)
                 Cancel();
-            if (WorkerbornInput.Pressed("Gameplay/Dismount"))
-                RequestDismount();
             if (WorkerbornInput.Pressed("Gameplay/Sit"))
-                ToggleSit();
+                ToggleSitOrRide();
             if (WorkerbornInput.Pressed("Gameplay/Jump"))
                 CommandJump();
             UpdateManualMovement();
@@ -506,7 +507,7 @@ namespace Workerborn
                 return;
             }
 
-            if (!AcceptsInteractionCommands)
+            if (!AcceptsMovementCommands)
                 return;
             if (pickupTarget.Target == item && Action == WorkerAction.Moving)
                 return;
@@ -548,10 +549,10 @@ namespace Workerborn
 
         public void CommandAttack(WorldInteractable target)
         {
-            if (village == null || CarriedLogs > 0 || !AcceptsInteractionCommands || target == null || !target.CanReceiveStrike ||
+            if (village == null || CarriedLogs > 0 || target == null || !CanInteractWith(target) || !target.CanReceiveStrike ||
                 CharacterState.Health <= 0 || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
                 return;
-            if (InReach(target.transform.position, target.InteractionDistance))
+            if (InReach(target.transform.position, InteractionReach(target)))
                 StartAttack(target);
             else if (target != interactionTarget || Action != WorkerAction.Moving)
                 CommandApproach(target, () => StartAttack(target));
@@ -560,10 +561,11 @@ namespace Workerborn
         private void StartAttack(WorldInteractable target)
         {
             if (target == null || !target.CanReceiveStrike || CarriedLogs > 0 || CharacterState.Health <= 0 ||
-                !AcceptsInteractionCommands || !SharesMap(target.transform.position) ||
-                !InReach(target.transform.position, target.InteractionDistance))
+                !CanInteractWith(target) || !SharesMap(target.transform.position) ||
+                !InReach(target.transform.position, InteractionReach(target)))
                 return;
-            if (CharacterState.Stamina <= 0d)
+            var mount = CurrentMount;
+            if (mount == null && CharacterState.Stamina <= 0d)
             {
                 Message?.Invoke("스태미나가 부족해요.");
                 return;
@@ -574,32 +576,35 @@ namespace Workerborn
             strikeTarget = target;
             Action = WorkerAction.Attacking;
             strikeStartedAt = Time.time;
-            var clip = target.StrikeClip(this) ?? attackClip;
-            float swingDuration = target is TimberPiece && clip != null ? clip.length : attackDelay;
+            var clip = mount == null ? target.StrikeClip(this) ?? attackClip : null;
+            float swingDuration = mount != null ? mount.AttackSeconds : target is TimberPiece && clip != null ? clip.length : attackDelay;
             nextStrikeAt = strikeStartedAt + Mathf.Max(.2f, swingDuration);
-            strikeStaminaCost = target.StrikeStaminaCost(CharacterState, attackStaminaCost);
+            strikeStaminaCost = mount == null ? target.StrikeStaminaCost(CharacterState, attackStaminaCost) : 0;
             strikePaidProgress = 0d;
             struck = false;
-            animationDriver?.BeginStrike(clip);
+            if (mount == null)
+                animationDriver?.BeginStrike(clip);
         }
 
         private void UpdateAttack()
         {
             bool completingTimberSwing = struck && strikeTarget is TimberPiece;
             if (CharacterState.Health <= 0 || !completingTimberSwing &&
-                (!AcceptsInteractionCommands || strikeTarget == null || !SharesMap(strikeTarget.transform.position)))
+                (strikeTarget == null || !CanInteractWith(strikeTarget) || !SharesMap(strikeTarget.transform.position)))
             {
                 Cancel();
                 return;
             }
             float progress = Mathf.InverseLerp(strikeStartedAt, nextStrikeAt, Time.time);
-            animationDriver?.SampleStrike(progress);
+            var mount = CurrentMount;
+            if (mount == null)
+                animationDriver?.SampleStrike(progress);
             if (!struck)
             {
                 Face(strikeTarget.transform.position);
-                float impact = strikeTarget.StrikeImpact;
+                float impact = mount != null ? mount.AttackImpact : strikeTarget.StrikeImpact;
                 double effort = Mathf.Min(1f, progress / impact);
-                if (!CharacterState.SpendWorkProgress(strikeStaminaCost, strikePaidProgress, effort))
+                if (mount == null && !CharacterState.SpendWorkProgress(strikeStaminaCost, strikePaidProgress, effort))
                 {
                     Cancel();
                     ReportWorkExhaustion();
@@ -609,7 +614,9 @@ namespace Workerborn
                 if (progress >= impact)
                 {
                     struck = true;
-                    if (strikeTarget.CanReceiveStrike)
+                    if (mount != null && strikeTarget is MonsterInteractable monster)
+                        monster.ReceiveMountedStrike(this, mount.AttackDamage);
+                    else if (strikeTarget.CanReceiveStrike)
                     {
                         int bonus = CharacterState.Equipment.ContainsKey(EquipmentSlot.MainHand) ? 0 : CharacterState.UnarmedDamageBonus;
                         strikeTarget.ReceiveStrike(this, Mathf.Max(1, attackDamage + bonus + CharacterState.Strength));
@@ -623,15 +630,19 @@ namespace Workerborn
         public void CommandApproach(WorldInteractable target, System.Action arrival = null)
         {
             if (target != null)
-                Approach(target, target.transform.position, target.InteractionDistance * .7f, arrival);
+                Approach(target, target.transform.position, InteractionReach(target) * .7f, arrival);
         }
+
+        private float InteractionReach(WorldInteractable target) =>
+            CurrentMount != null && target is MonsterInteractable { Combat: not null }
+                ? CurrentMount.AttackReach : target.InteractionDistance;
 
         internal void CommandApproachAt(WorldInteractable target, Vector3 point, System.Action arrival = null) =>
             Approach(target, point, 0f, arrival);
 
         private void Approach(WorldInteractable target, Vector3 point, float offset, System.Action arrival)
         {
-            if (village == null || target == null || !AcceptsInteractionCommands || !SharesMap(target.transform.position) ||
+            if (village == null || target == null || !CanInteractWith(target) || !SharesMap(target.transform.position) ||
                 !NavigateNear(point, offset))
                 return;
             interactionTarget = target;
@@ -640,7 +651,7 @@ namespace Workerborn
 
         public bool CommandDrop(int entryId, Vector3 destination)
         {
-            if (village == null || !HasPlayerOwner || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
+            if (village == null || !HasPlayerOwner || CurrentMount != null || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
                 return false;
             var entry = CharacterState.CarriedItem(entryId);
             if (village.DropPrefabFor(entry, this) == null)
@@ -777,7 +788,7 @@ namespace Workerborn
                 interactionTarget = null;
                 onInteractionArrival = null;
                 Action = WorkerAction.Idle;
-                if (InReach(target.transform.position, target.InteractionDistance))
+                if (CanInteractWith(target) && InReach(target.transform.position, InteractionReach(target)))
                 {
                     Face(target.transform.position);
                     target.Arrive(village, this, arrival);
@@ -793,12 +804,12 @@ namespace Workerborn
         {
             WorldInteractable target = cropTarget != null ? cropTarget : interactionTarget;
             if (target == null || !target.CanInteract || !target.TryGetComponent<AnimalWander>(out _) ||
-                InReach(target.transform.position, target.InteractionDistance) ||
+                InReach(target.transform.position, InteractionReach(target)) ||
                 (target.transform.position - approachTargetPosition).sqrMagnitude < .2f * .2f)
                 return false;
             var crop = cropTarget;
             var arrival = onInteractionArrival;
-            if (!NavigateNear(target.transform.position, target.InteractionDistance * .7f))
+            if (!NavigateNear(target.transform.position, InteractionReach(target) * .7f))
                 return false;
             cropTarget = crop;
             if (crop == null)
