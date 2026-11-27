@@ -898,6 +898,26 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void EatingConsumesTheSelectedFoodStack()
+        {
+            var state = new VillageState();
+            Assert.That(state.Inventory.TryAdd(ItemIds.Bread, 11), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, 1), Is.True);
+            var fullStack = state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Bread && entry.Quantity == 10);
+            var serving = state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Bread && entry.Quantity == 1);
+            var potato = state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.Potato);
+
+            Assert.That(state.TryEatFood(potato.Id), Is.False);
+            Assert.That(state.Inventory.Find(potato.Id).Quantity, Is.EqualTo(1));
+            Assert.That(state.Fullness, Is.Zero);
+            Assert.That(state.TryEatFood(serving.Id), Is.True);
+            Assert.That(state.Inventory.Find(fullStack.Id).Quantity, Is.EqualTo(10));
+            Assert.That(state.Inventory.Find(serving.Id), Is.Null);
+            Assert.That(state.TryEatFood(serving.Id), Is.False);
+            Assert.That(state.Fullness, Is.EqualTo(20));
+        }
+
+        [Test]
         public void GritRaisesTheHungryFloorAndDigestionClearsFullnessFaster()
         {
             var save = new VillageState().Export();

@@ -10,6 +10,7 @@ namespace Workerborn
         private PlayerOverheadView label;
         private Transform head;
         private VillageHud hud;
+        private VillageSettings settings;
         private Vector3 destination;
         private Vector3 seatPosition;
         private Quaternion yaw;
@@ -27,8 +28,10 @@ namespace Workerborn
         private TimberAssets timber;
         private TimberSwing timberSwing;
 
-        internal void Bind(CharacterDefinition appearance, VillageHud display, string name, CharacterLook look)
+        internal void Bind(VillageSettings content, VillageHud display, string name, CharacterLook look)
         {
+            settings = content;
+            var appearance = settings.Player;
             hud = display;
             gameObject.name = name;
             visualBase = visual != null ? visual.localPosition : Vector3.zero;
@@ -43,6 +46,7 @@ namespace Workerborn
                 }
                 var animator = model.GetComponentInChildren<Animator>();
                 animationDriver?.Initialize(animator, appearance.Idle, appearance.Run, appearance.Work, appearance.Walk);
+                animationDriver?.ConfigureEating(settings.EatingAnimation);
                 if (animator != null && animator.avatar != null && animator.avatar.isValid && animator.isHuman)
                     head = animator.GetBoneTransform(HumanBodyBones.Head);
             }
@@ -111,7 +115,11 @@ namespace Workerborn
             animationDriver?.SetAction(avatar.motion);
             animationDriver?.SetOvereating(avatar.overeating);
             if (animationDriver != null && float.IsFinite(avatar.gestureProgress))
+            {
                 animationDriver.SetGesture((WorkerGesture)avatar.gesture, avatar.gestureProgress);
+                if (animationDriver.Gesture == WorkerGesture.Eat)
+                    animationDriver.ShowMeal(settings.FindItem(avatar.foodItem), visual, settings.Player);
+            }
             jumpOffset = animationDriver?.Gesture != WorkerGesture.Jump && float.IsFinite(avatar.jumpOffset)
                 ? Mathf.Clamp(avatar.jumpOffset, 0f, .6f) : 0f;
         }

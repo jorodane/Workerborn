@@ -139,7 +139,7 @@ namespace Workerborn
                 yaw = pose.eulerAngles.y, motion = animation.CurrentAction, jumpOffset = worker.VisualJumpOffset,
                 mountId = worker.CurrentMount != null ? worker.CurrentMount.PersistentId : null, parkedMountId = ParkedMountId,
                 hasSeat = seat != null, seatX = seatPoint.x, seatY = seatPoint.y, seatZ = seatPoint.z, seatLift = worker.SeatLift,
-                gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress,
+                gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress, foodItem = worker.EatingItemId,
                 timberSwing = (int)worker.CurrentTimberSwing, timberProgress = worker.CurrentTimberProgress,
                 overeating = worker.CharacterState.Overeating };
         }
@@ -266,7 +266,7 @@ namespace Workerborn
                 if (!peers.TryGetValue(avatar.id, out var peer))
                 {
                     peer = Instantiate(prefab, SurfacePosition(avatar.x, avatar.z), Quaternion.identity);
-                    peer.Bind(settings.Player, hud, avatar.name, avatar.look);
+                    peer.Bind(settings, hud, avatar.name, avatar.look);
                     peers.Add(avatar.id, peer);
                     if (pendingSpeech.Remove(avatar.id, out var speech) && Time.unscaledTime < speech.Until)
                         peer.Say(speech.Text);

@@ -98,10 +98,10 @@ namespace Workerborn
                 OpenQuestDetail(page);
             else if ((!WorldActionsLocked || IsShopOpen) && item.Spec.EquipmentSlot != EquipmentSlot.None)
                 game.Perform(() => game.State.TryEquip(item.Id));
+            else if (!WorldActionsLocked && item.Spec.IsFood)
+                game.Worker.CommandEat(item.Id);
             else if (!WorldActionsLocked && item.Spec.HealthRestore > 0)
                 game.Perform(() => game.State.TryDrinkPotion(item.Id));
-            else if (!WorldActionsLocked && item.ItemId == ItemIds.Bread)
-                game.Perform(game.State.TryEatBread);
             else if (!WorldActionsLocked && item.Spec.TaughtSkill.HasValue)
                 game.Perform(() => game.State.TryReadSkillBook(item.Id));
             CloseItemContext();

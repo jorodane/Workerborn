@@ -16,6 +16,8 @@ namespace Workerborn
         [SerializeField] private ItemDefinition[] shopItems;
         [SerializeField, Min(0.5f)] private float interactionDistance = 1.8f;
         [SerializeField] private NpcScheduleEntry[] dailySchedule;
+        [SerializeField] private ItemDefinition startingFood;
+        [SerializeField, Min(0)] private int startingFoodCount;
 
         public string Id => id;
         public string DisplayName => displayName;
@@ -28,5 +30,7 @@ namespace Workerborn
         public ItemDefinition[] ShopItems => shopItems;
         public float InteractionDistance => interactionDistance;
         internal NpcScheduleEntry[] DailySchedule => dailySchedule ?? System.Array.Empty<NpcScheduleEntry>();
+        internal ItemDefinition StartingFood => startingFood;
+        internal int StartingFoodCount => startingFoodCount;
     }
 }

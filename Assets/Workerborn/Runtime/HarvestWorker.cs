@@ -214,6 +214,7 @@ namespace Workerborn
                 Quaternion.Angle(occupiedSeatFacing, transform.rotation) > .5f))
                 Cancel();
             UpdateVisualJump();
+            UpdateEating();
             bool working = Action is WorkerAction.Harvesting or WorkerAction.Attacking;
             bool carried = UpdateTimberCarry();
             bool awaitingAutomaticHarvest = IsLocallyControlled && village?.AwaitingAutomaticHarvest == true;
@@ -260,7 +261,7 @@ namespace Workerborn
         private void ReadLocalControls()
         {
             ReadInput();
-            if (village != null && village.Hud.WorldActionsLocked && Action != WorkerAction.Idle)
+            if (village != null && village.Hud.WorldActionsLocked && (Action != WorkerAction.Idle || IsEating))
                 Cancel();
             if (WorkerbornInput.Pressed("Gameplay/Sit"))
                 ToggleSitOrRide();
@@ -292,6 +293,7 @@ namespace Workerborn
             if (jumpingVisual != null || IsStandingUp || CarriedLogs > 0 || !AcceptsInteractionCommands ||
                 Action is not (WorkerAction.Idle or WorkerAction.Moving))
                 return;
+            StopEating();
             jumpingVisual = actor?.VisualRoot;
             if (jumpingVisual == null)
                 return;
@@ -1051,6 +1053,7 @@ namespace Workerborn
 
         private void ClearInteractionTargets()
         {
+            StopEating();
             if (manualMoving && agent != null)
                 agent.updateRotation = true;
             manualMoving = false;

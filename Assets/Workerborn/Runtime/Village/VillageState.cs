@@ -161,6 +161,7 @@ namespace Workerborn
         public float playerZ = -4.4f;
         public float yaw;
         public bool sitting;
+        public bool npcMealsIssued;
         public string harvestTargetId;
         public float harvestProgress;
         public bool casting;
@@ -851,7 +852,7 @@ namespace Workerborn
         internal static string ShortcutKey(int index) => (index < ItemShortcutCount ? "" : "Shift+") + ((index + 1) % ItemShortcutCount);
 
         private static bool CanAssignItemShortcut(ItemSpec item) => item.EquipmentSlot != EquipmentSlot.None ||
-            item.HealthRestore > 0 || item.Id == ItemIds.Bread || item.TaughtSkill.HasValue;
+            item.HealthRestore > 0 || item.IsFood || item.TaughtSkill.HasValue;
 
         public bool TryDrinkPotion(int entryId)
         {

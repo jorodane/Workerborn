@@ -14,6 +14,8 @@ namespace Workerborn
         private const int SitFinish = 9;
         private const int GestureInput = 10;
         private const int RideInput = 11;
+        private const int CarryLayer = 1;
+        private const int MealLayer = 2;
         private const double SitSpeed = .85d;
         [SerializeField] private AnimationClip groundSit;
         [SerializeField] private AnimationClip groundSitBegin;
@@ -31,11 +33,13 @@ namespace Workerborn
         private PlayableGraph graph;
         private AnimationMixerPlayable mixer;
         private AnimationPlayableOutput animationOutput;
-        private AnimationLayerMixerPlayable carryLayer;
-        private AnimationClipPlayable carryPose;
+        private AnimationLayerMixerPlayable upperBodyLayers;
+        private AnimationClipPlayable carryPose, eatingPose;
         private AnimationScriptPlayable mountFootPose;
-        private AvatarMask carryMask;
-        private AnimationClip timberToss;
+        private AvatarMask carryMask, eatingMask;
+        private AnimationClip timberToss, eatingClip;
+        private ItemDefinition shownFood;
+        private GameObject foodInHand;
         private bool humanoid, carrying;
         private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[RideInput + 1];
         private readonly float[] lengths = new float[RideInput + 1];
@@ -65,7 +69,7 @@ namespace Workerborn
         {
             if (graph.IsValid())
                 graph.Destroy();
-            ClearCarryLayer();
+            ClearUpperBodyLayers();
             if (animator == null || idle == null)
                 return;
             move = move != null ? move : idle;
@@ -146,8 +150,11 @@ namespace Workerborn
         }
         public double ActionTime => graph.IsValid() ? clips[Input].GetTime() : 0d;
         internal WorkerGesture Gesture { get; private set; }
+        internal float EatingSeconds => eatingClip != null ? Mathf.Max(.1f, eatingClip.length) : 2f;
         internal float GestureProgress => Gesture == WorkerGesture.None || !graph.IsValid()
-            ? 0f : Mathf.Clamp01((float)clips[GestureInput].GetTime() / lengths[GestureInput]);
+            ? 0f : Mathf.Clamp01((float)GesturePose.GetTime() / GestureLength);
+        private AnimationClipPlayable GesturePose => Gesture == WorkerGesture.Eat ? eatingPose : clips[GestureInput];
+        private float GestureLength => Gesture == WorkerGesture.Eat ? EatingSeconds : lengths[GestureInput];
         private int Input => sitInput >= 0 ? sitInput : target == Work ? workInput : target;
 
         private void BindClip(int input, AnimationClip clip, bool sampled = false)
@@ -287,6 +294,27 @@ namespace Workerborn
         {
             if (!graph.IsValid())
                 return;
+            if (gesture == WorkerGesture.Eat && humanoid && eatingClip != null)
+            {
+                if (!eatingPose.IsValid())
+                {
+                    EnsureUpperBodyLayers();
+                    eatingPose = AnimationClipPlayable.Create(graph, eatingClip);
+                    eatingPose.SetApplyFootIK(false);
+                    graph.Connect(eatingPose, 0, upperBodyLayers, MealLayer);
+                    eatingMask = UpperBodyMask(AvatarMaskBodyPart.Head);
+                    upperBodyLayers.SetLayerMaskFromAvatarMask(MealLayer, eatingMask);
+                }
+                Gesture = WorkerGesture.Eat;
+                eatingPose.SetTime(Mathf.Clamp(progress, 0f, .999f) * EatingSeconds);
+                eatingPose.SetSpeed(1d);
+                return;
+            }
+            if (Gesture == WorkerGesture.Eat)
+            {
+                eatingPose.SetSpeed(0d);
+                ClearFoodInHand();
+            }
             AnimationClip clip = gesture switch
             {
                 WorkerGesture.Jump => jump,
@@ -310,6 +338,39 @@ namespace Workerborn
         }
 
         internal void ConfigureTimberToss(AnimationClip clip) => timberToss = clip;
+        internal void ConfigureEating(AnimationClip clip) => eatingClip = clip;
+
+        internal void SampleMeal(float phase)
+        {
+            if (Gesture != WorkerGesture.Eat)
+                return;
+            eatingPose.SetTime(Mathf.Clamp(phase, 0f, .999f) * EatingSeconds);
+            eatingPose.SetSpeed(0d);
+        }
+
+        internal void ShowMeal(ItemDefinition food, Transform model, CharacterDefinition appearance)
+        {
+            if (Gesture != WorkerGesture.Eat || food == shownFood)
+                return;
+            ClearFoodInHand();
+            shownFood = food;
+            if (food == null || food.EatingPart == null)
+                return;
+            foodInHand = CharacterAssembler.AttachPart(food.EatingPart, model, appearance: appearance, optional: true);
+            if (foodInHand != null)
+                foreach (var child in foodInHand.GetComponentsInChildren<Transform>(true))
+                    child.gameObject.layer = rig.gameObject.layer;
+        }
+
+        private void ClearFoodInHand()
+        {
+            shownFood = null;
+            if (foodInHand == null)
+                return;
+            foodInHand.SetActive(false);
+            Destroy(foodInHand);
+            foodInHand = null;
+        }
 
         internal void SetRiding(VillageMount mount, Transform riderVisual = null)
         {
@@ -394,27 +455,41 @@ namespace Workerborn
         internal void SetCarrying(AnimationClip clip, bool active)
         {
             carrying = active;
-            if (!active || !graph.IsValid() || !humanoid || clip == null || carryLayer.IsValid())
+            if (!active || !graph.IsValid() || !humanoid || clip == null || carryPose.IsValid())
                 return;
-            carryMask = new AvatarMask();
+            EnsureUpperBodyLayers();
+            carryMask = UpperBodyMask(AvatarMaskBodyPart.Body);
+            carryPose = AnimationClipPlayable.Create(graph, clip);
+            carryPose.SetApplyFootIK(false);
+            var hands = AnimationScriptPlayable.Create(graph, new OverheadCarry { Root = rig.BindSceneTransform(transform) }, 1);
+            graph.Connect(carryPose, 0, hands, 0);
+            graph.Connect(hands, 0, upperBodyLayers, CarryLayer);
+            upperBodyLayers.SetLayerMaskFromAvatarMask(CarryLayer, carryMask);
+        }
+
+        private void EnsureUpperBodyLayers()
+        {
+            if (upperBodyLayers.IsValid())
+                return;
+            upperBodyLayers = AnimationLayerMixerPlayable.Create(graph, 3);
+            graph.Connect(mixer, 0, upperBodyLayers, 0);
+            upperBodyLayers.SetInputWeight(0, 1f);
+            upperBodyLayers.SetInputWeight(CarryLayer, 0f);
+            upperBodyLayers.SetInputWeight(MealLayer, 0f);
+            animationOutput.SetSourcePlayable(upperBodyLayers);
+        }
+
+        private static AvatarMask UpperBodyMask(AvatarMaskBodyPart extra)
+        {
+            var mask = new AvatarMask();
             for (int i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++)
             {
                 var part = (AvatarMaskBodyPart)i;
-                carryMask.SetHumanoidBodyPartActive(part, part is AvatarMaskBodyPart.Body or
-                    AvatarMaskBodyPart.LeftArm or AvatarMaskBodyPart.RightArm or
+                mask.SetHumanoidBodyPartActive(part, part == extra ||
+                    part is AvatarMaskBodyPart.LeftArm or AvatarMaskBodyPart.RightArm or
                     AvatarMaskBodyPart.LeftFingers or AvatarMaskBodyPart.RightFingers);
             }
-            carryLayer = AnimationLayerMixerPlayable.Create(graph, 2);
-            carryPose = AnimationClipPlayable.Create(graph, clip);
-            carryPose.SetApplyFootIK(false);
-            graph.Connect(mixer, 0, carryLayer, 0);
-            var hands = AnimationScriptPlayable.Create(graph, new OverheadCarry { Root = rig.BindSceneTransform(transform) }, 1);
-            graph.Connect(carryPose, 0, hands, 0);
-            graph.Connect(hands, 0, carryLayer, 1);
-            carryLayer.SetLayerMaskFromAvatarMask(1, carryMask);
-            carryLayer.SetInputWeight(0, 1f);
-            carryLayer.SetInputWeight(1, 0f);
-            animationOutput.SetSourcePlayable(carryLayer);
+            return mask;
         }
 
         private struct OverheadCarry : IAnimationJob
@@ -491,13 +566,13 @@ namespace Workerborn
                 if (clip.GetSpeed() < 0d ? clip.GetTime() <= 0d : clip.GetTime() >= lengths[sitInput])
                     FinishSitTransition();
             }
-            if (Gesture != WorkerGesture.None && clips[GestureInput].GetTime() >= lengths[GestureInput])
+            if (Gesture != WorkerGesture.None && GesturePose.GetTime() >= GestureLength)
             {
-                clips[GestureInput].SetTime(lengths[GestureInput] * .999f);
+                GesturePose.SetTime(GestureLength * .999f);
                 SetGesture(WorkerGesture.None);
             }
             float total = 0f;
-            int activeInput = riding ? RideInput : Gesture != WorkerGesture.None ? GestureInput : Input;
+            int activeInput = riding ? RideInput : Gesture is WorkerGesture.None or WorkerGesture.Eat ? Input : GestureInput;
             for (int i = 0; i < clips.Length; i++)
             {
                 if ((i != Work || !timedWork) && i < WorkBegin && clips[i].GetTime() >= lengths[i])
@@ -508,22 +583,36 @@ namespace Workerborn
 
             for (int i = 0; i < clips.Length; i++)
                 mixer.SetInputWeight(i, weights[i] / Mathf.Max(0.001f, total));
-            if (carryLayer.IsValid())
+            if (carryPose.IsValid())
             {
-                float targetWeight = carrying && Gesture == WorkerGesture.None ? 1f : 0f;
-                carryLayer.SetInputWeight(1, Mathf.MoveTowards(carryLayer.GetInputWeight(1), targetWeight, Time.deltaTime * 9f));
+                BlendUpperBody(CarryLayer, carrying && Gesture == WorkerGesture.None);
                 double duration = carryPose.GetAnimationClip().length;
                 if (duration > 0d && carryPose.GetTime() >= duration)
                     carryPose.SetTime(carryPose.GetTime() % duration);
             }
+            if (eatingPose.IsValid())
+            {
+                bool eating = Gesture == WorkerGesture.Eat;
+                BlendUpperBody(MealLayer, eating);
+                if (foodInHand != null)
+                    foodInHand.SetActive(eating && GestureProgress < .76f);
+            }
         }
 
-        private void ClearCarryLayer()
+        private void BlendUpperBody(int layer, bool active) =>
+            upperBodyLayers.SetInputWeight(layer, Mathf.MoveTowards(upperBodyLayers.GetInputWeight(layer),
+                active ? 1f : 0f, Time.deltaTime * 9f));
+
+        private void ClearUpperBodyLayers()
         {
+            ClearFoodInHand();
             if (carryMask != null)
                 Destroy(carryMask);
-            carryMask = null;
-            carryLayer = default;
+            if (eatingMask != null)
+                Destroy(eatingMask);
+            carryMask = eatingMask = null;
+            carryPose = eatingPose = default;
+            upperBodyLayers = default;
             carrying = false;
         }
 
@@ -531,7 +620,7 @@ namespace Workerborn
         {
             if (graph.IsValid())
                 graph.Destroy();
-            ClearCarryLayer();
+            ClearUpperBodyLayers();
         }
     }
 }

@@ -29,7 +29,7 @@ namespace Workerborn
             bool document = Game.State.TryGetDocumentPage(item.ItemId, out _);
             useLabel.text = document ? "펼치기" : item.Spec.TaughtSkill.HasValue ? "읽기" :
                 item.Spec.EquipmentSlot != EquipmentSlot.None ? "장착" : "사용";
-            use.interactable = document || item.ItemId == ItemIds.Bread || item.Spec.HealthRestore > 0 || item.Spec.TaughtSkill.HasValue ||
+            use.interactable = document || item.Spec.IsFood || item.Spec.HealthRestore > 0 || item.Spec.TaughtSkill.HasValue ||
                 item.Spec.EquipmentSlot != EquipmentSlot.None;
             if (splitLabel != null)
                 splitLabel.text = document ? "옮기기" : defaultSplitLabel;

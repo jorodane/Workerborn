@@ -10,7 +10,7 @@ namespace Workerborn
 {
     public enum SessionKind { SteamFriends = 1, Dedicated = 2 }
     internal enum WorkerMotion { Idle, Run, Work, Walk, GroundSit, SeatSit }
-    internal enum WorkerGesture { None, Jump, GatherSuccess, GatherFailure, TimberToss }
+    internal enum WorkerGesture { None, Jump, GatherSuccess, GatherFailure, TimberToss, Eat }
 
     public enum CampaignAction
     {
@@ -25,6 +25,7 @@ namespace Workerborn
         public string id;
         public string name;
         public string mountId, parkedMountId;
+        public string foodItem;
         public CharacterLook look;
         public float x, y, z, yaw, jumpOffset, gestureProgress;
         public float timberProgress;
@@ -363,7 +364,8 @@ namespace Workerborn
             if (pose == null || !FiniteCoordinate(pose.x) || !FiniteCoordinate(pose.y) ||
                 !FiniteCoordinate(pose.z) || !FiniteCoordinate(pose.yaw) || pose.motion < 0 || pose.motion > (int)WorkerMotion.SeatSit)
                 return;
-            if (isCloudPosition != null && isCloudPosition(pose.x, pose.z) != profiles[identity].character.awaitingIncarnation)
+            var character = profiles[identity].character;
+            if (isCloudPosition != null && isCloudPosition(pose.x, pose.z) != character.awaitingIncarnation)
                 return;
             var target = avatars[identity];
             target.x = pose.x;
@@ -381,13 +383,25 @@ namespace Workerborn
             target.seatZ = target.hasSeat ? pose.seatZ : pose.z;
             target.seatLift = target.hasSeat && float.IsFinite(pose.seatLift) ? Math.Clamp(pose.seatLift, -.12f, .65f) : 0f;
             target.jumpOffset = float.IsNaN(pose.jumpOffset) ? 0f : Math.Max(0f, Math.Min(.6f, pose.jumpOffset));
-            target.gesture = pose.gesture >= (int)WorkerGesture.None && pose.gesture <= (int)WorkerGesture.TimberToss
+            target.gesture = pose.gesture >= (int)WorkerGesture.None && pose.gesture <= (int)WorkerGesture.Eat
                 ? pose.gesture : (int)WorkerGesture.None;
-            target.gestureProgress = float.IsNaN(pose.gestureProgress) ? 0f : Math.Max(0f, Math.Min(1f, pose.gestureProgress));
+            target.foodItem = null;
+            if (target.gesture == (int)WorkerGesture.Eat)
+            {
+                var motion = (WorkerMotion)pose.motion;
+                if (!character.awaitingIncarnation && character.health > 0 &&
+                    motion is WorkerMotion.Idle or WorkerMotion.GroundSit or WorkerMotion.SeatSit &&
+                    ItemCatalog.Contains(pose.foodItem) && ItemCatalog.Get(pose.foodItem).IsFood)
+                    target.foodItem = pose.foodItem;
+                else
+                    target.gesture = (int)WorkerGesture.None;
+            }
+            target.gestureProgress = target.gesture == (int)WorkerGesture.None || !float.IsFinite(pose.gestureProgress)
+                ? 0f : Math.Clamp(pose.gestureProgress, 0f, 1f);
             target.timberSwing = pose.motion == (int)WorkerMotion.Work && pose.timberSwing is >= 0 and <= (int)TimberSwing.Strike
                 ? pose.timberSwing : 0;
             target.timberProgress = float.IsFinite(pose.timberProgress) ? Math.Clamp(pose.timberProgress, 0f, 1f) : 0f;
-            target.overeating = !profiles[identity].character.awaitingIncarnation && float.IsFinite(pose.overeating)
+            target.overeating = !character.awaitingIncarnation && float.IsFinite(pose.overeating)
                 ? Math.Clamp(pose.overeating, 0f, 1f) : 0f;
             MoveMount(target.id, pose);
         }
@@ -548,6 +562,7 @@ namespace Workerborn
             avatar.jumpOffset = 0f;
             avatar.gesture = (int)WorkerGesture.None;
             avatar.gestureProgress = 0f;
+            avatar.foodItem = null;
             avatar.timberSwing = 0;
             avatar.timberProgress = 0f;
             avatar.overeating = 0f;

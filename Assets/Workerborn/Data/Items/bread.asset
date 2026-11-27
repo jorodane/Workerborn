@@ -37,4 +37,5 @@ MonoBehaviour:
   equipmentSlot: 0
   equipmentPart:
     fileID: 0
+  eatingPart: {fileID: 11400000, guid: f0a049889c96543dbeb550f8e3fb9ce1, type: 2}
   groundPrefab: {fileID: 100008, guid: daa5e3431a1153a39c527e6f6f060c72, type: 3}

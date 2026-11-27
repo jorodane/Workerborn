@@ -37,6 +37,12 @@ namespace Workerborn
         private CharacterPartDefinition equipmentPart;
         [SerializeField, Tooltip("Prefab for scene placement and the source of meshes, materials and pose for pooled drops.")]
         private GroundPickup groundPrefab;
+        [Header("Food")]
+        [SerializeField, Min(0), Tooltip("Fullness restored per serving. A zero value on bread uses the village nutrition settings.")]
+        private int foodFullness;
+        [SerializeField, Min(0f)] private float foodNourishment;
+        [SerializeField, Tooltip("Part shown in the right hand while eating.")]
+        private CharacterPartDefinition eatingPart;
         public GroundPickup GroundPrefab => groundPrefab;
         public string Id => id;
         public string DisplayName => displayName;
@@ -46,8 +52,10 @@ namespace Workerborn
         public GameObject WorldPrefab => worldPrefab;
         public EquipmentSlot EquipmentSlot => equipmentSlot;
         public CharacterPartDefinition EquipmentPart => equipmentPart;
+        internal CharacterPartDefinition EatingPart => eatingPart;
 
         public ItemSpec ToSpec() => new ItemSpec(id, displayName, description, Mathf.Min(width, VillageState.InventoryColumns),
-            height, maxStack, price, equipmentSlot, healthRestore, teachesSkill ? taughtSkill : (SkillId?)null, maxDurability);
+            height, maxStack, price, equipmentSlot, healthRestore, teachesSkill ? taughtSkill : (SkillId?)null, maxDurability,
+            foodFullness, foodNourishment);
     }
 }

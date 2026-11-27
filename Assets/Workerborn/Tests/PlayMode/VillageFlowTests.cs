@@ -58,6 +58,38 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator HungryVillagerTakesARealBiteWhilePlayingTheEatingGesture()
+        {
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            var worker = farmer.GetComponent<HarvestWorker>();
+            var saved = worker.CharacterState.Export();
+            saved.nourishment = .5d;
+            worker.SetCharacterState(VillageState.Restore(saved, game.State.Rules));
+            int bread = worker.CharacterState.Inventory.Count(ItemIds.Bread);
+            int playerBread = game.State.Inventory.Count(ItemIds.Bread);
+            Assert.That(bread, Is.GreaterThan(0));
+
+            farmer.Routine.enabled = true;
+            yield return Until(() => worker.IsEating, 3f);
+            var animation = worker.GetComponent<WorkerAnimation>();
+            var part = game.Settings.FindItem(ItemIds.Bread).EatingPart;
+            Assert.That(animation.Gesture, Is.EqualTo(WorkerGesture.Eat));
+            Assert.That(part, Is.Not.Null);
+            Assert.That(worker.GetComponentsInChildren<CharacterPartInstance>().Any(item => item.Definition == part), Is.True);
+            Assert.That(worker.CharacterState.Inventory.Count(ItemIds.Bread), Is.EqualTo(bread));
+
+            yield return Until(() => worker.CharacterState.Inventory.Count(ItemIds.Bread) == bread - 1, 3f);
+            Assert.That(worker.IsEating, Is.True);
+            Assert.That(worker.CharacterState.Fullness, Is.Positive);
+            yield return Until(() => !worker.IsEating, 3f);
+            Assert.That(worker.GetComponentsInChildren<CharacterPartInstance>().Any(item => item.Definition == part), Is.False);
+            Assert.That(game.State.Inventory.Count(ItemIds.Bread), Is.EqualTo(playerBread));
+            var npcSave = game.CaptureSave().characters.Single(character => character.characterId == worker.CharacterId);
+            Assert.That(npcSave.npcMealsIssued, Is.True);
+            Assert.That(VillageState.Restore(npcSave, game.State.Rules).Inventory.Count(ItemIds.Bread), Is.EqualTo(bread - 1));
+        }
+
+        [UnityTest]
         public IEnumerator FirstLifeWaitsOnWalkableCloudsUntilTheGuideConfirmsIncarnation()
         {
             var waiting = VillageState.BeforeFirstLife(game.State.Rules);

@@ -21,6 +21,8 @@ MonoBehaviour:
   job: {fileID: 11400000, guid: 1d7c5edaa4915cc08ad45cc31d2a79e7, type: 2}
   quests: []
   shopItems: []
+  startingFood: {fileID: 11400000, guid: 7b471b1e3b6d5bdd8451d9df97649c0a, type: 2}
+  startingFoodCount: 10
   interactionDistance: 1.8
   dailySchedule:
   - activity: 3

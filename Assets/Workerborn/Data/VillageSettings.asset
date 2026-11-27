@@ -76,6 +76,7 @@ MonoBehaviour:
   interfaceFont: {fileID: 11400000, guid: 983a7b11a9c95d02b17b50fcf036fa03, type: 2}
   cursors: {fileID: 11400000, guid: 0899ed9264a75ab09c57cec515a85035, type: 2}
   timber: {fileID: 11400000, guid: 9d1b5d7c538c5e69b7eb0e8aa12fad54, type: 2}
+  eatingAnimation: {fileID: -755408144417358176, guid: cd11ab127b9174241bea1048fd7d6d45, type: 3}
   minutesPerSecond: 3
   wakeHour: 6
   collapseHour: 24

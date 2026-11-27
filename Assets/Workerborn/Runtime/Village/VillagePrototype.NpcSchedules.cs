@@ -16,7 +16,9 @@ namespace Workerborn
             Camera inputCamera = null, string playerId = null)
         {
             BindCharacter(actor);
-            character.Initialize(inputCamera, actor.GetComponent<WorkerAnimation>());
+            var animation = actor.GetComponent<WorkerAnimation>();
+            animation?.ConfigureEating(settings.EatingAnimation);
+            character.Initialize(inputCamera, animation);
             character.BindVillage(this, state, id, playerId);
         }
 
@@ -41,11 +43,13 @@ namespace Workerborn
                 state.BeginInWorld(State.ExportWorld());
             villageCharacters[id] = character;
 
-            if (npc.Definition.DailySchedule.Length == 0)
+            if (inClouds)
                 return;
             var routine = actor.gameObject.AddComponent<NpcRoutine>();
             routine.Bind(this, npc, character);
             npc.Routine = routine;
+            if (initialized)
+                routine.IssueStartingFood();
         }
 
         private void RestoreVillageCharacters()
@@ -60,6 +64,7 @@ namespace Workerborn
             foreach (var entry in villageCharacters)
             {
                 var character = entry.Value;
+                bool mealsIssued = false;
                 if (records.TryGetValue(entry.Key, out var saved) && saved.awaitingIncarnation == character.CharacterState.AwaitingIncarnation)
                 {
                     try
@@ -70,6 +75,7 @@ namespace Workerborn
                         RestoreCharacterPosition(character, saved);
                         if (saved.day == State.Day && saved.era == State.Era)
                             RestoreCharacterAction(character, saved);
+                        mealsIssued = saved.npcMealsIssued;
                     }
                     catch (System.ArgumentException error)
                     {
@@ -80,6 +86,8 @@ namespace Workerborn
                 else
                     character.CharacterState.BeginInWorld(world);
                 character.CharacterState.ApplyWorld(world);
+                if (character.TryGetComponent<NpcRoutine>(out var routine))
+                    routine.IssueStartingFood(mealsIssued);
             }
         }
 
@@ -123,6 +131,7 @@ namespace Workerborn
             save.playerZ = position.z;
             save.yaw = character.transform.eulerAngles.y;
             save.sitting = character.Action == WorkerAction.Sitting;
+            save.npcMealsIssued = character.TryGetComponent<NpcRoutine>(out var routine) && routine.StartingFoodIssued;
             if (character.PlannedCrop != null)
             {
                 save.harvestTargetId = character.PlannedCrop.PersistentId;

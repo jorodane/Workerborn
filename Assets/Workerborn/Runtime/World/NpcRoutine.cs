@@ -15,12 +15,13 @@ namespace Workerborn
         private FacilityTarget goal;
         private Vector3 goalPosition;
         private float retryAt;
+        private float nextMealCheck;
         private float harvestResumeAt;
         private bool planned;
         private bool paused;
         private NpcActivity waitingActivity;
 
-        internal NpcActivity Activity => character.Action switch
+        internal NpcActivity Activity => character.IsEating ? NpcActivity.Eating : character.Action switch
         {
             WorkerAction.Moving => NpcActivity.Walking,
             WorkerAction.Harvesting => NpcActivity.Harvesting,
@@ -28,6 +29,7 @@ namespace Workerborn
             _ => waitingActivity
         };
         internal bool IsSeated => character.OccupiedSeat != null;
+        internal bool StartingFoodIssued { get; private set; }
 
         internal void Bind(VillagePrototype owner, VillageInteractable subject, HarvestWorker worker)
         {
@@ -35,6 +37,21 @@ namespace Workerborn
             npc = subject;
             character = worker;
             character.HarvestAttemptFinished += PauseAfterHarvest;
+        }
+
+        internal void IssueStartingFood(bool previouslyIssued = false)
+        {
+            if (StartingFoodIssued || previouslyIssued)
+            {
+                StartingFoodIssued = true;
+                return;
+            }
+
+            var food = npc.Definition.StartingFood;
+            int count = npc.Definition.StartingFoodCount;
+            var inventory = character.CharacterState.Inventory;
+            if (food != null && count > 0 && ItemCatalog.Contains(food.Id) && ItemCatalog.Get(food.Id).IsFood)
+                StartingFoodIssued = inventory.Count(food.Id) > 0 || inventory.TryAdd(food.Id, count);
         }
 
         internal bool ReservesSeat(Vector3 position) => goal.Seat != null &&
@@ -61,6 +78,8 @@ namespace Workerborn
                 paused = false;
                 waitingActivity = NpcActivity.Idle;
             }
+            if (character.IsEating)
+                return;
 
             var next = NpcScheduleEntry.Resolve(npc.Definition.DailySchedule, game.State, npc.Definition.Job);
             if (scheduled != next)
@@ -71,14 +90,18 @@ namespace Workerborn
             }
             if (planned && !GoalStillAvailable())
                 ClearGoal();
+            if (character.Action == WorkerAction.Sitting)
+            {
+                TryMeal();
+                return;
+            }
+            if (character.Action != WorkerAction.Idle)
+                return;
+            if (scheduled?.Activity != NpcActivity.Resting && TryMeal())
+                return;
             if (scheduled?.Facility == null || Time.time < retryAt)
                 return;
             if (scheduled.Activity == NpcActivity.Harvesting && Time.time < harvestResumeAt)
-                return;
-
-            if (character.Action == WorkerAction.Sitting)
-                return;
-            if (character.Action != WorkerAction.Idle)
                 return;
 
             retryAt = Time.time + RetryDelay;
@@ -93,13 +116,28 @@ namespace Workerborn
                     return;
                 }
                 if (scheduled.Activity == NpcActivity.Resting)
+                {
+                    TryMeal();
                     return;
+                }
             }
 
             var activity = scheduled.Activity == NpcActivity.Harvesting ? NpcActivity.Working : scheduled.Activity;
             var standing = FindTarget(activity);
             if (standing.Facility != null)
                 StartTask(standing);
+        }
+
+        private bool TryMeal()
+        {
+            var state = character.CharacterState;
+            if (Time.time < nextMealCheck || !state.WantsMeal)
+                return false;
+            nextMealCheck = Time.time + RetryDelay;
+            foreach (var entry in state.Inventory.Entries)
+                if (entry.Spec.IsFood && state.CanEatFood(entry, out _, avoidOvereating: true) && character.CommandEat(entry.Id))
+                    return true;
+            return false;
         }
 
         private void StartTask(FacilityTarget target)
@@ -203,7 +241,7 @@ namespace Workerborn
 
         private void ClearGoal()
         {
-            if (character.Action != WorkerAction.Idle)
+            if (character.Action != WorkerAction.Idle || character.IsEating)
                 character.Cancel();
             planned = false;
             retryAt = 0f;

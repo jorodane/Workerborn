@@ -59,6 +59,14 @@ namespace Workerborn
         }
         private readonly Dictionary<EquipmentSlot, WornPart> worn = new Dictionary<EquipmentSlot, WornPart>();
         private readonly List<EquipmentSlot> changed = new List<EquipmentSlot>();
+        private bool mealInHand;
+
+        internal void SetMealInHand(bool active)
+        {
+            mealInHand = active;
+            if (worn.TryGetValue(EquipmentSlot.MainHand, out var held) && held.Visual != null)
+                held.Visual.SetActive(!active);
+        }
 
         public void ShowEquipment(IReadOnlyDictionary<EquipmentSlot, string> equipment, VillageSettings settings)
         {
@@ -127,6 +135,8 @@ namespace Workerborn
                         }
                 foreach (var child in partVisual.GetComponentsInChildren<Transform>(true))
                     child.gameObject.layer = renderLayer;
+                if (mealInHand && entry.Key == EquipmentSlot.MainHand)
+                    partVisual.SetActive(false);
                 worn.Add(entry.Key, applied);
                 changedAppearance = true;
             }

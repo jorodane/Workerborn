@@ -91,14 +91,20 @@ namespace Workerborn
         public int MaxDurability { get; }
         public int HealthRestore { get; }
         public SkillId? TaughtSkill { get; }
+        public int FoodFullness { get; }
+        public float FoodNourishment { get; }
+        public bool IsFood => FoodFullness > 0 || Id == ItemIds.Bread;
         public ItemSpec(string id, string name, string description, int width, int height, int maxStack, int price,
-            EquipmentSlot equipmentSlot = EquipmentSlot.None, int healthRestore = 0, SkillId? taughtSkill = null, int maxDurability = 100)
+            EquipmentSlot equipmentSlot = EquipmentSlot.None, int healthRestore = 0, SkillId? taughtSkill = null, int maxDurability = 100,
+            int foodFullness = 0, float foodNourishment = 0f)
         {
             Id = id; Name = name; Description = description;
             Width = width; Height = height; MaxStack = maxStack; Price = price;
             EquipmentSlot = equipmentSlot;
             HealthRestore = Math.Max(0, healthRestore);
             TaughtSkill = taughtSkill;
+            FoodFullness = Math.Max(0, foodFullness);
+            FoodNourishment = float.IsFinite(foodNourishment) ? Math.Max(0f, foodNourishment) : 0f;
             MaxDurability = equipmentSlot == EquipmentSlot.None ? 0 : Math.Max(1, maxDurability);
         }
     }

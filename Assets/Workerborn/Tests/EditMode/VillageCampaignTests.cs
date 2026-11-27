@@ -857,6 +857,28 @@ namespace Workerborn.Tests
         private static readonly Dictionary<string, string> Sites = new Dictionary<string, string> { ["east"] = "동쪽 밭터" };
 
         [Test]
+        public void EatingPoseCarriesFoodOnlyForAnIncarnatedPlayerAtRest()
+        {
+            var campaign = new VillageCampaign(Rules(), Sites, 10, 22);
+            Assert.That(campaign.Connect("a", "일꾼", out _), Is.True);
+            var pose = new SessionAvatar { x = 10, z = 22, motion = (int)WorkerMotion.GroundSit,
+                gesture = (int)WorkerGesture.Eat, gestureProgress = .4f, foodItem = ItemIds.Bread };
+            campaign.Move("a", pose);
+            Assert.That(campaign.Avatars()[0].foodItem, Is.Null);
+
+            Incarnate(campaign, "a");
+            campaign.Move("a", pose);
+            Assert.That(campaign.Avatars()[0].gesture, Is.EqualTo((int)WorkerGesture.Eat));
+            Assert.That(campaign.Avatars()[0].gestureProgress, Is.EqualTo(.4f));
+            Assert.That(campaign.Avatars()[0].foodItem, Is.EqualTo(ItemIds.Bread));
+
+            pose.foodItem = ItemIds.Axe;
+            campaign.Move("a", pose);
+            Assert.That(campaign.Avatars()[0].gesture, Is.EqualTo((int)WorkerGesture.None));
+            Assert.That(campaign.Avatars()[0].foodItem, Is.Null);
+        }
+
+        [Test]
         public void WaitingForIncarnationSurvivesDaysAndRejectsVillageProgress()
         {
             var rules = Rules();
