@@ -103,8 +103,10 @@ namespace Workerborn
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
             mixer = AnimationMixerPlayable.Create(graph, clips.Length);
             animationOutput = AnimationPlayableOutput.Create(graph, "Character", animator);
+            // Connect the base pose through the humanoid layers before giving it an output.
+            Playable pose = humanoid ? (Playable)CreateUpperBodyLayers() : mixer;
             BindGaze();
-            ConnectPoseOutput(mixer);
+            ConnectPoseOutput(pose);
             AnimationClip[] source =
             {
                 idle,
@@ -301,7 +303,6 @@ namespace Workerborn
             {
                 if (!eatingPose.IsValid())
                 {
-                    EnsureUpperBodyLayers();
                     eatingPose = AnimationClipPlayable.Create(graph, eatingClip);
                     eatingPose.SetApplyFootIK(false);
                     graph.Connect(eatingPose, 0, upperBodyLayers, MealLayer);
@@ -347,7 +348,6 @@ namespace Workerborn
         {
             if (!graph.IsValid() || !humanoid || clip == null || carrying || riding || Gesture != WorkerGesture.None)
                 return;
-            EnsureUpperBodyLayers();
             if (!conversationPose.IsValid() || conversationPose.GetAnimationClip() != clip)
             {
                 if (conversationPose.IsValid())
@@ -492,7 +492,6 @@ namespace Workerborn
             carrying = active;
             if (!active || !graph.IsValid() || !humanoid || clip == null || carryPose.IsValid())
                 return;
-            EnsureUpperBodyLayers();
             carryMask = UpperBodyMask(AvatarMaskBodyPart.Body);
             carryPose = AnimationClipPlayable.Create(graph, clip);
             carryPose.SetApplyFootIK(false);
@@ -502,17 +501,15 @@ namespace Workerborn
             upperBodyLayers.SetLayerMaskFromAvatarMask(CarryLayer, carryMask);
         }
 
-        private void EnsureUpperBodyLayers()
+        private AnimationLayerMixerPlayable CreateUpperBodyLayers()
         {
-            if (upperBodyLayers.IsValid())
-                return;
             upperBodyLayers = AnimationLayerMixerPlayable.Create(graph, 4);
             graph.Connect(mixer, 0, upperBodyLayers, 0);
             upperBodyLayers.SetInputWeight(0, 1f);
             upperBodyLayers.SetInputWeight(CarryLayer, 0f);
             upperBodyLayers.SetInputWeight(MealLayer, 0f);
             upperBodyLayers.SetInputWeight(ConversationLayer, 0f);
-            ConnectPoseOutput(upperBodyLayers);
+            return upperBodyLayers;
         }
 
         private static AvatarMask UpperBodyMask(AvatarMaskBodyPart extra, bool includeArms = true)

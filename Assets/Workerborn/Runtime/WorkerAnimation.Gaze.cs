@@ -59,8 +59,6 @@ namespace Workerborn
         {
             if (gazePlayable.IsValid())
             {
-                if (gazePlayable.GetInput(0).IsValid())
-                    graph.Disconnect(gazePlayable, 0);
                 graph.Connect(source, 0, gazePlayable, 0);
                 gazePlayable.SetInputWeight(0, 1f);
                 source = gazePlayable;
