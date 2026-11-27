@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Workerborn
 {
     [DisallowMultipleComponent]
-    internal sealed class NpcRoutine : MonoBehaviour
+    internal sealed partial class NpcRoutine : MonoBehaviour
     {
         private const float RetryDelay = .8f;
         internal const float MinimumHarvestPause = 2.5f;
@@ -21,7 +21,8 @@ namespace Workerborn
         private bool paused;
         private NpcActivity waitingActivity;
 
-        internal NpcActivity Activity => character.IsEating ? NpcActivity.Eating : character.Action switch
+        internal NpcActivity Activity => character.IsEating ? NpcActivity.Eating :
+            merchant != null ? NpcActivity.Shopping : character.Action switch
         {
             WorkerAction.Moving => NpcActivity.Walking,
             WorkerAction.Harvesting => NpcActivity.Harvesting,
@@ -30,6 +31,7 @@ namespace Workerborn
         };
         internal bool IsSeated => character.OccupiedSeat != null;
         internal bool StartingFoodIssued { get; private set; }
+        internal bool ShoppingGoldIssued { get; private set; }
 
         internal void Bind(VillagePrototype owner, VillageInteractable subject, HarvestWorker worker)
         {
@@ -39,19 +41,17 @@ namespace Workerborn
             character.HarvestAttemptFinished += PauseAfterHarvest;
         }
 
-        internal void IssueStartingFood(bool previouslyIssued = false)
+        internal void IssueProvisions(CharacterSave saved = null)
         {
-            if (StartingFoodIssued || previouslyIssued)
-            {
-                StartingFoodIssued = true;
-                return;
-            }
-
+            var inventory = character.CharacterState.Inventory;
             var food = npc.Definition.StartingFood;
             int count = npc.Definition.StartingFoodCount;
-            var inventory = character.CharacterState.Inventory;
-            if (food != null && count > 0 && ItemCatalog.Contains(food.Id) && ItemCatalog.Get(food.Id).IsFood)
+            StartingFoodIssued |= saved?.npcMealsIssued == true;
+            if (!StartingFoodIssued && food != null && count > 0 && ItemCatalog.Contains(food.Id) && ItemCatalog.Get(food.Id).IsFood)
                 StartingFoodIssued = inventory.Count(food.Id) > 0 || inventory.TryAdd(food.Id, count);
+            ShoppingGoldIssued |= saved?.npcShoppingGoldIssued == true;
+            if (!ShoppingGoldIssued && npc.Definition.ShoppingGold > 0)
+                ShoppingGoldIssued = inventory.TryAdd(ItemIds.Gold, npc.Definition.ShoppingGold);
         }
 
         internal bool ReservesSeat(Vector3 position) => goal.Seat != null &&
@@ -59,7 +59,8 @@ namespace Workerborn
 
         private void Update()
         {
-            if (game == null || !game.CanRunNpcSchedules || character.IsLocallyControlled || !character.EnsureNavigation())
+            if (game == null || !game.CanRunNpcSchedules || game.IsWorldTransitioning ||
+                character.IsLocallyControlled || !character.EnsureNavigation())
                 return;
             if (game.Worker.IsInteractingWith(npc) || game.Hud.IsSpeakingWith(npc))
             {
@@ -67,6 +68,8 @@ namespace Workerborn
                 {
                     paused = true;
                     var interruptedActivity = Activity;
+                    StopShopping();
+                    customer?.StopShopping();
                     if (character.Action is WorkerAction.Moving or WorkerAction.Harvesting)
                         ClearGoal();
                     waitingActivity = interruptedActivity;
@@ -80,6 +83,8 @@ namespace Workerborn
             }
             if (character.IsEating)
                 return;
+            if (customer != null || ContinueShopping())
+                return;
 
             var next = NpcScheduleEntry.Resolve(npc.Definition.DailySchedule, game.State, npc.Definition.Job);
             if (scheduled != next)
@@ -90,14 +95,11 @@ namespace Workerborn
             }
             if (planned && !GoalStillAvailable())
                 ClearGoal();
-            if (character.Action == WorkerAction.Sitting)
-            {
-                TryMeal();
+            if (character.Action is WorkerAction.Idle or WorkerAction.Sitting && TryMeal())
                 return;
-            }
+            if (ReturnFromShopping())
+                return;
             if (character.Action != WorkerAction.Idle)
-                return;
-            if (scheduled?.Activity != NpcActivity.Resting && TryMeal())
                 return;
             if (scheduled?.Facility == null || Time.time < retryAt)
                 return;
@@ -116,10 +118,7 @@ namespace Workerborn
                     return;
                 }
                 if (scheduled.Activity == NpcActivity.Resting)
-                {
-                    TryMeal();
                     return;
-                }
             }
 
             var activity = scheduled.Activity == NpcActivity.Harvesting ? NpcActivity.Working : scheduled.Activity;
@@ -131,13 +130,19 @@ namespace Workerborn
         private bool TryMeal()
         {
             var state = character.CharacterState;
-            if (Time.time < nextMealCheck || !state.WantsMeal)
+            if (Time.time < nextMealCheck || !state.NpcMealDue)
                 return false;
             nextMealCheck = Time.time + RetryDelay;
+            bool hasFood = false;
             foreach (var entry in state.Inventory.Entries)
-                if (entry.Spec.IsFood && state.CanEatFood(entry, out _, avoidOvereating: true) && character.CommandEat(entry.Id))
+            {
+                if (!entry.Spec.IsFood)
+                    continue;
+                hasFood = true;
+                if (state.CanEatFood(entry, out _, avoidOvereating: true) && character.CommandEat(entry.Id))
                     return true;
-            return false;
+            }
+            return !hasFood && PlanFoodShopping();
         }
 
         private void StartTask(FacilityTarget target)
@@ -261,7 +266,11 @@ namespace Workerborn
         private void OnDisable()
         {
             if (character != null && !character.IsLocallyControlled)
+            {
+                StopShopping();
+                customer?.StopShopping();
                 ClearGoal();
+            }
         }
 
         private void OnDestroy()

@@ -99,7 +99,7 @@ namespace Workerborn
         internal bool HasPlayerOwner => !string.IsNullOrEmpty(PlayerId);
         internal SeatSlot OccupiedSeat => occupiedSeat;
         internal float SeatLift { get; private set; }
-        private bool IsStandingUp => animationDriver?.IsStandingUp == true;
+        internal bool IsStandingUp => animationDriver?.IsStandingUp == true;
         public bool IsWalking => Action == WorkerAction.Moving &&
             (manualMoving ? manualWalking : walkPath);
         public bool HasPendingDrop => pendingDrop != null;

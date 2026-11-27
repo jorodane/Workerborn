@@ -122,6 +122,7 @@ namespace Workerborn
         public double staminaRecoveryDelay;
         public double nourishment = VillageState.FedNourishment;
         public double nutritionAt = -1d;
+        public double lastMealAt = -1d;
         public double fullness;
         public int gold;
         public int level = 1;
@@ -162,6 +163,9 @@ namespace Workerborn
         public float yaw;
         public bool sitting;
         public bool npcMealsIssued;
+        public bool npcShoppingGoldIssued;
+        public bool npcReturningFromShop;
+        public float npcShopOriginX, npcShopOriginZ;
         public string harvestTargetId;
         public float harvestProgress;
         public bool casting;
@@ -1016,6 +1020,7 @@ namespace Workerborn
                 staminaRecoveryDelay = staminaRecoveryDelay,
                 nourishment = nourishment,
                 nutritionAt = Math.Min(nutritionAt, WorldMinute),
+                lastMealAt = Math.Min(lastMealAt, WorldMinute),
                 fullness = fullness,
                 gold = 0,
                 level = Level,
@@ -1140,6 +1145,7 @@ namespace Workerborn
                 Digestion = digestion,
                 nourishment = hasNutrition ? save.nourishment : FedNourishment,
                 nutritionAt = hasNutrition && save.nutritionAt >= 0d ? save.nutritionAt : worldMinute,
+                lastMealAt = hasNutrition && double.IsFinite(save.lastMealAt) ? Math.Clamp(save.lastMealAt, -1d, worldMinute) : -1d,
                 fullness = hasNutrition ? Math.Min(save.fullness, Math.Max(1, rules.Nutrition.fullnessCapacity)) : 0d,
                 TimberDelivered = save.schema >= 6 ? save.timberDelivered :
                     (int)foundationStage >= (int)FarmFoundationStage.SelectingSite ? rules.Foundation?.TimberCount ?? 0 : 0,

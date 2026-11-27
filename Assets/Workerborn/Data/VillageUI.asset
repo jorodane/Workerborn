@@ -99,4 +99,5 @@ MonoBehaviour:
     guid: 7b196214a1c05a5a8196cf9de2ba37a6
     type: 3
   playerOverhead: {fileID: 100015, guid: 081a545444fd526ab5ad7a28fd6a9af4, type: 3}
+  npcConversation: {fileID: 100009, guid: a9fcf6aaa12d5b9eb464db94306e0a51, type: 3}
   chat: {fileID: 100042, guid: a4bb8cc84386579eb5f774ff910de67b, type: 3}

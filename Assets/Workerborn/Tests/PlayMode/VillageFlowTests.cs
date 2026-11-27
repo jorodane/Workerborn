@@ -58,7 +58,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator HungryVillagerTakesARealBiteWhilePlayingTheEatingGesture()
+        public IEnumerator VillagerTakesARealBiteAtBreakfastWhilePlayingTheEatingGesture()
         {
             var farmer = game.FindInteraction(VillageRole.Farmer);
             var worker = farmer.GetComponent<HarvestWorker>();
@@ -87,6 +87,37 @@ namespace Workerborn.Tests
             var npcSave = game.CaptureSave().characters.Single(character => character.characterId == worker.CharacterId);
             Assert.That(npcSave.npcMealsIssued, Is.True);
             Assert.That(VillageState.Restore(npcSave, game.State.Rules).Inventory.Count(ItemIds.Bread), Is.EqualTo(bread - 1));
+        }
+
+        [UnityTest]
+        public IEnumerator VillagerSellsProduceAndBuysAnActualMealWithoutOpeningThePlayerShop()
+        {
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            var merchant = game.FindInteraction(VillageRole.Merchant);
+            var visitor = farmer.GetComponent<HarvestWorker>();
+            var state = visitor.CharacterState;
+            Assert.That(state.Inventory.TryRemove(ItemIds.Bread, state.Inventory.Count(ItemIds.Bread)), Is.True);
+            Assert.That(state.Inventory.TryRemove(ItemIds.Gold, state.Gold), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Potato, 4), Is.True);
+            Assert.That(visitor.TryGetReachablePoint(merchant.transform.position, merchant.InteractionDistance * .7f, out var nearby), Is.True);
+            Assert.That(visitor.WarpTo(nearby), Is.True);
+            farmer.Routine.enabled = true;
+
+            yield return Until(() => game.Hud.GetComponentsInChildren<NpcConversationBubbleView>(true).Any(), 10f);
+            var bubble = game.Hud.GetComponentsInChildren<NpcConversationBubbleView>(true).Single();
+            Assert.That(bubble.GetComponentInChildren<TMP_Text>(true).text, Is.EqualTo("미라와 대화 중"));
+            Assert.That(game.Hud.HasModal, Is.False);
+            Assert.That(game.Hud.IsShopOpen, Is.False);
+            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.Zero);
+
+            yield return Until(() => state.Inventory.Count(ItemIds.Bread) == 1, 4f);
+            Assert.That(state.Inventory.Count(ItemIds.Potato), Is.Zero);
+            Assert.That(state.Gold, Is.EqualTo(4 * ItemCatalog.Get(ItemIds.Potato).Price - ItemCatalog.Get(ItemIds.Bread).Price));
+            yield return Until(() => visitor.IsEating, 4f);
+            yield return Until(() => !state.NpcMealDue, 3f);
+            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.Zero);
+            Assert.That(state.Fullness, Is.Positive);
+            Assert.That(game.Hud.GetComponentsInChildren<NpcConversationBubbleView>(true), Is.Empty);
         }
 
         [UnityTest]
@@ -1089,6 +1120,8 @@ namespace Workerborn.Tests
         [UnityTest]
         public IEnumerator MiraWorksNearTheFarmAndRestsOnAFreeSeatAfterClosing()
         {
+            game.State.AdvanceTime((601f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
+            yield return null;
             var farmer = game.FindInteraction(VillageRole.Farmer);
             var character = farmer.GetComponent<HarvestWorker>();
             Assert.That(character.CharacterState.RankOf(SkillId.HarvestAcquisition), Is.EqualTo(SkillProgression.MaxRank));
@@ -1118,7 +1151,7 @@ namespace Workerborn.Tests
             yield return Until(() => character.ActiveCrop != null, 9f);
 
             var state = game.State;
-            state.AdvanceTime((state.Rules.JobEnd - state.Minute + 1f) / state.Rules.MinutesPerSecond);
+            state.AdvanceTime((1201f - state.Minute) / state.Rules.MinutesPerSecond);
             yield return Until(() => farmer.CurrentActivity == NpcActivity.Resting && farmer.Routine.IsSeated, 28f);
             Assert.That(game.SeatInUse(character.OccupiedSeat.Position), Is.True);
             Assert.That(game.DialogueTopicsFor(farmer).Any(entry => entry.Topic.keyword == "밭일은 어때요?"), Is.False);
@@ -1128,6 +1161,8 @@ namespace Workerborn.Tests
         [UnityTest]
         public IEnumerator RestingNpcWaitsForVacantSeatsAndFollowsAvailableFacilities()
         {
+            game.State.AdvanceTime((601f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
+            yield return null;
             var farmer = game.FindInteraction(VillageRole.Farmer);
             farmer.Routine.enabled = true;
             yield return Until(() => farmer.CurrentActivity == NpcActivity.Harvesting, 3f);
@@ -1153,7 +1188,7 @@ namespace Workerborn.Tests
             foreach (var seat in seats.Where(seat => seat != firstSeat))
                 seat.enabled = false;
             var state = game.State;
-            state.AdvanceTime((state.Rules.JobEnd - state.Minute + 1f) / state.Rules.MinutesPerSecond);
+            state.AdvanceTime((1201f - state.Minute) / state.Rules.MinutesPerSecond);
             yield return Until(() => farmer.CurrentActivity == NpcActivity.Walking && farmer.Routine.ReservesSeat(firstSeat.Position), 3f);
 
             Vector3 front = firstSeat.ApproachPosition;
@@ -1195,6 +1230,8 @@ namespace Workerborn.Tests
             inn.RequestInteraction(game.Worker);
             yield return Until(() => game.CurrentInterior == inn.Interior && !game.IsWorldTransitioning, 3f);
 
+            game.State.AdvanceTime((601f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
+            yield return null;
             farmer.Routine.enabled = true;
             yield return Until(() => character.CharacterState.Inventory.Count(ItemIds.Potato) > 0, 12f);
             yield return Until(() => character.ActiveCrop != null && character.HarvestProgress >= .4f, 10f);
@@ -2110,7 +2147,6 @@ namespace Workerborn.Tests
             var normalHud = game.Hud.transform.Find("Normal HUD").gameObject;
             Canvas.ForceUpdateCanvases();
             Assert.That(dialogue.Rect.rect.width, Is.LessThan(game.Hud.CanvasRect.rect.width));
-            Assert.That(dialogue.Rect.anchoredPosition.y, Is.GreaterThan(0f));
             Assert.That(normalHud.activeSelf, Is.False);
             Assert.That(inventory.gameObject.activeSelf, Is.False);
             var openingContent = (RectTransform)dialogue.transform.Find("Opening content");
@@ -2131,7 +2167,10 @@ namespace Workerborn.Tests
             Assert.That(inventory.Rect.rect.size, Is.EqualTo(size));
             Assert.That(inventory.Rect.localScale, Is.EqualTo(scale));
             var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
+            Assert.That(shop.transform.IsChildOf(dialogue.ShopStock), Is.True);
             Assert.That(shop.GetComponentInChildren<ShopSellTarget>().name, Is.EqualTo("Stock viewport"));
+            yield return Until(() => dialogue.Rect.rect.height >= 470f, 1f);
+            Assert.That(shop.Rect.position.y, Is.GreaterThan(line.rectTransform.position.y));
 
             Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 9), Is.True);
             var entry = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Potato);

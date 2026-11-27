@@ -12,17 +12,20 @@ namespace Workerborn
         [SerializeField] private TMP_Text speaker;
         [SerializeField] private TMP_Text body;
         [SerializeField] private RectTransform textArea;
-        [SerializeField] private GridLayoutGroup choices;
+        [SerializeField] private Image bubble;
+        [SerializeField] private RectTransform tail;
+        [SerializeField] private RectTransform choices;
+        [SerializeField] private RectTransform shopStock;
         [SerializeField] private Button leave;
         [SerializeField] private TMP_Text leaveLabel;
         [SerializeField] private UiActionView dialogueChoice;
-        [SerializeField] private RawImage portrait;
         [SerializeField] private GameObject jobInfo;
         [SerializeField] private TMP_Text jobTitle;
         [SerializeField] private TMP_Text jobDetails;
         [SerializeField, Min(1f)] private float charactersPerSecond = 70f;
 
         private readonly List<UiActionView> replies = new List<UiActionView>();
+        private readonly List<RectTransform> visibleChoices = new List<RectTransform>();
         private VillageInteractable npc;
         private DialogueTopicDefinition topic;
         private bool atOpening;
@@ -32,10 +35,14 @@ namespace Workerborn
         private int replyCount;
         private string presentedText, followUp;
         private Vector2 measuredTextSize;
-        private float measuredChoiceWidth, lineStarted;
+        private float lineStarted, choicesOpenedAt, tradingStartedAt;
         private int page, pageCount, pageStart, pageEnd;
         private int advancedFrame = -1;
         private bool jobWasOpen;
+        private const float ChoiceHeight = 36f;
+        private const float ChoiceGap = 8f;
+        private const float ChoiceOffset = 24f;
+        internal RectTransform ShopStock => shopStock;
         internal bool CanLeave => IsOpen && !waitingForWorldReply && (trading || page >= pageCount);
 
         public override void Bind(VillagePrototype game, VillageHud hud)
@@ -47,7 +54,7 @@ namespace Workerborn
             nextPage = Instantiate(dialogueChoice, choices.transform);
             nextPage.Bind("다음", () => TryAdvancePage());
             DisableButtonSelection(nextPage.GetComponent<Button>());
-            portrait.texture = game.NpcPortraitTexture;
+            bubble.alphaHitTestMinimumThreshold = .15f;
             body.overflowMode = TextOverflowModes.Page;
         }
 
@@ -63,9 +70,12 @@ namespace Workerborn
             advancedFrame = -1;
             topic = selected;
             atOpening = selected == null || selected.action == DialogueAction.Greeting;
-            var actor = npc.GetComponent<CharacterActor>();
-            Game.ShowNpcPortrait(actor);
-            portrait.gameObject.SetActive(actor != null);
+            visibleChoices.Clear();
+            leave.gameObject.SetActive(false);
+            nextPage.gameObject.SetActive(false);
+            foreach (var reply in replies)
+                reply.gameObject.SetActive(false);
+            shopStock.gameObject.SetActive(false);
             Refresh();
         }
 
@@ -93,6 +103,8 @@ namespace Workerborn
             if (trading)
                 return;
             trading = true;
+            tradingStartedAt = Time.unscaledTime;
+            shopStock.gameObject.SetActive(true);
             atOpening = false;
             if (topic?.action != DialogueAction.Shop)
                 topic = Game.FindDialogueTopic(npc, DialogueAction.Shop);
@@ -130,8 +142,6 @@ namespace Workerborn
         {
             if (npc == null || !IsOpen)
                 return;
-            if (measuredChoiceWidth != ((RectTransform)choices.transform).rect.width)
-                ShowLine(presentedText);
             if (jobWasOpen != Game.State.JobWindowOpen)
                 Refresh();
             if (body.maxVisibleCharacters >= pageEnd)
@@ -144,7 +154,7 @@ namespace Workerborn
 
         private void ShowLine(string text)
         {
-            ArrangeChoices();
+            LayoutBubble();
             bool newLine = presentedText != text;
             if (newLine)
             {
@@ -179,31 +189,94 @@ namespace Workerborn
             lineStarted = Time.unscaledTime - (body.maxVisibleCharacters - pageStart) / charactersPerSecond;
         }
 
-        private void ArrangeChoices()
+        private void LateUpdate()
         {
-            var row = (RectTransform)choices.transform;
-            measuredChoiceWidth = row.rect.width;
-            float spacing = choices.spacing.x;
-            int count = replyCount + 1;
-            int columns = Mathf.Clamp(Mathf.FloorToInt((measuredChoiceWidth + spacing) / (136f + spacing)), 1, count);
-            float width = (measuredChoiceWidth - (columns - 1) * spacing) / columns;
-            choices.constraintCount = columns;
-            choices.cellSize = new Vector2(Mathf.Clamp(width, 1f, 164f), 30f);
-            int rows = Mathf.CeilToInt((float)count / columns);
-            float height = rows * choices.cellSize.y + (rows - 1) * choices.spacing.y;
-            row.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
-            var lower = textArea.offsetMin;
-            lower.y = height + 8f;
-            textArea.offsetMin = lower;
+            if (npc == null)
+                return;
+            LayoutBubble();
+            if (IsOpen && body.rectTransform.rect.size != measuredTextSize)
+            {
+                MeasurePage(restart: false);
+                ShowPageChoices();
+            }
+            LayoutChoices();
+        }
+
+        private void LayoutBubble()
+        {
+            Rect canvas = Hud.CanvasRect.rect;
+            Rect space = Hud.DialogueSpace(trading);
+            float width = Mathf.Clamp(space.width - 24f, 1f, 720f);
+            int rows = Mathf.CeilToInt((replyCount + 1f) / ChoiceColumns(width));
+            float replyHeight = ChoiceOffset + rows * (ChoiceHeight + ChoiceGap);
+            float jobHeight = jobInfo.activeSelf ? ((RectTransform)jobInfo.transform).rect.height + 12f : 0f;
+            float expansion = trading ? Mathf.SmoothStep(0f, 1f, (Time.unscaledTime - tradingStartedAt) / .2f) : 0f;
+            float height = Mathf.Min(Mathf.Lerp(224f, 478f, expansion), Mathf.Max(1f, space.height - replyHeight - jobHeight - 24f));
+            Rect.sizeDelta = new Vector2(width, height);
+            textArea.anchorMin = trading ? new Vector2(.20f, .115f) : new Vector2(.14f, .22f);
+            textArea.anchorMax = trading ? new Vector2(.80f, .325f) : new Vector2(.86f, .66f);
+
+            var point = new Vector2(space.center.x, space.center.y - 84f);
+            bool tracked = PickupNames.TryProject(Game, Hud.CanvasRect, npc.transform.position, npc.NamePosition, out var speakerPoint, out _);
+            if (tracked)
+                point = speakerPoint;
+            float centerX = Mathf.Clamp(point.x, space.xMin + width * .5f + 10f, space.xMax - width * .5f - 10f);
+            float bottom = space.yMin + height * .5f + replyHeight;
+            float top = space.yMax - height * .5f - jobHeight - 12f;
+            float centerY = Mathf.Clamp(point.y + height * .5f + replyHeight, Mathf.Min(bottom, top), top);
+            Rect.anchoredPosition = new Vector2(centerX, centerY) - canvas.center;
+            tail.gameObject.SetActive(tracked && point.y < centerY - height * .5f + 8f);
+            float tailX = Mathf.Clamp(point.x - centerX, -width * .19f, width * .19f);
+            float normalizedX = Mathf.Abs(tailX) / (width * .487f);
+            float ovalEdge = Mathf.Pow(1f - Mathf.Pow(normalizedX, 2.25f), 1f / 2.25f);
+            tail.anchoredPosition = new Vector2(tailX, 12f + height * (.5f - .471f * ovalEdge));
+            tail.localScale = new Vector3(point.x <= centerX ? 1f : -1f, 1f, 1f);
+        }
+
+        private static int ChoiceColumns(float width) => Mathf.Clamp(Mathf.FloorToInt((width + ChoiceGap) / 150f), 1, 5);
+
+        private void LayoutChoices()
+        {
+            int columns = ChoiceColumns(Rect.rect.width);
+            float width = Mathf.Min(164f, Mathf.Max(1f, (Rect.rect.width - ChoiceGap * (columns - 1)) / columns));
+            for (int i = 0; i < visibleChoices.Count; i++)
+            {
+                int row = i / columns;
+                int countInRow = Mathf.Min(columns, visibleChoices.Count - columns * row);
+                var button = visibleChoices[i];
+                button.sizeDelta = new Vector2(width, ChoiceHeight);
+                Vector2 destination = new Vector2((i % columns - (countInRow - 1) * .5f) * (width + ChoiceGap),
+                    -ChoiceHeight * .5f - row * (ChoiceHeight + ChoiceGap));
+                float t = Mathf.Clamp01((Time.unscaledTime - choicesOpenedAt - i * .035f) / .25f);
+                float remaining = t - 1f;
+                float pop = 1f + remaining * remaining * (2.45f * remaining + 1.45f);
+                button.localScale = Vector3.one * Mathf.LerpUnclamped(.18f, 1f, pop);
+                button.anchoredPosition = Vector2.LerpUnclamped(Vector2.up * ChoiceOffset, destination, pop);
+            }
         }
 
         private void ShowPageChoices()
         {
             bool more = page < pageCount;
-            leave.gameObject.SetActive(CanLeave);
-            nextPage.gameObject.SetActive(more && body.maxVisibleCharacters >= pageEnd);
+            bool finishedTyping = body.maxVisibleCharacters >= pageEnd;
+            visibleChoices.Clear();
+            bool changed = PresentChoice(leave.transform, CanLeave);
+            changed |= PresentChoice(nextPage.transform, more && finishedTyping);
             for (int i = 0; i < replies.Count; i++)
-                replies[i].gameObject.SetActive(!more && i < replyCount);
+                changed |= PresentChoice(replies[i].transform, !more && i < replyCount);
+            if (changed)
+                choicesOpenedAt = Time.unscaledTime;
+            LayoutChoices();
+        }
+
+        private bool PresentChoice(Transform choice, bool visible)
+        {
+            bool changed = choice.gameObject.activeSelf != visible;
+            if (changed)
+                choice.gameObject.SetActive(visible);
+            if (visible)
+                visibleChoices.Add((RectTransform)choice);
+            return changed;
         }
 
         private void Reply(string text, Action callback, bool enabled = true)
@@ -212,6 +285,7 @@ namespace Workerborn
             {
                 var view = Instantiate(dialogueChoice, choices.transform);
                 DisableButtonSelection(view.GetComponent<Button>());
+                view.gameObject.SetActive(false);
                 replies.Add(view);
             }
             replies[replyCount++].Bind(text, callback, enabled);

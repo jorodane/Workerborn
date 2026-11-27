@@ -22,7 +22,8 @@ MonoBehaviour:
   quests: []
   shopItems: []
   startingFood: {fileID: 11400000, guid: 7b471b1e3b6d5bdd8451d9df97649c0a, type: 2}
-  startingFoodCount: 10
+  startingFoodCount: 1
+  shoppingGold: 50
   interactionDistance: 1.8
   dailySchedule:
   - activity: 3

@@ -355,6 +355,8 @@ namespace Workerborn
             PrepareConversation(speaker, target);
             if (speaker.IsLocallyControlled)
                 hud.OpenDialogue(target, null);
+            else if (speaker.TryGetComponent<NpcRoutine>(out var visitor))
+                visitor.ArrivedAtShop(target);
         }
 
         private void PrepareConversation(HarvestWorker speaker, VillageInteractable target)
@@ -593,19 +595,28 @@ namespace Workerborn
         internal bool UpgradeSkill(SkillId skill) => ApplyLocalAction(() => State.TryUpgradeSkill(skill));
         internal bool UpgradeSkillToNextGrade(SkillId skill) => ApplyLocalAction(() => State.TryUpgradeSkillToNextGrade(skill));
 
-        internal bool BuyFrom(VillageInteractable seller, string id, int quantity, bool placeOnCursor)
+        internal bool BuyFrom(HarvestWorker buyer, VillageInteractable seller, string id, int quantity, bool placeOnCursor = false)
         {
-            if (seller == null || !Perform(() => placeOnCursor ? State.TryBuyForPlacement(id, quantity) : State.TryBuy(id, quantity)))
+            if (IsWorldTransitioning || buyer.CharacterState.AwaitingIncarnation || seller == null || !seller.Offers(id))
                 return false;
-            effects?.PlayPurchaseTrail(seller.transform, worker.transform);
+            var state = buyer.CharacterState;
+            bool Buy() => placeOnCursor ? state.TryBuyForPlacement(id, quantity) : state.TryBuy(id, quantity);
+            if (!(buyer.IsLocallyControlled ? Perform(Buy) : Buy()))
+                return false;
+            if (SharesMap(buyer.transform.position) && SharesMap(seller.transform.position))
+                effects?.PlayPurchaseTrail(seller.transform, buyer.transform);
             return true;
         }
 
-        internal bool SellTo(VillageInteractable buyer, int entryId, int quantity)
+        internal bool SellTo(HarvestWorker seller, VillageInteractable buyer, int entryId, int quantity)
         {
-            if (buyer == null || !Perform(() => State.TrySellStack(entryId, quantity)))
+            if (IsWorldTransitioning || seller.CharacterState.AwaitingIncarnation || buyer == null)
                 return false;
-            effects?.PlayPurchaseTrail(worker.transform, buyer.transform);
+            bool Sell() => seller.CharacterState.TrySellStack(entryId, quantity);
+            if (!(seller.IsLocallyControlled ? Perform(Sell) : Sell()))
+                return false;
+            if (SharesMap(seller.transform.position) && SharesMap(buyer.transform.position))
+                effects?.PlayPurchaseTrail(seller.transform, buyer.transform);
             return true;
         }
 

@@ -44,6 +44,16 @@ namespace Workerborn
 
         public bool IsTopicAvailable(VillagePrototype village, DialogueAction action) => village.FindDialogueTopic(this, action) != null;
 
+        internal bool Offers(string itemId)
+        {
+            if (Definition?.ShopItems == null)
+                return false;
+            foreach (var item in Definition.ShopItems)
+                if (item != null && item.Id == itemId)
+                    return true;
+            return false;
+        }
+
         public override void AddContextActions(VillagePrototype village, List<WorldContextAction> actions)
         {
             base.AddContextActions(village, actions);

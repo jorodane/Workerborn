@@ -49,7 +49,7 @@ namespace Workerborn
             routine.Bind(this, npc, character);
             npc.Routine = routine;
             if (initialized)
-                routine.IssueStartingFood();
+                routine.IssueProvisions();
         }
 
         private void RestoreVillageCharacters()
@@ -64,7 +64,7 @@ namespace Workerborn
             foreach (var entry in villageCharacters)
             {
                 var character = entry.Value;
-                bool mealsIssued = false;
+                CharacterSave restored = null;
                 if (records.TryGetValue(entry.Key, out var saved) && saved.awaitingIncarnation == character.CharacterState.AwaitingIncarnation)
                 {
                     try
@@ -75,7 +75,7 @@ namespace Workerborn
                         RestoreCharacterPosition(character, saved);
                         if (saved.day == State.Day && saved.era == State.Era)
                             RestoreCharacterAction(character, saved);
-                        mealsIssued = saved.npcMealsIssued;
+                        restored = saved;
                     }
                     catch (System.ArgumentException error)
                     {
@@ -87,7 +87,12 @@ namespace Workerborn
                     character.CharacterState.BeginInWorld(world);
                 character.CharacterState.ApplyWorld(world);
                 if (character.TryGetComponent<NpcRoutine>(out var routine))
-                    routine.IssueStartingFood(mealsIssued);
+                {
+                    routine.IssueProvisions(restored);
+                    if (restored is { npcReturningFromShop: true } && float.IsFinite(restored.npcShopOriginX) &&
+                        float.IsFinite(restored.npcShopOriginZ))
+                        routine.ShoppingOrigin = SurfacePosition(restored.npcShopOriginX, restored.npcShopOriginZ);
+                }
             }
         }
 
@@ -131,7 +136,17 @@ namespace Workerborn
             save.playerZ = position.z;
             save.yaw = character.transform.eulerAngles.y;
             save.sitting = character.Action == WorkerAction.Sitting;
-            save.npcMealsIssued = character.TryGetComponent<NpcRoutine>(out var routine) && routine.StartingFoodIssued;
+            if (character.TryGetComponent<NpcRoutine>(out var routine))
+            {
+                save.npcMealsIssued = routine.StartingFoodIssued;
+                save.npcShoppingGoldIssued = routine.ShoppingGoldIssued;
+                if (routine.ShoppingOrigin is Vector3 origin)
+                {
+                    save.npcReturningFromShop = true;
+                    save.npcShopOriginX = origin.x;
+                    save.npcShopOriginZ = origin.z;
+                }
+            }
             if (character.PlannedCrop != null)
             {
                 save.harvestTargetId = character.PlannedCrop.PersistentId;

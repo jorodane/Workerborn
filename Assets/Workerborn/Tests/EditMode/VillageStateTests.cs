@@ -918,6 +918,35 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void WorkUsesNourishmentAndMealsAreOncePerWindowAcrossSaves()
+        {
+            var state = new VillageState();
+            double fed = state.Export().nourishment;
+            Assert.That(state.Inventory.TryAdd(ItemIds.Bread, 3), Is.True);
+            Assert.That(state.SpendWorkStamina(30d), Is.True);
+            Assert.That(state.Export().nourishment, Is.LessThan(fed));
+            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.EqualTo(3));
+            Assert.That(state.NpcMealDue, Is.True);
+            Assert.That(state.TryEatBread(), Is.True);
+
+            state = VillageState.Restore(state.Export());
+            Assert.That(state.NpcMealDue, Is.False);
+            AdvanceTo(10 * 60 + 1);
+            Assert.That(state.NpcMealDue, Is.False);
+            AdvanceTo(12 * 60 + 1);
+            Assert.That(state.NpcMealDue, Is.True);
+            Assert.That(state.TryEatBread(), Is.True);
+            Assert.That(state.NpcMealDue, Is.False);
+            AdvanceTo(18 * 60 + 1);
+            Assert.That(state.NpcMealDue, Is.True);
+            Assert.That(state.TryEatBread(), Is.True);
+            Assert.That(state.Inventory.Count(ItemIds.Bread), Is.Zero);
+            Assert.That(state.NpcMealDue, Is.False);
+
+            void AdvanceTo(int minute) => state.AdvanceTime((minute - state.Minute) / state.Rules.MinutesPerSecond);
+        }
+
+        [Test]
         public void GritRaisesTheHungryFloorAndDigestionClearsFullnessFaster()
         {
             var save = new VillageState().Export();

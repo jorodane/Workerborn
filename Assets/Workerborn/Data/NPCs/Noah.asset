@@ -44,7 +44,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d52e693d78bd589ca664958768b8bff1, type: 2}
   - {fileID: 11400000, guid: e0196159af1e5d33914c4904c904ed11, type: 2}
   startingFood: {fileID: 11400000, guid: 7b471b1e3b6d5bdd8451d9df97649c0a, type: 2}
-  startingFoodCount: 10
+  startingFoodCount: 3
+  shoppingGold: 50
   interactionDistance: 1.8
   dailySchedule:
   - activity: 4

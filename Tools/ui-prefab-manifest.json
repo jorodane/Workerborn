@@ -99,6 +99,10 @@
     "path": "Assets/Workerborn/Prefabs/UI/DialogueChoice.prefab",
     "component": 100011
   },
+  "NpcConversationBubble": {
+    "path": "Assets/Workerborn/Prefabs/UI/NpcConversationBubble.prefab",
+    "component": 100009
+  },
   "PlayerOverhead": {
     "path": "Assets/Workerborn/Prefabs/UI/PlayerOverhead.prefab",
     "component": 100015

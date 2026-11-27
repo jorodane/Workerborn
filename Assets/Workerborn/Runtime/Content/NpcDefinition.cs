@@ -18,6 +18,7 @@ namespace Workerborn
         [SerializeField] private NpcScheduleEntry[] dailySchedule;
         [SerializeField] private ItemDefinition startingFood;
         [SerializeField, Min(0)] private int startingFoodCount;
+        [SerializeField, Min(0)] private int shoppingGold;
 
         public string Id => id;
         public string DisplayName => displayName;
@@ -32,5 +33,6 @@ namespace Workerborn
         internal NpcScheduleEntry[] DailySchedule => dailySchedule ?? System.Array.Empty<NpcScheduleEntry>();
         internal ItemDefinition StartingFood => startingFood;
         internal int StartingFoodCount => startingFoodCount;
+        internal int ShoppingGold => shoppingGold;
     }
 }

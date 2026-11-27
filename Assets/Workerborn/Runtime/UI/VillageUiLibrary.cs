@@ -25,6 +25,7 @@ namespace Workerborn
         [SerializeField]
         private TMP_Text floatingText;
         [SerializeField] private PlayerOverheadView playerOverhead;
+        [SerializeField] private NpcConversationBubbleView npcConversation;
         [SerializeField] private VillageChatView chat;
         public SkillBalloonView SkillBalloon => skillBalloon;
         public WorldTooltipView WorldTooltip => worldTooltip;
@@ -35,6 +36,7 @@ namespace Workerborn
         public UiActionView ActionButton => actionButton;
         public UiListRow ListRow => listRow;
         public PlayerOverheadView PlayerOverhead => playerOverhead;
+        internal NpcConversationBubbleView NpcConversation => npcConversation;
         public VillageChatView Chat => chat;
 
         public VillageWindowView Find(string id)

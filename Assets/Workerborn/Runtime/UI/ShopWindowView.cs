@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,7 +10,9 @@ namespace Workerborn
         [SerializeField]
         private RectTransform stock;
         [SerializeField]
-        private GridLayoutGroup cells;
+        private RectTransform viewport;
+        [SerializeField]
+        private ScrollRect scroll;
         [SerializeField]
         private TMP_Text description;
         [SerializeField]
@@ -17,6 +20,9 @@ namespace Workerborn
         [SerializeField]
         private ShopSellTarget sellTarget;
         private VillageInteractable merchant;
+        private readonly List<(UiItemView Item, InventoryEntry Placement)> tiles = new List<(UiItemView, InventoryEntry)>();
+        private float laidOutWidth;
+        private const int Columns = 8;
         internal VillageInteractable Merchant => merchant;
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
@@ -26,31 +32,44 @@ namespace Workerborn
 
         public void Open(VillageInteractable npc)
         {
-            merchant = npc;
             description.text = string.Empty;
+            if (merchant != npc)
+            {
+                merchant = npc;
+                BuildStock();
+            }
             Refresh();
+            LayoutStock();
+            scroll.verticalNormalizedPosition = 1f;
         }
 
-        public override void Refresh()
+        internal void Embed(RectTransform socket)
         {
-            funds.text = $"소지금  {Game.State.Gold:N0} Gold";
-            if (merchant == null || merchant.Definition == null)
-                return;
+            Rect.SetParent(socket, false);
+            Rect.anchorMin = Vector2.zero;
+            Rect.anchorMax = Vector2.one;
+            Rect.offsetMin = Rect.offsetMax = Vector2.zero;
+        }
+
+        public override void Refresh() => funds.text = $"소지금  {Game.State.Gold:N0} Gold";
+
+        private void BuildStock()
+        {
+            laidOutWidth = -1f;
+            tiles.Clear();
             InventoryWindowView.Clear(stock);
-            var items = merchant.Definition.ShopItems;
-            var layout = new GridInventory(8, 8);
+            var items = merchant?.Definition?.ShopItems;
             if (items == null)
                 return;
+            var layout = new GridInventory(Columns, 8);
             foreach (var definition in items)
             {
-                if (definition == null || !layout.TryAdd(definition.Id, 1))
+                if (definition == null || layout.Count(definition.Id) > 0 || !layout.TryAdd(definition.Id, 1))
                     continue;
                 var placed = layout.Entries[layout.Entries.Count - 1];
                 var item = Instantiate(Hud.Library.Item, stock);
                 item.Display(definition, definition.Id, 1);
-                var size = cells.cellSize + cells.spacing;
-                item.Rect.sizeDelta = new Vector2(placed.Spec.Width * size.x - 2, placed.Spec.Height * size.y - 2);
-                item.Rect.anchoredPosition = new Vector2(placed.X * size.x, -placed.Y * size.y);
+                tiles.Add((item, placed));
                 string id = definition.Id;
                 item.Shop(Hud, () =>
                 {
@@ -58,6 +77,25 @@ namespace Workerborn
                     Hud.ClickShopItem(id, WorkerbornInput.Point);
                 });
             }
+        }
+
+        private void LateUpdate() => LayoutStock();
+
+        private void LayoutStock()
+        {
+            float width = viewport.rect.width;
+            if (Mathf.Approximately(laidOutWidth, width))
+                return;
+            laidOutWidth = width;
+            float size = Mathf.Clamp(Mathf.Floor((width - 4f) / Columns), 3f, 43f);
+            int rows = 0;
+            foreach (var (view, entry) in tiles)
+            {
+                view.Rect.sizeDelta = new Vector2(entry.Spec.Width * size - 2f, entry.Spec.Height * size - 2f);
+                view.Rect.anchoredPosition = new Vector2(entry.X * size, -entry.Y * size);
+                rows = Mathf.Max(rows, entry.Y + entry.Spec.Height);
+            }
+            stock.sizeDelta = new Vector2(Columns * size, rows * size);
         }
     }
 }

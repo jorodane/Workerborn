@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using TMPro;
+using UnityEngine;
 using UnityEngine.EventSystems;
 
 namespace Workerborn
@@ -10,6 +11,8 @@ namespace Workerborn
         private readonly Dictionary<string, bool> dialogueWindowStates = new Dictionary<string, bool>();
         private WindowTransition[] backdropTransitions = System.Array.Empty<WindowTransition>();
         private bool dialogueClosing;
+        private readonly Dictionary<VillageInteractable, NpcConversationBubbleView> npcShopBubbles =
+            new Dictionary<VillageInteractable, NpcConversationBubbleView>();
         internal bool IsSpeakingWith(VillageInteractable target) => target != null && dialogueTarget == target;
 
         public void OpenDialogue(VillageInteractable target, DialogueAction? topic = null) =>
@@ -63,7 +66,7 @@ namespace Workerborn
 
         internal void CloseDialogue(bool animate)
         {
-            if (dialogueTarget == null)
+            if (ReferenceEquals(dialogueTarget, null))
             {
                 if (dialogueClosing && !animate)
                     FinishDialogueClose();
@@ -119,7 +122,6 @@ namespace Workerborn
                     view.Hide(animate: false);
             RestoreDialogueWindows();
             SetDialoguePresentation(false);
-            game.ShowNpcPortrait(null);
         }
 
         private void SetDialoguePresentation(bool active)
@@ -165,6 +167,59 @@ namespace Workerborn
             }
             dialogueWindowStates.Clear();
             RefreshWindows();
+        }
+
+        internal Rect DialogueSpace(bool trading)
+        {
+            Rect bounds = CanvasRect.rect;
+            if (!trading || !views.TryGetValue("inventory", out var inventory) || !inventory.IsOpen)
+                return bounds;
+            Rect bag = WindowDragHandle.BoundsInParent(inventory.Rect);
+            float leftRoom = bag.xMin - bounds.xMin;
+            float rightRoom = bounds.xMax - bag.xMax;
+            if (Mathf.Max(leftRoom, rightRoom) < 405f)
+                return bounds;
+            if (leftRoom >= rightRoom)
+                bounds.xMax = bag.xMin - 10f;
+            else
+                bounds.xMin = bag.xMax + 10f;
+            return bounds;
+        }
+
+        internal void ShowNpcShopConversation(VillageInteractable merchant, VillageInteractable customer)
+        {
+            if (!npcShopBubbles.TryGetValue(merchant, out var bubble))
+            {
+                var layer = pickupNames != null ? pickupNames.transform : transform;
+                bubble = Instantiate(library.NpcConversation, layer);
+                npcShopBubbles.Add(merchant, bubble);
+            }
+            bubble.SetPartner(customer.DisplayName);
+        }
+
+        internal void HideNpcShopConversation(VillageInteractable merchant)
+        {
+            if (npcShopBubbles.Remove(merchant, out var bubble))
+            {
+                bubble.gameObject.SetActive(false);
+                Destroy(bubble.gameObject);
+            }
+        }
+
+        private void UpdateNpcShopConversations()
+        {
+            foreach (var (merchant, bubble) in npcShopBubbles)
+            {
+                var layer = (RectTransform)bubble.transform.parent;
+                if (merchant != null && merchant.isActiveAndEnabled && !IsSpeakingWith(merchant) &&
+                    PickupNames.TryProject(game, layer, merchant.transform.position, merchant.NamePosition, out var point, out float depth))
+                {
+                    bubble.Place(point);
+                    pickupNames?.IncludeDepth(bubble.transform, depth);
+                }
+                else
+                    bubble.gameObject.SetActive(false);
+            }
         }
     }
 }

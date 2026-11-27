@@ -216,6 +216,22 @@ namespace Workerborn
             return InteriorAt(first.x, first.z) == InteriorAt(second.x, second.z);
         }
 
+        internal WorldInteractable ShopApproach(HarvestWorker visitor, VillageInteractable merchant)
+        {
+            Vector3 seller = merchant.transform.position;
+            return visitor.SharesMap(seller) ? merchant : DoorToward(visitor.StandingPosition, seller);
+        }
+
+        internal VillageBuildingDoor DoorToward(Vector3 origin, Vector3 destination)
+        {
+            var from = InteriorAt(origin.x, origin.z);
+            var to = InteriorAt(destination.x, destination.z);
+            var door = from != null
+                ? to != null && to.Lobby == from ? to.Entrance : from.Exit
+                : to?.Lobby?.Entrance ?? to?.Entrance;
+            return door != null && door.IsOpen && door.Approach != null ? door : null;
+        }
+
         private bool TryWarpToMap(Vector3 destination, VillageInteriorMap room = null, bool toClouds = false) =>
             TryWarpCharacter(worker, destination, room, toClouds);
 

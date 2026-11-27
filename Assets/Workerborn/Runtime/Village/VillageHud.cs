@@ -308,6 +308,7 @@ namespace Workerborn
                         WindowDragHandle.KeepOnScreen(view.Rect);
             }
             UpdatePlayerOverhead();
+            UpdateNpcShopConversations();
             int stamina = state.StaminaLimit;
             energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}   만복도 {state.Fullness}/{state.FullnessLimit}";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
@@ -510,9 +511,11 @@ namespace Workerborn
                 return;
             windowFocus.Remove(view);
             windowFocus.Add(view);
-            if (view.Id != "conversation" || !IsShopOpen)
+            if (view.Id == "shop" && views.TryGetValue("conversation", out var conversation))
+                conversation.transform.SetAsLastSibling();
+            else
                 view.transform.SetAsLastSibling();
-            if ((view.Id == "inventory" || view.Id == "shop") && TradeQuantityOpen)
+            if ((view.Id is "inventory" or "shop" or "conversation") && TradeQuantityOpen)
                 views["quantity"].transform.SetAsLastSibling();
             if (dragGhost != null)
                 dragGhost.SetAsLastSibling();
@@ -623,31 +626,23 @@ namespace Workerborn
 
         public void OpenShop(VillageInteractable npc)
         {
+            if (npc == null || npc.Definition?.ShopItems is not { Length: > 0 })
+                return;
             if (dialogueTarget != npc)
                 OpenDialogue(npc);
+            if (!views.TryGetValue("conversation", out var dialogue) || dialogue is not ConversationWindowView conversation || !conversation.IsOpen)
+                return;
             CloseQuantity();
             CancelItemDrag();
             if (InventoryOpen)
                 FocusWindow(views["inventory"]);
             else
                 OpenWindow("inventory", temporaryInDialogue: true)?.Refresh();
-            bool wasOpen = IsShopOpen;
             if (!(OpenWindow("shop") is ShopWindowView shop))
                 return;
+            shop.Embed(conversation.ShopStock);
+            conversation.SetTrading();
             shop.Open(npc);
-            if (!wasOpen && !shop.HasSavedPosition && windows.TryGetValue("inventory", out var inventory))
-            {
-                const float gap = 8f;
-                var bag = WindowDragHandle.BoundsInParent(inventory);
-                Rect canvas = CanvasRect.rect;
-                var origin = new Vector2(bag.xMax, bag.yMax + gap);
-                if (origin.y + shop.Rect.rect.height > canvas.yMax && bag.xMin - gap - shop.Rect.rect.width >= canvas.xMin)
-                    origin = new Vector2(bag.xMin - gap, bag.yMin);
-                shop.Rect.anchoredPosition = origin - new Vector2(canvas.xMax, canvas.yMin);
-                WindowDragHandle.KeepOnScreen(shop.Rect);
-            }
-            if (views.TryGetValue("conversation", out var dialogue) && dialogue is ConversationWindowView conversation)
-                conversation.SetTrading();
         }
 
         internal void ClickShopItem(string id, Vector2 screen)
@@ -666,10 +661,10 @@ namespace Workerborn
             view is ShopWindowView { IsOpen: true } shop ? shop.Merchant : null;
 
         internal bool TryBuyShopItem(string id, int quantity, bool placeOnCursor) =>
-            game.BuyFrom(ShopMerchant, id, quantity, placeOnCursor);
+            game.BuyFrom(game.Worker, ShopMerchant, id, quantity, placeOnCursor);
 
         internal bool TrySellShopItem(int entryId, int quantity) =>
-            game.SellTo(ShopMerchant, entryId, quantity);
+            game.SellTo(game.Worker, ShopMerchant, entryId, quantity);
 
         private void OpenQuantity(string id, QuantityAction action, int stackId = 0, Vector2? screen = null,
             bool confirmQuickSale = false)

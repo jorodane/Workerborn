@@ -74,7 +74,7 @@ def validate(path):
             value=mono.get(field)
             # All UI view object references must be authored; runtime only binds data/listeners.
             optional_chrome=(name=='WorldContextView' and field in {'closeButton','dragHandle','minimizeButton','windowBody'}
-                             or name=='ConversationWindowView' and field in {'closeButton','dragHandle','minimizeButton'}
+                             or name in {'ConversationWindowView','ShopWindowView'} and field in {'closeButton','dragHandle','minimizeButton'}
                              or name=='ItemTooltipView' and mono.get('windowId')=='tooltip' and field in {'closeButton','dragHandle','minimizeButton'}
                              or name=='PartTimeScheduleView' and mono.get('upcomingRows',0)>0 and field in {'dateLabel','previousDay','nextDay'})
             if (name.endswith('View') or name=='FrontEndMenu') and not optional_chrome and type in {'TMP_Text','TMP_InputField','Image','Button','Slider','RawImage','RectTransform','CanvasGroup','ScrollRect','GameObject','WindowDragHandle','GridLayoutGroup','UiListRow','UiItemView','VillageMapView','ShopSellTarget','UiActionView'}:

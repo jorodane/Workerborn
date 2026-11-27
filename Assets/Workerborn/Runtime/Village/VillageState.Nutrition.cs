@@ -9,6 +9,11 @@ namespace Workerborn
         public float overeatingThreshold = .70f;
         public float digestionPerHour = 12f;
         public float nourishmentLossPerHour = .05f;
+        public float nourishmentLossPerWorkStamina = .0025f;
+        public int breakfastMinute = 8 * 60;
+        public int lunchMinute = 12 * 60;
+        public int dinnerMinute = 18 * 60;
+        public int mealWindowMinutes = 120;
         public float hungryStaminaFraction = .55f;
         public int breadFullness = 20;
         public float breadNourishment = .33f;
@@ -20,6 +25,7 @@ namespace Workerborn
         internal const double FedNourishment = 1.10d;
         private double nourishment = FedNourishment;
         private double nutritionAt;
+        private double lastMealAt = -1d;
         private double fullness;
         private int restedStaminaLimit;
 
@@ -28,7 +34,20 @@ namespace Workerborn
         internal float FullnessFill => (float)(fullness / FullnessLimit);
         private double OvereatingThreshold => FullnessLimit * Math.Clamp(Rules.Nutrition.overeatingThreshold, 0f, .99f);
         internal float Overeating => (float)Math.Clamp((fullness - OvereatingThreshold) / (FullnessLimit - OvereatingThreshold), 0d, 1d);
-        internal bool WantsMeal => !AwaitingIncarnation && !NeedsRest && nourishment <= .90d;
+        internal bool NpcMealDue
+        {
+            get
+            {
+                if (AwaitingIncarnation || NeedsRest)
+                    return false;
+                var rules = Rules.Nutrition;
+                int mealStart = Math.Max(MealStartedByNow(rules.breakfastMinute),
+                    Math.Max(MealStartedByNow(rules.lunchMinute), MealStartedByNow(rules.dinnerMinute)));
+                return mealStart >= 0 && Minute < mealStart + (double)Math.Clamp(rules.mealWindowMinutes, 1, 1440)
+                    && lastMealAt < (Day - 1) * 1440d + mealStart;
+            }
+        }
+        private int MealStartedByNow(int start) => start >= 0 && start < 1440 && start <= Minute ? start : -1;
         internal float ActionSpeed => 1f - .35f * Overeating;
         public int WellFedStaminaLimit => restedStaminaLimit;
         public int MinimumStaminaLimit => Math.Min(restedStaminaLimit, Math.Max(1,
@@ -60,6 +79,17 @@ namespace Workerborn
             nutritionAt = WorldMinute;
             nourishment = FedNourishment;
             fullness = 0d;
+            lastMealAt = -1d;
+        }
+
+        private void UseNutritionForWork(double spentStamina)
+        {
+            float rate = Rules.Nutrition.nourishmentLossPerWorkStamina;
+            if (AwaitingIncarnation || spentStamina <= 0d || nourishment <= 0d || !float.IsFinite(rate) || rate <= 0f)
+                return;
+            SyncNutrition();
+            nourishment = Math.Max(0d, nourishment - spentStamina * rate);
+            RefreshUsableStaminaLimit();
         }
 
         public bool TryEatBread()
@@ -96,6 +126,7 @@ namespace Workerborn
             var serving = Serving(food);
             if (!Inventory.TryRemoveAt(entryId, 1))
                 return Result(false, "가방에 먹을 음식이 없어요.");
+            lastMealAt = WorldMinute;
             fullness = Math.Min(FullnessLimit, fullness + serving.Fullness);
             int previous = StaminaLimit;
             nourishment = Math.Min(FedNourishment, nourishment + serving.Nourishment);

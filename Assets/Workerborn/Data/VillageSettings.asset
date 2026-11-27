@@ -90,6 +90,11 @@ MonoBehaviour:
     overeatingThreshold: 0.7
     digestionPerHour: 12
     nourishmentLossPerHour: 0.05
+    nourishmentLossPerWorkStamina: 0.0025
+    breakfastMinute: 480
+    lunchMinute: 720
+    dinnerMinute: 1080
+    mealWindowMinutes: 120
     hungryStaminaFraction: 0.55
     breadFullness: 20
     breadNourishment: 0.33

@@ -33,8 +33,10 @@ namespace Workerborn
                 return true;
             staminaRecoveryDelay = RecoveryDelaySeconds;
             bool enough = amount <= Stamina + StaminaTolerance;
+            double spent = Math.Min(Stamina, amount);
             double left = Stamina - amount;
             SetStamina(left <= StaminaTolerance ? 0d : left);
+            UseNutritionForWork(spent);
             return enough;
         }
 
