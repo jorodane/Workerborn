@@ -140,6 +140,7 @@ namespace Workerborn
                 mountId = worker.CurrentMount != null ? worker.CurrentMount.PersistentId : null, parkedMountId = ParkedMountId,
                 hasSeat = seat != null, seatX = seatPoint.x, seatY = seatPoint.y, seatZ = seatPoint.z, seatLift = worker.SeatLift,
                 gesture = (int)animation.Gesture, gestureProgress = animation.GestureProgress, foodItem = worker.EatingItemId,
+                gaze = animation.Gaze,
                 timberSwing = (int)worker.CurrentTimberSwing, timberProgress = worker.CurrentTimberProgress,
                 overeating = worker.CharacterState.Overeating };
         }

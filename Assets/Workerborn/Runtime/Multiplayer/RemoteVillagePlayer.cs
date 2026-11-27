@@ -95,7 +95,10 @@ namespace Workerborn
                 avatar.motion < (int)WorkerMotion.GroundSit)
                 animationDriver.SetAction((int)WorkerMotion.Idle);
             if (teleport)
+            {
                 animationDriver?.SkipStandUp();
+                animationDriver?.ClearGaze();
+            }
             if (animationDriver?.IsStandingUp == true)
             {
                 afterStanding = avatar;
@@ -114,6 +117,7 @@ namespace Workerborn
             PresentTimberSwing(avatar);
             animationDriver?.SetAction(avatar.motion);
             animationDriver?.SetOvereating(avatar.overeating);
+            animationDriver?.SetGazePose(avatar.gaze);
             if (animationDriver != null && float.IsFinite(avatar.gestureProgress))
             {
                 animationDriver.SetGesture((WorkerGesture)avatar.gesture, avatar.gestureProgress);

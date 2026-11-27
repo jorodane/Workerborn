@@ -19,6 +19,17 @@ namespace Workerborn
         private bool FreeToTalk => character.Action is WorkerAction.Idle or WorkerAction.Sitting;
         private bool ReadyToMeet => conversation == null && Time.time >= conversationCooldown && CanSocialize;
         private bool HoldingConversation => conversation is { Passing: false, Started: true };
+        internal HarvestWorker ConversationGazePartner
+        {
+            get
+            {
+                if (conversation is { Started: true } meeting)
+                    return meeting.Initiator == this ? meeting.Partner.character : meeting.Initiator.character;
+                if (customer != null)
+                    return customer.character;
+                return AtCheckout ? merchant.Routine.character : null;
+            }
+        }
 
         private void SetFirstConversationChecks()
         {

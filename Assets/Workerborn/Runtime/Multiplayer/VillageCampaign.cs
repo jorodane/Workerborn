@@ -27,6 +27,7 @@ namespace Workerborn
         public string mountId, parkedMountId;
         public string foodItem;
         public CharacterLook look;
+        public CharacterGaze gaze;
         public float x, y, z, yaw, jumpOffset, gestureProgress;
         public float timberProgress;
         public float overeating;
@@ -373,6 +374,7 @@ namespace Workerborn
             target.z = pose.z;
             target.yaw = pose.yaw;
             target.motion = pose.motion;
+            target.gaze = character.health > 0 ? pose.gaze.Validated() : default;
             float dx = pose.seatX - pose.x, dy = pose.seatY - pose.y, dz = pose.seatZ - pose.z;
             bool holdsSeat = pose.motion == (int)WorkerMotion.SeatSit || pose.motion == (int)WorkerMotion.Idle && target.hasSeat;
             target.hasSeat = holdsSeat && pose.hasSeat &&
@@ -566,6 +568,7 @@ namespace Workerborn
             avatar.timberSwing = 0;
             avatar.timberProgress = 0f;
             avatar.overeating = 0f;
+            avatar.gaze = default;
             if (character.hasLifeLook)
                 avatar.look = character.lifeLook.Validated();
         }

@@ -44,6 +44,7 @@
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/DedicatedAdminProtocol.cs" Link="DedicatedAdminProtocol.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageChatText.cs" Link="VillageChatText.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Characters/CharacterLook.cs" Link="CharacterLook.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Characters/CharacterGaze.cs" Link="CharacterGaze.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Multiplayer/VillageTcpPeer.cs" Link="VillageTcpPeer.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/VillageCampaignTests.cs" Link="VillageCampaignTests.cs" />
     <Compile Include="../../Assets/Workerborn/Tests/EditMode/TimberWorkTests.cs" Link="TimberWorkTests.cs" />

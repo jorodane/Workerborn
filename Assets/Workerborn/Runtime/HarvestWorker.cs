@@ -182,6 +182,7 @@ namespace Workerborn
             SetInputCamera(camera);
             animationDriver = animations;
             actor = GetComponent<CharacterActor>();
+            gazeOwner = GetComponent<VillageInteractable>();
             agent = GetComponent<NavMeshAgent>();
             agent.speed = runSpeed;
             agent.angularSpeed = 540f;
@@ -198,7 +199,10 @@ namespace Workerborn
             if (CurrentMount == null && !ReferenceEquals(CurrentMount, null))
                 EndRiding(false);
             if (agent == null || !agent.isOnNavMesh && (village == null || !EnsureNavigation()))
+            {
+                ClearGazeFocus();
                 return;
+            }
             RefreshEquipment();
             if (Action != WorkerAction.Sitting && !IsStandingUp)
             {
@@ -242,6 +246,7 @@ namespace Workerborn
             };
             animationDriver?.SetAction((int)motion);
             animationDriver?.SetOvereating(characterState?.Overeating ?? 0f);
+            UpdateGazeTarget();
         }
 
         private void LateUpdate()
@@ -1155,6 +1160,7 @@ namespace Workerborn
 
         internal void ResetLifeActivity()
         {
+            ClearGazeFocus();
             EndRiding(false, parkForTravel: true);
             FinishTimberTravel();
             Cancel();
@@ -1175,6 +1181,7 @@ namespace Workerborn
 
         public bool WarpTo(Vector3 position)
         {
+            ClearGazeFocus();
             EndRiding(false, parkForTravel: true);
             FinishTimberTravel();
             Cancel();
@@ -1221,6 +1228,7 @@ namespace Workerborn
 
         private void OnDisable()
         {
+            ClearGazeFocus();
             Cancel();
             FinishVisualJump();
             ClearStandUp();

@@ -879,6 +879,42 @@ namespace Workerborn.Tests
         }
 
         [Test]
+        public void GazeTurnsTowardFocusAndFadesBeyondTheSideOfTheBody()
+        {
+            var front = CharacterGaze.Toward(1f, .5f, 1f);
+            Assert.That(front.yaw, Is.EqualTo(45f).Within(.01f));
+            Assert.That(front.pitch, Is.LessThan(0f));
+            Assert.That(front.weight, Is.EqualTo(1f));
+
+            var side = CharacterGaze.Toward(-3f, -6f, -1f);
+            Assert.That(side.yaw, Is.EqualTo(-CharacterGaze.MaxYaw));
+            Assert.That(side.pitch, Is.EqualTo(CharacterGaze.MaxDown));
+            Assert.That(side.weight, Is.InRange(.01f, .99f));
+            Assert.That(CharacterGaze.Toward(0f, 0f, -2f).weight, Is.Zero);
+            Assert.That(CharacterGaze.Toward(float.NaN, 0f, 1f).weight, Is.Zero);
+        }
+
+        [Test]
+        public void AvatarGazeIsValidatedSeparatelyFromItsBodyTurn()
+        {
+            var campaign = new VillageCampaign(Rules(), Sites, 10, 22);
+            Assert.That(campaign.Connect("a", "일꾼", out _), Is.True);
+            var pose = new SessionAvatar { x = 10, z = 22, yaw = 38f,
+                gaze = new CharacterGaze { yaw = -150f, pitch = -100f, weight = 2f } };
+            campaign.Move("a", pose);
+            var avatar = campaign.Avatars()[0];
+            Assert.That(avatar.yaw, Is.EqualTo(38f));
+            Assert.That(avatar.gaze.yaw, Is.EqualTo(-CharacterGaze.MaxYaw));
+            Assert.That(avatar.gaze.pitch, Is.EqualTo(-CharacterGaze.MaxUp));
+            Assert.That(avatar.gaze.weight, Is.EqualTo(1f));
+
+            pose.gaze.pitch = float.PositiveInfinity;
+            campaign.Move("a", pose);
+            Assert.That(avatar.gaze.weight, Is.Zero);
+            Assert.That(avatar.gaze.pitch, Is.Zero);
+        }
+
+        [Test]
         public void WaitingForIncarnationSurvivesDaysAndRejectsVillageProgress()
         {
             var rules = Rules();

@@ -612,6 +612,9 @@ namespace Workerborn
                 CloseWindow(view.Id);
         }
 
+        internal WorldInteractable ContextGazeTarget => views.TryGetValue("worldcontext", out var view) &&
+            view is WorldContextView { IsOpen: true } context ? context.Target : null;
+
         public void OpenQuestDetail(VillageQuestPage page)
         {
             var view = OpenWindow("questdetail") as QuestDetailWindowView;

@@ -13,6 +13,7 @@ namespace Workerborn
         private bool dialogueClosing;
         private readonly Dictionary<VillageInteractable, NpcConversationBubbleView> npcConversationBubbles =
             new Dictionary<VillageInteractable, NpcConversationBubbleView>();
+        internal VillageInteractable ConversationTarget => dialogueTarget;
         internal bool IsSpeakingWith(VillageInteractable target) => target != null && dialogueTarget == target;
 
         public void OpenDialogue(VillageInteractable target, DialogueAction? topic = null) =>

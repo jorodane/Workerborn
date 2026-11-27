@@ -184,6 +184,42 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator InspectingAnNpcTurnsTheSeatedPlayersHeadAndDialogueMakesTheNpcLookBack()
+        {
+            var player = game.Worker;
+            var merchant = game.FindInteraction(VillageRole.Merchant);
+            merchant.Routine.enabled = false;
+            var partner = merchant.GetComponent<HarvestWorker>();
+            Assert.That(partner.WarpTo(NearbyDestination()), Is.True);
+
+            Vector3 toward = partner.StandingPosition - player.StandingPosition;
+            player.transform.rotation = Quaternion.AngleAxis(-50f, Vector3.up) *
+                Quaternion.LookRotation(Vector3.ProjectOnPlane(toward, Vector3.up));
+            Assert.That(player.ToggleSit(), Is.True);
+            yield return new WaitForSeconds(1f);
+            var animation = player.GetComponent<WorkerAnimation>();
+            var head = player.Actor.Animator.GetBoneTransform(HumanBodyBones.Head);
+            var bodyPosition = player.StandingPosition;
+            var bodyRotation = player.transform.rotation;
+            var headBefore = head.rotation;
+
+            game.Hud.OpenWorldContext(merchant, new Vector2(Screen.width * .5f, Screen.height * .65f));
+            Assert.That(game.Hud.ContextGazeTarget, Is.SameAs(merchant));
+            yield return Until(() => animation.Gaze.weight > .8f && Quaternion.Angle(head.rotation, headBefore) > 15f, 2f);
+            Assert.That(player.Action, Is.EqualTo(WorkerAction.Sitting));
+            Assert.That(player.StandingPosition, Is.EqualTo(bodyPosition));
+            Assert.That(Quaternion.Angle(player.transform.rotation, bodyRotation), Is.LessThan(.1f));
+
+            partner.transform.rotation = Quaternion.AngleAxis(48f, Vector3.up) *
+                Quaternion.LookRotation(Vector3.ProjectOnPlane(-toward, Vector3.up));
+            game.Hud.OpenDialogue(merchant);
+            var partnerAnimation = partner.GetComponent<WorkerAnimation>();
+            yield return Until(() => Mathf.Abs(partnerAnimation.Gaze.yaw) > 25f && partnerAnimation.Gaze.weight > .8f, 2f);
+            game.Hud.CloseDialogue();
+            yield return Until(() => partnerAnimation.Gaze.weight < .04f, 1f);
+        }
+
+        [UnityTest]
         public IEnumerator FirstLifeWaitsOnWalkableCloudsUntilTheGuideConfirmsIncarnation()
         {
             var waiting = VillageState.BeforeFirstLife(game.State.Rules);

@@ -16,6 +16,7 @@ namespace Workerborn
         private NpcActivity shownActivity;
         private int shownDay;
         private bool shownJobHours;
+        internal WorldInteractable Target => target.Target;
 
         internal bool Show(WorldInteractable subject, Ray pointerRay)
         {

@@ -4,7 +4,7 @@ using UnityEngine.Playables;
 
 namespace Workerborn
 {
-    public sealed class WorkerAnimation : MonoBehaviour
+    public sealed partial class WorkerAnimation : MonoBehaviour
     {
         internal const float JumpSeconds = .55f;
         private const int Work = 2;
@@ -103,7 +103,8 @@ namespace Workerborn
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
             mixer = AnimationMixerPlayable.Create(graph, clips.Length);
             animationOutput = AnimationPlayableOutput.Create(graph, "Character", animator);
-            animationOutput.SetSourcePlayable(mixer);
+            BindGaze();
+            ConnectPoseOutput(mixer);
             AnimationClip[] source =
             {
                 idle,
@@ -511,7 +512,7 @@ namespace Workerborn
             upperBodyLayers.SetInputWeight(CarryLayer, 0f);
             upperBodyLayers.SetInputWeight(MealLayer, 0f);
             upperBodyLayers.SetInputWeight(ConversationLayer, 0f);
-            animationOutput.SetSourcePlayable(upperBodyLayers);
+            ConnectPoseOutput(upperBodyLayers);
         }
 
         private static AvatarMask UpperBodyMask(AvatarMaskBodyPart extra, bool includeArms = true)
@@ -639,6 +640,7 @@ namespace Workerborn
                     StopConversationGesture();
                 BlendUpperBody(ConversationLayer, showingConversationGesture);
             }
+            UpdateGaze();
         }
 
         private void BlendUpperBody(int layer, bool active) =>
