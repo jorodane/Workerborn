@@ -86,8 +86,10 @@ namespace Workerborn
         public bool AcceptsInteractionCommands => CurrentMount == null && AcceptsMovementCommands;
         public bool AcceptsGroundItemCommands => village == null || !CharacterState.AwaitingIncarnation &&
             (!IsLocallyControlled || !village.AwaitingWorldCommand && village.Hud.AllowsGroundItems);
-        internal bool CanInteractWith(WorldInteractable target) => target is GroundPickup ? AcceptsGroundItemCommands :
-            AcceptsMovementCommands && (CurrentMount == null ||
+        internal bool CanRequestInteraction(WorldInteractable target) =>
+            target is GroundPickup ? AcceptsGroundItemCommands : AcceptsMovementCommands;
+        internal bool CanInteractWith(WorldInteractable target) => CanRequestInteraction(target) &&
+            (target is GroundPickup || CurrentMount == null ||
                 target is VillageInteractable { CanTarget: true } ||
                 CurrentMount.CanAttack && target is MonsterInteractable { Combat: not null });
         public PointerTargeting Targeting => village != null && IsLocallyControlled ? village.Targeting : null;
@@ -135,9 +137,9 @@ namespace Workerborn
         public HarvestableCrop FocusCrop => HoveredCrop != null ? HoveredCrop : cropTarget != null ? cropTarget : LastCrop;
         public int TotalCollected => characterState?.Inventory.Count(ItemIds.Potato) ?? collectedCount;
         internal bool IsFighting => strikeTarget is MonsterInteractable { Combat: not null } ||
-            interactionTarget is MonsterInteractable { Combat: not null };
+            interactionTarget is MonsterInteractable { Combat: not null } || MountedWorkTarget is MonsterInteractable { Combat: not null };
         internal bool IsInteractingWith(WorldInteractable target) =>
-            target == interactionTarget || target == strikeTarget || target == cropTarget;
+            target == interactionTarget || target == strikeTarget || target == cropTarget || target == MountedWorkTarget;
         internal bool OccupiesSeat(Vector3 position) => onSeat && occupiedSeat != null && (occupiedSeat.Position - position).sqrMagnitude < .04f;
 
         public event Action<string> Message;
@@ -214,6 +216,7 @@ namespace Workerborn
             if (IsLocallyControlled)
             {
                 ReadLocalControls();
+                ResumeDismountedWork();
                 UpdateDialogueFollow();
             }
             if (Action == WorkerAction.Sitting && onSeat && (occupiedSeat == null || !occupiedSeat.isActiveAndEnabled ||
@@ -398,7 +401,7 @@ namespace Workerborn
 
         private bool UpdateManualMovement()
         {
-            Vector2 input = village?.MovementBlocked == true ? Vector2.zero : WorkerbornInput.Move;
+            Vector2 input = village?.MovementBlocked == true && !CanWalkAwayFromTrade ? Vector2.zero : WorkerbornInput.Move;
             if (input.sqrMagnitude < .001f)
             {
                 if (manualMoving)
@@ -406,6 +409,7 @@ namespace Workerborn
                 return false;
             }
 
+            LeaveDialogueForMovement();
             if (Action == WorkerAction.Sitting)
                 Cancel();
             if (IsStandingUp)
@@ -565,8 +569,13 @@ namespace Workerborn
                 Message?.Invoke("이 작물은 수확을 모두 마쳤어요. 다른 작물을 선택해 주세요.");
                 return;
             }
-            if (village != null && (!AcceptsInteractionCommands || !village.CanHarvest(this, crop)))
+            if (village != null && (!AcceptsMovementCommands || !village.CanHarvest(this, crop)))
                 return;
+            if (CurrentMount != null)
+            {
+                RideToWork(crop, () => CommandHarvest(crop));
+                return;
+            }
             if (DeferUntilStanding(() => CommandHarvest(crop)))
                 return;
 
@@ -647,9 +656,10 @@ namespace Workerborn
 
         public void CommandMove(Vector3 destination, bool walk = false)
         {
-            if (!AcceptsMovementCommands || DeferUntilStanding(() => CommandMove(destination, walk)))
+            if (!AcceptsDirectMovement || !TryApproachPath(destination, 0f, out var path, out _))
                 return;
-            if (NavigateNear(destination, 0f, walk) && IsLocallyControlled)
+            LeaveDialogueForMovement();
+            if (!DeferUntilStanding(() => CommandMove(destination, walk)) && FollowPath(path, walk) && IsLocallyControlled)
                 village?.ShowClick(destination);
         }
 
@@ -668,9 +678,14 @@ namespace Workerborn
 
         public void CommandAttack(WorldInteractable target)
         {
-            if (village == null || CarriedLogs > 0 || target == null || !CanInteractWith(target) || !target.CanReceiveStrike ||
+            if (village == null || CarriedLogs > 0 || target == null || !CanRequestInteraction(target) || !target.CanReceiveStrike ||
                 CharacterState.Health <= 0 || Action == WorkerAction.Attacking || Time.time < nextStrikeAt)
                 return;
+            if (!CanInteractWith(target))
+            {
+                RideToWork(target, () => CommandAttack(target));
+                return;
+            }
             if (DeferUntilStanding(() => CommandAttack(target)))
                 return;
             if (InReach(target.transform.position, InteractionReach(target)))
@@ -772,8 +787,14 @@ namespace Workerborn
 
         private void Approach(WorldInteractable target, Vector3? point, System.Action arrival)
         {
-            if (village == null || target == null || !CanInteractWith(target) || !SharesMap(target.transform.position) ||
-                DeferUntilStanding(() => Approach(target, point, arrival)))
+            if (village == null || target == null || !CanRequestInteraction(target) || !SharesMap(target.transform.position))
+                return;
+            if (!CanInteractWith(target))
+            {
+                RideToWork(target, () => Approach(target, point, arrival), point);
+                return;
+            }
+            if (DeferUntilStanding(() => Approach(target, point, arrival)))
                 return;
             float offset = point.HasValue ? 0f : InteractionReach(target) * .7f;
             if (!NavigateNear(point ?? target.transform.position, offset, walk: !IsLocallyControlled && target is VillageInteractable))
@@ -784,7 +805,7 @@ namespace Workerborn
 
         public bool CommandDrop(int entryId, Vector3 destination)
         {
-            if (village == null || !HasPlayerOwner || CurrentMount != null || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
+            if (village == null || !HasPlayerOwner || !AcceptsGroundItemCommands || agent == null || !agent.isOnNavMesh)
                 return false;
             var entry = CharacterState.CarriedItem(entryId);
             if (village.DropPrefabFor(entry, this) == null)
@@ -794,6 +815,16 @@ namespace Workerborn
             {
                 Message?.Invoke("아이템을 손이 닿는 바닥에 놓아 주세요.");
                 return false;
+            }
+            if (CurrentMount != null)
+            {
+                var requested = entry.Copy();
+                return RideToWork(null, () =>
+                {
+                    var current = CharacterState.CarriedItem(entryId);
+                    if (current != null && current.MatchesStack(requested.ItemId, requested.Condition) && current.Quantity == requested.Quantity)
+                        CommandDrop(entryId, destination);
+                }, destination);
             }
             if (DeferUntilStanding(() => CommandDrop(entryId, destination)))
                 return true;
@@ -861,6 +892,11 @@ namespace Workerborn
 
         private void UpdateMovement()
         {
+            if (mountedApproach is { } work && !CanRideToWork(work))
+            {
+                Cancel();
+                return;
+            }
             if (pendingDrop != null && InReach(dropPoint, pickupDistance))
             {
                 FinishDrop();
@@ -896,7 +932,7 @@ namespace Workerborn
 
             if (agent.remainingDistance > agent.stoppingDistance + 0.06f && !ReachedConversationPartner())
                 return;
-            if (RetryMovingTargetApproach())
+            if (FinishMountedApproach() || RetryMovingTargetApproach())
                 return;
             agent.isStopped = true;
             agent.ResetPath();
@@ -1114,6 +1150,7 @@ namespace Workerborn
             axeCut = null;
             onInteractionArrival = null;
             pendingDrop = null;
+            mountedApproach = workAfterDismount = null;
         }
 
         internal bool DeferUntilStanding(System.Action command)

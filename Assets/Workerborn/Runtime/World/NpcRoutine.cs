@@ -93,21 +93,21 @@ namespace Workerborn
                 return;
             if (character.Action == WorkerAction.Sitting)
             {
-                TryVisit();
+                TryNearbyConversation();
                 return;
             }
             if (character.Action != WorkerAction.Idle)
                 return;
             if (scheduled?.Facility == null)
             {
-                TryVisit();
+                TryNearbyConversation();
                 return;
             }
             if (Time.time < retryAt)
                 return;
             if (scheduled.Activity == NpcActivity.Harvesting && Time.time < harvestResumeAt)
             {
-                TryVisit(duringWorkBreak: true);
+                TryNearbyConversation();
                 return;
             }
 
@@ -124,7 +124,7 @@ namespace Workerborn
                 }
                 if (scheduled.Activity == NpcActivity.Resting)
                 {
-                    TryVisit();
+                    TryNearbyConversation();
                     return;
                 }
             }
@@ -134,7 +134,7 @@ namespace Workerborn
             if (standing.Facility != null)
                 StartTask(standing);
             if (character.Action == WorkerAction.Idle)
-                TryVisit(duringWorkBreak: npc.Definition.Job != null);
+                TryNearbyConversation();
         }
 
         private bool TryMeal()

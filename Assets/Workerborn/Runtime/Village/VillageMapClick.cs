@@ -10,7 +10,7 @@ namespace Workerborn
 
         public void OnPointerClick(PointerEventData eventData)
         {
-            if (eventData.button != PointerEventData.InputButton.Left || Game == null || Map == null || Game.ControlsBlocked)
+            if (eventData.button != PointerEventData.InputButton.Left || Game == null || Map == null || !Game.Worker.AcceptsDirectMovement)
                 return;
             if (Map.TryGetMapPoint(eventData.position, eventData.pressEventCamera, out var point) &&
                 Game.TryMapGround(point, out var hit))

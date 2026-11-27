@@ -36,6 +36,7 @@ namespace Workerborn
         private Vector2 measuredTextSize;
         private float preferredTextWidth, textWidth, textHeight;
         private bool positioned;
+        private WindowTransition transition;
         private float lineStarted, choicesOpenedAt, tradingStartedAt;
         private int page, pageCount, pageStart, pageEnd;
         private int advancedFrame = -1;
@@ -44,8 +45,7 @@ namespace Workerborn
         private const float ChoiceGap = 8f;
         private const float ChoiceOffset = 24f;
         private const float HorizontalPadding = 16f;
-        private const float TopPadding = 20f;
-        private const float BottomPadding = 12f;
+        private const float VerticalPadding = 22f;
         private const float StockHeight = 206f;
         private const float StockGap = 8f;
         private const float MaximumWidth = 504f;
@@ -55,6 +55,7 @@ namespace Workerborn
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
+            transition = GetComponent<WindowTransition>();
             leave.onClick.AddListener(() => hud.TryLeaveDialogue());
             leave.transform.SetAsFirstSibling();
             DisableButtonSelection(leave);
@@ -200,6 +201,12 @@ namespace Workerborn
         {
             if (npc == null)
                 return;
+            if (IsClosing)
+            {
+                bool tracked = PickupNames.TryProject(Game, Hud.CanvasRect, npc.transform.position, npc.NamePosition, out var origin, out _);
+                SetMotionOrigin(tracked, origin);
+                return;
+            }
             LayoutBubble();
             if (IsOpen && body.rectTransform.rect.size != measuredTextSize)
             {
@@ -207,6 +214,17 @@ namespace Workerborn
                 ShowPageChoices();
             }
             LayoutChoices();
+        }
+
+        private void OnDisable()
+        {
+            if (Hud != null)
+                Hud.HideDialogueStock();
+        }
+
+        private void SetMotionOrigin(bool tracked, Vector2 point)
+        {
+            transition?.SetMotionOrigin(tracked ? point - (Rect.anchoredPosition + Hud.CanvasRect.rect.center) : (Vector2?)null);
         }
 
         private void LayoutBubble()
@@ -231,22 +249,23 @@ namespace Workerborn
             float replyHeight = ChoiceOffset + rows * (ChoiceHeight + ChoiceGap);
             float jobHeight = jobInfo.activeSelf ? ((RectTransform)jobInfo.transform).rect.height + 18f : 0f;
             float expansion = trading ? Mathf.SmoothStep(0f, 1f, (Time.unscaledTime - tradingStartedAt) / .2f) : 0f;
-            float proseHeight = TopPadding + textHeight + BottomPadding;
+            float proseHeight = VerticalPadding * 2f + textHeight;
             float height = Mathf.Min(proseHeight + expansion * (StockHeight + StockGap),
                 Mathf.Max(1f, space.height - replyHeight - jobHeight - 32f));
             float stockHeight = trading ? Mathf.Max(0f, height - proseHeight) : 0f;
             Rect.sizeDelta = new Vector2(width, height);
             speaker.rectTransform.anchoredPosition = Vector2.down * WorldNameplateView.SpeechRimInset(height);
-            textArea.offsetMin = new Vector2(HorizontalPadding, BottomPadding);
-            textArea.offsetMax = new Vector2(-HorizontalPadding, -TopPadding - stockHeight);
+            textArea.offsetMin = new Vector2(HorizontalPadding, VerticalPadding);
+            textArea.offsetMax = new Vector2(-HorizontalPadding, -VerticalPadding - stockHeight);
             if (trading)
             {
-                shopStock.offsetMin = new Vector2(HorizontalPadding, -TopPadding - Mathf.Max(0f, stockHeight - StockGap));
-                shopStock.offsetMax = new Vector2(-HorizontalPadding, -TopPadding);
+                shopStock.offsetMin = new Vector2(HorizontalPadding, -VerticalPadding - Mathf.Max(0f, stockHeight - StockGap));
+                shopStock.offsetMax = new Vector2(-HorizontalPadding, -VerticalPadding);
             }
 
             var point = new Vector2(space.center.x, space.center.y - 84f);
-            if (PickupNames.TryProject(Game, Hud.CanvasRect, npc.transform.position, npc.NamePosition, out var speakerPoint, out _))
+            bool tracked = PickupNames.TryProject(Game, Hud.CanvasRect, npc.transform.position, npc.NamePosition, out var speakerPoint, out _);
+            if (tracked)
                 point = speakerPoint;
             float left = space.xMin + width * .5f + 10f;
             float right = space.xMax - width * .5f - 10f;
@@ -257,6 +276,7 @@ namespace Workerborn
                 point = Vector2.Lerp(Rect.anchoredPosition + canvas.center, point, 1f - Mathf.Exp(-20f * Time.unscaledDeltaTime));
             Rect.anchoredPosition = new Vector2(Mathf.Clamp(point.x, Mathf.Min(left, right), right),
                 Mathf.Clamp(point.y, Mathf.Min(bottom, top), top)) - canvas.center;
+            SetMotionOrigin(tracked, speakerPoint);
             positioned = true;
         }
 

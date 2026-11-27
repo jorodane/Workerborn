@@ -289,9 +289,9 @@ namespace Workerborn
                 return;
             if (target != null)
                 target.RequestInteraction(game.Worker, game.WorldCamera.ScreenPointToRay(cursor));
-            else if (!game.ControlsBlocked && !overUi && !control && (HasMask || maskMaterial == null) &&
+            else if (worker.AcceptsDirectMovement && !overUi && !control && (HasMask || maskMaterial == null) &&
                 TryWorldHit(cursor, out var hit) && game.IsGround(hit.collider))
-                game.Worker.CommandMove(hit.point, WorkerbornInput.Held("Gameplay/Walk"));
+                worker.CommandMove(hit.point, WorkerbornInput.Held("Gameplay/Walk"));
         }
 
         private void UpdateThrowAim(Vector2 screen, HarvestWorker worker)

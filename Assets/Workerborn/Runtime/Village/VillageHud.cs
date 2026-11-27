@@ -77,7 +77,7 @@ namespace Workerborn
         private int seenNotice = -1;
         private bool suppressRightContext;
         public bool IsDialogueOpen => dialogueTarget != null;
-        public bool IsShopOpen => views.TryGetValue("shop", out var shop) && shop.IsOpen;
+        public bool IsShopOpen => IsDialogueOpen && views.TryGetValue("shop", out var shop) && shop.IsOpen;
         public bool WorldActionsLocked => IsShopOpen || HasQuantityPrompt;
         public bool AllowsGroundItems => game != null && !game.IsWorldTransitioning && !game.AwaitingWorldCommand && !IsChatTyping;
         public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.IsOpen;
@@ -649,7 +649,7 @@ namespace Workerborn
                 OpenQuantity(id, QuantityAction.Buy, screen: screen);
         }
 
-        private VillageInteractable ShopMerchant => views.TryGetValue("shop", out var view) &&
+        private VillageInteractable ShopMerchant => IsDialogueOpen && views.TryGetValue("shop", out var view) &&
             view is ShopWindowView { IsOpen: true } shop ? shop.Merchant : null;
 
         internal bool TryBuyShopItem(string id, int quantity, bool placeOnCursor) =>

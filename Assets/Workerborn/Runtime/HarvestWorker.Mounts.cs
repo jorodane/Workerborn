@@ -10,6 +10,25 @@ namespace Workerborn
         private Vector3 ridingVisualBase;
         private Quaternion ridingVisualRotation;
         private float footRadius;
+        private MountedWork? mountedApproach, workAfterDismount;
+
+        private readonly struct MountedWork
+        {
+            internal readonly WorldTargetReference Target;
+            internal readonly System.Action Resume;
+            internal readonly bool FollowTarget;
+
+            internal MountedWork(WorldInteractable target, System.Action resume, bool followTarget = false)
+            {
+                Target = new WorldTargetReference(target);
+                Resume = resume;
+                FollowTarget = followTarget;
+            }
+        }
+
+        internal bool WaitingForWorkDismount => workAfterDismount.HasValue;
+        internal bool CanDismountForWork => workAfterDismount is { } work && CanRideToWork(work);
+        private WorldInteractable MountedWorkTarget => mountedApproach?.Target.Target ?? workAfterDismount?.Target.Target;
 
         internal bool CanMount => CurrentMount == null && CarriedLogs == 0 &&
             CharacterState is { AwaitingIncarnation: false, Health: > 0 };
@@ -57,6 +76,78 @@ namespace Workerborn
             village.RequestMount(null);
         }
 
+        private bool RideToWork(WorldInteractable target, System.Action resume, Vector3? point = null)
+        {
+            var work = new MountedWork(target, resume, followTarget: !point.HasValue);
+            if (CurrentMount == null || !CanRideToWork(work))
+                return false;
+
+            Vector3 destination = point ?? target.transform.position;
+            float offset = target == null ? Mathf.Max(0f, pickupDistance - .85f) :
+                point.HasValue ? CurrentMount.DismountDistance : target.InteractionDistance * .8f;
+            if (!TryApproachPath(destination, offset, out var path, out var approach) &&
+                !TryApproachPath(destination, 0f, out path, out approach))
+            {
+                Message?.Invoke("작업할 곳 가까이 갈 수 없어요.");
+                return false;
+            }
+            approachTargetPosition = destination;
+            return FollowMountedWork(work, path, approach);
+        }
+
+        private bool FollowMountedWork(MountedWork work, NavMeshPath path, Vector3 approach)
+        {
+            if (!CanRideToWork(work))
+                return false;
+            if (InReach(approach, .16f))
+                return DismountForWork(work);
+            if (!FollowPath(path))
+                return false;
+            mountedApproach = work;
+            return true;
+        }
+
+        private bool CanRideToWork(MountedWork work) => IsLocallyControlled && village != null &&
+            CharacterState is { AwaitingIncarnation: false, Health: > 0 } &&
+            (work.Target.IsAssigned ? work.Target.Target is { } target && AcceptsMovementCommands && SharesMap(target.transform.position) :
+                AcceptsGroundItemCommands && !village.Hud.HasQuantityPrompt);
+
+        private bool DismountForWork(MountedWork work)
+        {
+            Cancel();
+            workAfterDismount = work;
+            if (village.RequestMount(null, automaticDismount: true))
+                return true;
+            workAfterDismount = null;
+            return false;
+        }
+
+        private bool FinishMountedApproach()
+        {
+            if (mountedApproach is not { } work)
+                return false;
+
+            if (work.FollowTarget && work.Target.Target is { } target &&
+                !InReach(target.transform.position, target.InteractionDistance + .35f) &&
+                (target.transform.position - approachTargetPosition).sqrMagnitude >= .2f * .2f)
+            {
+                if (!RideToWork(target, work.Resume))
+                    Cancel();
+            }
+            else
+                DismountForWork(work);
+            return true;
+        }
+
+        private void ResumeDismountedWork()
+        {
+            if (workAfterDismount is not { } work || village.AwaitingWorldCommand)
+                return;
+            workAfterDismount = null;
+            if (CurrentMount == null && CanRideToWork(work))
+                work.Resume();
+        }
+
         internal bool BeginRiding(VillageMount mount)
         {
             if (CurrentMount == mount)
@@ -100,6 +191,7 @@ namespace Workerborn
             if (ReferenceEquals(mount, null))
                 return;
 
+            var queuedWork = stepAside && !parkForTravel ? workAfterDismount : null;
             if (mount != null)
             {
                 mount.Present(null, null, transform.position, transform.eulerAngles.y, true);
@@ -121,6 +213,7 @@ namespace Workerborn
             agent.speed = TravelSpeed(false);
             if (stepAside && mount != null && agent.isOnNavMesh)
                 StepOffMount(mount.DismountDistance);
+            workAfterDismount = queuedWork;
         }
 
         private void StepOffMount(float distance)

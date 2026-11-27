@@ -95,7 +95,7 @@ namespace Workerborn
 
             Vector3 point = approach.position;
             point = village.SurfacePosition(point.x, point.z);
-            if (worker.InReach(point, .55f))
+            if (worker.CurrentMount == null && worker.InReach(point, .55f))
                 Arrive(village, worker);
             else
                 worker.CommandApproachAt(this, point);

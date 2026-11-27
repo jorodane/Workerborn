@@ -10,7 +10,7 @@ namespace Workerborn
 
         internal void CommandFish(FishingWater water, Vector3 point, float progress = 0f)
         {
-            if (village == null || water == null || !water.CanInteract || !AcceptsInteractionCommands || agent == null || !agent.isOnNavMesh)
+            if (village == null || water == null || !water.CanInteract || !AcceptsMovementCommands || agent == null || !agent.isOnNavMesh)
                 return;
             if (cropTarget == water && FishingPoint is Vector3 pending && (pending - point).sqrMagnitude < .01f)
                 return;
@@ -21,6 +21,12 @@ namespace Workerborn
             if (!TryFindCastPath(water, point, out var path, out var stand))
             {
                 Message?.Invoke("이 지점에 찌를 던질 수 있는 물가를 찾지 못했어요.");
+                return;
+            }
+
+            if (CurrentMount != null)
+            {
+                FollowMountedWork(new MountedWork(water, () => CommandFish(water, point, progress)), path, stand);
                 return;
             }
 

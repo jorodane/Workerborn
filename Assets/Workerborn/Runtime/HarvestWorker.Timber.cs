@@ -142,7 +142,7 @@ namespace Workerborn
         internal void PrepareTimberSkill(SkillId skill)
         {
             if (!SkillProgression.IsTimberActive(skill) || !CharacterState.IsSkillLearned(skill) ||
-                !AcceptsInteractionCommands || CharacterState.AwaitingIncarnation || CharacterState.Health <= 0)
+                !AcceptsMovementCommands || CharacterState.AwaitingIncarnation || CharacterState.Health <= 0)
                 return;
             if (skill == SkillId.Throwing)
             {
@@ -172,7 +172,7 @@ namespace Workerborn
 
         internal bool HandleTimberClick(WorldInteractable target)
         {
-            if (!AcceptsInteractionCommands)
+            if (!AcceptsMovementCommands)
                 return false;
             if (CanSelectLog && target is TimberPiece { Part: TimberPart.Log } log)
             {
@@ -187,9 +187,14 @@ namespace Workerborn
 
         internal void LiftLog(TimberPiece log)
         {
-            if (log == null || log.Part != TimberPart.Log || !log.CanInteract || !AcceptsInteractionCommands ||
+            if (log == null || log.Part != TimberPart.Log || !log.CanInteract || !AcceptsMovementCommands ||
                 CharacterState.AwaitingIncarnation || CarriedLogs >= CharacterState.LiftCapacity)
                 return;
+            if (CurrentMount != null)
+            {
+                RideToWork(log, () => LiftLog(log));
+                return;
+            }
             if (DeferUntilStanding(() => LiftLog(log)))
                 return;
 

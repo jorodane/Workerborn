@@ -39,7 +39,7 @@ namespace Workerborn
         public override string InteractionVerbFor(HarvestWorker worker) => combat != null && worker?.CurrentMount is { CanAttack: false }
             ? "내린 뒤 공격하기" : InteractionVerb;
         internal override InteractionCursor CursorFor(HarvestWorker worker) =>
-            combat == null || worker?.CurrentMount is { CanAttack: false } ? InteractionCursor.Inspect : InteractionCursor.Attack;
+            combat == null ? InteractionCursor.Inspect : InteractionCursor.Attack;
         public AnimalCombatProfile Combat => combat;
         public int Health { get; private set; }
         public bool IsDefeated => combat != null && Health == 0;

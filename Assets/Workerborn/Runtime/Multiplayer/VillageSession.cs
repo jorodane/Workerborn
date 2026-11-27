@@ -1228,7 +1228,9 @@ namespace Workerborn
                 var harvests = packet.automaticHarvest ? packet.automaticHarvests ?? Array.Empty<HarvestPickupResult>() : null;
                 if (harvests != null)
                     ApplyAutomaticHarvestLedger(harvests);
-                village.ApplySessionProfile(packet.character, packet.world, packet.message, packet.value == 1, harvests);
+                bool dismountedForWork = packet.mounts != null && village.Worker.WaitingForWorkDismount &&
+                    !Array.Exists(packet.mounts, row => row?.rider == LocalPlayerId);
+                village.ApplySessionProfile(packet.character, packet.world, dismountedForWork ? null : packet.message, packet.value == 1, harvests);
                 village.PresentMounts(packet.mounts);
                 if (packet.timberAcquired is { Length: > 0 })
                     village.PlayTimberAcquisitions(village.Worker, packet.timberAcquired);

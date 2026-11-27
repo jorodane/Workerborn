@@ -9,10 +9,19 @@ namespace Workerborn
         private const float CompanionSpacing = 1.3f;
         private const float DialoguePathInterval = .2f;
         private HarvestWorker dialoguePartner;
-        private NavMeshPath dialoguePath;
+        private NavMeshPath leftDialoguePath, rightDialoguePath;
         private bool followingDialogue;
-        private float dialogueSide;
         private float nextDialoguePath;
+
+        private bool CanWalkAwayFromTrade => IsLocallyControlled && village?.Hud is
+            { IsShopOpen: true, AllowsGroundItems: true, HasQuantityPrompt: false, IsHoldingItem: false };
+        internal bool AcceptsDirectMovement => AcceptsMovementCommands || CanWalkAwayFromTrade;
+
+        private void LeaveDialogueForMovement()
+        {
+            if (IsLocallyControlled && village?.Hud.IsDialogueOpen == true)
+                village.Hud.CloseDialogue(animate: true);
+        }
 
         private void UpdateDialogueFollow()
         {
@@ -44,7 +53,6 @@ namespace Workerborn
             {
                 StopDialogueFollow();
                 dialoguePartner = partner;
-                dialogueSide = 0f;
                 nextDialoguePath = 0f;
             }
             if (partner.Action != WorkerAction.Moving || partner.agent == null || !partner.agent.isOnNavMesh ||
@@ -59,43 +67,69 @@ namespace Workerborn
                 return;
             heading.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, heading);
-            if (dialogueSide == 0f)
-                dialogueSide = Vector3.Dot(StandingPosition - partner.StandingPosition, right) < 0f ? -1f : 1f;
 
             nextDialoguePath = Time.time + DialoguePathInterval;
             Vector3 lead = partner.StandingPosition + heading * .6f;
-            if (TryDialoguePath(lead + right * (CompanionSpacing * dialogueSide)))
-                return;
-            if (TryDialoguePath(lead - right * (CompanionSpacing * dialogueSide)))
-                dialogueSide = -dialogueSide;
+            leftDialoguePath ??= new NavMeshPath();
+            rightDialoguePath ??= new NavMeshPath();
+            float leftDistance = MeasureDialoguePath(lead - right * CompanionSpacing, leftDialoguePath, out var left);
+            float rightDistance = MeasureDialoguePath(lead + right * CompanionSpacing, rightDialoguePath, out var rightPoint);
+            if (rightDistance < leftDistance)
+                SetDialoguePath(rightPoint, rightDialoguePath);
+            else if (!float.IsPositiveInfinity(leftDistance))
+                SetDialoguePath(left, leftDialoguePath);
             else
-                TryDialoguePath(partner.StandingPosition - heading * CompanionSpacing);
+            {
+                float behind = MeasureDialoguePath(partner.StandingPosition - heading * CompanionSpacing, leftDialoguePath, out var point);
+                if (!float.IsPositiveInfinity(behind))
+                    SetDialoguePath(point, leftDialoguePath);
+                else
+                    StopDialogueFollow();
+            }
         }
 
-        private bool TryDialoguePath(Vector3 desired)
+        private float MeasureDialoguePath(Vector3 desired, NavMeshPath path, out Vector3 point)
         {
+            point = default;
             if (!NavMesh.SamplePosition(desired, out var hit, .55f, agent.areaMask) || !SharesMap(hit.position) ||
-                dialoguePartner.agent.Raycast(hit.position, out _))
-                return false;
-            if (InReach(hit.position, .35f) || followingDialogue && agent.hasPath &&
-                (agent.destination - hit.position).sqrMagnitude < .35f * .35f)
-                return true;
+                dialoguePartner.agent.Raycast(hit.position, out _) ||
+                !agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete)
+                return float.PositiveInfinity;
 
-            dialoguePath ??= new NavMeshPath();
-            if (!agent.CalculatePath(hit.position, dialoguePath) || dialoguePath.status != NavMeshPathStatus.PathComplete)
-                return false;
+            point = hit.position;
+            Vector3 previous = agent.nextPosition;
+            float distance = 0f;
+            foreach (var corner in path.corners)
+            {
+                distance += Vector3.Distance(previous, corner);
+                previous = corner;
+            }
+            // Keep the current side when both routes are almost equally short.
+            if (followingDialogue && agent.hasPath && (agent.destination - point).sqrMagnitude < 1f)
+                distance -= .3f;
+            return distance;
+        }
+
+        private void SetDialoguePath(Vector3 point, NavMeshPath path)
+        {
+            if (InReach(point, .35f))
+            {
+                StopDialogueFollow();
+                return;
+            }
+            if (followingDialogue && agent.hasPath && (agent.destination - point).sqrMagnitude < .35f * .35f)
+                return;
             if (Action == WorkerAction.Sitting)
             {
                 Cancel();
-                return true;
+                return;
             }
-            if (!agent.SetPath(dialoguePath))
-                return false;
+            if (!agent.SetPath(path))
+                return;
             followingDialogue = true;
             walkPath = dialoguePartner.IsWalking;
             agent.isStopped = false;
             Action = WorkerAction.Moving;
-            return true;
         }
 
         private float DialogueTravelSpeed() => dialoguePartner != null && dialoguePartner.agent != null

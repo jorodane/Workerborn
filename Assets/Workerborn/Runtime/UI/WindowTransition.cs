@@ -15,6 +15,7 @@ namespace Workerborn
         [SerializeField] private Vector2 startScale = Vector2.one;
         [SerializeField, Range(0f, 1f)] private float startOpacity;
         [SerializeField] private AnimationCurve easing;
+        [SerializeField] private AnimationCurve popScaleEasing;
         [Header("Closing")]
         [SerializeField, Min(0f)] private float closeDuration;
         [SerializeField] private Vector2 endOffset;
@@ -34,6 +35,8 @@ namespace Workerborn
         private float startedAt;
         private float playingDuration;
         private AnimationCurve playingCurve;
+        private Vector2? motionOrigin;
+        private bool openingFromOrigin;
         private bool hideAfterClosing;
         private CanvasGroup inputGate;
         private bool savedInteractable, savedBlocksRaycasts;
@@ -54,7 +57,8 @@ namespace Workerborn
             }
 
             CaptureRest();
-            var start = reopening ? ReadPose() : OffsetRest(startOffset, startScale, startOpacity);
+            openingFromOrigin = !reopening;
+            var start = reopening ? ReadPose() : OffsetRest(motionOrigin ?? startOffset, startScale, startOpacity);
             Begin(start, rest, duration, easing);
         }
 
@@ -70,8 +74,19 @@ namespace Workerborn
             hideAfterClosing = hideOnComplete;
             if (hideOnComplete)
                 BlockInput();
-            Begin(ReadPose(), OffsetRest(endOffset, endScale, endOpacity), closeDuration, closeEasing);
+            Begin(ReadPose(), OffsetRest(motionOrigin ?? endOffset, endScale, endOpacity), closeDuration, closeEasing);
             return true;
+        }
+
+        internal void SetMotionOrigin(Vector2? offset)
+        {
+            motionOrigin = offset;
+            if (!IsPlaying)
+                return;
+            if (IsClosing)
+                to.Position = rest.Position + (offset ?? endOffset);
+            else if (openingFromOrigin)
+                from.Position = rest.Position + (offset ?? startOffset);
         }
 
         private void Begin(Pose start, Pose end, float seconds, AnimationCurve curve)
@@ -125,10 +140,13 @@ namespace Workerborn
             float progress = playingCurve == null || playingCurve.length == 0
                 ? Mathf.SmoothStep(0f, 1f, elapsed)
                 : Mathf.Clamp01(playingCurve.Evaluate(elapsed));
+            float scaleProgress = progress;
+            if (popScaleEasing != null && popScaleEasing.length > 0)
+                scaleProgress = IsClosing ? 1f - popScaleEasing.Evaluate(1f - elapsed) : popScaleEasing.Evaluate(elapsed);
             Apply(new Pose
             {
                 Position = Vector2.Lerp(from.Position, to.Position, progress),
-                Scale = Vector3.Lerp(from.Scale, to.Scale, progress),
+                Scale = Vector3.LerpUnclamped(from.Scale, to.Scale, scaleProgress),
                 Alpha = Mathf.Lerp(from.Alpha, to.Alpha, progress)
             });
         }
@@ -179,6 +197,7 @@ namespace Workerborn
         private void OnDisable()
         {
             ResetPose();
+            motionOrigin = null;
             IsClosing = false;
             RestoreInput();
         }

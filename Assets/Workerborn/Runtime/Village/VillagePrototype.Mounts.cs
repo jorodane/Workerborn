@@ -60,34 +60,32 @@ namespace Workerborn
                 worker.SharesMap(mount.transform.position) && worker.InReach(mount.transform.position, mount.InteractionDistance);
         }
 
-        internal void RequestMount(VillageMount mount)
+        internal bool RequestMount(VillageMount mount, bool automaticDismount = false)
         {
-            if (!worker.AcceptsMovementCommands)
-                return;
+            if (automaticDismount ? mount != null || !worker.CanDismountForWork : !worker.AcceptsMovementCommands)
+                return false;
             if (mount != null)
             {
                 if (!worker.CanMount || !IsRegisteredMount(mount) || !mount.CanInteract || !worker.SharesMap(mount.transform.position) ||
                     !worker.InReach(mount.transform.position, mount.InteractionDistance))
-                    return;
+                    return false;
                 if (!string.IsNullOrEmpty(mount.Rider))
                 {
                     hud.ShowToast("다른 사람이 타고 있어요.");
-                    return;
+                    return false;
                 }
                 if (worker.DeferUntilStanding(() => RequestMount(mount)))
-                    return;
+                    return true;
             }
             else if (worker.CurrentMount == null)
-                return;
+                return false;
             if (IsOnline)
-            {
-                Session.SubmitMount(mount != null ? mount.PersistentId : null);
-                return;
-            }
+                return Session.SubmitMount(mount != null ? mount.PersistentId : null);
             if (mount == null)
             {
                 worker.EndRiding(true);
-                hud.ShowToast("탑승물에서 내렸어요.");
+                if (!automaticDismount)
+                    hud.ShowToast("탑승물에서 내렸어요.");
             }
             else if (worker.BeginRiding(mount))
             {
@@ -97,9 +95,10 @@ namespace Workerborn
             else
             {
                 hud.ShowToast("탑승물 옆에 설 수 있는 곳으로 이동해 주세요.");
-                return;
+                return false;
             }
             SaveGame(false);
+            return true;
         }
 
         internal void ParkMountForTravel(VillageMount mount)

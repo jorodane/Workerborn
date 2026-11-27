@@ -165,7 +165,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator AVisitUsesTheSharedApproachAndLetsASeatedVillagerAnswerInPlace()
+        public IEnumerator VillagersOnlyChatWithASeatedNeighbourWhenAlreadyInReach()
         {
             game.State.AdvanceTime((1280f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
             yield return null;
@@ -176,12 +176,19 @@ namespace Workerborn.Tests
             farmer.Routine.enabled = true;
             yield return null;
             Assert.That(seated.WarpTo(game.Worker.StandingPosition), Is.True);
-            Assert.That(visitor.WarpTo(NearbyDestination()), Is.True);
+            Vector3 fartherAway = NearbyDestination(direct: true);
+            Assert.That(visitor.WarpTo(fartherAway), Is.True);
             Assert.That(seated.ToggleSit(), Is.True);
             Vector3 seat = seated.StandingPosition;
+            Assert.That(merchant.Routine.TryFindConversation(passing: false, 7f), Is.False);
+            Assert.That(visitor.Action, Is.EqualTo(WorkerAction.Idle));
+            Assert.That(visitor.GetComponent<NavMeshAgent>().hasPath, Is.False);
 
+            Vector3 towardsVisitor = Vector3.ProjectOnPlane(fartherAway - seat, Vector3.up).normalized;
+            Assert.That(visitor.WarpTo(seat + towardsVisitor * 1.15f), Is.True);
+            Assert.That(visitor.InReach(seat, farmer.InteractionDistance), Is.True);
             Assert.That(merchant.Routine.TryFindConversation(passing: false, 7f), Is.True);
-            Assert.That(visitor.IsInteractingWith(farmer), Is.True);
+            Assert.That(visitor.Action, Is.EqualTo(WorkerAction.Idle));
             yield return Until(() => NpcIsSaying("여기서 쉬고 계셨군요. 잠깐 이야기해도 돼요?"), 5f);
             yield return Until(() => NpcIsSaying("그럼요. 오늘은 어떻게 보냈어요?"), 4f);
             Assert.That(seated.Action, Is.EqualTo(WorkerAction.Sitting));
@@ -197,7 +204,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator ClickingAWalkingVillagerStartsDialogueAndFollowsWithoutChangingTheirRoute()
+        public IEnumerator ClickingAWalkingVillagerFollowsUntilThePlayerChoosesAnotherDestination()
         {
             var target = game.FindInteraction(VillageRole.Farmer);
             var villager = target.GetComponent<HarvestWorker>();
@@ -223,9 +230,13 @@ namespace Workerborn.Tests
             Assert.That(villagerAgent.destination, Is.EqualTo(originalDestination));
             Assert.That(game.State.Minute, Is.GreaterThan(minute));
 
-            game.Hud.CloseDialogue();
-            yield return Until(() => player.Action == WorkerAction.Idle, 1f);
+            var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
+            Vector3 manualDestination = NearbyDestination(2.8f, direct: true);
+            player.CommandMove(manualDestination);
+            Assert.That(game.Hud.IsDialogueOpen, Is.False);
+            Assert.That(dialogue.IsClosing, Is.True);
             Assert.That(villagerAgent.destination, Is.EqualTo(originalDestination));
+            yield return Until(() => player.InReach(manualDestination, .22f), 3f);
         }
 
         [UnityTest]
@@ -2306,6 +2317,17 @@ namespace Workerborn.Tests
             Assert.That(speaker.anchorMin.y, Is.EqualTo(1f));
             Assert.That(speaker.pivot.y, Is.EqualTo(.5f));
             var line = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
+            var chatLine = speech.transform.Find("Speech").GetComponent<TMP_Text>();
+            var ambientLine = game.Hud.Library.NpcConversation.GetComponentInChildren<TMP_Text>(true);
+            foreach (var spokenLine in new[] { line, ambientLine })
+            {
+                Assert.That(spokenLine.font, Is.SameAs(chatLine.font));
+                Assert.That(spokenLine.fontSize, Is.EqualTo(chatLine.fontSize));
+                Assert.That(spokenLine.fontStyle, Is.EqualTo(chatLine.fontStyle));
+                Assert.That(spokenLine.color, Is.EqualTo(chatLine.color));
+            }
+            var prose = (RectTransform)line.transform.parent;
+            Assert.That(prose.offsetMin.y, Is.EqualTo(-prose.offsetMax.y).Within(.01f));
             Assert.That(line.maxVisibleCharacters, Is.Zero);
             yield return Until(() => line.maxVisibleCharacters > 0, 1f);
             int revealed = line.maxVisibleCharacters;
@@ -2325,6 +2347,8 @@ namespace Workerborn.Tests
             Assert.That(shop.GetComponentInChildren<ShopSellTarget>().name, Is.EqualTo("Stock viewport"));
             yield return Until(() => shop.Rect.rect.height >= 205f, 1f);
             Assert.That(shop.Rect.position.y, Is.GreaterThan(line.rectTransform.position.y));
+            Assert.That(prose.offsetMin.y, Is.EqualTo(-dialogue.ShopStock.offsetMax.y).Within(.01f));
+            yield return Until(() => openingContent.localScale == Vector3.one, 1f);
 
             Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 9), Is.True);
             var entry = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Potato);
@@ -2354,7 +2378,9 @@ namespace Workerborn.Tests
             Assert.That(dialogue.isActiveAndEnabled, Is.True);
             Assert.That(normalHud.activeSelf, Is.True);
             Assert.That(dialogue.GetComponent<CanvasGroup>().blocksRaycasts, Is.False);
+            Assert.That(shop.gameObject.activeInHierarchy, Is.True);
             yield return Until(() => !dialogue.isActiveAndEnabled, 1f);
+            Assert.That(shop.gameObject.activeSelf, Is.False);
             Assert.That(inventory.gameObject.activeSelf, Is.True);
         }
 
@@ -2556,7 +2582,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator TradeEscapeClosesOnlyAnInventoryOpenedByTrading()
+        public IEnumerator LeavingTradeClosesOnlyAnInventoryOpenedByTrading()
         {
             var keyboard = InputSystem.AddDevice<Keyboard>();
             try
@@ -2580,7 +2606,8 @@ namespace Workerborn.Tests
                 game.Hud.OpenDialogue(merchant);
                 game.Hud.ToggleWindow("inventory");
                 game.Hud.OpenShop(merchant);
-                game.Hud.CloseWindow("shop");
+                game.Worker.CommandMove(NearbyDestination(direct: true));
+                Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
                 Assert.That(game.Hud.InventoryOpen, Is.True);
                 Assert.That(game.Hud.IsDialogueOpen, Is.False);
                 Assert.That(quests.gameObject.activeSelf, Is.True);
@@ -3317,6 +3344,35 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator MountedHarvestRidesToTheCropAndResumesTheSameCommandOnFoot()
+        {
+            var worker = game.Worker;
+            var horse = UnityEngine.Object.FindFirstObjectByType<VillageMount>();
+            Assert.That(worker.WarpTo(horse.transform.position), Is.True);
+            Assert.That(game.RequestMount(horse), Is.True);
+            var crop = game.Crops.Where(candidate => !worker.InReach(candidate.transform.position, candidate.InteractionDistance + 2f))
+                .OrderBy(candidate => (candidate.transform.position - worker.StandingPosition).sqrMagnitude)
+                .First(candidate => worker.TryGetReachablePoint(candidate.transform.position, candidate.InteractionDistance * .8f, out _));
+            Assert.That(game.CanHarvest(crop), Is.True);
+
+            crop.RequestInteraction(worker);
+            Assert.That(worker.Action, Is.EqualTo(WorkerAction.Moving));
+            Assert.That(worker.CurrentMount, Is.SameAs(horse));
+            Assert.That(worker.IsInteractingWith(crop), Is.True);
+            worker.Cancel();
+            yield return null;
+            Assert.That(worker.CurrentMount, Is.SameAs(horse));
+            Assert.That(worker.IsInteractingWith(crop), Is.False);
+
+            crop.RequestInteraction(worker);
+            yield return Until(() => worker.ActiveCrop == crop, 18f);
+            Assert.That(worker.CurrentMount, Is.Null);
+            Assert.That(horse.Rider, Is.Null.Or.Empty);
+            Assert.That(Vector3.Distance(horse.transform.position, crop.transform.position),
+                Is.LessThan(crop.InteractionDistance + 1f));
+        }
+
+        [UnityTest]
         public IEnumerator KeyboardMovementWalksOnlyWhileShiftIsHeld()
         {
             var keyboard = InputSystem.AddDevice<Keyboard>();
@@ -3327,8 +3383,11 @@ namespace Workerborn.Tests
                 Vector3 forward = Vector3.Cross(right, Vector3.up);
                 Quaternion facing = Quaternion.LookRotation(forward);
                 game.Worker.transform.rotation = Quaternion.LookRotation(-forward);
+                game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
+                Assert.That(game.Hud.IsDialogueOpen, Is.True);
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W));
                 yield return null;
+                Assert.That(game.Hud.IsDialogueOpen, Is.False);
                 Assert.That(game.Worker.Action, Is.EqualTo(WorkerAction.Moving));
                 Assert.That(Quaternion.Angle(game.Worker.transform.rotation, facing),
                     Is.EqualTo(Mathf.Max(0f, 180f - agent.angularSpeed * Time.deltaTime)).Within(.5f));

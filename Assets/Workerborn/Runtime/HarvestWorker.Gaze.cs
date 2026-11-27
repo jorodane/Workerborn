@@ -42,7 +42,8 @@ namespace Workerborn
 
             if (FishingPoint is Vector3 cast && cropTarget is { CanInteract: true } && SharesMap(cast))
                 return cast;
-            return GazePoint(strikeTarget) ?? GazePoint(cropTarget) ?? GazePoint(interactionTarget) ?? GazePoint(pickupTarget.Target);
+            return GazePoint(strikeTarget) ?? GazePoint(cropTarget) ?? GazePoint(interactionTarget) ??
+                GazePoint(MountedWorkTarget) ?? GazePoint(pickupTarget.Target);
         }
 
         private Vector3? PointerGazePoint()

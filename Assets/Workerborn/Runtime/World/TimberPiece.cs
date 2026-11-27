@@ -188,7 +188,7 @@ namespace Workerborn
 
         private void RequestSplit(HarvestWorker worker)
         {
-            if (!CanInteract || !worker.AcceptsInteractionCommands)
+            if (!CanInteract || !worker.AcceptsMovementCommands)
                 return;
             if (worker.CarriedLogs > 0)
                 worker.Village.TimberNotice(worker, "들고 있는 통나무를 먼저 내려놓아 주세요.");
