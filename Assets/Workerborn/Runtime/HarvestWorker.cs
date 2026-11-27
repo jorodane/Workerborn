@@ -645,7 +645,18 @@ namespace Workerborn
                 village?.ShowClick(destination);
         }
 
-        public void CommandInteract(VillageInteractable target) => CommandApproach(target);
+        public void CommandInteract(VillageInteractable target)
+        {
+            if (village != null && !IsLocallyControlled && Action is (WorkerAction.Idle or WorkerAction.Sitting) &&
+                !IsStandingUp && target != null && target.CanInteract && CanInteractWith(target) &&
+                SharesMap(target.transform.position) && InReach(target.transform.position, target.InteractionDistance) &&
+                target.TryGetComponent<HarvestWorker>(out var partner) && HasDirectPathTo(partner))
+            {
+                target.Arrive(village, this);
+                return;
+            }
+            CommandApproach(target);
+        }
 
         public void CommandAttack(WorldInteractable target)
         {
@@ -757,7 +768,7 @@ namespace Workerborn
                 DeferUntilStanding(() => Approach(target, point, arrival)))
                 return;
             float offset = point.HasValue ? 0f : InteractionReach(target) * .7f;
-            if (!NavigateNear(point ?? target.transform.position, offset))
+            if (!NavigateNear(point ?? target.transform.position, offset, walk: !IsLocallyControlled && target is VillageInteractable))
                 return;
             interactionTarget = target;
             onInteractionArrival = arrival;
@@ -1050,6 +1061,21 @@ namespace Workerborn
             if (direction.sqrMagnitude > 0.001f)
                 transform.rotation = Quaternion.LookRotation(direction);
         }
+
+        internal bool HasDirectPathTo(HarvestWorker person) => agent != null && agent.isOnNavMesh &&
+            !agent.Raycast(person.StandingPosition, out _);
+
+        internal void FaceConversationPartner(Vector3 position)
+        {
+            if (Action == WorkerAction.Idle && !IsStandingUp)
+                Face(position);
+        }
+
+        internal void PlayConversationGesture(ConversationGesture gesture, float seconds) =>
+            animationDriver?.PlayConversationGesture(village.Settings.ConversationClip(gesture),
+                headOnly: gesture == ConversationGesture.Nod, seconds);
+
+        internal void StopConversationGesture() => animationDriver?.StopConversationGesture();
 
         private void ClearInteractionTargets()
         {

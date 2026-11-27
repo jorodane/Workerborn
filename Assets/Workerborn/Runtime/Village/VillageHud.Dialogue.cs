@@ -11,7 +11,7 @@ namespace Workerborn
         private readonly Dictionary<string, bool> dialogueWindowStates = new Dictionary<string, bool>();
         private WindowTransition[] backdropTransitions = System.Array.Empty<WindowTransition>();
         private bool dialogueClosing;
-        private readonly Dictionary<VillageInteractable, NpcConversationBubbleView> npcShopBubbles =
+        private readonly Dictionary<VillageInteractable, NpcConversationBubbleView> npcConversationBubbles =
             new Dictionary<VillageInteractable, NpcConversationBubbleView>();
         internal bool IsSpeakingWith(VillageInteractable target) => target != null && dialogueTarget == target;
 
@@ -186,33 +186,38 @@ namespace Workerborn
             return bounds;
         }
 
-        internal void ShowNpcShopConversation(VillageInteractable merchant, VillageInteractable customer)
+        internal void ShowNpcShopConversation(VillageInteractable merchant, VillageInteractable customer) =>
+            NpcBubble(merchant).SetPartner(customer.DisplayName);
+
+        internal void ShowNpcConversationLine(VillageInteractable speaker, string line) => NpcBubble(speaker).SetLine(line);
+
+        private NpcConversationBubbleView NpcBubble(VillageInteractable speaker)
         {
-            if (!npcShopBubbles.TryGetValue(merchant, out var bubble))
+            if (!npcConversationBubbles.TryGetValue(speaker, out var bubble))
             {
                 var layer = pickupNames != null ? pickupNames.transform : transform;
                 bubble = Instantiate(library.NpcConversation, layer);
-                npcShopBubbles.Add(merchant, bubble);
+                npcConversationBubbles.Add(speaker, bubble);
             }
-            bubble.SetPartner(customer.DisplayName);
+            return bubble;
         }
 
-        internal void HideNpcShopConversation(VillageInteractable merchant)
+        internal void HideNpcConversationBubble(VillageInteractable speaker)
         {
-            if (npcShopBubbles.Remove(merchant, out var bubble))
+            if (npcConversationBubbles.Remove(speaker, out var bubble))
             {
                 bubble.gameObject.SetActive(false);
                 Destroy(bubble.gameObject);
             }
         }
 
-        private void UpdateNpcShopConversations()
+        private void UpdateNpcConversationBubbles()
         {
-            foreach (var (merchant, bubble) in npcShopBubbles)
+            foreach (var (speaker, bubble) in npcConversationBubbles)
             {
                 var layer = (RectTransform)bubble.transform.parent;
-                if (merchant != null && merchant.isActiveAndEnabled && !IsSpeakingWith(merchant) &&
-                    PickupNames.TryProject(game, layer, merchant.transform.position, merchant.NamePosition, out var point, out float depth))
+                if (speaker != null && speaker.isActiveAndEnabled && !IsSpeakingWith(speaker) &&
+                    PickupNames.TryProject(game, layer, speaker.transform.position, speaker.NamePosition, out var point, out float depth))
                 {
                     bubble.Place(point);
                     pickupNames?.IncludeDepth(bubble.transform, depth);

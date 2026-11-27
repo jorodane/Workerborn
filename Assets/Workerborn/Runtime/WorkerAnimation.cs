@@ -16,6 +16,7 @@ namespace Workerborn
         private const int RideInput = 11;
         private const int CarryLayer = 1;
         private const int MealLayer = 2;
+        private const int ConversationLayer = 3;
         private const double SitSpeed = .85d;
         [SerializeField] private AnimationClip groundSit;
         [SerializeField] private AnimationClip groundSitBegin;
@@ -34,13 +35,14 @@ namespace Workerborn
         private AnimationMixerPlayable mixer;
         private AnimationPlayableOutput animationOutput;
         private AnimationLayerMixerPlayable upperBodyLayers;
-        private AnimationClipPlayable carryPose, eatingPose;
+        private AnimationClipPlayable carryPose, eatingPose, conversationPose;
         private AnimationScriptPlayable mountFootPose;
-        private AvatarMask carryMask, eatingMask;
+        private AvatarMask carryMask, eatingMask, conversationMask, listeningMask;
         private AnimationClip timberToss, eatingClip;
         private ItemDefinition shownFood;
         private GameObject foodInHand;
         private bool humanoid, carrying;
+        private bool showingConversationGesture;
         private readonly AnimationClipPlayable[] clips = new AnimationClipPlayable[RideInput + 1];
         private readonly float[] lengths = new float[RideInput + 1];
         private readonly float[] weights = new float[RideInput + 1];
@@ -340,6 +342,38 @@ namespace Workerborn
         internal void ConfigureTimberToss(AnimationClip clip) => timberToss = clip;
         internal void ConfigureEating(AnimationClip clip) => eatingClip = clip;
 
+        internal void PlayConversationGesture(AnimationClip clip, bool headOnly, float seconds)
+        {
+            if (!graph.IsValid() || !humanoid || clip == null || carrying || riding || Gesture != WorkerGesture.None)
+                return;
+            EnsureUpperBodyLayers();
+            if (!conversationPose.IsValid() || conversationPose.GetAnimationClip() != clip)
+            {
+                if (conversationPose.IsValid())
+                {
+                    graph.Disconnect(upperBodyLayers, ConversationLayer);
+                    graph.DestroyPlayable(conversationPose);
+                }
+                conversationPose = AnimationClipPlayable.Create(graph, clip);
+                conversationPose.SetApplyFootIK(false);
+                graph.Connect(conversationPose, 0, upperBodyLayers, ConversationLayer);
+            }
+            var mask = headOnly
+                ? listeningMask ??= UpperBodyMask(AvatarMaskBodyPart.Head, includeArms: false)
+                : conversationMask ??= UpperBodyMask(AvatarMaskBodyPart.Head);
+            upperBodyLayers.SetLayerMaskFromAvatarMask(ConversationLayer, mask);
+            conversationPose.SetTime(0d);
+            conversationPose.SetSpeed(Mathf.Max(1f, clip.length / Mathf.Max(.1f, seconds)));
+            showingConversationGesture = true;
+        }
+
+        internal void StopConversationGesture()
+        {
+            showingConversationGesture = false;
+            if (conversationPose.IsValid())
+                conversationPose.SetSpeed(0d);
+        }
+
         internal void SampleMeal(float phase)
         {
             if (Gesture != WorkerGesture.Eat)
@@ -471,23 +505,24 @@ namespace Workerborn
         {
             if (upperBodyLayers.IsValid())
                 return;
-            upperBodyLayers = AnimationLayerMixerPlayable.Create(graph, 3);
+            upperBodyLayers = AnimationLayerMixerPlayable.Create(graph, 4);
             graph.Connect(mixer, 0, upperBodyLayers, 0);
             upperBodyLayers.SetInputWeight(0, 1f);
             upperBodyLayers.SetInputWeight(CarryLayer, 0f);
             upperBodyLayers.SetInputWeight(MealLayer, 0f);
+            upperBodyLayers.SetInputWeight(ConversationLayer, 0f);
             animationOutput.SetSourcePlayable(upperBodyLayers);
         }
 
-        private static AvatarMask UpperBodyMask(AvatarMaskBodyPart extra)
+        private static AvatarMask UpperBodyMask(AvatarMaskBodyPart extra, bool includeArms = true)
         {
             var mask = new AvatarMask();
             for (int i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++)
             {
                 var part = (AvatarMaskBodyPart)i;
-                mask.SetHumanoidBodyPartActive(part, part == extra ||
-                    part is AvatarMaskBodyPart.LeftArm or AvatarMaskBodyPart.RightArm or
-                    AvatarMaskBodyPart.LeftFingers or AvatarMaskBodyPart.RightFingers);
+                mask.SetHumanoidBodyPartActive(part, part == extra || includeArms &&
+                    part is (AvatarMaskBodyPart.LeftArm or AvatarMaskBodyPart.RightArm or
+                    AvatarMaskBodyPart.LeftFingers or AvatarMaskBodyPart.RightFingers));
             }
             return mask;
         }
@@ -597,6 +632,13 @@ namespace Workerborn
                 if (foodInHand != null)
                     foodInHand.SetActive(eating && GestureProgress < .76f);
             }
+            if (conversationPose.IsValid())
+            {
+                if (showingConversationGesture && (riding || carrying || target == Work || Gesture != WorkerGesture.None ||
+                    conversationPose.GetTime() >= conversationPose.GetAnimationClip().length))
+                    StopConversationGesture();
+                BlendUpperBody(ConversationLayer, showingConversationGesture);
+            }
         }
 
         private void BlendUpperBody(int layer, bool active) =>
@@ -610,10 +652,15 @@ namespace Workerborn
                 Destroy(carryMask);
             if (eatingMask != null)
                 Destroy(eatingMask);
-            carryMask = eatingMask = null;
-            carryPose = eatingPose = default;
+            if (conversationMask != null)
+                Destroy(conversationMask);
+            if (listeningMask != null)
+                Destroy(listeningMask);
+            carryMask = eatingMask = conversationMask = listeningMask = null;
+            carryPose = eatingPose = conversationPose = default;
             upperBodyLayers = default;
             carrying = false;
+            showingConversationGesture = false;
         }
 
         private void OnDestroy()

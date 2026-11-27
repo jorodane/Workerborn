@@ -21,7 +21,8 @@ namespace Workerborn
         private bool paused;
         private NpcActivity waitingActivity;
 
-        internal NpcActivity Activity => character.IsEating ? NpcActivity.Eating :
+        internal NpcActivity Activity => HoldingConversation ? NpcActivity.Talking : RoutineActivity;
+        private NpcActivity RoutineActivity => character.IsEating ? NpcActivity.Eating :
             merchant != null ? NpcActivity.Shopping : character.Action switch
         {
             WorkerAction.Moving => NpcActivity.Walking,
@@ -32,12 +33,14 @@ namespace Workerborn
         internal bool IsSeated => character.OccupiedSeat != null;
         internal bool StartingFoodIssued { get; private set; }
         internal bool ShoppingGoldIssued { get; private set; }
+        private bool IsAvailableResident => isActiveAndEnabled && !character.IsLocallyControlled && !character.CharacterState.NeedsRest;
 
         internal void Bind(VillagePrototype owner, VillageInteractable subject, HarvestWorker worker)
         {
             game = owner;
             npc = subject;
             character = worker;
+            SetFirstConversationChecks();
             character.HarvestAttemptFinished += PauseAfterHarvest;
         }
 
@@ -61,13 +64,17 @@ namespace Workerborn
         {
             if (game == null || !game.CanRunNpcSchedules || game.IsWorldTransitioning ||
                 character.IsLocallyControlled || !character.EnsureNavigation())
+            {
+                conversation?.End();
                 return;
-            if (game.Worker.IsInteractingWith(npc) || game.Hud.IsSpeakingWith(npc))
+            }
+            if (PlayerEngaged)
             {
                 if (!paused)
                 {
                     paused = true;
-                    var interruptedActivity = Activity;
+                    var interruptedActivity = RoutineActivity;
+                    conversation?.End();
                     StopShopping();
                     customer?.StopShopping();
                     if (character.Action is WorkerAction.Moving or WorkerAction.Harvesting)
@@ -81,6 +88,8 @@ namespace Workerborn
                 paused = false;
                 waitingActivity = NpcActivity.Idle;
             }
+            if (ContinueConversation())
+                return;
             if (character.IsEating)
                 return;
             if (customer != null || ContinueShopping())
@@ -96,15 +105,32 @@ namespace Workerborn
             if (planned && !GoalStillAvailable())
                 ClearGoal();
             if (character.Action is WorkerAction.Idle or WorkerAction.Sitting && TryMeal())
+            {
+                conversation?.End();
                 return;
-            if (ReturnFromShopping())
+            }
+            TryPassingGreeting();
+            if (ReturnToActivity())
                 return;
+            if (character.Action == WorkerAction.Sitting)
+            {
+                TryVisit();
+                return;
+            }
             if (character.Action != WorkerAction.Idle)
                 return;
-            if (scheduled?.Facility == null || Time.time < retryAt)
+            if (scheduled?.Facility == null)
+            {
+                TryVisit();
+                return;
+            }
+            if (Time.time < retryAt)
                 return;
             if (scheduled.Activity == NpcActivity.Harvesting && Time.time < harvestResumeAt)
+            {
+                TryVisit(duringWorkBreak: true);
                 return;
+            }
 
             retryAt = Time.time + RetryDelay;
             if (goal.Seat != null && TrySit())
@@ -118,13 +144,18 @@ namespace Workerborn
                     return;
                 }
                 if (scheduled.Activity == NpcActivity.Resting)
+                {
+                    TryVisit();
                     return;
+                }
             }
 
             var activity = scheduled.Activity == NpcActivity.Harvesting ? NpcActivity.Working : scheduled.Activity;
             var standing = FindTarget(activity);
             if (standing.Facility != null)
                 StartTask(standing);
+            if (character.Action == WorkerAction.Idle)
+                TryVisit(duringWorkBreak: npc.Definition.Job != null);
         }
 
         private bool TryMeal()
@@ -265,6 +296,7 @@ namespace Workerborn
 
         private void OnDisable()
         {
+            conversation?.End();
             if (character != null && !character.IsLocallyControlled)
             {
                 StopShopping();

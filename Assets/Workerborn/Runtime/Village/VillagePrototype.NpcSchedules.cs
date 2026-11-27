@@ -91,7 +91,7 @@ namespace Workerborn
                     routine.IssueProvisions(restored);
                     if (restored is { npcReturningFromShop: true } && float.IsFinite(restored.npcShopOriginX) &&
                         float.IsFinite(restored.npcShopOriginZ))
-                        routine.ShoppingOrigin = SurfacePosition(restored.npcShopOriginX, restored.npcShopOriginZ);
+                        routine.ReturnPoint = SurfacePosition(restored.npcShopOriginX, restored.npcShopOriginZ);
                 }
             }
         }
@@ -140,7 +140,8 @@ namespace Workerborn
             {
                 save.npcMealsIssued = routine.StartingFoodIssued;
                 save.npcShoppingGoldIssued = routine.ShoppingGoldIssued;
-                if (routine.ShoppingOrigin is Vector3 origin)
+                // Keep the existing save fields for a villager's return point.
+                if (routine.ReturnPoint is Vector3 origin)
                 {
                     save.npcReturningFromShop = true;
                     save.npcShopOriginX = origin.x;

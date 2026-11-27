@@ -121,6 +121,69 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator VillagersExchangeMorningGreetingsWithoutLosingTheirWalkingRoute()
+        {
+            game.State.AdvanceTime((620f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
+            yield return null;
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            var merchant = game.FindInteraction(VillageRole.Merchant);
+            var passer = farmer.GetComponent<HarvestWorker>();
+            var listener = merchant.GetComponent<HarvestWorker>();
+            Vector3 start = game.Worker.StandingPosition;
+            Vector3 endpoint = NearbyDestination(8f, direct: true);
+            Vector3 close = start + (endpoint - start).normalized * 2f;
+            Assert.That(NavMesh.SamplePosition(close, out var nearby, .6f, NavMesh.AllAreas), Is.True);
+            Assert.That(passer.WarpTo(start), Is.True);
+            Assert.That(listener.WarpTo(nearby.position), Is.True);
+            Assert.That(passer.HasDirectPathTo(listener), Is.True);
+
+            farmer.Routine.enabled = true;
+            passer.CommandMove(endpoint, walk: true);
+            var agent = passer.GetComponent<NavMeshAgent>();
+            Vector3 originalDestination = agent.destination;
+            Assert.That(farmer.Routine.TryFindConversation(passing: true, 4f), Is.True);
+            Assert.That(NpcIsSaying("좋은 아침이에요!"), Is.True);
+            Assert.That(passer.IsWalking, Is.True);
+            Assert.That(agent.destination, Is.EqualTo(originalDestination));
+            Assert.That(game.Hud.WorldActionsLocked, Is.False);
+
+            yield return Until(() => NpcIsSaying("좋은 아침! 이따 봐요."), 2.7f);
+            Assert.That(passer.IsWalking, Is.True);
+            Assert.That(agent.destination, Is.EqualTo(originalDestination));
+        }
+
+        [UnityTest]
+        public IEnumerator AVisitUsesTheSharedApproachAndLetsASeatedVillagerAnswerInPlace()
+        {
+            game.State.AdvanceTime((1280f - game.State.Minute) / game.State.Rules.MinutesPerSecond);
+            yield return null;
+            var farmer = game.FindInteraction(VillageRole.Farmer);
+            var merchant = game.FindInteraction(VillageRole.Merchant);
+            var seated = farmer.GetComponent<HarvestWorker>();
+            var visitor = merchant.GetComponent<HarvestWorker>();
+            farmer.Routine.enabled = true;
+            yield return null;
+            Assert.That(seated.WarpTo(game.Worker.StandingPosition), Is.True);
+            Assert.That(visitor.WarpTo(NearbyDestination()), Is.True);
+            Assert.That(seated.ToggleSit(), Is.True);
+            Vector3 seat = seated.StandingPosition;
+
+            Assert.That(merchant.Routine.TryFindConversation(passing: false, 7f), Is.True);
+            Assert.That(visitor.IsInteractingWith(farmer), Is.True);
+            yield return Until(() => NpcIsSaying("여기서 쉬고 계셨군요. 잠깐 이야기해도 돼요?"), 5f);
+            yield return Until(() => NpcIsSaying("그럼요. 오늘은 어떻게 보냈어요?"), 4f);
+            Assert.That(seated.Action, Is.EqualTo(WorkerAction.Sitting));
+            Assert.That(seated.StandingPosition, Is.EqualTo(seat));
+            Assert.That(farmer.CurrentActivity, Is.EqualTo(NpcActivity.Talking));
+
+            game.Hud.OpenDialogue(farmer);
+            yield return Until(() => farmer.CurrentActivity != NpcActivity.Talking &&
+                !NpcIsSaying("그럼요. 오늘은 어떻게 보냈어요?"), 1f);
+            Assert.That(game.Hud.IsSpeakingWith(farmer), Is.True);
+            Assert.That(seated.Action, Is.EqualTo(WorkerAction.Sitting));
+        }
+
+        [UnityTest]
         public IEnumerator FirstLifeWaitsOnWalkableCloudsUntilTheGuideConfirmsIncarnation()
         {
             var waiting = VillageState.BeforeFirstLife(game.State.Rules);
@@ -3431,16 +3494,19 @@ namespace Workerborn.Tests
         private static WorldNameplateView FindPickupName(GroundPickup item) =>
             UnityEngine.Object.FindObjectsByType<WorldNameplateView>(FindObjectsSortMode.None).SingleOrDefault(view => view.Target == item);
 
-        private Vector3 NearbyDestination()
+        private bool NpcIsSaying(string line) => game.Hud.GetComponentsInChildren<NpcConversationBubbleView>(true)
+            .Any(bubble => bubble.GetComponentInChildren<TMP_Text>(true).text == line);
+
+        private Vector3 NearbyDestination(float distance = 3.5f, bool direct = false)
         {
             var worker = game.Worker.transform;
             var agent = worker.GetComponent<NavMeshAgent>();
             var path = new NavMeshPath();
             for (int angle = 0; angle < 360; angle += 45)
             {
-                var point = worker.position + Quaternion.Euler(0, angle, 0) * Vector3.forward * 3.5f;
+                var point = worker.position + Quaternion.Euler(0, angle, 0) * Vector3.forward * distance;
                 if (NavMesh.SamplePosition(point, out var hit, .7f, NavMesh.AllAreas) && agent.CalculatePath(hit.position, path)
-                    && path.status == NavMeshPathStatus.PathComplete)
+                    && path.status == NavMeshPathStatus.PathComplete && (!direct || !agent.Raycast(hit.position, out _)))
                     return hit.position;
             }
             Assert.Fail("No reachable ground near the village spawn.");

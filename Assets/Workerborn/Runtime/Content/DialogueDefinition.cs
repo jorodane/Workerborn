@@ -53,6 +53,16 @@ namespace Workerborn
             };
             return matches.HasValue && matches.Value != invert;
         }
+
+        internal static bool AllMet(DialogueRequirement[] requirements, VillageState state, NpcActivity activity,
+            DialogueQuestStage questStage = DialogueQuestStage.None)
+        {
+            if (requirements != null)
+                foreach (var requirement in requirements)
+                    if (requirement == null || !requirement.IsMet(state, questStage, activity))
+                        return false;
+            return true;
+        }
     }
 
     [Serializable]
@@ -64,14 +74,8 @@ namespace Workerborn
         [SerializeField, Tooltip("All requirements must be met before showing this topic.")]
         private DialogueRequirement[] requirements;
 
-        internal bool IsAvailable(VillageState state, NpcActivity activity, DialogueQuestStage questStage = DialogueQuestStage.None)
-        {
-            if (requirements != null)
-                foreach (var requirement in requirements)
-                    if (requirement == null || !requirement.IsMet(state, questStage, activity))
-                        return false;
-            return true;
-        }
+        internal bool IsAvailable(VillageState state, NpcActivity activity, DialogueQuestStage questStage = DialogueQuestStage.None) =>
+            DialogueRequirement.AllMet(requirements, state, activity, questStage);
     }
 
     [Serializable]

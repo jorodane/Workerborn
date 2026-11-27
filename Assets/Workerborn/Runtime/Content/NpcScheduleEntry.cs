@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Workerborn
 {
-    public enum NpcActivity { Idle, Walking, Working, Harvesting, Resting, Event, Eating, Shopping }
+    public enum NpcActivity { Idle, Walking, Working, Harvesting, Resting, Event, Eating, Shopping, Talking }
 
     [Serializable]
     public sealed class NpcScheduleEntry

@@ -352,11 +352,13 @@ namespace Workerborn
 
         internal void BeginConversation(HarvestWorker speaker, VillageInteractable target)
         {
-            PrepareConversation(speaker, target);
             if (speaker.IsLocallyControlled)
+            {
+                PrepareConversation(speaker, target);
                 hud.OpenDialogue(target, null);
+            }
             else if (speaker.TryGetComponent<NpcRoutine>(out var visitor))
-                visitor.ArrivedAtShop(target);
+                visitor.ArrivedAtConversation(target);
         }
 
         private void PrepareConversation(HarvestWorker speaker, VillageInteractable target)
@@ -364,13 +366,7 @@ namespace Workerborn
             speaker.Cancel();
             if (target.Role == VillageRole.Farmer)
                 speaker.CharacterState.MeetFarmer();
-            if (target.GetComponent<HarvestWorker>()?.OccupiedSeat == null && target.GetComponent<CharacterActor>() != null)
-            {
-                Vector3 forward = speaker.transform.position - target.transform.position;
-                forward.y = 0f;
-                if (forward.sqrMagnitude > 0.01f)
-                    target.transform.rotation = Quaternion.LookRotation(forward);
-            }
+            target.GetComponent<HarvestWorker>()?.FaceConversationPartner(speaker.StandingPosition);
         }
 
         public bool CanHarvest(HarvestableCrop target) => CanHarvest(worker, target);

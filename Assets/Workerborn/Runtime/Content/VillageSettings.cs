@@ -30,6 +30,11 @@ namespace Workerborn
         [SerializeField] private VillageCursorSet cursors;
         [SerializeField] private TimberAssets timber;
         [SerializeField] private AnimationClip eatingAnimation;
+        [Header("NPC Conversations")]
+        [SerializeField] private NpcConversation[] npcConversations;
+        [SerializeField] private AnimationClip conversationWave;
+        [SerializeField] private AnimationClip conversationNod;
+        [SerializeField] private AnimationClip conversationTalk;
         [Header("Time and rest")]
         [SerializeField, Min(0.1f)]
         private float minutesPerSecond = 3f;
@@ -66,6 +71,14 @@ namespace Workerborn
         internal VillageCursorSet Cursors => cursors;
         internal TimberAssets Timber => timber;
         internal AnimationClip EatingAnimation => eatingAnimation;
+        internal NpcConversation[] NpcConversations => npcConversations ?? System.Array.Empty<NpcConversation>();
+        internal AnimationClip ConversationClip(ConversationGesture gesture) => gesture switch
+        {
+            ConversationGesture.Wave => conversationWave,
+            ConversationGesture.Nod => conversationNod,
+            ConversationGesture.Talk => conversationTalk,
+            _ => null
+        };
         public PartTimeJobDefinition DefaultJob => defaultJob;
         public QuestDefinition IntroQuest => introQuest;
         public QuestDefinition ExpansionQuest => expansionQuest;

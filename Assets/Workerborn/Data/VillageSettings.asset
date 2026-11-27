@@ -77,6 +77,191 @@ MonoBehaviour:
   cursors: {fileID: 11400000, guid: 0899ed9264a75ab09c57cec515a85035, type: 2}
   timber: {fileID: 11400000, guid: 9d1b5d7c538c5e69b7eb0e8aa12fad54, type: 2}
   eatingAnimation: {fileID: -755408144417358176, guid: cd11ab127b9174241bea1048fd7d6d45, type: 3}
+  npcConversations:
+  - passing: 1
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements: []
+    startMinute: 360
+    endMinute: 660
+    priority: 10
+    lines:
+    - partnerSpeaks: 0
+      text: 좋은 아침이에요!
+      gesture: 1
+    - partnerSpeaks: 1
+      text: 좋은 아침! 이따 봐요.
+      gesture: 2
+  - passing: 1
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements: []
+    startMinute: 1080
+    endMinute: 1440
+    priority: 10
+    lines:
+    - partnerSpeaks: 0
+      text: 오늘도 고생했어요.
+      gesture: 1
+    - partnerSpeaks: 1
+      text: 편히 쉬어요!
+      gesture: 2
+  - passing: 1
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements: []
+    startMinute: 0
+    endMinute: 1440
+    priority: 0
+    lines:
+    - partnerSpeaks: 0
+      text: 어디 가는 길이에요?
+      gesture: 1
+    - partnerSpeaks: 1
+      text: 잠깐 다녀올게요!
+      gesture: 2
+  - passing: 1
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements: []
+    startMinute: 0
+    endMinute: 1440
+    priority: 0
+    lines:
+    - partnerSpeaks: 0
+      text: 또 만나네요!
+      gesture: 1
+    - partnerSpeaks: 1
+      text: 이따 봐요!
+      gesture: 1
+  - passing: 0
+    speaker: {fileID: 0}
+    partner: {fileID: 11400000, guid: 75726c5d35e65ed692974f034a75ba62, type: 2}
+    speakerRequirements: []
+    partnerRequirements:
+    - kind: 6
+      activity: 2
+    - kind: 2
+    startMinute: 0
+    endMinute: 1440
+    priority: 24
+    lines:
+    - partnerSpeaks: 0
+      text: 미라, 오늘 밭일은 어때요?
+      gesture: 3
+    - partnerSpeaks: 1
+      text: 감자가 잘 여물었어요. 한 바구니만 더 캐면 돼요.
+      gesture: 3
+    - partnerSpeaks: 0
+      text: 잠깐 쉬었다 해요. 아직 해가 길잖아요.
+      gesture: 2
+  - passing: 0
+    speaker: {fileID: 11400000, guid: 75726c5d35e65ed692974f034a75ba62, type: 2}
+    partner: {fileID: 0}
+    speakerRequirements:
+    - kind: 6
+      activity: 2
+    - kind: 2
+    partnerRequirements: []
+    startMinute: 0
+    endMinute: 1440
+    priority: 24
+    lines:
+    - partnerSpeaks: 0
+      text: 잠깐 손 좀 쉬려고 나왔어요. 오늘 감자가 제법 많이 나왔어요.
+      gesture: 3
+    - partnerSpeaks: 1
+      text: 수고했어요. 돌아가기 전에 숨 좀 돌려요.
+      gesture: 2
+  - passing: 0
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements:
+    - kind: 6
+      activity: 4
+    startMinute: 0
+    endMinute: 1440
+    priority: 20
+    lines:
+    - partnerSpeaks: 0
+      text: 여기서 쉬고 계셨군요. 잠깐 이야기해도 돼요?
+      gesture: 3
+    - partnerSpeaks: 1
+      text: 그럼요. 오늘은 어떻게 보냈어요?
+      gesture: 3
+    - partnerSpeaks: 0
+      text: 바빴는데 이제 한숨 돌리려고요.
+      gesture: 2
+  - passing: 0
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements:
+    - kind: 6
+      activity: 4
+    startMinute: 0
+    endMinute: 1080
+    priority: 20
+    lines:
+    - partnerSpeaks: 0
+      text: 여기 앉으면 바람이 잘 오나요?
+      gesture: 3
+    - partnerSpeaks: 1
+      text: 네. 해 질 때쯤이면 더 시원해요.
+      gesture: 2
+  - passing: 0
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements: []
+    startMinute: 1080
+    endMinute: 1440
+    priority: 10
+    lines:
+    - partnerSpeaks: 0
+      text: 오늘 하루 어땠어요?
+      gesture: 3
+    - partnerSpeaks: 1
+      text: 이제 슬슬 정리하고 쉬어야죠. 내일 봐요.
+      gesture: 2
+  - passing: 0
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements: []
+    startMinute: 0
+    endMinute: 1440
+    priority: 0
+    lines:
+    - partnerSpeaks: 0
+      text: 잠깐 들렀어요. 별일 없었어요?
+      gesture: 3
+    - partnerSpeaks: 1
+      text: 네. 시간 나면 또 들러요.
+      gesture: 2
+  - passing: 0
+    speaker: {fileID: 0}
+    partner: {fileID: 0}
+    speakerRequirements: []
+    partnerRequirements: []
+    startMinute: 0
+    endMinute: 1440
+    priority: 0
+    lines:
+    - partnerSpeaks: 0
+      text: 지나가는 길에 인사하러 왔어요.
+      gesture: 1
+    - partnerSpeaks: 1
+      text: 반가워요. 나중에 또 이야기해요.
+      gesture: 3
+  conversationWave: {fileID: 3094330708855449807, guid: 2ca145d436cfd7647afdc69628ba7962, type: 3}
+  conversationNod: {fileID: 3094330708855449807, guid: aebbf5f310305114e8a2aba689949942, type: 3}
+  conversationTalk: {fileID: 3094330708855449807, guid: 5277e5180e302184fb73653674a14c85, type: 3}
   minutesPerSecond: 3
   wakeHour: 6
   collapseHour: 24

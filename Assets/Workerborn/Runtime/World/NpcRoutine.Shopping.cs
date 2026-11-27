@@ -12,13 +12,11 @@ namespace Workerborn
         private float shopRetryAt;
         private float checkoutAt, conversationEndsAt;
         private bool checkedOut;
-        internal Vector3? ShoppingOrigin { get; set; }
+        internal Vector3? ReturnPoint { get; set; }
 
-        private bool CanServe => isActiveAndEnabled && !character.IsLocallyControlled && !character.CharacterState.NeedsRest;
         private bool AtCheckout => merchant != null && merchant.Routine != null && merchant.Routine.customer == this;
-        private bool AvailableToTrade => CanServe && !character.IsEating && !character.IsStandingUp &&
-            (character.Action is WorkerAction.Idle or WorkerAction.Sitting) && !AtCheckout &&
-            !game.Worker.IsInteractingWith(npc) && !game.Hud.IsSpeakingWith(npc);
+        private bool AvailableToTrade => IsAvailableResident && !character.IsEating && !character.IsStandingUp &&
+            (character.Action is WorkerAction.Idle or WorkerAction.Sitting) && !AtCheckout && !HoldingConversation && !PlayerEngaged;
 
         private bool PlanFoodShopping()
         {
@@ -26,7 +24,7 @@ namespace Workerborn
             foreach (var subject in WorldInteractable.Active)
             {
                 if (subject is not VillageInteractable seller || seller == npc || !seller.CanInteract ||
-                    seller.gameObject.scene != npc.gameObject.scene || seller.Routine == null || !seller.Routine.CanServe ||
+                    seller.gameObject.scene != npc.gameObject.scene || seller.Routine == null || !seller.Routine.IsAvailableResident ||
                     FindFoodOffer(seller) == null || !TryShopStep(seller, out _, out float distance) || distance >= nearest)
                     continue;
                 merchant = seller;
@@ -35,7 +33,7 @@ namespace Workerborn
             if (merchant == null)
                 return false;
 
-            ShoppingOrigin ??= character.StandingPosition;
+            ReturnPoint ??= character.StandingPosition;
             planned = false;
             goal = default;
             ContinueShopping();
@@ -84,7 +82,7 @@ namespace Workerborn
             if (ReferenceEquals(merchant, null))
                 return false;
             if (merchant == null || !merchant.CanInteract || !character.CharacterState.NpcMealDue ||
-                merchant.Routine == null || !merchant.Routine.CanServe || game.IsWorldTransitioning)
+                merchant.Routine == null || !merchant.Routine.IsAvailableResident || game.IsWorldTransitioning)
             {
                 StopShopping();
                 return false;
@@ -122,12 +120,15 @@ namespace Workerborn
             return true;
         }
 
-        internal void ArrivedAtShop(VillageInteractable seller)
+        private void ArrivedAtShop(VillageInteractable seller)
         {
             if (seller != merchant || seller == null || !character.CharacterState.NpcMealDue ||
                 seller.Routine == null || !seller.Routine.AvailableToTrade || seller.Routine.customer != null)
                 return;
             seller.Routine.customer = this;
+            conversation?.End();
+            seller.Routine.conversation?.End();
+            seller.Routine.character.FaceConversationPartner(character.StandingPosition);
             shoppingStep = null;
             checkoutAt = Time.time + CheckoutDelay;
             conversationEndsAt = Time.time + ConversationSeconds;
@@ -168,7 +169,7 @@ namespace Workerborn
             if (AtCheckout)
             {
                 merchant.Routine.customer = null;
-                game.Hud.HideNpcShopConversation(merchant);
+                game.Hud.HideNpcConversationBubble(merchant);
             }
             merchant = null;
             if (shoppingStep != null && character.IsInteractingWith(shoppingStep))
@@ -177,9 +178,9 @@ namespace Workerborn
             shopRetryAt = 0f;
         }
 
-        private bool ReturnFromShopping()
+        private bool ReturnToActivity()
         {
-            if (ShoppingOrigin is not Vector3 origin)
+            if (ReturnPoint is not Vector3 origin)
                 return false;
             if (character.Action == WorkerAction.Moving || character.IsStandingUp || Time.time < shopRetryAt)
                 return true;
@@ -192,7 +193,7 @@ namespace Workerborn
 
             if (character.InReach(origin, .8f) || !character.TryGetReachablePoint(origin, 0f, out var point))
             {
-                ShoppingOrigin = null;
+                ReturnPoint = null;
                 return false;
             }
             character.CommandMove(point, walk: true);

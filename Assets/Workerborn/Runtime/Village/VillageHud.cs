@@ -308,7 +308,7 @@ namespace Workerborn
                         WindowDragHandle.KeepOnScreen(view.Rect);
             }
             UpdatePlayerOverhead();
-            UpdateNpcShopConversations();
+            UpdateNpcConversationBubbles();
             int stamina = state.StaminaLimit;
             energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}   만복도 {state.Fullness}/{state.FullnessLimit}";
             energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
