@@ -118,7 +118,7 @@ namespace Workerborn.Tests
             yield return Until(() => game.Hud.GetComponentsInChildren<NpcConversationBubbleView>(true).Any(), 10f);
             var bubble = game.Hud.GetComponentsInChildren<NpcConversationBubbleView>(true).Single();
             Assert.That(bubble.GetComponentInChildren<TMP_Text>(true).text, Is.EqualTo("미라와 대화 중"));
-            Assert.That(game.Hud.HasModal, Is.False);
+            Assert.That(game.Hud.IsDialogueOpen, Is.False);
             Assert.That(game.Hud.IsShopOpen, Is.False);
             Assert.That(state.Inventory.Count(ItemIds.Bread), Is.Zero);
 
@@ -189,10 +189,43 @@ namespace Workerborn.Tests
             Assert.That(farmer.CurrentActivity, Is.EqualTo(NpcActivity.Talking));
 
             game.Hud.OpenDialogue(farmer);
-            yield return Until(() => farmer.CurrentActivity != NpcActivity.Talking &&
-                !NpcIsSaying("그럼요. 오늘은 어떻게 보냈어요?"), 1f);
+            yield return Until(() => !game.Hud.GetComponentsInChildren<NpcConversationBubbleView>()
+                .Any(bubble => bubble.GetComponentInChildren<TMP_Text>().text == "그럼요. 오늘은 어떻게 보냈어요?"), 1f);
             Assert.That(game.Hud.IsSpeakingWith(farmer), Is.True);
             Assert.That(seated.Action, Is.EqualTo(WorkerAction.Sitting));
+            Assert.That(farmer.CurrentActivity, Is.EqualTo(NpcActivity.Talking));
+        }
+
+        [UnityTest]
+        public IEnumerator ClickingAWalkingVillagerStartsDialogueAndFollowsWithoutChangingTheirRoute()
+        {
+            var target = game.FindInteraction(VillageRole.Farmer);
+            var villager = target.GetComponent<HarvestWorker>();
+            var player = game.Worker;
+            var inventory = game.Hud.OpenWindow("inventory");
+            Vector3 start = player.StandingPosition;
+            Vector3 destination = NearbyDestination(8f, direct: true);
+            Vector3 direction = Vector3.ProjectOnPlane(destination - start, Vector3.up).normalized;
+            Assert.That(villager.WarpTo(start + direction * 2.6f), Is.True);
+            villager.CommandMove(destination, walk: true);
+            var villagerAgent = villager.GetComponent<NavMeshAgent>();
+            Vector3 originalDestination = villagerAgent.destination;
+
+            target.RequestInteraction(player);
+            yield return Until(() => game.Hud.IsSpeakingWith(target), 3f);
+            Assert.That(game.ControlsBlocked, Is.False);
+            Assert.That(inventory.IsOpen, Is.True);
+            float minute = game.State.Minute;
+            yield return Until(() => player.IsWalking && !player.InReach(start, 2.2f) &&
+                player.InReach(villager.StandingPosition, 2.6f), 5f);
+            Assert.That(game.Hud.IsSpeakingWith(target), Is.True);
+            Assert.That(villager.IsWalking, Is.True);
+            Assert.That(villagerAgent.destination, Is.EqualTo(originalDestination));
+            Assert.That(game.State.Minute, Is.GreaterThan(minute));
+
+            game.Hud.CloseDialogue();
+            yield return Until(() => player.Action == WorkerAction.Idle, 1f);
+            Assert.That(villagerAgent.destination, Is.EqualTo(originalDestination));
         }
 
         [UnityTest]
@@ -974,7 +1007,7 @@ namespace Workerborn.Tests
         {
             var farmer = game.FindInteraction(VillageRole.Farmer);
             game.Worker.CommandInteract(farmer);
-            yield return Until(() => game.Hud.HasModal, 8f);
+            yield return Until(() => game.Hud.IsDialogueOpen, 8f);
             float minute = game.State.Minute;
             yield return new WaitForSeconds(0.15f);
             Assert.That(game.State.Minute, Is.EqualTo(minute));
@@ -1205,7 +1238,7 @@ namespace Workerborn.Tests
             }
 
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Farmer));
-            yield return Until(() => game.Hud.HasModal, 10f);
+            yield return Until(() => game.Hud.IsDialogueOpen, 10f);
             Assert.That(game.Perform(game.State.TryDeliverJob), Is.True);
             Assert.That(game.Perform(game.State.TryClaimIntroQuest), Is.True);
             for (int day = 0; day <= game.State.Rules.RebirthDays; day++)
@@ -1441,7 +1474,7 @@ namespace Workerborn.Tests
             var farmer = game.FindInteraction(VillageRole.Farmer);
             game.Hud.OpenDialogue(farmer);
             yield return null;
-            Assert.That(game.Hud.HasModal, Is.True);
+            Assert.That(game.Hud.IsDialogueOpen, Is.True);
             Assert.That(game.Hud.OpenWindow("conversation").GetComponent<ConversationWindowView>(), Is.Not.Null);
             game.Hud.CloseDialogue();
         }
@@ -2258,10 +2291,20 @@ namespace Workerborn.Tests
             var normalHud = game.Hud.transform.Find("Normal HUD").gameObject;
             Canvas.ForceUpdateCanvases();
             Assert.That(dialogue.Rect.rect.width, Is.LessThan(game.Hud.CanvasRect.rect.width));
-            Assert.That(normalHud.activeSelf, Is.False);
-            Assert.That(inventory.gameObject.activeSelf, Is.False);
+            Assert.That(normalHud.activeSelf, Is.True);
+            Assert.That(inventory.gameObject.activeSelf, Is.True);
+            Assert.That(game.ControlsBlocked, Is.False);
             var openingContent = (RectTransform)dialogue.transform.Find("Opening content");
             Assert.That(openingContent.anchoredPosition.y, Is.LessThan(0f));
+            var bubble = openingContent.Find("Dialogue bubble").GetComponent<Image>();
+            var speech = game.Hud.Library.PlayerOverhead.transform.Find("Speech bubble").GetComponent<Image>();
+            Assert.That(bubble.sprite, Is.SameAs(speech.sprite));
+            Assert.That(bubble.type, Is.EqualTo(Image.Type.Sliced));
+            Assert.That(openingContent.Find("Speech tail"), Is.Null);
+            var speaker = (RectTransform)openingContent.Find("Speaker");
+            Assert.That(speaker.anchoredPosition.y, Is.InRange(-3.1f, -.1f));
+            Assert.That(speaker.anchorMin.y, Is.EqualTo(1f));
+            Assert.That(speaker.pivot.y, Is.EqualTo(.5f));
             var line = dialogue.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Dialogue");
             Assert.That(line.maxVisibleCharacters, Is.Zero);
             yield return Until(() => line.maxVisibleCharacters > 0, 1f);
@@ -2271,7 +2314,7 @@ namespace Workerborn.Tests
             FindButton(dialogue, "거래하기").onClick.Invoke();
             Assert.That(dialogue.GetComponentsInChildren<Button>().Select(button => button.GetComponentInChildren<TMP_Text>().text),
                 Is.EqualTo(new[] { "거래 종료" }));
-            Assert.That(game.Hud.HasModal, Is.True);
+            Assert.That(game.Hud.IsDialogueOpen, Is.True);
             Assert.That(dialogue.isActiveAndEnabled, Is.True);
             Assert.That(game.ControlsBlocked, Is.True);
             Assert.That(inventory.Rect.anchoredPosition, Is.EqualTo(place));
@@ -2280,7 +2323,7 @@ namespace Workerborn.Tests
             var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
             Assert.That(shop.transform.IsChildOf(dialogue.ShopStock), Is.True);
             Assert.That(shop.GetComponentInChildren<ShopSellTarget>().name, Is.EqualTo("Stock viewport"));
-            yield return Until(() => dialogue.Rect.rect.height >= 470f, 1f);
+            yield return Until(() => shop.Rect.rect.height >= 205f, 1f);
             Assert.That(shop.Rect.position.y, Is.GreaterThan(line.rectTransform.position.y));
 
             Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 9), Is.True);
@@ -2307,12 +2350,11 @@ namespace Workerborn.Tests
             FindButton(dialogue, "거래 종료").onClick.Invoke();
             Assert.That(game.Hud.IsShopOpen, Is.False);
             Assert.That(game.State.Inventory.Count(ItemIds.Potato), Is.EqualTo(9));
-            Assert.That(game.Hud.HasModal, Is.False);
+            Assert.That(game.Hud.IsDialogueOpen, Is.False);
             Assert.That(dialogue.isActiveAndEnabled, Is.True);
-            Assert.That(normalHud.activeSelf, Is.False);
+            Assert.That(normalHud.activeSelf, Is.True);
             Assert.That(dialogue.GetComponent<CanvasGroup>().blocksRaycasts, Is.False);
-            yield return Until(() => normalHud.activeSelf, 1f);
-            Assert.That(dialogue.isActiveAndEnabled, Is.False);
+            yield return Until(() => !dialogue.isActiveAndEnabled, 1f);
             Assert.That(inventory.gameObject.activeSelf, Is.True);
         }
 
@@ -2489,7 +2531,7 @@ namespace Workerborn.Tests
                 Assert.That(card.gameObject.activeSelf, Is.False);
                 Assert.That(leave.transform.parent.GetComponentsInChildren<Button>(), Is.EqualTo(new[] { leave }));
                 leave.onClick.Invoke();
-                Assert.That(game.Hud.HasModal, Is.False);
+                Assert.That(game.Hud.IsDialogueOpen, Is.False);
             }
             finally
             {
@@ -2514,7 +2556,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator TradeEscapeRestoresOnlyTheWindowsThatShouldStayOpen()
+        public IEnumerator TradeEscapeClosesOnlyAnInventoryOpenedByTrading()
         {
             var keyboard = InputSystem.AddDevice<Keyboard>();
             try
@@ -2524,24 +2566,24 @@ namespace Workerborn.Tests
                 game.Hud.OpenDialogue(merchant, DialogueAction.Shop);
                 Assert.That(game.Hud.IsShopOpen, Is.True);
                 Assert.That(game.Hud.InventoryOpen, Is.True);
-                Assert.That(quests.gameObject.activeSelf, Is.False);
+                Assert.That(quests.gameObject.activeSelf, Is.True);
 
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Escape));
                 yield return null;
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState());
                 yield return null;
-                Assert.That(game.Hud.HasModal, Is.False);
+                Assert.That(game.Hud.IsDialogueOpen, Is.False);
                 Assert.That(game.Hud.IsShopOpen, Is.False);
                 Assert.That(game.Hud.InventoryOpen, Is.False);
-                yield return Until(() => quests.gameObject.activeSelf, 1f);
+                Assert.That(quests.gameObject.activeSelf, Is.True);
 
                 game.Hud.OpenDialogue(merchant);
                 game.Hud.ToggleWindow("inventory");
                 game.Hud.OpenShop(merchant);
                 game.Hud.CloseWindow("shop");
                 Assert.That(game.Hud.InventoryOpen, Is.True);
-                Assert.That(game.Hud.HasModal, Is.False);
-                yield return Until(() => quests.gameObject.activeSelf, 1f);
+                Assert.That(game.Hud.IsDialogueOpen, Is.False);
+                Assert.That(quests.gameObject.activeSelf, Is.True);
             }
             finally
             {
@@ -2944,8 +2986,10 @@ namespace Workerborn.Tests
 
                 game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
                 var dialogue = UnityEngine.Object.FindFirstObjectByType<ConversationWindowView>();
-                Assert.That(inputFrame.gameObject.activeInHierarchy, Is.False);
+                Assert.That(inputFrame.gameObject.activeInHierarchy, Is.True);
                 Assert.That(chatLayer.GetSiblingIndex(), Is.LessThan(dialogue.transform.GetSiblingIndex()));
+                Assert.That(game.TrySendChat("첫 번째"), Is.True);
+                AssertTextAtBottom(recent);
                 yield return TapEnter();
                 Assert.That(input.isFocused, Is.True);
                 Assert.That(chatLayer.GetSiblingIndex(), Is.GreaterThan(dialogue.transform.GetSiblingIndex()));
@@ -2953,7 +2997,9 @@ namespace Workerborn.Tests
                 Assert.That(historyFrame.enabled, Is.True);
                 Assert.That(inputBackground.color.a, Is.Zero);
 
-                foreach (string post in new[] { "첫 번째", "두 번째", "세 번째", "네 번째" })
+                var history = chat.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Messages");
+                AssertTextAtBottom(history);
+                foreach (string post in new[] { "두 번째", "세 번째", "네 번째" })
                 {
                     input.text = post;
                     input.onSubmit.Invoke(post);
@@ -2964,10 +3010,12 @@ namespace Workerborn.Tests
                     Assert.That(input.text, Is.Empty);
                 }
 
-                var history = chat.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Messages");
                 Assert.That(history.text, Does.Contain(game.LegendPlayerName + " : 첫 번째"));
                 Assert.That(bubble.text, Is.EqualTo("두 번째\n세 번째\n네 번째"));
-                Assert.That(label.GetComponentInParent<WorldNameplateView>().Rect.anchoredPosition.y, Is.GreaterThan(0));
+                yield return new WaitForSecondsRealtime(.3f);
+                var speechFrame = (RectTransform)bubble.transform.parent;
+                float nameY = speechFrame.InverseTransformPoint(label.rectTransform.TransformPoint(label.rectTransform.rect.center)).y;
+                Assert.That(nameY, Is.InRange(speechFrame.rect.yMax - 4f, speechFrame.rect.yMax));
 
                 input.text = new string('W', 225) + "끝";
                 yield return TapEnter();
@@ -2980,9 +3028,9 @@ namespace Workerborn.Tests
                 Assert.That(input.isFocused, Is.False);
                 Assert.That(historyFrame.enabled, Is.False);
                 Assert.That(history.gameObject.activeInHierarchy, Is.False);
-                Assert.That(inputFrame.gameObject.activeInHierarchy, Is.False);
+                Assert.That(inputFrame.gameObject.activeInHierarchy, Is.True);
                 Assert.That(chatLayer.GetSiblingIndex(), Is.LessThan(dialogue.transform.GetSiblingIndex()));
-                Assert.That(game.Hud.HasModal, Is.True);
+                Assert.That(game.Hud.IsDialogueOpen, Is.True);
                 game.Hud.CloseDialogue();
                 Assert.That(history.gameObject.activeInHierarchy, Is.False);
                 Assert.That(recent.gameObject.activeInHierarchy, Is.True);
@@ -2997,6 +3045,14 @@ namespace Workerborn.Tests
             {
                 InputSystem.RemoveDevice(keyboard);
                 InputSystem.RemoveDevice(mouse);
+            }
+
+            void AssertTextAtBottom(TMP_Text text)
+            {
+                text.ForceMeshUpdate();
+                float bottom = historyViewport.InverseTransformPoint(
+                    text.rectTransform.TransformPoint(new Vector3(0f, text.textBounds.min.y))).y;
+                Assert.That(bottom, Is.InRange(historyViewport.rect.yMin, historyViewport.rect.yMin + 14f));
             }
 
             IEnumerator MovePointer(RectTransform area)
@@ -3336,7 +3392,7 @@ namespace Workerborn.Tests
             {
                 game.Hud.OpenDialogue(game.FindInteraction(VillageRole.Merchant));
                 float start = game.CameraRig.Distance;
-                Assert.That(game.ControlsBlocked, Is.True);
+                Assert.That(game.ControlsBlocked, Is.False);
                 InputSystem.QueueStateEvent(mouse, new MouseState
                 {
                     position = new Vector2(Screen.width * .5f, Screen.height * .75f),
@@ -3344,7 +3400,7 @@ namespace Workerborn.Tests
                 });
                 yield return null;
                 Assert.That(game.CameraRig.Distance, Is.LessThan(start));
-                Assert.That(game.Hud.HasModal, Is.True);
+                Assert.That(game.Hud.IsDialogueOpen, Is.True);
             }
             finally
             {

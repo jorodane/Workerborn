@@ -354,6 +354,8 @@ namespace Workerborn
         {
             if (speaker.IsLocallyControlled)
             {
+                if (hud.IsSpeakingWith(target))
+                    return;
                 PrepareConversation(speaker, target);
                 hud.OpenDialogue(target, null);
             }
@@ -363,10 +365,8 @@ namespace Workerborn
 
         private void PrepareConversation(HarvestWorker speaker, VillageInteractable target)
         {
-            speaker.Cancel();
             if (target.Role == VillageRole.Farmer)
                 speaker.CharacterState.MeetFarmer();
-            target.GetComponent<HarvestWorker>()?.FaceConversationPartner(speaker.StandingPosition);
         }
 
         public bool CanHarvest(HarvestableCrop target) => CanHarvest(worker, target);
@@ -1122,13 +1122,12 @@ namespace Workerborn
             if (AwaitingWorldCommand)
                 return;
             float elapsed = Time.deltaTime;
-            bool paused = hud.HasModal;
-            if (IsOnline ? State.NeedsRest : State.WillAdvanceDay(elapsed, paused))
+            if (IsOnline ? State.NeedsRest : State.WillAdvanceDay(elapsed, paused: false))
             {
-                TryWorldTransition(() => TickClock(elapsed, paused));
+                TryWorldTransition(() => TickClock(elapsed));
                 return;
             }
-            TickClock(elapsed, paused);
+            TickClock(elapsed);
             UpdateVillageCharacters(now);
 
             if (Time.unscaledTime >= nextSave && (IsOnline || usesSelectedWorld || loadSavedGame && !IsAppearanceTrial))
@@ -1136,10 +1135,10 @@ namespace Workerborn
             lighting?.SetDate(State.Day, State.Minute);
         }
 
-        private void TickClock(float elapsed, bool paused)
+        private void TickClock(float elapsed)
         {
             int day = State.Day;
-            bool rested = IsOnline ? State.RecoverInSharedWorld() : State.AdvanceTime(elapsed, paused);
+            bool rested = IsOnline ? State.RecoverInSharedWorld() : State.AdvanceTime(elapsed);
             if (State.AwaitingIncarnation && State.Day != day)
                 ResetDailyResources();
             if (rested)

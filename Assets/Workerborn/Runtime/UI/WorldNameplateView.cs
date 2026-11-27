@@ -37,6 +37,10 @@ namespace Workerborn
         public WorldInteractable Target => target.Target;
         internal WorldInteractable Subject => target.Subject;
         public RectTransform Rect => (RectTransform)transform;
+        internal float VisibleHealthHeight => healthBar.gameObject.activeSelf ? ((RectTransform)healthBar.transform).rect.height + 2f : 0f;
+
+        // The ReplyBubble sprite's top stroke is inset by 3 pixels. Slicing scales the borders below their combined height.
+        internal static float SpeechRimInset(float bubbleHeight) => 3f * Mathf.Clamp01(bubbleHeight / 66f);
 
         public void Bind(WorldInteractable target, PointerTargeting controller, string text = null)
         {

@@ -37,7 +37,6 @@ namespace Workerborn
         private bool pointerOverChat;
         private bool raised;
         private bool resumeEditing;
-        private bool duringDialogue;
 
         internal bool IsTyping => EventSystem.current != null && EventSystem.current.currentSelectedGameObject == input.gameObject;
 
@@ -75,12 +74,6 @@ namespace Workerborn
             input.DeactivateInputField();
             if (IsTyping)
                 EventSystem.current.SetSelectedGameObject(null);
-        }
-
-        internal void SetDialogueMode(bool active)
-        {
-            duringDialogue = active;
-            SetPresentation(IsTyping);
         }
 
         private void Send(string message, bool fromButton)
@@ -141,9 +134,6 @@ namespace Workerborn
 
         private void SetPresentation(bool focused)
         {
-            bool visible = !duringDialogue || focused;
-            history.gameObject.SetActive(visible);
-            inputChrome.gameObject.SetActive(visible);
             history.content.gameObject.SetActive(focused);
             recentMessages.gameObject.SetActive(!focused);
             history.enabled = focused;
@@ -155,7 +145,7 @@ namespace Workerborn
                 UpdateRecentMessages();
             showingHistory = focused;
 
-            bool overInput = visible && pointerOverChat && RectTransformUtility.RectangleContainsScreenPoint(
+            bool overInput = pointerOverChat && RectTransformUtility.RectangleContainsScreenPoint(
                 (RectTransform)inputChrome.transform, WorkerbornInput.Point);
             inputChrome.alpha = focused || overInput ? 1f : 0f;
             historyFrame.enabled = focused;

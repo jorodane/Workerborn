@@ -16,7 +16,7 @@ namespace Workerborn
 
         private bool AtCheckout => merchant != null && merchant.Routine != null && merchant.Routine.customer == this;
         private bool AvailableToTrade => IsAvailableResident && !character.IsEating && !character.IsStandingUp &&
-            (character.Action is WorkerAction.Idle or WorkerAction.Sitting) && !AtCheckout && !HoldingConversation && !PlayerEngaged;
+            (character.Action is WorkerAction.Idle or WorkerAction.Sitting) && !AtCheckout && !HoldingConversation;
 
         private bool PlanFoodShopping()
         {

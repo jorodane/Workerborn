@@ -212,7 +212,10 @@ namespace Workerborn
                 resume?.Invoke();
             }
             if (IsLocallyControlled)
+            {
                 ReadLocalControls();
+                UpdateDialogueFollow();
+            }
             if (Action == WorkerAction.Sitting && onSeat && (occupiedSeat == null || !occupiedSeat.isActiveAndEnabled ||
                 (occupiedSeat.AnimationRoot(occupiedSeatFacing) - occupiedSeatRoot).sqrMagnitude > .0004f ||
                 Quaternion.Angle(occupiedSeatFacing, transform.rotation) > .5f))
@@ -224,7 +227,7 @@ namespace Workerborn
             bool awaitingAutomaticHarvest = IsLocallyControlled && village?.AwaitingAutomaticHarvest == true;
             if (!manualMoving && Action == WorkerAction.Moving)
             {
-                float speed = TravelSpeed(IsWalking);
+                float speed = followingDialogue ? DialogueTravelSpeed() : TravelSpeed(IsWalking);
                 if (!Mathf.Approximately(agent.speed, speed))
                     agent.speed = speed;
                 UpdateMovement();
@@ -266,11 +269,11 @@ namespace Workerborn
         private void ReadLocalControls()
         {
             ReadInput();
-            if (village != null && village.Hud.WorldActionsLocked && (Action != WorkerAction.Idle || IsEating))
+            if (village != null && village.Hud.WorldActionsLocked && !followingDialogue && (Action != WorkerAction.Idle || IsEating))
                 Cancel();
             if (WorkerbornInput.Pressed("Gameplay/Sit"))
                 ToggleSitOrRide();
-            if (WorkerbornInput.Pressed("Gameplay/Jump"))
+            if (WorkerbornInput.Pressed("Gameplay/Jump") && (village == null || !village.Hud.HandleDialoguePageInput()))
                 CommandJump();
             UpdateManualMovement();
             UpdateNearbyCollection();
@@ -652,8 +655,8 @@ namespace Workerborn
 
         public void CommandInteract(VillageInteractable target)
         {
-            if (village != null && !IsLocallyControlled && Action is (WorkerAction.Idle or WorkerAction.Sitting) &&
-                !IsStandingUp && target != null && target.CanInteract && CanInteractWith(target) &&
+            if (village != null && (IsLocallyControlled || !IsStandingUp && Action is (WorkerAction.Idle or WorkerAction.Sitting)) &&
+                target != null && target.CanInteract && CanInteractWith(target) &&
                 SharesMap(target.transform.position) && InReach(target.transform.position, target.InteractionDistance) &&
                 target.TryGetComponent<HarvestWorker>(out var partner) && HasDirectPathTo(partner))
             {
@@ -891,9 +894,9 @@ namespace Workerborn
                 return;
             }
 
-            if (agent.remainingDistance > agent.stoppingDistance + 0.06f)
+            if (agent.remainingDistance > agent.stoppingDistance + 0.06f && !ReachedConversationPartner())
                 return;
-            if (RetryAnimalApproach())
+            if (RetryMovingTargetApproach())
                 return;
             agent.isStopped = true;
             agent.ResetPath();
@@ -920,26 +923,36 @@ namespace Workerborn
                 Action = WorkerAction.Idle;
                 if (CanInteractWith(target) && InReach(target.transform.position, InteractionReach(target)))
                 {
-                    Face(target.transform.position);
+                    if (target is not VillageInteractable || !target.TryGetComponent<HarvestWorker>(out _))
+                        Face(target.transform.position);
                     target.Arrive(village, this, arrival);
                 }
                 else
                     Message?.Invoke("조금 더 가까이 가야 해요.");
             }
             else
+            {
+                followingDialogue = false;
                 Action = WorkerAction.Idle;
+            }
         }
 
-        private bool RetryAnimalApproach()
+        private bool ReachedConversationPartner() =>
+            interactionTarget is VillageInteractable speaker && speaker.TryGetComponent<HarvestWorker>(out var partner) &&
+            partner.Action == WorkerAction.Moving && InReach(partner.StandingPosition, InteractionReach(speaker)) &&
+            HasDirectPathTo(partner);
+
+        private bool RetryMovingTargetApproach()
         {
             WorldInteractable target = cropTarget != null ? cropTarget : interactionTarget;
-            if (target == null || !target.CanInteract || !target.TryGetComponent<AnimalWander>(out _) ||
+            if (target == null || !target.CanInteract ||
+                !(target.TryGetComponent<AnimalWander>(out _) || target is VillageInteractable && target.TryGetComponent<HarvestWorker>(out _)) ||
                 InReach(target.transform.position, InteractionReach(target)) ||
                 (target.transform.position - approachTargetPosition).sqrMagnitude < .2f * .2f)
                 return false;
             var crop = cropTarget;
             var arrival = onInteractionArrival;
-            if (!NavigateNear(target.transform.position, InteractionReach(target) * .7f))
+            if (!NavigateNear(target.transform.position, InteractionReach(target) * .7f, walk: IsWalking))
                 return false;
             cropTarget = crop;
             if (crop == null)
@@ -1085,6 +1098,7 @@ namespace Workerborn
         private void ClearInteractionTargets()
         {
             StopEating();
+            followingDialogue = false;
             if (manualMoving && agent != null)
                 agent.updateRotation = true;
             manualMoving = false;

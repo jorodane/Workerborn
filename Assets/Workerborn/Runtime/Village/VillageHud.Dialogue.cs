@@ -8,9 +8,8 @@ namespace Workerborn
     public sealed partial class VillageHud
     {
         private VillageInteractable dialogueTarget;
-        private readonly Dictionary<string, bool> dialogueWindowStates = new Dictionary<string, bool>();
-        private WindowTransition[] backdropTransitions = System.Array.Empty<WindowTransition>();
-        private bool dialogueClosing;
+        private bool tradeOpenedInventory;
+        internal bool DialogueStartedInReach { get; private set; }
         private readonly Dictionary<VillageInteractable, NpcConversationBubbleView> npcConversationBubbles =
             new Dictionary<VillageInteractable, NpcConversationBubbleView>();
         internal VillageInteractable ConversationTarget => dialogueTarget;
@@ -25,21 +24,17 @@ namespace Workerborn
                 return;
             CloseDialogue();
             CloseWorldContext();
-            CloseQuantity();
-            CancelItemDrag();
-            game.Worker.Cancel();
             dialogueTarget = target;
-            SuspendDialogueWindows();
-            SetDialoguePresentation(true);
+            DialogueStartedInReach = game.Worker.InReach(target.transform.position, target.InteractionDistance + .25f);
             var selected = game.IsDialogueTopicAvailable(target, topic) ? topic : null;
             (OpenWindow("conversation") as ConversationWindowView)?.OpenTopic(target, selected);
             if (selected?.action == DialogueAction.Shop)
                 OpenShop(target);
         }
 
-        private bool HandleDialoguePageInput()
+        internal bool HandleDialoguePageInput()
         {
-            if (!HasModal || IsChatTyping || HasQuantityPrompt)
+            if (!IsDialogueOpen || game.AwaitingWorldCommand || game.IsWorldTransitioning || IsChatTyping || HasQuantityPrompt)
                 return false;
             bool space = WorkerbornInput.Pressed("Gameplay/Jump");
             if (!space && !WorkerbornInput.Pressed("Gameplay/Chat"))
@@ -68,12 +63,9 @@ namespace Workerborn
         internal void CloseDialogue(bool animate)
         {
             if (ReferenceEquals(dialogueTarget, null))
-            {
-                if (dialogueClosing && !animate)
-                    FinishDialogueClose();
                 return;
-            }
             dialogueTarget = null;
+            DialogueStartedInReach = false;
             if (IsShopOpen)
             {
                 HideWindow("quantity", animate);
@@ -81,93 +73,9 @@ namespace Workerborn
                 CancelItemDrag();
             }
             HideWindow("conversation", animate);
-            foreach (var entry in dialogueWindowStates)
-                if (!entry.Value)
-                    HideWindow(entry.Key, animate);
-
-            if (animate)
-            {
-                foreach (var transition in backdropTransitions)
-                    transition.PlayClosing(hideOnComplete: false);
-                if (HasDialogueCloseAnimation())
-                {
-                    dialogueClosing = true;
-                    return;
-                }
-            }
-            FinishDialogueClose();
-        }
-
-        private void UpdateDialogueClose()
-        {
-            if (dialogueClosing && !HasDialogueCloseAnimation())
-                FinishDialogueClose();
-        }
-
-        private bool HasDialogueCloseAnimation()
-        {
-            foreach (var transition in backdropTransitions)
-                if (transition.IsClosing && transition.IsPlaying)
-                    return true;
-            foreach (var view in views.Values)
-                if (view.IsClosing)
-                    return true;
-            return false;
-        }
-
-        private void FinishDialogueClose()
-        {
-            dialogueClosing = false;
-            foreach (var view in views.Values)
-                if (view.IsClosing)
-                    view.Hide(animate: false);
-            RestoreDialogueWindows();
-            SetDialoguePresentation(false);
-        }
-
-        private void SetDialoguePresentation(bool active)
-        {
-            if (normalHud != null)
-                normalHud.SetActive(!active);
-            UpdateItemShortcutPresentation();
-            chat?.SetDialogueMode(active);
-            if (dialogueBackdrop == null)
-                return;
-            dialogueBackdrop.SetActive(active);
-            if (active)
-                foreach (var transition in backdropTransitions)
-                    transition.PlayOpening();
-        }
-
-        private void SuspendDialogueWindows()
-        {
-            foreach (var view in views.Values)
-            {
-                if (!view.gameObject.activeSelf)
-                    continue;
-                if (view.IsOpen)
-                    dialogueWindowStates.Add(view.Id, true);
-                view.Hide(animate: false);
-            }
-        }
-
-        private void RestoreDialogueWindows()
-        {
-            foreach (var entry in dialogueWindowStates)
-            {
-                if (!CanShowInCurrentLife(entry.Key) || !views.TryGetValue(entry.Key, out var view) || view.IsOpen == entry.Value)
-                    continue;
-                if (entry.Value)
-                {
-                    view.gameObject.SetActive(true);
-                    if (view.IsFloating)
-                        WindowDragHandle.KeepOnScreen(view.Rect);
-                }
-                else
-                    HideWindow(entry.Key, animate: false);
-            }
-            dialogueWindowStates.Clear();
-            RefreshWindows();
+            if (tradeOpenedInventory)
+                HideWindow("inventory", animate);
+            tradeOpenedInventory = false;
         }
 
         internal Rect DialogueSpace(bool trading)
@@ -178,7 +86,7 @@ namespace Workerborn
             Rect bag = WindowDragHandle.BoundsInParent(inventory.Rect);
             float leftRoom = bag.xMin - bounds.xMin;
             float rightRoom = bounds.xMax - bag.xMax;
-            if (Mathf.Max(leftRoom, rightRoom) < 405f)
+            if (Mathf.Max(leftRoom, rightRoom) < 320f)
                 return bounds;
             if (leftRoom >= rightRoom)
                 bounds.xMax = bag.xMin - 10f;
@@ -191,6 +99,9 @@ namespace Workerborn
             NpcBubble(merchant).SetPartner(customer.DisplayName);
 
         internal void ShowNpcConversationLine(VillageInteractable speaker, string line) => NpcBubble(speaker).SetLine(line);
+
+        internal Vector2 NpcSpeechNamePosition(VillageInteractable speaker, Vector2 position) =>
+            npcConversationBubbles.TryGetValue(speaker, out var bubble) && bubble.isActiveAndEnabled ? bubble.NamePosition : position;
 
         private NpcConversationBubbleView NpcBubble(VillageInteractable speaker)
         {
@@ -221,7 +132,7 @@ namespace Workerborn
                     PickupNames.TryProject(game, layer, speaker.transform.position, speaker.NamePosition, out var point, out float depth))
                 {
                     bubble.Place(point);
-                    pickupNames?.IncludeDepth(bubble.transform, depth);
+                    pickupNames?.IncludeDepth(bubble.transform, depth + .001f);
                 }
                 else
                     bubble.gameObject.SetActive(false);

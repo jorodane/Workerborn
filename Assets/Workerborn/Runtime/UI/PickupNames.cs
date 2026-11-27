@@ -53,7 +53,8 @@ namespace Workerborn
             {
                 var target = pair.Key;
                 var view = pair.Value;
-                if ((!alt && !target.ShowNameByDefault && target != tracked) ||
+                if (game.Hud.IsSpeakingWith(target as VillageInteractable) ||
+                    (!alt && !target.ShowNameByDefault && target != tracked) ||
                     !TryProject(game, canvas, target.transform.position, target.NamePosition, out var point, out float depth))
                 {
                     view.gameObject.SetActive(false);
@@ -68,6 +69,8 @@ namespace Workerborn
                 }
                 view.SetTracked(target == tracked);
                 view.SetBox(alt);
+                if (target is VillageInteractable speaker)
+                    point = game.Hud.NpcSpeechNamePosition(speaker, point);
                 view.PlaceAt(point);
                 IncludeDepth(view.transform, depth);
             }

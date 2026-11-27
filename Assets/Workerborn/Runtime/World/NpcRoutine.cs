@@ -18,7 +18,6 @@ namespace Workerborn
         private float nextMealCheck;
         private float harvestResumeAt;
         private bool planned;
-        private bool paused;
         private NpcActivity waitingActivity;
 
         internal NpcActivity Activity => HoldingConversation ? NpcActivity.Talking : RoutineActivity;
@@ -67,26 +66,6 @@ namespace Workerborn
             {
                 conversation?.End();
                 return;
-            }
-            if (PlayerEngaged)
-            {
-                if (!paused)
-                {
-                    paused = true;
-                    var interruptedActivity = RoutineActivity;
-                    conversation?.End();
-                    StopShopping();
-                    customer?.StopShopping();
-                    if (character.Action is WorkerAction.Moving or WorkerAction.Harvesting)
-                        ClearGoal();
-                    waitingActivity = interruptedActivity;
-                }
-                return;
-            }
-            if (paused)
-            {
-                paused = false;
-                waitingActivity = NpcActivity.Idle;
             }
             if (ContinueConversation())
                 return;

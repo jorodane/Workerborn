@@ -53,7 +53,7 @@ namespace Workerborn.Tests
             yield return Incarnate();
 
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Farmer));
-            yield return Until(() => game.Hud.HasModal);
+            yield return Until(() => game.Hud.IsDialogueOpen);
             Assert.That(game.Perform(state.TryAcceptFoundation), Is.True);
             game.Hud.CloseDialogue();
             var document = state.Inventory.Entries.Single(entry => entry.ItemId == ItemIds.TimberContract);
@@ -84,7 +84,7 @@ namespace Workerborn.Tests
             }
             Assert.That(state.Inventory.Count(ItemIds.Timber), Is.GreaterThanOrEqualTo(state.Rules.Foundation.TimberCount));
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Farmer));
-            yield return Until(() => game.Hud.HasModal);
+            yield return Until(() => game.Hud.IsDialogueOpen);
             Assert.That(game.Perform(state.TryDeliverTimber), Is.True);
             game.Hud.CloseDialogue();
             var site = UnityEngine.Object.FindObjectsByType<VillageFarmSite>(FindObjectsSortMode.None).Single(p => p.SiteId == "south");
@@ -92,7 +92,7 @@ namespace Workerborn.Tests
             yield return Until(() => state.CanAdvanceEra);
 
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Shrine));
-            yield return Until(() => game.Hud.HasModal);
+            yield return Until(() => game.Hud.IsDialogueOpen);
             game.AdvanceEra();
             yield return Until(() => !game.IsWorldTransitioning);
             Assert.That(state.Life, Is.EqualTo(2));
@@ -102,7 +102,7 @@ namespace Workerborn.Tests
             Assert.That(game.Crops.All(crop => crop.transform.position.z < -10), Is.True);
             yield return Incarnate();
             game.Worker.CommandInteract(game.FindInteraction(VillageRole.Farmer));
-            yield return Until(() => game.Hud.HasModal);
+            yield return Until(() => game.Hud.IsDialogueOpen);
             Assert.That(game.Perform(state.TryAcceptJob), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.EqualTo(1));
         }

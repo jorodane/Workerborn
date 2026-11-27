@@ -12,8 +12,6 @@ namespace Workerborn
         [SerializeField] private TMP_Text speaker;
         [SerializeField] private TMP_Text body;
         [SerializeField] private RectTransform textArea;
-        [SerializeField] private Image bubble;
-        [SerializeField] private RectTransform tail;
         [SerializeField] private RectTransform choices;
         [SerializeField] private RectTransform shopStock;
         [SerializeField] private Button leave;
@@ -34,7 +32,10 @@ namespace Workerborn
         private UiActionView nextPage;
         private int replyCount;
         private string presentedText, followUp;
+        private string laidOutText;
         private Vector2 measuredTextSize;
+        private float preferredTextWidth, textWidth, textHeight;
+        private bool positioned;
         private float lineStarted, choicesOpenedAt, tradingStartedAt;
         private int page, pageCount, pageStart, pageEnd;
         private int advancedFrame = -1;
@@ -42,6 +43,12 @@ namespace Workerborn
         private const float ChoiceHeight = 36f;
         private const float ChoiceGap = 8f;
         private const float ChoiceOffset = 24f;
+        private const float HorizontalPadding = 16f;
+        private const float TopPadding = 20f;
+        private const float BottomPadding = 12f;
+        private const float StockHeight = 206f;
+        private const float StockGap = 8f;
+        private const float MaximumWidth = 504f;
         internal RectTransform ShopStock => shopStock;
         internal bool CanLeave => IsOpen && !waitingForWorldReply && (trading || page >= pageCount);
 
@@ -54,7 +61,6 @@ namespace Workerborn
             nextPage = Instantiate(dialogueChoice, choices.transform);
             nextPage.Bind("다음", () => TryAdvancePage());
             DisableButtonSelection(nextPage.GetComponent<Button>());
-            bubble.alphaHitTestMinimumThreshold = .15f;
             body.overflowMode = TextOverflowModes.Page;
         }
 
@@ -67,6 +73,7 @@ namespace Workerborn
             presentedText = followUp = null;
             trading = waitingForWorldReply = false;
             confirmingRebirth = confirmingEra = false;
+            positioned = false;
             advancedFrame = -1;
             topic = selected;
             atOpening = selected == null || selected.action == DialogueAction.Greeting;
@@ -154,7 +161,6 @@ namespace Workerborn
 
         private void ShowLine(string text)
         {
-            LayoutBubble();
             bool newLine = presentedText != text;
             if (newLine)
             {
@@ -162,6 +168,7 @@ namespace Workerborn
                 body.text = text;
                 page = 1;
             }
+            LayoutBubble();
             if (newLine || body.rectTransform.rect.size != measuredTextSize)
                 MeasurePage(restart: newLine);
             ShowPageChoices();
@@ -206,31 +213,51 @@ namespace Workerborn
         {
             Rect canvas = Hud.CanvasRect.rect;
             Rect space = Hud.DialogueSpace(trading);
-            float width = Mathf.Clamp(space.width - 24f, 1f, 720f);
-            int rows = Mathf.CeilToInt((replyCount + 1f) / ChoiceColumns(width));
+            if (laidOutText != presentedText)
+            {
+                laidOutText = presentedText;
+                preferredTextWidth = body.GetPreferredValues(presentedText).x;
+                textWidth = 0f;
+            }
+            float bubbleWidth = trading ? MaximumWidth : Mathf.Clamp(preferredTextWidth + HorizontalPadding * 2f, 320f, MaximumWidth);
+            float width = Mathf.Clamp(space.width - 24f, 1f, bubbleWidth);
+            float availableTextWidth = Mathf.Max(1f, width - HorizontalPadding * 2f);
+            if (textWidth != availableTextWidth)
+            {
+                textWidth = availableTextWidth;
+                textHeight = Mathf.Clamp(body.GetPreferredValues(presentedText, textWidth, Mathf.Infinity).y, 24f, 112f);
+            }
+            int rows = trading ? 1 : Mathf.CeilToInt((replyCount + 1f) / ChoiceColumns(width));
             float replyHeight = ChoiceOffset + rows * (ChoiceHeight + ChoiceGap);
-            float jobHeight = jobInfo.activeSelf ? ((RectTransform)jobInfo.transform).rect.height + 12f : 0f;
+            float jobHeight = jobInfo.activeSelf ? ((RectTransform)jobInfo.transform).rect.height + 18f : 0f;
             float expansion = trading ? Mathf.SmoothStep(0f, 1f, (Time.unscaledTime - tradingStartedAt) / .2f) : 0f;
-            float height = Mathf.Min(Mathf.Lerp(224f, 478f, expansion), Mathf.Max(1f, space.height - replyHeight - jobHeight - 24f));
+            float proseHeight = TopPadding + textHeight + BottomPadding;
+            float height = Mathf.Min(proseHeight + expansion * (StockHeight + StockGap),
+                Mathf.Max(1f, space.height - replyHeight - jobHeight - 32f));
+            float stockHeight = trading ? Mathf.Max(0f, height - proseHeight) : 0f;
             Rect.sizeDelta = new Vector2(width, height);
-            textArea.anchorMin = trading ? new Vector2(.20f, .115f) : new Vector2(.14f, .22f);
-            textArea.anchorMax = trading ? new Vector2(.80f, .325f) : new Vector2(.86f, .66f);
+            speaker.rectTransform.anchoredPosition = Vector2.down * WorldNameplateView.SpeechRimInset(height);
+            textArea.offsetMin = new Vector2(HorizontalPadding, BottomPadding);
+            textArea.offsetMax = new Vector2(-HorizontalPadding, -TopPadding - stockHeight);
+            if (trading)
+            {
+                shopStock.offsetMin = new Vector2(HorizontalPadding, -TopPadding - Mathf.Max(0f, stockHeight - StockGap));
+                shopStock.offsetMax = new Vector2(-HorizontalPadding, -TopPadding);
+            }
 
             var point = new Vector2(space.center.x, space.center.y - 84f);
-            bool tracked = PickupNames.TryProject(Game, Hud.CanvasRect, npc.transform.position, npc.NamePosition, out var speakerPoint, out _);
-            if (tracked)
+            if (PickupNames.TryProject(Game, Hud.CanvasRect, npc.transform.position, npc.NamePosition, out var speakerPoint, out _))
                 point = speakerPoint;
-            float centerX = Mathf.Clamp(point.x, space.xMin + width * .5f + 10f, space.xMax - width * .5f - 10f);
+            float left = space.xMin + width * .5f + 10f;
+            float right = space.xMax - width * .5f - 10f;
             float bottom = space.yMin + height * .5f + replyHeight;
-            float top = space.yMax - height * .5f - jobHeight - 12f;
-            float centerY = Mathf.Clamp(point.y + height * .5f + replyHeight, Mathf.Min(bottom, top), top);
-            Rect.anchoredPosition = new Vector2(centerX, centerY) - canvas.center;
-            tail.gameObject.SetActive(tracked && point.y < centerY - height * .5f + 8f);
-            float tailX = Mathf.Clamp(point.x - centerX, -width * .19f, width * .19f);
-            float normalizedX = Mathf.Abs(tailX) / (width * .487f);
-            float ovalEdge = Mathf.Pow(1f - Mathf.Pow(normalizedX, 2.25f), 1f / 2.25f);
-            tail.anchoredPosition = new Vector2(tailX, 12f + height * (.5f - .471f * ovalEdge));
-            tail.localScale = new Vector3(point.x <= centerX ? 1f : -1f, 1f, 1f);
+            float top = space.yMax - height * .5f - jobHeight - 18f;
+            point.y += height * .5f + replyHeight;
+            if (positioned)
+                point = Vector2.Lerp(Rect.anchoredPosition + canvas.center, point, 1f - Mathf.Exp(-20f * Time.unscaledDeltaTime));
+            Rect.anchoredPosition = new Vector2(Mathf.Clamp(point.x, Mathf.Min(left, right), right),
+                Mathf.Clamp(point.y, Mathf.Min(bottom, top), top)) - canvas.center;
+            positioned = true;
         }
 
         private static int ChoiceColumns(float width) => Mathf.Clamp(Mathf.FloorToInt((width + ChoiceGap) / 150f), 1, 5);

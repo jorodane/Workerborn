@@ -22,8 +22,6 @@ namespace Workerborn
         public TargetLinkView TargetLink => targetLink;
         public RectTransform CanvasRect => (RectTransform)transform;
         [SerializeField] private RawImage selectionOutline;
-        [SerializeField] private GameObject dialogueBackdrop;
-        [SerializeField] private GameObject normalHud;
         [SerializeField] private ItemShortcutBarView itemShortcuts;
         [SerializeField] private GroundTrackingGuide trackingGuide;
         [SerializeField] private RectTransform chatLayer;
@@ -78,9 +76,9 @@ namespace Workerborn
         private int seenInventoryVersion = -1;
         private int seenNotice = -1;
         private bool suppressRightContext;
-        public bool HasModal => dialogueTarget != null;
+        public bool IsDialogueOpen => dialogueTarget != null;
         public bool IsShopOpen => views.TryGetValue("shop", out var shop) && shop.IsOpen;
-        public bool WorldActionsLocked => HasModal || dialogueClosing || IsShopOpen || HasQuantityPrompt;
+        public bool WorldActionsLocked => IsShopOpen || HasQuantityPrompt;
         public bool AllowsGroundItems => game != null && !game.IsWorldTransitioning && !game.AwaitingWorldCommand && !IsChatTyping;
         public bool HasQuantityPrompt => views.TryGetValue("quantity", out var quantity) && quantity.IsOpen;
         internal bool TradeQuantityOpen => views.TryGetValue("quantity", out var quantity) &&
@@ -122,8 +120,6 @@ namespace Workerborn
             clock.Bind(game);
             minimap?.Bind(game);
             mapSchedule?.Bind(game);
-            if (dialogueBackdrop != null)
-                backdropTransitions = dialogueBackdrop.GetComponentsInChildren<WindowTransition>(true);
             BuildWorldFeedback();
             BindShortcuts();
             InitializeChat();
@@ -237,8 +233,7 @@ namespace Workerborn
                 if (hit != null)
                     FocusWindow(hit.GetComponentInParent<VillageWindowView>());
             }
-            if ((!game.AwaitingWorldCommand && HandleDialoguePageInput()) ||
-                HandleChatInput() || game.AwaitingWorldCommand || dialogueClosing)
+            if (HandleDialoguePageInput() || HandleChatInput() || game.AwaitingWorldCommand)
                 return;
             if (WorkerbornInput.Pressed("Gameplay/Cancel"))
             {
@@ -247,7 +242,7 @@ namespace Workerborn
                     CancelSkillShortcutDrag();
                     return;
                 }
-                if (!HasModal && !IsHoldingItem && game.Worker.TryCancelTimberSkill())
+                if (!IsHoldingItem && game.Worker.TryCancelTimberSkill())
                     return;
                 if (IsShopOpen)
                     TryLeaveDialogue();
@@ -291,7 +286,6 @@ namespace Workerborn
         {
             if (game == null || game.Worker == null)
                 return;
-            UpdateDialogueClose();
             if (IsHoldingItem && dragGhost == null)
                 ShowHeldItem(WorkerbornInput.Point);
             else if (!IsHoldingItem && dragGhost != null)
@@ -382,8 +376,8 @@ namespace Workerborn
             var worker = game.Worker;
             var active = worker.ActiveCrop;
             SkillId? skill = worker.TimberSkill ?? worker.DisplayedWorkSkill;
-            skillBubble.gameObject.SetActive(skill.HasValue && !HasModal);
-            if (skill.HasValue && !HasModal)
+            skillBubble.gameObject.SetActive(skill.HasValue);
+            if (skill.HasValue)
             {
                 skillBalloon.SetIcon(game.Settings.FindSkill(skill.Value)?.Icon ?? active?.Definition.SkillIcon);
                 if (worker.TimberSkill.HasValue)
@@ -449,9 +443,7 @@ namespace Workerborn
             rect.anchoredPosition = local - root.rect.min;
         }
 
-        public VillageWindowView OpenWindow(string id) => OpenWindow(id, temporaryInDialogue: false);
-
-        private VillageWindowView OpenWindow(string id, bool temporaryInDialogue)
+        public VillageWindowView OpenWindow(string id)
         {
             if (!CanShowInCurrentLife(id))
                 return null;
@@ -474,13 +466,8 @@ namespace Workerborn
             else
                 opening = !view.IsOpen;
 
-            if (HasModal)
-            {
-                if (temporaryInDialogue)
-                    dialogueWindowStates.TryAdd(id, !opening);
-                else
-                    dialogueWindowStates.Remove(id);
-            }
+            if (id == "inventory")
+                tradeOpenedInventory = false;
             view.gameObject.SetActive(true);
             if (view.IsFloating)
                 WindowDragHandle.KeepOnScreen(view.Rect);
@@ -502,7 +489,7 @@ namespace Workerborn
             foreach (var view in views.Values)
                 if (!CanShowInCurrentLife(view.Id))
                     HideWindow(view.Id, animate: false);
-            SetDialoguePresentation(HasModal);
+            UpdateItemShortcutPresentation();
         }
 
         private void FocusWindow(VillageWindowView view)
@@ -528,8 +515,7 @@ namespace Workerborn
                 var view = windowFocus[index];
                 if (view == null || !view.IsOpen)
                 {
-                    if (view == null || !dialogueWindowStates.ContainsKey(view.Id))
-                        windowFocus.RemoveAt(index);
+                    windowFocus.RemoveAt(index);
                     continue;
                 }
                 CloseWindow(view.Id);
@@ -540,12 +526,11 @@ namespace Workerborn
 
         public void CloseWindow(string id)
         {
-            if (id == "conversation" || (id == "shop" && HasModal))
+            if (id == "conversation" || (id == "shop" && IsDialogueOpen))
             {
                 TryLeaveDialogue();
                 return;
             }
-            dialogueWindowStates.Remove(id);
             HideWindow(id);
         }
 
@@ -640,7 +625,11 @@ namespace Workerborn
             if (InventoryOpen)
                 FocusWindow(views["inventory"]);
             else
-                OpenWindow("inventory", temporaryInDialogue: true)?.Refresh();
+            {
+                var inventory = OpenWindow("inventory");
+                tradeOpenedInventory = inventory != null;
+                inventory?.Refresh();
+            }
             if (!(OpenWindow("shop") is ShopWindowView shop))
                 return;
             shop.Embed(conversation.ShopStock);

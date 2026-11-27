@@ -17,14 +17,15 @@ namespace Workerborn
 
         private const int VisibleLines = 4;
         private const int RecentMessages = 3;
-        private const float NameGap = 11f;
         private readonly List<string> spoken = new List<string>(RecentMessages);
         private float shownUntil;
         private bool speechChanged;
         private Vector2 startSize, targetSize;
         private float resizeStartedAt;
+        private float layoutTopPadding;
         private bool resizing;
         private RectTransform Rect => (RectTransform)transform;
+        private float SpeechTopPadding => playerName.Rect.rect.height * .5f + playerName.VisibleHealthHeight + bubblePadding.y * .5f;
 
         internal WorldNameplateView Nameplate => playerName;
         internal void SetName(string name) => playerName.SetText(name);
@@ -50,7 +51,8 @@ namespace Workerborn
             float width = Mathf.Clamp(speech.GetPreferredValues(text).x, 40f, Mathf.Max(40f, bubbleWidth - bubblePadding.x));
             float height = speech.GetPreferredValues(text, width, Mathf.Infinity).y;
             var speechRect = speech.rectTransform;
-            speechRect.anchoredPosition = new Vector2(bubblePadding.x * .5f, -bubblePadding.y * .5f);
+            layoutTopPadding = SpeechTopPadding;
+            speechRect.anchoredPosition = new Vector2(bubblePadding.x * .5f, -layoutTopPadding);
             speechRect.sizeDelta = new Vector2(width, height);
             speech.text = text;
             speech.maxVisibleLines = int.MaxValue;
@@ -69,7 +71,7 @@ namespace Workerborn
 
             speech.maxVisibleLines = VisibleLines;
             speechRect.sizeDelta = new Vector2(width, height);
-            ResizeTo(speechRect.sizeDelta + bubblePadding, now);
+            ResizeTo(new Vector2(width + bubblePadding.x, height + layoutTopPadding + bubblePadding.y * .5f), now);
         }
 
         private void ResizeTo(Vector2 size, float now)
@@ -104,7 +106,10 @@ namespace Workerborn
         private void SetSize(Vector2 size)
         {
             bubble.sizeDelta = size;
-            playerName.Rect.anchoredPosition = size.y > 0f ? Vector2.up * (size.y + NameGap) : Vector2.zero;
+            float rim = size.y - WorldNameplateView.SpeechRimInset(size.y);
+            playerName.Rect.anchoredPosition = size.y > 0f
+                ? Vector2.up * Mathf.Max(0f, rim - playerName.Rect.rect.center.y)
+                : Vector2.zero;
         }
 
         private void TrimEarlierText(int offset)
@@ -133,7 +138,7 @@ namespace Workerborn
             Rect.gameObject.SetActive(visible);
             if (!visible)
                 return;
-            if (speechChanged)
+            if (speechChanged || spoken.Count > 0 && !Mathf.Approximately(layoutTopPadding, SpeechTopPadding))
                 LayoutSpeech(now);
             Rect.localPosition = new Vector3(local.x, local.y, 0f);
         }

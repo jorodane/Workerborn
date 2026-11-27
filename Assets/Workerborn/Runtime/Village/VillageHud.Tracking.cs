@@ -36,7 +36,7 @@ namespace Workerborn
         private void UpdateTracking()
         {
             TrackedTarget = null;
-            if (!HasModal && !dialogueClosing && !game.IsWorldTransitioning && !game.InRebirthZone)
+            if (!game.IsWorldTransitioning && !game.InRebirthZone)
             {
                 WorldInteractable target = trackedQuest.HasValue ? game.QuestTrackingTarget(trackedQuest.Value) : Jobs.PinnedProvider;
                 if (target != null && target.isActiveAndEnabled && target.CanInteract &&

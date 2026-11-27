@@ -6,7 +6,9 @@ namespace Workerborn
     public sealed class NpcConversationBubbleView : MonoBehaviour
     {
         [SerializeField] private TMP_Text label;
+        private const float VerticalPadding = 24f;
         private RectTransform Rect => (RectTransform)transform;
+        internal Vector2 NamePosition => Rect.localPosition + Vector3.up * (Rect.rect.yMax - WorldNameplateView.SpeechRimInset(Rect.rect.height));
 
         internal void SetPartner(string name)
         {
@@ -20,13 +22,13 @@ namespace Workerborn
             label.text = text;
             label.textWrappingMode = TextWrappingModes.Normal;
             float width = Mathf.Clamp(label.GetPreferredValues(text).x + 26f, 104f, 274f);
-            float height = Mathf.Max(28f, label.GetPreferredValues(text, width - 20f, Mathf.Infinity).y + 12f);
+            float height = label.GetPreferredValues(text, width - 20f, Mathf.Infinity).y + VerticalPadding;
             Rect.sizeDelta = new Vector2(width, height);
         }
 
         internal void Place(Vector2 point)
         {
-            Rect.localPosition = point + Vector2.up * 24f;
+            Rect.localPosition = point;
             gameObject.SetActive(true);
         }
     }

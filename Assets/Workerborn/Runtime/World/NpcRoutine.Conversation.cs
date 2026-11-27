@@ -11,13 +11,13 @@ namespace Workerborn
         private NpcConversation lastConversation;
         private float nextGreetingCheck, nextVisitCheck, conversationCooldown;
 
-        private bool PlayerEngaged => game.Worker.IsInteractingWith(npc) || game.Hud.IsSpeakingWith(npc);
+        private bool PlayerEngaged => game.Hud.IsSpeakingWith(npc);
         private bool CanSocialize => npc != null && npc.CanInteract && IsAvailableResident && character.isActiveAndEnabled &&
             !character.IsEating && !character.IsStandingUp && character.CarriedLogs == 0 && character.CurrentMount == null &&
             (character.Action is WorkerAction.Idle or WorkerAction.Moving or WorkerAction.Sitting) &&
-            merchant == null && customer == null && !PlayerEngaged;
+            merchant == null && customer == null;
         private bool FreeToTalk => character.Action is WorkerAction.Idle or WorkerAction.Sitting;
-        private bool ReadyToMeet => conversation == null && Time.time >= conversationCooldown && CanSocialize;
+        private bool ReadyToMeet => conversation == null && Time.time >= conversationCooldown && CanSocialize && !PlayerEngaged;
         private bool HoldingConversation => conversation is { Passing: false, Started: true };
         internal HarvestWorker ConversationGazePartner
         {

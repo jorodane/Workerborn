@@ -78,7 +78,7 @@ namespace Workerborn
             }
             bool transitioning = game?.IsWorldTransitioning == true;
             bool blocked = game != null && game.ControlsBlocked;
-            bool canAdjustView = !blocked || game.Hud?.HasModal == true && !game.AwaitingWorldCommand;
+            bool canAdjustView = !blocked || game.Hud?.IsDialogueOpen == true && !game.AwaitingWorldCommand;
             bool canOrbit = transitioning || canAdjustView;
             if (transitioning)
                 rightClickAllowed = false;
