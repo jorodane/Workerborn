@@ -2927,6 +2927,51 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
+        public IEnumerator QuestProgressShowsThreeQuestsAndSeparatesReportingFromDelivery()
+        {
+            var state = game.State;
+            var tracker = game.Hud.GetComponentInChildren<QuestProgressView>();
+            Assert.That(tracker.transform.parent.name, Is.EqualTo("Mini map"));
+            Assert.That(tracker.GetComponentsInChildren<QuestProgressCellView>(true).Length, Is.EqualTo(3));
+            Assert.That(state.TryAcceptJob(), Is.True);
+            yield return null;
+            Assert.That(VisibleTitles(), Is.EqualTo(new[] { state.Rules.IntroTitle, state.Rules.ExpansionTitle, state.Rules.JobTitle }));
+
+            var quests = game.Hud.OpenWindow("quests");
+            quests.Refresh();
+            var introRow = quests.GetComponentsInChildren<UiListRow>().Single(row =>
+                row.GetComponentsInChildren<TMP_Text>().Any(label => label.text == state.Rules.IntroTitle));
+            FindButton(introRow.transform.parent, "진행 숨기기").onClick.Invoke();
+            Assert.That(VisibleTitles(), Is.EqualTo(new[] { state.Rules.ExpansionTitle, state.Rules.JobTitle, "전설의 나무꾼 이야기" }));
+            FindButton(introRow.transform.parent, "진행 표시").onClick.Invoke();
+            Assert.That(VisibleTitles()[0], Is.EqualTo(state.Rules.IntroTitle));
+
+            Assert.That(state.Inventory.TryAdd(state.Rules.JobItemId, state.JobRequirement), Is.True);
+            yield return null;
+            string readyTitle = state.Rules.JobTitle + " (완료)";
+            var delivery = Objectives(readyTitle);
+            string goods = ItemCatalog.Get(state.Rules.JobItemId).Name;
+            Assert.That(delivery.text, Does.Contain($"<color=#8ACBFF><s>{goods} ({state.JobRequirement}/{state.JobRequirement})</s></color>"));
+            Assert.That(delivery.text, Does.EndWith("미라에게 납품"));
+
+            Assert.That(state.TryDeliverJob(), Is.True);
+            yield return null;
+            string reportTitle = state.Rules.IntroTitle + " (완료)";
+            Assert.That(Objectives(reportTitle).text, Is.EqualTo("미라에게 보고"));
+            Assert.That(Objectives(readyTitle).gameObject.activeSelf, Is.False);
+            Assert.That(state.TryClaimIntroQuest(), Is.True);
+            yield return null;
+            Assert.That(Objectives(reportTitle).gameObject.activeSelf, Is.False);
+
+            string[] VisibleTitles() => tracker.GetComponentsInChildren<QuestProgressCellView>()
+                .Select(cell => cell.transform.Find("Quest title").GetComponent<TMP_Text>().text).ToArray();
+
+            TMP_Text Objectives(string title) => tracker.GetComponentsInChildren<QuestProgressCellView>()
+                .Single(cell => cell.transform.Find("Quest title").GetComponent<TMP_Text>().text == title)
+                .transform.Find("Objectives").GetComponent<TMP_Text>();
+        }
+
+        [UnityTest]
         public IEnumerator QuestTrackingFollowsTheAvailableObjectiveAndHidesWhenWorkCloses()
         {
             var state = game.State;

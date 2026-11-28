@@ -1074,7 +1074,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 795000002}
+    m_TransformParent: {fileID: 960101002}
     m_Modifications:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.x
@@ -1082,7 +1082,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: '-32'
+      value: '0'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.x
@@ -1091,6 +1091,10 @@ PrefabInstance:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.y
       value: '66'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100016, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '232'
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1122,7 +1126,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 795000002}
+    m_TransformParent: {fileID: 960101008}
     m_Modifications:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.x
@@ -1130,7 +1134,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: '-105'
+      value: '0'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.x
@@ -1139,6 +1143,10 @@ PrefabInstance:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.y
       value: '66'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100016, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '232'
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1170,7 +1178,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 795000002}
+    m_TransformParent: {fileID: 960101014}
     m_Modifications:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.x
@@ -1178,7 +1186,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: '-178'
+      value: '0'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.x
@@ -1187,6 +1195,10 @@ PrefabInstance:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.y
       value: '66'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100016, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '232'
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1218,7 +1230,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 795000002}
+    m_TransformParent: {fileID: 960101020}
     m_Modifications:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.x
@@ -1226,7 +1238,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: '-251'
+      value: '0'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.x
@@ -1235,6 +1247,10 @@ PrefabInstance:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.y
       value: '66'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100016, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '232'
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1266,7 +1282,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 795000002}
+    m_TransformParent: {fileID: 960101026}
     m_Modifications:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.x
@@ -1274,7 +1290,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: '-324'
+      value: '0'
       objectReference: {fileID: 0}
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.x
@@ -1283,6 +1299,10 @@ PrefabInstance:
     - target: {fileID: 100002, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
       propertyPath: m_SizeDelta.y
       value: '66'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100016, guid: d7ac2b6406ce5d7b968739566072ba04, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '232'
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1330,6 +1350,11 @@ MonoBehaviour:
   job: {fileID: 100050}
   legendFounding: {fileID: 100053}
   legendTrial: {fileID: 100056}
+  firstWorkDisplay: {fileID: 960101006}
+  expansionDisplay: {fileID: 960101012}
+  jobDisplay: {fileID: 960101018}
+  legendFoundingDisplay: {fileID: 960101024}
+  legendTrialDisplay: {fileID: 960101030}
 --- !u!1 &795000001
 GameObject:
   m_ObjectHideFlags: 0
@@ -1359,11 +1384,11 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 100043}
-  - {fileID: 100046}
-  - {fileID: 100049}
-  - {fileID: 100052}
-  - {fileID: 100055}
+  - {fileID: 960101002}
+  - {fileID: 960101008}
+  - {fileID: 960101014}
+  - {fileID: 960101020}
+  - {fileID: 960101026}
   m_Father: {fileID: 100037}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -1397,3 +1422,598 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!1 &960101001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 960101002}
+  - component: {fileID: 960101003}
+  m_Layer: 5
+  m_Name: Main quest
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &960101002
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101001}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 100043}
+  - {fileID: 960101005}
+  m_Father: {fileID: 795000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 411, y: 66}
+  m_Pivot: {x: 0, y: 1}
+--- !u!114 &960101003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 306cc8c2b49d7114eaa3623786fc2126, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  m_IgnoreLayout: 0
+  m_MinWidth: 0
+  m_MinHeight: 66
+  m_PreferredWidth: 411
+  m_PreferredHeight: 66
+  m_FlexibleWidth: 0
+  m_FlexibleHeight: 0
+  m_LayoutPriority: 1
+--- !u!1001 &960110080
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 960101002}
+    m_Modifications:
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: '303'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: '-6'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '100'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_Name
+      value: Quest progress display
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '96'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100009, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_text
+      value: 진행 숨기기
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+--- !u!224 &960101005 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960110080}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &960101006 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 100011, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960110080}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c68ee155e24d552e9c3e9c6f9b3c719f, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+--- !u!1 &960101007
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 960101008}
+  - component: {fileID: 960101009}
+  m_Layer: 5
+  m_Name: Village quest
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &960101008
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101007}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 100046}
+  - {fileID: 960101011}
+  m_Father: {fileID: 795000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 0, y: -73}
+  m_SizeDelta: {x: 411, y: 66}
+  m_Pivot: {x: 0, y: 1}
+--- !u!114 &960101009
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101007}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 306cc8c2b49d7114eaa3623786fc2126, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  m_IgnoreLayout: 0
+  m_MinWidth: 0
+  m_MinHeight: 66
+  m_PreferredWidth: 411
+  m_PreferredHeight: 66
+  m_FlexibleWidth: 0
+  m_FlexibleHeight: 0
+  m_LayoutPriority: 1
+--- !u!1001 &960110336
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 960101008}
+    m_Modifications:
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: '303'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: '-6'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '100'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_Name
+      value: Quest progress display
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '96'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100009, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_text
+      value: 진행 숨기기
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+--- !u!224 &960101011 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960110336}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &960101012 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 100011, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960110336}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c68ee155e24d552e9c3e9c6f9b3c719f, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+--- !u!1 &960101013
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 960101014}
+  - component: {fileID: 960101015}
+  m_Layer: 5
+  m_Name: Part-time quest
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &960101014
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101013}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 100049}
+  - {fileID: 960101017}
+  m_Father: {fileID: 795000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 0, y: -146}
+  m_SizeDelta: {x: 411, y: 66}
+  m_Pivot: {x: 0, y: 1}
+--- !u!114 &960101015
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101013}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 306cc8c2b49d7114eaa3623786fc2126, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  m_IgnoreLayout: 0
+  m_MinWidth: 0
+  m_MinHeight: 66
+  m_PreferredWidth: 411
+  m_PreferredHeight: 66
+  m_FlexibleWidth: 0
+  m_FlexibleHeight: 0
+  m_LayoutPriority: 1
+--- !u!1001 &960110592
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 960101014}
+    m_Modifications:
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: '303'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: '-6'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '100'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_Name
+      value: Quest progress display
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '96'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100009, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_text
+      value: 진행 숨기기
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+--- !u!224 &960101017 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960110592}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &960101018 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 100011, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960110592}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c68ee155e24d552e9c3e9c6f9b3c719f, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+--- !u!1 &960101019
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 960101020}
+  - component: {fileID: 960101021}
+  m_Layer: 5
+  m_Name: Legend record
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &960101020
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101019}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 100052}
+  - {fileID: 960101023}
+  m_Father: {fileID: 795000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 0, y: -219}
+  m_SizeDelta: {x: 411, y: 66}
+  m_Pivot: {x: 0, y: 1}
+--- !u!114 &960101021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 306cc8c2b49d7114eaa3623786fc2126, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  m_IgnoreLayout: 0
+  m_MinWidth: 0
+  m_MinHeight: 66
+  m_PreferredWidth: 411
+  m_PreferredHeight: 66
+  m_FlexibleWidth: 0
+  m_FlexibleHeight: 0
+  m_LayoutPriority: 1
+--- !u!1001 &960110848
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 960101020}
+    m_Modifications:
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: '303'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: '-6'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '100'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_Name
+      value: Quest progress display
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '96'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100009, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_text
+      value: 진행 숨기기
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+--- !u!224 &960101023 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960110848}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &960101024 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 100011, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960110848}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c68ee155e24d552e9c3e9c6f9b3c719f, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+--- !u!1 &960101025
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 960101026}
+  - component: {fileID: 960101027}
+  m_Layer: 5
+  m_Name: Legend trial
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &960101026
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101025}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 100055}
+  - {fileID: 960101029}
+  m_Father: {fileID: 795000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 0, y: -292}
+  m_SizeDelta: {x: 411, y: 66}
+  m_Pivot: {x: 0, y: 1}
+--- !u!114 &960101027
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960101025}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 306cc8c2b49d7114eaa3623786fc2126, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''
+  m_IgnoreLayout: 0
+  m_MinWidth: 0
+  m_MinHeight: 66
+  m_PreferredWidth: 411
+  m_PreferredHeight: 66
+  m_FlexibleWidth: 0
+  m_FlexibleHeight: 0
+  m_LayoutPriority: 1
+--- !u!1001 &960111104
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 960101026}
+    m_Modifications:
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: '303'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: '-6'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '100'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100001, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_Name
+      value: Quest progress display
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: '96'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100007, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: '24'
+      objectReference: {fileID: 0}
+    - target: {fileID: 100009, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+      propertyPath: m_text
+      value: 진행 숨기기
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+--- !u!224 &960101029 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 100002, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960111104}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &960101030 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 100011, guid: 2abb2ece670a5059814be47a4b64cb1e, type: 3}
+  m_PrefabInstance: {fileID: 960111104}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c68ee155e24d552e9c3e9c6f9b3c719f, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: ''

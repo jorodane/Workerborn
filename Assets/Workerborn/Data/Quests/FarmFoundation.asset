@@ -15,6 +15,7 @@ MonoBehaviour:
   id: farm_foundation
   title: 솔바람 마을의 첫 농장
   kind: 2
+  importance: 120
   description: 미라가 마을에 농장을 만들려 합니다. 필요한 목재를 구해 납품하고 농장이 들어설 땅을 정하세요.
   requiredCompletions: 1
   rewardGold: 0

@@ -25,6 +25,7 @@ namespace Workerborn
 
     public sealed partial class VillageState
     {
+        private int hiddenQuestProgress;
         public FarmFoundationStage FoundationStage { get; private set; }
         public int TimberDelivered { get; private set; }
         public string FarmSiteId { get; private set; }
@@ -39,6 +40,19 @@ namespace Workerborn
         public int ExpansionItemsRequired => WorldCapacity.ScaleRequirement(Rules.DonationItems, RequirementCharacters);
         public bool CanConfirmTimberDelivery => TimberContractActive && TimberDelivered >= TimberRequired;
         public bool CanConfirmExpansion => ExpansionQuestActive && DonatedGold >= ExpansionGoldRequired && DonatedPotatoes >= ExpansionItemsRequired;
+
+        private static int QuestProgressBit(VillageQuestPage page) => 1 << (int)QuestProgress.DisplayPage(page);
+
+        internal bool ShowsQuestProgress(VillageQuestPage page) => (hiddenQuestProgress & QuestProgressBit(page)) == 0;
+
+        internal void SetQuestProgressVisible(VillageQuestPage page, bool visible)
+        {
+            if (ShowsQuestProgress(page) == visible)
+                return;
+            int flag = QuestProgressBit(page);
+            hiddenQuestProgress = visible ? hiddenQuestProgress & ~flag : hiddenQuestProgress | flag;
+            Version++;
+        }
 
         public void FinishGuideVisit()
         {

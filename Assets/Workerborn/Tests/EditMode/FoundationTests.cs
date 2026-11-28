@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 
@@ -85,6 +86,46 @@ namespace Workerborn.Tests
             Assert.That(state.TryDeliverJob(), Is.True);
             Assert.That(state.Inventory.Count(ItemIds.FarmContract), Is.Zero);
             Assert.That(state.Career, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void FarmProgressStartsOnTheMainQuestAndCombinesTimberOnHandAndAlreadyDelivered()
+        {
+            var state = new VillageState(Rules());
+            var progress = new List<QuestProgress>();
+            var farm = ReadFarm();
+            Assert.That(farm.Importance, Is.GreaterThan(progress.Single(quest => quest.Page == VillageQuestPage.LegendFounding).Importance));
+            Assert.That(farm.Objectives.Single().Text, Is.EqualTo("미라에게 목재 계약서 받기"));
+            Assert.That(state.ShowsQuestProgress(VillageQuestPage.FarmFoundation), Is.True);
+            Assert.That(state.TryAcceptFoundation(), Is.True);
+            state.SetQuestProgressVisible(VillageQuestPage.TimberContract, visible: false);
+            Assert.That(state.ShowsQuestProgress(VillageQuestPage.FarmFoundation), Is.False);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Timber, 2), Is.True);
+            Assert.That(state.TryDeliverTimber(), Is.True);
+            Assert.That(state.Inventory.TryAdd(ItemIds.Timber, state.TimberRequired - 2), Is.True);
+
+            farm = ReadFarm();
+            Assert.That(farm.Objectives.First().Text, Is.EqualTo($"목재 ({state.TimberRequired}/{state.TimberRequired})"));
+            Assert.That(farm.Objectives.First().Complete, Is.True);
+            Assert.That(farm.Finish, Is.EqualTo(QuestFinish.Delivery));
+            Assert.That(farm.FinishText, Is.EqualTo("미라에게 납품"));
+            Assert.That(state.TryDeliverTimber(), Is.True);
+            farm = ReadFarm();
+            Assert.That(farm.Objectives.First().Complete, Is.True);
+            Assert.That(farm.Objectives.Last().Text, Is.EqualTo("농장 부지 정하기"));
+            Assert.That(farm.Finish, Is.EqualTo(QuestFinish.None));
+            Assert.That(state.TryChooseFarmSite("south", "남쪽 밭터"), Is.True);
+            farm = ReadFarm();
+            Assert.That(farm.ObjectivesComplete, Is.True);
+            Assert.That(farm.FinishText, Is.EqualTo("기억의 우물에서 시대 전환"));
+            Assert.That(state.TryAdvanceEra(), Is.True);
+            Assert.That(ReadFarm().Status, Is.EqualTo(QuestProgressStatus.Completed));
+
+            QuestProgress ReadFarm()
+            {
+                QuestProgress.Read(state, "player", "미라", "기억의 우물", progress);
+                return progress.Single(quest => quest.Page == VillageQuestPage.FarmFoundation);
+            }
         }
 
         [Test]

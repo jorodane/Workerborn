@@ -135,6 +135,7 @@ namespace Workerborn
         public int lifetimeHarvests;
         public bool introAccepted;
         public bool introClaimed;
+        public int hiddenQuestProgress;
         public int donatedGold;
         public int donatedPotatoes;
         public bool farmUpgradePending;
@@ -527,6 +528,7 @@ namespace Workerborn
             MeetFarmer();
             LastJobDay = Day;
             Job = JobStatus.Active;
+            SetQuestProgressVisible(VillageQuestPage.FarmJob, visible: true);
             JobRequirement = OfferedJobRequirement;
             JobReward = OfferedJobReward;
             JobExperience = OfferedJobExperience;
@@ -1032,6 +1034,7 @@ namespace Workerborn
                 lifetimeHarvests = LifetimeHarvests,
                 introAccepted = IntroAccepted,
                 introClaimed = IntroClaimed,
+                hiddenQuestProgress = this.hiddenQuestProgress,
                 donatedGold = DonatedGold,
                 donatedPotatoes = DonatedPotatoes,
                 farmUpgradePending = FarmUpgradePending,
@@ -1162,6 +1165,7 @@ namespace Workerborn
                 LifetimeHarvests = save.lifetimeHarvests,
                 IntroAccepted = save.introAccepted,
                 IntroClaimed = save.introClaimed,
+                hiddenQuestProgress = save.hiddenQuestProgress,
                 DonatedGold = save.donatedGold,
                 DonatedPotatoes = save.donatedPotatoes,
                 FarmUpgradePending = save.farmUpgradePending,

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 
@@ -437,6 +438,70 @@ namespace Workerborn.Tests
             Assert.That(state.Inventory.Count(ItemIds.Potato), Is.EqualTo(6));
             Assert.That(state.Experience, Is.Zero);
             Assert.That(state.Level, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void QuestProgressKeepsTheDeliveryCountAndCompletesAfterTheFinalAction()
+        {
+            var state = new VillageState();
+            Assert.That(state.TryAcceptJob(), Is.True);
+            string item = state.Rules.JobItemId;
+            string name = ItemCatalog.Get(item).Name;
+            var progress = new List<QuestProgress>();
+
+            Assert.That(state.Inventory.TryAdd(item, state.JobRequirement - 1), Is.True);
+            var delivery = Read(VillageQuestPage.FarmJob);
+            Assert.That(delivery.Objectives.Single().Text, Is.EqualTo($"{name} ({state.JobRequirement - 1}/{state.JobRequirement})"));
+            Assert.That(delivery.ObjectivesComplete, Is.False);
+            Assert.That(delivery.Finish, Is.EqualTo(QuestFinish.None));
+
+            Assert.That(state.Inventory.TryAdd(item, 2), Is.True);
+            delivery = Read(VillageQuestPage.FarmJob);
+            Assert.That(delivery.Objectives.Single().Text, Is.EqualTo($"{name} ({state.JobRequirement}/{state.JobRequirement})"));
+            Assert.That(delivery.ObjectivesComplete, Is.True);
+            Assert.That(delivery.Status, Is.EqualTo(QuestProgressStatus.Active));
+            Assert.That(delivery.DisplayTitle, Is.EqualTo(state.Rules.JobTitle + " (완료)"));
+            Assert.That(delivery.Finish, Is.EqualTo(QuestFinish.Delivery));
+            Assert.That(delivery.FinishText, Is.EqualTo("미라에게 납품"));
+
+            Assert.That(state.TryDeliverJob(), Is.True);
+            Assert.That(Read(VillageQuestPage.FarmJob).Status, Is.EqualTo(QuestProgressStatus.Completed));
+            var report = Read(VillageQuestPage.FirstWork);
+            Assert.That(report.ObjectivesComplete, Is.True);
+            Assert.That(report.Status, Is.EqualTo(QuestProgressStatus.Active));
+            Assert.That(report.Finish, Is.EqualTo(QuestFinish.Report));
+            Assert.That(report.FinishText, Is.EqualTo("미라에게 보고"));
+            Assert.That(state.TryClaimIntroQuest(), Is.True);
+            report = Read(VillageQuestPage.FirstWork);
+            Assert.That(report.Status, Is.EqualTo(QuestProgressStatus.Completed));
+            Assert.That(report.DisplayTitle, Is.EqualTo(state.Rules.IntroTitle + " (완료)"));
+            Assert.That(report.FinishText, Is.Null);
+
+            QuestProgress Read(VillageQuestPage page)
+            {
+                QuestProgress.Read(state, "player", "미라", "기억의 우물", progress);
+                return progress.Single(quest => quest.Page == page);
+            }
+        }
+
+        [Test]
+        public void QuestProgressPreferencesSurviveAProfileReloadAndNewContractsDefaultToVisible()
+        {
+            var state = new VillageState();
+            Assert.That(state.TryAcceptJob(), Is.True);
+            Assert.That(state.ShowsQuestProgress(VillageQuestPage.FarmJob), Is.True);
+            Assert.That(state.ShowsQuestProgress(VillageQuestPage.FirstWork), Is.True);
+            state.SetQuestProgressVisible(VillageQuestPage.FarmJob, visible: false);
+            state.SetQuestProgressVisible(VillageQuestPage.FirstWork, visible: false);
+
+            state = VillageState.Restore(state.Export(), state.Rules);
+            Assert.That(state.ShowsQuestProgress(VillageQuestPage.FarmJob), Is.False);
+            Assert.That(state.ShowsQuestProgress(VillageQuestPage.FirstWork), Is.False);
+            Assert.That(state.TrySleep(false), Is.True);
+            Assert.That(state.TryWaitForWork(), Is.True);
+            Assert.That(state.TryAcceptJob(), Is.True);
+            Assert.That(state.ShowsQuestProgress(VillageQuestPage.FarmJob), Is.True);
+            Assert.That(state.ShowsQuestProgress(VillageQuestPage.FirstWork), Is.False);
         }
 
         [Test]

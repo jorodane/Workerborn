@@ -5,6 +5,20 @@ namespace Workerborn
         private VillageQuestPage? trackedQuest;
         internal WorldInteractable TrackedTarget { get; private set; }
 
+        internal void BindQuestProgressToggle(UiActionView button, VillageQuestPage page)
+        {
+            bool visible = game.State.ShowsQuestProgress(page);
+            bool active = QuestProgress.StatusFor(game.State, page, game.LegendPlayerId) == QuestProgressStatus.Active;
+            button.Bind(visible ? "진행 숨기기" : "진행 표시", () =>
+            {
+                if (QuestProgress.StatusFor(game.State, page, game.LegendPlayerId) != QuestProgressStatus.Active)
+                    return;
+                game.State.SetQuestProgressVisible(page, !game.State.ShowsQuestProgress(page));
+                game.SaveGame(false);
+                RefreshWindows();
+            }, active);
+        }
+
         internal bool IsTrackingQuest(VillageQuestPage page) => trackedQuest == page;
 
         internal void ToggleQuestTracking(VillageQuestPage page)

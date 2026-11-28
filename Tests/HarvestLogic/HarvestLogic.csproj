@@ -14,6 +14,7 @@
     <Compile Include="../../Assets/Workerborn/Runtime/Village/GroundDropPiles.cs" Link="GroundDropPiles.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.cs" Link="VillageState.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Foundation.cs" Link="VillageState.Foundation.cs" />
+    <Compile Include="../../Assets/Workerborn/Runtime/Village/QuestProgress.cs" Link="QuestProgress.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageState.Plots.cs" Link="VillageState.Plots.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageRules.cs" Link="VillageRules.cs" />
     <Compile Include="../../Assets/Workerborn/Runtime/Village/VillageCalendar.cs" Link="VillageCalendar.cs" />

@@ -18,6 +18,7 @@ namespace Workerborn
     {
         [SerializeField] private string id = "potato_delivery";
         [SerializeField] private string title = "감자 납품";
+        [SerializeField, Min(0)] private int questImportance = 60;
         [SerializeField, TextArea(3, 8)] private string description;
         [SerializeField] private ItemDefinition item;
         [SerializeField] private ItemDefinition contractItem;
@@ -31,6 +32,7 @@ namespace Workerborn
 
         public string Id => id;
         public string Title => title;
+        internal int QuestImportance => Mathf.Max(0, questImportance);
         public string Description => description;
         public ItemDefinition Item => item;
         public ItemDefinition ContractItem => contractItem;

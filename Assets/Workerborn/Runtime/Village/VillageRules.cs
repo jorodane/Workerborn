@@ -20,6 +20,7 @@ namespace Workerborn
 
     public sealed class FarmFoundationRules
     {
+        internal int Importance = 120;
         public string Title;
         public string Description;
         public string TimberItemId;
@@ -60,6 +61,8 @@ namespace Workerborn
         public int LegendFoundingTimber = 100;
         public int LegendTrialTimber = 25;
         public int LegendMaturationDays = 7;
+        internal int LegendFoundingImportance = 20;
+        internal int LegendTrialImportance = 30;
         public string LegendRewardItem = ItemIds.LegendAxe;
         public int HealthPerLevel = 2;
         public int StaminaPerLevel = 1;
@@ -71,6 +74,7 @@ namespace Workerborn
         public int HarvestEnergy = 5;
         public string JobId = "potato_delivery";
         public string JobTitle = "감자 납품";
+        internal int JobQuestImportance = 60;
         public string JobDescription = "";
         public string JobItemId = ItemIds.Potato;
         public string JobDocumentItemId;
@@ -81,12 +85,14 @@ namespace Workerborn
         public int WorldJobGold = 30;
         public int WorldJobExperience = 20;
         public string IntroTitle = "마을의 새 일꾼";
+        internal int IntroQuestImportance = 110;
         public string IntroDescription = "농부의 아르바이트를 마치고 보고한다.";
         public int IntroRequiredJobs = 1;
         public int IntroGold = 30;
         public int IntroAP = 2;
         public int IntroExperience = 15;
         public string ExpansionTitle = "농장에 남긴 발자국";
+        internal int ExpansionQuestImportance = 100;
         public string ExpansionDescription = "마을의 농장 확장에 필요한 자원을 보탠다.";
         public int DonationGold = 100;
         public int DonationItems = 20;

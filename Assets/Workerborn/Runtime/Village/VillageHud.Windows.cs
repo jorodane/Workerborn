@@ -17,6 +17,7 @@ namespace Workerborn
             foreach (var view in views.Values)
                 if (view != null && view.IsOpen)
                     view.Refresh();
+            questProgress?.Refresh();
             RefreshItemShortcutBar();
         }
 

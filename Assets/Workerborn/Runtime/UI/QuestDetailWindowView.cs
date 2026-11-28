@@ -12,6 +12,7 @@ namespace Workerborn
         [SerializeField]
         private TMP_Text objectives;
         [SerializeField] private UiActionView tracking;
+        [SerializeField] private UiActionView progressDisplay;
         private VillageQuestPage page;
         public void Select(VillageQuestPage selected)
         {
@@ -22,6 +23,7 @@ namespace Workerborn
         public override void Refresh()
         {
             RefreshTracking();
+            Hud.BindQuestProgressToggle(progressDisplay, page);
             var s = Game.State;
             var r = s.Rules;
             if (page == VillageQuestPage.LegendFounding)

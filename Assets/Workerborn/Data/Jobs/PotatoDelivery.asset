@@ -21,6 +21,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: ''
   id: potato_delivery
   title: 감자 납품
+  questImportance: 60
   description: 해가 지기 전에 감자를 모아 농장에 납품한다.
   item:
     fileID: 11400000

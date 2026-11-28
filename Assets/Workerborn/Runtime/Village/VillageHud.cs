@@ -28,6 +28,7 @@ namespace Workerborn
         [SerializeField] private PlayerStatusView characterStatus;
         [SerializeField] private VillageClockView clock;
         [SerializeField] private VillageMapView minimap;
+        [SerializeField] private QuestProgressView questProgress;
         [SerializeField] private PartTimeScheduleView mapSchedule;
         [SerializeField] private CanvasGroup worldFade;
         [SerializeField] private CanvasGroup areaAnnouncement;
@@ -108,6 +109,7 @@ namespace Workerborn
             Jobs = new VillageJobSchedule(game);
             clock.Bind(game);
             minimap?.Bind(game);
+            questProgress?.Bind(game);
             mapSchedule?.Bind(game);
             BuildWorldFeedback();
             BindShortcuts();

@@ -191,6 +191,7 @@ namespace Workerborn
             {
                 rules.JobTitle = jobDefinition.Title;
                 rules.JobId = jobDefinition.Id;
+                rules.JobQuestImportance = jobDefinition.QuestImportance;
                 rules.JobDescription = jobDefinition.Description;
                 rules.JobItemId = jobDefinition.Item != null ? jobDefinition.Item.Id : ItemIds.Potato;
                 rules.JobDocumentItemId = jobDefinition.ContractItem?.Id;
@@ -213,6 +214,7 @@ namespace Workerborn
             if (introduction != null)
             {
                 rules.IntroTitle = introduction.Title;
+                rules.IntroQuestImportance = introduction.Importance;
                 rules.IntroDescription = introduction.Description;
                 rules.IntroRequiredJobs = introduction.RequiredCompletions;
                 rules.IntroGold = introduction.RewardGold;
@@ -223,6 +225,7 @@ namespace Workerborn
             if (expansion != null)
             {
                 rules.ExpansionTitle = expansion.Title;
+                rules.ExpansionQuestImportance = expansion.Importance;
                 rules.ExpansionDescription = expansion.Description;
                 rules.DonationGold = expansion.RequiredGold;
                 rules.DonationItems = expansion.RequiredItems;
@@ -239,6 +242,7 @@ namespace Workerborn
                 rules.Foundation = new FarmFoundationRules
                 {
                     Title = foundation.Title,
+                    Importance = foundation.Importance,
                     Description = foundation.Description,
                     DocumentItemId = foundation.ContractItem.Id,
                     TimberItemId = foundation.ContributionItem.Id,

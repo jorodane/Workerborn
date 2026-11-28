@@ -10,6 +10,7 @@ namespace Workerborn
         [SerializeField] private string id;
         [SerializeField] private string title;
         [SerializeField] private QuestKind kind;
+        [SerializeField, Min(0)] private int importance = 100;
         [SerializeField, TextArea(3, 10)] private string description;
         [Header("Completion and rewards")]
         [SerializeField, Min(1)] private int requiredCompletions = 1;
@@ -31,6 +32,7 @@ namespace Workerborn
         public string Id => id;
         public string Title => title;
         public QuestKind Kind => kind;
+        internal int Importance => Mathf.Max(0, importance);
         public string Description => description;
         public int RequiredCompletions => requiredCompletions;
         public int RewardGold => rewardGold;

@@ -15,6 +15,7 @@ MonoBehaviour:
   id: first_work
   title: 첫 일자리
   kind: 0
+  importance: 110
   description: 미라의 아르바이트를 한 번 완수하고 인사를 전한다.
   requiredCompletions: 1
   rewardGold: 30

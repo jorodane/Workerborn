@@ -15,6 +15,7 @@ MonoBehaviour:
   id: farm_expansion
   title: 함께 넓히는 농장
   kind: 1
+  importance: 100
   description: 마을 농장을 넓히는 데 힘을 보태자. 공사가 준비되면 시대 전환을 거쳐 넓어진 농장을 만날 수 있다.
   requiredCompletions: 1
   rewardGold: 30

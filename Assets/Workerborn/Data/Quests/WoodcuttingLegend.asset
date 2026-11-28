@@ -15,4 +15,6 @@ MonoBehaviour:
   foundingTimber: 100
   maturationDays: 7
   trialTimber: 25
+  foundingImportance: 20
+  trialImportance: 30
   reward: {fileID: 11400000, guid: 94f4ff335a7d53bfb35dcbfb0481aa51, type: 2}
