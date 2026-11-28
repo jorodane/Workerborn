@@ -25,7 +25,7 @@ namespace Workerborn
         [SerializeField] private ItemShortcutBarView itemShortcuts;
         [SerializeField] private GroundTrackingGuide trackingGuide;
         [SerializeField] private RectTransform chatLayer;
-        [SerializeField] private RectTransform characterStatus;
+        [SerializeField] private PlayerStatusView characterStatus;
         [SerializeField] private VillageClockView clock;
         [SerializeField] private VillageMapView minimap;
         [SerializeField] private PartTimeScheduleView mapSchedule;
@@ -39,18 +39,7 @@ namespace Workerborn
 
 
         [SerializeField]
-        private TMP_Text energyText;
-        [SerializeField]
-        private TMP_Text growthText;
-        [SerializeField]
         private TMP_Text toastText;
-        [SerializeField]
-        private HealthBarView healthBar;
-        [SerializeField]
-        private Image energyFill;
-        [SerializeField] private Image fullnessFill;
-        [SerializeField]
-        private Image experienceFill;
         [SerializeField]
         private CanvasGroup toast;
         private const float ToastFadeIn = .22f;
@@ -122,6 +111,7 @@ namespace Workerborn
             mapSchedule?.Bind(game);
             BuildWorldFeedback();
             BindShortcuts();
+            LayoutTopDock();
             InitializeChat();
             floatingTexts = new PrefabPool<TMP_Text>(library.FloatingText, transform);
             floatingTexts.Prewarm(12);
@@ -297,24 +287,14 @@ namespace Workerborn
             {
                 lastCanvasSize = CanvasRect.rect.size;
                 LayoutChat();
+                LayoutTopDock();
                 foreach (var view in views.Values)
                     if (view.IsFloating && view.IsOpen)
                         WindowDragHandle.KeepOnScreen(view.Rect);
             }
             UpdatePlayerOverhead();
             UpdateNpcConversationBubbles();
-            int stamina = state.StaminaLimit;
-            energyText.text = $"HP {state.Health}/{state.HealthLimit}   SP {state.Energy}/{stamina}   만복도 {state.Fullness}/{state.FullnessLimit}";
-            energyText.color = state.Energy < 20 ? new Color(1f, 0.65f, 0.5f) : Color.white;
-            healthBar.SetValue(state.Health, state.HealthLimit);
-            energyFill.fillAmount = state.StaminaFill;
-            if (fullnessFill != null)
-            {
-                fullnessFill.fillAmount = state.FullnessFill;
-                fullnessFill.color = state.Overeating > 0f ? new Color(1f, .52f, .32f) : new Color(.87f, .70f, .37f);
-            }
-            growthText.text = $"Lv.{state.Level}";
-            experienceFill.fillAmount = state.Level == VillageState.LevelLimit ? 1f : (float)state.Experience / state.NextLevelExperience;
+            characterStatus?.Refresh(game.LegendPlayerName, state);
             if (state.NoticeSerial != seenNotice)
             {
                 if (state.NoticeSerial > 0)
@@ -327,6 +307,7 @@ namespace Workerborn
             UpdateAreaAnnouncement();
 
             UpdateShortcutRows();
+            UpdateTopShortcutPosition();
 
             if (state.Version != seenVersion || state.Inventory.Version != seenInventoryVersion)
             {
@@ -469,6 +450,8 @@ namespace Workerborn
             if (id == "inventory")
                 tradeOpenedInventory = false;
             view.gameObject.SetActive(true);
+            if (opening && view is InventoryWindowView inventory)
+                PlaceInventory(inventory);
             if (view.IsFloating)
                 WindowDragHandle.KeepOnScreen(view.Rect);
             if (opening)
@@ -498,8 +481,8 @@ namespace Workerborn
                 return;
             windowFocus.Remove(view);
             windowFocus.Add(view);
-            if (view.Id == "shop" && views.TryGetValue("conversation", out var conversation))
-                conversation.transform.SetAsLastSibling();
+            if (view.Id == "shop" && views.TryGetValue("inventory", out var inventory))
+                inventory.transform.SetAsLastSibling();
             else
                 view.transform.SetAsLastSibling();
             if ((view.Id is "inventory" or "shop" or "conversation") && TradeQuantityOpen)
@@ -526,6 +509,8 @@ namespace Workerborn
 
         public void CloseWindow(string id)
         {
+            if (id == "inventory" && IsShopOpen)
+                CloseDialogue(animate: true);
             if (id == "conversation" || (id == "shop" && IsDialogueOpen))
             {
                 TryLeaveDialogue();
@@ -622,17 +607,17 @@ namespace Workerborn
                 return;
             CloseQuantity();
             CancelItemDrag();
-            if (InventoryOpen)
-                FocusWindow(views["inventory"]);
-            else
-            {
-                var inventory = OpenWindow("inventory");
-                tradeOpenedInventory = inventory != null;
-                inventory?.Refresh();
-            }
-            if (!(OpenWindow("shop") is ShopWindowView shop))
+            bool hadInventory = InventoryOpen;
+            var inventory = (hadInventory ? views["inventory"] : OpenWindow("inventory")) as InventoryWindowView;
+            if (inventory == null || OpenWindow("shop") is not ShopWindowView shop)
                 return;
-            shop.Embed(conversation.ShopStock);
+            if (!hadInventory)
+            {
+                tradeOpenedInventory = true;
+                inventory.Refresh();
+            }
+            inventory.SetTrading(true);
+            shop.Embed(inventory.ShopSocket);
             conversation.SetTrading();
             shop.Open(npc);
         }

@@ -13,7 +13,6 @@ namespace Workerborn
         [SerializeField] private TMP_Text body;
         [SerializeField] private RectTransform textArea;
         [SerializeField] private RectTransform choices;
-        [SerializeField] private RectTransform shopStock;
         [SerializeField] private Button leave;
         [SerializeField] private TMP_Text leaveLabel;
         [SerializeField] private UiActionView dialogueChoice;
@@ -37,7 +36,7 @@ namespace Workerborn
         private float preferredTextWidth, textWidth, textHeight;
         private bool positioned;
         private WindowTransition transition;
-        private float lineStarted, choicesOpenedAt, tradingStartedAt;
+        private float lineStarted, choicesOpenedAt;
         private int page, pageCount, pageStart, pageEnd;
         private int advancedFrame = -1;
         private bool jobWasOpen;
@@ -46,10 +45,7 @@ namespace Workerborn
         private const float ChoiceOffset = 24f;
         private const float HorizontalPadding = 16f;
         private const float VerticalPadding = 22f;
-        private const float StockHeight = 206f;
-        private const float StockGap = 8f;
         private const float MaximumWidth = 504f;
-        internal RectTransform ShopStock => shopStock;
         internal bool CanLeave => IsOpen && !waitingForWorldReply && (trading || page >= pageCount);
 
         public override void Bind(VillagePrototype game, VillageHud hud)
@@ -83,7 +79,6 @@ namespace Workerborn
             nextPage.gameObject.SetActive(false);
             foreach (var reply in replies)
                 reply.gameObject.SetActive(false);
-            shopStock.gameObject.SetActive(false);
             Refresh();
         }
 
@@ -111,8 +106,6 @@ namespace Workerborn
             if (trading)
                 return;
             trading = true;
-            tradingStartedAt = Time.unscaledTime;
-            shopStock.gameObject.SetActive(true);
             atOpening = false;
             if (topic?.action != DialogueAction.Shop)
                 topic = Game.FindDialogueTopic(npc, DialogueAction.Shop);
@@ -216,12 +209,6 @@ namespace Workerborn
             LayoutChoices();
         }
 
-        private void OnDisable()
-        {
-            if (Hud != null)
-                Hud.HideDialogueStock();
-        }
-
         private void SetMotionOrigin(bool tracked, Vector2 point)
         {
             transition?.SetMotionOrigin(tracked ? point - (Rect.anchoredPosition + Hud.CanvasRect.rect.center) : (Vector2?)null);
@@ -237,7 +224,7 @@ namespace Workerborn
                 preferredTextWidth = body.GetPreferredValues(presentedText).x;
                 textWidth = 0f;
             }
-            float bubbleWidth = trading ? MaximumWidth : Mathf.Clamp(preferredTextWidth + HorizontalPadding * 2f, 320f, MaximumWidth);
+            float bubbleWidth = Mathf.Clamp(preferredTextWidth + HorizontalPadding * 2f, 320f, MaximumWidth);
             float width = Mathf.Clamp(space.width - 24f, 1f, bubbleWidth);
             float availableTextWidth = Mathf.Max(1f, width - HorizontalPadding * 2f);
             if (textWidth != availableTextWidth)
@@ -248,20 +235,12 @@ namespace Workerborn
             int rows = trading ? 1 : Mathf.CeilToInt((replyCount + 1f) / ChoiceColumns(width));
             float replyHeight = ChoiceOffset + rows * (ChoiceHeight + ChoiceGap);
             float jobHeight = jobInfo.activeSelf ? ((RectTransform)jobInfo.transform).rect.height + 18f : 0f;
-            float expansion = trading ? Mathf.SmoothStep(0f, 1f, (Time.unscaledTime - tradingStartedAt) / .2f) : 0f;
             float proseHeight = VerticalPadding * 2f + textHeight;
-            float height = Mathf.Min(proseHeight + expansion * (StockHeight + StockGap),
-                Mathf.Max(1f, space.height - replyHeight - jobHeight - 32f));
-            float stockHeight = trading ? Mathf.Max(0f, height - proseHeight) : 0f;
+            float height = Mathf.Min(proseHeight, Mathf.Max(1f, space.height - replyHeight - jobHeight - 32f));
             Rect.sizeDelta = new Vector2(width, height);
             speaker.rectTransform.anchoredPosition = Vector2.down * WorldNameplateView.SpeechRimInset(height);
             textArea.offsetMin = new Vector2(HorizontalPadding, VerticalPadding);
-            textArea.offsetMax = new Vector2(-HorizontalPadding, -VerticalPadding - stockHeight);
-            if (trading)
-            {
-                shopStock.offsetMin = new Vector2(HorizontalPadding, -VerticalPadding - Mathf.Max(0f, stockHeight - StockGap));
-                shopStock.offsetMax = new Vector2(-HorizontalPadding, -VerticalPadding);
-            }
+            textArea.offsetMax = new Vector2(-HorizontalPadding, -VerticalPadding);
 
             var point = new Vector2(space.center.x, space.center.y - 84f);
             bool tracked = PickupNames.TryProject(Game, Hud.CanvasRect, npc.transform.position, npc.NamePosition, out var speakerPoint, out _);

@@ -21,13 +21,12 @@ namespace Workerborn
 
         private void LayoutChat()
         {
-            if (characterStatus == null || chatLayer == null)
+            if (chatLayer == null)
                 return;
-            const float gap = 8f;
-            Rect canvas = CanvasRect.rect;
-            Vector3 statusCorner = CanvasRect.InverseTransformPoint(characterStatus.TransformPoint(characterStatus.rect.min));
-            chatLayer.anchoredPosition = new Vector2(gap, statusCorner.y - canvas.yMin);
-            chatLayer.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(0f, statusCorner.x - canvas.xMin - 2f * gap));
+            // Leave room above the persistent bottom menu.
+            chatLayer.anchoredPosition = new Vector2(8f, 32f);
+            chatLayer.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                Mathf.Clamp(CanvasRect.rect.width * .30f - 8f, 0f, 520f));
         }
 
         internal PlayerOverheadView CreatePlayerOverhead(string playerName)

@@ -677,7 +677,7 @@ namespace Workerborn.Tests
         }
 
         [UnityTest]
-        public IEnumerator BottomHealthBarShowsDamageAndAnInventoryPotionRestoresHealth()
+        public IEnumerator TopLeftStatusShowsThePlayerAndHealthChanges()
         {
             var state = game.State;
             var merchant = game.FindInteraction(VillageRole.Merchant);
@@ -687,6 +687,15 @@ namespace Workerborn.Tests
             var entry = state.Inventory.Entries.Single(item => item.ItemId == ItemIds.HealthPotion);
 
             var status = GameObject.Find("Character status").transform;
+            Assert.That(((RectTransform)status).anchorMin, Is.EqualTo(Vector2.up));
+            Assert.That(status.Find("Character name").GetComponent<TMP_Text>().text, Is.EqualTo(game.LegendPlayerName));
+            Assert.That(status.Find("Health icon").GetComponent<Image>().sprite, Is.Not.Null);
+            Assert.That(status.Find("Stamina icon").GetComponent<Image>().sprite, Is.Not.Null);
+            Assert.That(status.Find("Fullness icon").GetComponent<Image>().sprite, Is.Not.Null);
+            Assert.That(status.Find("AP").GetComponent<TMP_Text>().text, Is.EqualTo($"AP {state.AP:N0}"));
+            Assert.That(status.Find("Attributes").GetComponent<TMP_Text>().text, Does.Contain($"근성 {state.Grit}"));
+            var gold = status.Find("Gold").GetComponent<TMP_Text>();
+            yield return Until(() => gold.text == $"{state.Gold:N0} Gold", 1f);
             var health = status.Find("Health bar");
             var fill = health.Find("Health fill").GetComponent<Image>();
             var change = health.Find("Health change").GetComponent<Image>();
@@ -723,6 +732,8 @@ namespace Workerborn.Tests
             var axe = state.Inventory.Entries.Single(item => item.ItemId == ItemIds.Axe);
             var potion = state.Inventory.Entries.Single(item => item.ItemId == ItemIds.HealthPotion);
             var bar = UnityEngine.Object.FindFirstObjectByType<ItemShortcutBarView>();
+            Assert.That(bar.Rect.anchorMin.y, Is.EqualTo(1f));
+            float top = bar.Rect.position.y;
             var slots = bar.GetComponentsInChildren<ItemShortcutSlotView>();
             Assert.That(slots.Length, Is.EqualTo(10));
             var first = slots.Single(slot => slot.Index == 0);
@@ -731,6 +742,7 @@ namespace Workerborn.Tests
             inventory.Refresh();
             yield return new WaitForSecondsRealtime(.35f);
             Canvas.ForceUpdateCanvases();
+            Assert.That(bar.Rect.position.y, Is.LessThan(inventory.Presentation.TransformPoint(inventory.Presentation.rect.min).y));
 
             var mouse = InputSystem.AddDevice<Mouse>();
             var keyboard = InputSystem.AddDevice<Keyboard>();
@@ -754,17 +766,30 @@ namespace Workerborn.Tests
 
                 Assert.That(state.Inventory.TryAdd(ItemIds.Bread, 1), Is.True);
                 game.Hud.BeginItemDrag(state.Inventory.Entries.Single(item => item.ItemId == ItemIds.Bread).Id, Center(first.transform));
-                GameObject upper = null;
-                yield return Until(() => (upper = GameObject.Find("Shift shortcuts")) != null, 1f);
-                var shifted = upper.GetComponentsInChildren<ItemShortcutSlotView>();
+                GameObject shiftRow = null;
+                yield return Until(() => (shiftRow = GameObject.Find("Shift shortcuts")) != null, 1f);
+                var shifted = shiftRow.GetComponentsInChildren<ItemShortcutSlotView>();
                 Assert.That(shifted.Length, Is.EqualTo(10));
                 Assert.That(first.Binding, Is.Zero);
-                var upperFirst = shifted.Single(slot => slot.Binding == VillageState.ItemShortcutCount);
-                Assert.That(upperFirst.transform.position.y, Is.GreaterThan(first.transform.position.y));
-                upperFirst.OnPointerClick(new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left });
+                var shiftFirst = shifted.Single(slot => slot.Binding == VillageState.ItemShortcutCount);
+                Assert.That(shiftFirst.transform.position.y, Is.LessThan(first.transform.position.y));
+                shiftFirst.OnPointerClick(new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left });
                 Assert.That(state.ItemShortcutAt(VillageState.ItemShortcutCount), Is.EqualTo(ItemIds.Bread));
                 Assert.That(state.ItemShortcutAt(0), Is.EqualTo(ItemIds.Axe));
-                yield return Until(() => !upper.activeInHierarchy, 1f);
+                yield return Until(() => !shiftRow.activeInHierarchy, 1f);
+
+                FindButton(inventory, "단축키").onClick.Invoke();
+                var modeSlots = inventory.GetComponentsInChildren<ItemShortcutSlotView>();
+                Assert.That(modeSlots.Length, Is.EqualTo(2 * VillageState.ItemShortcutCount));
+                Assert.That(modeSlots.Select(slot => slot.Binding), Is.EquivalentTo(Enumerable.Range(0, 20)));
+                FindButton(inventory, "상점").onClick.Invoke();
+                Assert.That(inventory.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Shop hint").text,
+                    Does.Contain("상인과 거래"));
+                FindButton(inventory, "장비").onClick.Invoke();
+                Assert.That(inventory.GetComponentsInChildren<EquipmentSlotPointer>(), Is.Not.Empty);
+                game.Hud.CloseWindow("inventory");
+                yield return Until(() => !inventory.gameObject.activeSelf, 1f);
+                yield return Until(() => Mathf.Abs(bar.Rect.position.y - top) < .1f, 1f);
 
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Digit1));
                 yield return Until(() => state.Equipment.TryGetValue(EquipmentSlot.MainHand, out var id) && id == ItemIds.Axe, 1f);
@@ -2216,10 +2241,10 @@ namespace Workerborn.Tests
             var stack = game.State.Inventory.Entries.Single(item => item.ItemId == ItemIds.Potato);
             var inventory = (InventoryWindowView)game.Hud.OpenWindow("inventory");
             inventory.Refresh();
-            yield return null;
+            yield return new WaitForSecondsRealtime(.25f);
 
             var slots = inventory.GetComponentsInChildren<EquipmentSlotPointer>().ToDictionary(item => item.Slot);
-            Vector2 Footprint(int columns, int rows) => Vector2.Scale(inventory.CellSize, new Vector2(columns, rows)) - Vector2.one * 2f;
+            Vector2 Footprint(int columns, int rows) => new Vector2(columns * 34f - 2f, rows * 34f - 2f);
             Assert.That(game.State.Inventory.Columns, Is.EqualTo(6));
             Assert.That(inventory.ItemViewport.rect.width, Is.EqualTo(6f * inventory.CellSize.x));
             void VerifySlot(EquipmentSlot equipmentSlot, int columns, int rows) =>
@@ -2293,7 +2318,7 @@ namespace Workerborn.Tests
         [UnityTest]
         public IEnumerator MerchantOpensInOneClickAndStackSplittingUsesTheSharedQuantityControls()
         {
-            var inventory = game.Hud.OpenWindow("inventory");
+            var inventory = (InventoryWindowView)game.Hud.OpenWindow("inventory");
             var place = inventory.Rect.anchoredPosition;
             var size = inventory.Rect.rect.size;
             var scale = inventory.Rect.localScale;
@@ -2340,14 +2365,20 @@ namespace Workerborn.Tests
             Assert.That(dialogue.isActiveAndEnabled, Is.True);
             Assert.That(game.ControlsBlocked, Is.True);
             Assert.That(inventory.Rect.anchoredPosition, Is.EqualTo(place));
-            Assert.That(inventory.Rect.rect.size, Is.EqualTo(size));
+            Assert.That(inventory.Rect.rect.width, Is.EqualTo(size.x));
             Assert.That(inventory.Rect.localScale, Is.EqualTo(scale));
             var shop = UnityEngine.Object.FindFirstObjectByType<ShopWindowView>();
-            Assert.That(shop.transform.IsChildOf(dialogue.ShopStock), Is.True);
+            Assert.That(shop.transform.IsChildOf(inventory.ShopSocket), Is.True);
             Assert.That(shop.GetComponentInChildren<ShopSellTarget>().name, Is.EqualTo("Stock viewport"));
             yield return Until(() => shop.Rect.rect.height >= 205f, 1f);
-            Assert.That(shop.Rect.position.y, Is.GreaterThan(line.rectTransform.position.y));
-            Assert.That(prose.offsetMin.y, Is.EqualTo(-dialogue.ShopStock.offsetMax.y).Within(.01f));
+            Assert.That(shop.Rect.position.y, Is.LessThan(inventory.ItemViewport.position.y));
+            Assert.That(prose.offsetMin.y, Is.EqualTo(-prose.offsetMax.y).Within(.01f));
+            FindButton(inventory, "장비").onClick.Invoke();
+            Assert.That(shop.gameObject.activeInHierarchy, Is.False);
+            Assert.That(game.Hud.IsShopOpen, Is.True);
+            Assert.That(inventory.GetComponentsInChildren<EquipmentSlotPointer>(), Is.Not.Empty);
+            FindButton(inventory, "상점").onClick.Invoke();
+            Assert.That(shop.gameObject.activeInHierarchy, Is.True);
             yield return Until(() => openingContent.localScale == Vector3.one, 1f);
 
             Assert.That(game.State.Inventory.TryAdd(ItemIds.Potato, 9), Is.True);
@@ -2378,7 +2409,7 @@ namespace Workerborn.Tests
             Assert.That(dialogue.isActiveAndEnabled, Is.True);
             Assert.That(normalHud.activeSelf, Is.True);
             Assert.That(dialogue.GetComponent<CanvasGroup>().blocksRaycasts, Is.False);
-            Assert.That(shop.gameObject.activeInHierarchy, Is.True);
+            Assert.That(shop.gameObject.activeInHierarchy, Is.False);
             yield return Until(() => !dialogue.isActiveAndEnabled, 1f);
             Assert.That(shop.gameObject.activeSelf, Is.False);
             Assert.That(inventory.gameObject.activeSelf, Is.True);
@@ -2669,8 +2700,8 @@ namespace Workerborn.Tests
         [UnityTest]
         public IEnumerator InventoryRestoresTheLastPositionSavedByDraggingItsTitle()
         {
-            const string xKey = "Workerborn.UI.Position.inventory.x";
-            const string yKey = "Workerborn.UI.Position.inventory.y";
+            const string xKey = "Workerborn.UI.Position.inventory-top.x";
+            const string yKey = "Workerborn.UI.Position.inventory-top.y";
             bool hadX = PlayerPrefs.HasKey(xKey), hadY = PlayerPrefs.HasKey(yKey);
             float oldX = PlayerPrefs.GetFloat(xKey), oldY = PlayerPrefs.GetFloat(yKey);
             VillageWindowView recreated = null;
@@ -2991,12 +3022,11 @@ namespace Workerborn.Tests
             try
             {
                 Canvas.ForceUpdateCanvases();
-                var status = (RectTransform)game.Hud.transform.Find("Normal HUD/Character status");
+                var menu = (RectTransform)game.Hud.transform.Find("Normal HUD/System bar");
                 float chatBottom = chatLayer.TransformPoint(chatLayer.rect.min).y;
                 float chatRight = chatLayer.TransformPoint(chatLayer.rect.max).x;
-                Vector3 statusBottomLeft = status.TransformPoint(status.rect.min);
-                Assert.That(chatBottom, Is.EqualTo(statusBottomLeft.y).Within(.01f));
-                Assert.That(chatRight, Is.LessThan(statusBottomLeft.x));
+                Assert.That(chatBottom, Is.GreaterThan(menu.TransformPoint(menu.rect.max).y));
+                Assert.That(chatRight, Is.LessThan(game.Hud.CanvasRect.TransformPoint(game.Hud.CanvasRect.rect.center).x));
                 var playerHealth = overhead.Nameplate.transform.Find("Health bar");
                 yield return MovePointer(overhead.Nameplate.Rect);
                 Assert.That(playerHealth.gameObject.activeSelf, Is.True);

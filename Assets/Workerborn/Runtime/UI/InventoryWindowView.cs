@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 namespace Workerborn
 {
+    internal enum InventoryMode { Shortcuts, Equipment, Shop }
+
     public sealed class InventoryWindowView : VillageWindowView
     {
         [SerializeField]
@@ -18,8 +20,14 @@ namespace Workerborn
         private Image placementPreview;
         [SerializeField]
         private GridLayoutGroup gridLayout;
-        [SerializeField]
-        private TMP_Text gold;
+        [SerializeField] private RectTransform presentation;
+        [SerializeField] private RectTransform[] modePanels;
+        [SerializeField] private Button[] modeButtons;
+        [SerializeField] private Color selectedModeColor = new Color(.23f, .41f, .53f);
+        [SerializeField] private ItemShortcutBarView primaryShortcuts;
+        [SerializeField] private ItemShortcutBarView shiftedShortcuts;
+        [SerializeField] private RectTransform shopSocket;
+        [SerializeField] private TMP_Text shopHint;
         [SerializeField]
         private EquipmentSlotPointer[] equipment;
         [SerializeField]
@@ -27,10 +35,17 @@ namespace Workerborn
         [SerializeField] private Button[] equipmentSetTabs;
         [SerializeField] private Color activeEquipmentSetColor = new Color(.34f, .59f, .73f);
         private Color idleEquipmentSetColor;
+        private Color idleModeColor;
         private UiItemView[] equippedItems;
+        private InventoryMode mode = InventoryMode.Equipment;
+        private InventoryMode modeBeforeTrade;
+        private bool trading;
         public RectTransform ItemLayer => itemLayer;
         public RectTransform ItemViewport => itemViewport;
         public Vector2 CellSize => gridLayout.cellSize + gridLayout.spacing;
+        internal RectTransform Presentation => presentation;
+        internal RectTransform ShopSocket => shopSocket;
+        internal float MaximumHeight { get; private set; }
 
         public void ShowPlacement(int x, int y, int width, int height)
         {
@@ -47,6 +62,21 @@ namespace Workerborn
         public override void Bind(VillagePrototype game, VillageHud hud)
         {
             base.Bind(game, hud);
+            GetComponent<WindowTransition>().MotionChanged += hud.UpdateTopShortcutPosition;
+            primaryShortcuts.Bind(hud);
+            shiftedShortcuts.Bind(hud);
+            idleModeColor = modeButtons[0].targetGraphic.color;
+            for (int i = 0; i < modeButtons.Length; i++)
+            {
+                var tab = (InventoryMode)i;
+                modeButtons[i].onClick.AddListener(() =>
+                {
+                    if (!Hud.HasQuantityPrompt)
+                        ShowMode(tab);
+                });
+                MaximumHeight = Mathf.Max(MaximumHeight, PanelHeight(modePanels[i]));
+            }
+            ShowMode(mode);
             equippedItems = new UiItemView[equipment.Length];
             foreach (var slot in equipment)
                 slot.Bind(hud);
@@ -57,6 +87,46 @@ namespace Workerborn
                 equipmentSetTabs[i].onClick.AddListener(() => hud.SelectEquipmentSet(set));
             }
             itemLayer.GetComponent<InventoryGridPointer>().Hud = hud;
+        }
+
+        private static float PanelHeight(RectTransform panel) =>
+            panel.rect.height - panel.anchoredPosition.y - ((RectTransform)panel.parent).anchoredPosition.y + 10f;
+
+        private void ShowMode(InventoryMode selected)
+        {
+            mode = selected;
+            for (int i = 0; i < modePanels.Length; i++)
+            {
+                bool active = i == (int)selected;
+                modePanels[i].gameObject.SetActive(active);
+                modeButtons[i].targetGraphic.color = active ? selectedModeColor : idleModeColor;
+            }
+            SetExpandedHeight(PanelHeight(modePanels[(int)selected]));
+            RefreshShortcuts();
+        }
+
+        internal void SetTrading(bool active)
+        {
+            if (trading == active)
+                return;
+            trading = active;
+            shopHint.gameObject.SetActive(!active);
+            if (active)
+            {
+                modeBeforeTrade = mode;
+                ShowMode(InventoryMode.Shop);
+                SetBodyExpanded(true);
+            }
+            else if (mode == InventoryMode.Shop)
+                ShowMode(modeBeforeTrade);
+        }
+
+        internal void RefreshShortcuts()
+        {
+            if (!IsOpen || mode != InventoryMode.Shortcuts)
+                return;
+            primaryShortcuts.Refresh(Game.State, Game.Settings, 0);
+            shiftedShortcuts.Refresh(Game.State, Game.Settings, VillageState.ItemShortcutCount);
         }
 
         public override void Refresh()
@@ -76,8 +146,6 @@ namespace Workerborn
             scrollContent.sizeDelta = size;
             itemLayer.sizeDelta = size;
             cellLayer.sizeDelta = size;
-            // Keep the authored panel height; its inventory viewport scrolls when the bag expands.
-            gold.text = Game.State.Gold.ToString("N0");
             for (int i = 0; i < equipmentSetTabs.Length; i++)
                 equipmentSetTabs[i].targetGraphic.color = i == Game.State.EquipmentSet ? activeEquipmentSetColor : idleEquipmentSetColor;
             for (int i = 0; i < equipment.Length; i++)

@@ -36,14 +36,9 @@ namespace Workerborn
             if (windowBody != null)
                 bodyInput = windowBody.GetComponent<CanvasGroup>();
             if (minimizeButton != null && windowBody != null)
-                minimizeButton.onClick.AddListener(() =>
-                {
-                    windowBody.SetActive(!windowBody.activeSelf);
-                    Rect.sizeDelta = new Vector2(Rect.sizeDelta.x, windowBody.activeSelf ? expandedHeight : 30f);
-                    WindowDragHandle.KeepOnScreen(Rect);
-                });
+                minimizeButton.onClick.AddListener(() => SetBodyExpanded(!windowBody.activeSelf));
             if (IsFloating)
-                dragHandle.Bind(Rect, Id);
+                dragHandle.Bind(Rect, Id == "inventory" ? "inventory-top" : Id);
             if (closeButton != null)
                 closeButton.onClick.AddListener(() => hud.CloseWindow(Id));
         }
@@ -58,6 +53,13 @@ namespace Workerborn
                 return;
             bodyInput.interactable = enabled;
             bodyInput.blocksRaycasts = enabled;
+        }
+
+        protected void SetBodyExpanded(bool expanded)
+        {
+            windowBody.SetActive(expanded);
+            Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, expanded ? expandedHeight : 30f);
+            WindowDragHandle.KeepOnScreen(Rect);
         }
 
         internal void PlayOpening() => transition?.PlayOpening();

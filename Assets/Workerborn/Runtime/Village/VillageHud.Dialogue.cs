@@ -23,7 +23,6 @@ namespace Workerborn
             if (target == null || game.State.AwaitingIncarnation && target != game.RebirthArea?.Guide)
                 return;
             CloseDialogue();
-            HideDialogueStock();
             CloseWorldContext();
             dialogueTarget = target;
             DialogueStartedInReach = game.Worker.InReach(target.transform.position, target.InteractionDistance + .25f);
@@ -71,15 +70,16 @@ namespace Workerborn
             if (wasTrading)
             {
                 HideWindow("quantity", animate);
+                HideWindow("shop", animate: false);
                 CancelItemDrag();
+                if (views.TryGetValue("inventory", out var panel) && panel is InventoryWindowView inventory)
+                    inventory.SetTrading(false);
             }
             HideWindow("conversation", animate);
             if (tradeOpenedInventory)
                 HideWindow("inventory", animate);
             tradeOpenedInventory = false;
         }
-
-        internal void HideDialogueStock() => HideWindow("shop", animate: false);
 
         internal Rect DialogueSpace(bool trading)
         {

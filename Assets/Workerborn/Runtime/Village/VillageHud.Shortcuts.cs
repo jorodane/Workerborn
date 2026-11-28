@@ -14,6 +14,11 @@ namespace Workerborn
         private int shownShortcutOffset = -1;
         private ItemShortcutBarView shiftShortcuts;
         private RectTransform skillShortcutGhost;
+        private Vector2 shortcutHome;
+        private float shortcutScale = 1f;
+        private const float DockMargin = 14f;
+        private const float RowGap = 6f;
+        private const float BottomMenuClearance = 32f;
 
         private static int ShortcutOffset => WorkerbornInput.Held("Gameplay/ShortcutBank") ? VillageState.ItemShortcutCount : 0;
         private bool ShowBothShortcutRows => IsHoldingItem || skillShortcutGhost != null;
@@ -22,7 +27,7 @@ namespace Workerborn
 
         private bool ShortcutsAvailable => itemShortcuts != null && itemShortcuts.isActiveAndEnabled &&
             !game.State.AwaitingIncarnation && !game.IsWorldTransitioning && !game.AwaitingWorldCommand &&
-            !WorldActionsLocked && !IsChatTyping;
+            !HasQuantityPrompt && !IsChatTyping;
 
         private void UpdateItemShortcutPresentation()
         {
@@ -36,12 +41,88 @@ namespace Workerborn
             if (itemShortcuts == null)
                 return;
             itemShortcuts.Bind(this);
-            var lower = itemShortcuts.Rect;
-            shiftShortcuts = Instantiate(itemShortcuts, lower.parent);
+            var primary = itemShortcuts.Rect;
+            shiftShortcuts = Instantiate(itemShortcuts, primary.parent);
             shiftShortcuts.name = "Shift shortcuts";
-            shiftShortcuts.Rect.anchoredPosition = lower.anchoredPosition + Vector2.up * (lower.rect.height + 6f);
+            shiftShortcuts.Rect.anchoredPosition = primary.anchoredPosition - Vector2.up * (primary.rect.height + RowGap);
             shiftShortcuts.Bind(this);
             shiftShortcuts.gameObject.SetActive(false);
+        }
+
+        private Rect BoundsOnCanvas(RectTransform content)
+        {
+            Vector2 min = CanvasRect.InverseTransformPoint(content.TransformPoint(content.rect.min));
+            Vector2 max = CanvasRect.InverseTransformPoint(content.TransformPoint(content.rect.max));
+            return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+        }
+
+        private void LayoutTopDock()
+        {
+            if (itemShortcuts == null)
+                return;
+
+            Rect canvas = CanvasRect.rect;
+            Rect status = BoundsOnCanvas(characterStatus.Rect);
+            Rect time = BoundsOnCanvas((RectTransform)clock.transform);
+            float width = itemShortcuts.Rect.rect.width;
+            float left = status.xMax + RowGap;
+            float right = time.xMin - RowGap;
+            float space = right - left;
+            float top = -DockMargin;
+            if (space < width * .6f)
+            {
+                left = canvas.xMin + DockMargin;
+                right = canvas.xMax - DockMargin;
+                space = right - left;
+                float bottom = minimap != null ? BoundsOnCanvas((RectTransform)minimap.transform).yMin : time.yMin;
+                top = Mathf.Min(status.yMin, bottom) - canvas.yMax - RowGap;
+            }
+            shortcutScale = Mathf.Clamp(space / width, .1f, 1f);
+            float halfWidth = width * shortcutScale * .5f;
+            shortcutHome = new Vector2(Mathf.Clamp(canvas.center.x, left + halfWidth, right - halfWidth) - canvas.center.x, top);
+            itemShortcuts.Rect.localScale = shiftShortcuts.Rect.localScale = Vector3.one * shortcutScale;
+            if (views.TryGetValue("inventory", out var panel) && panel is InventoryWindowView inventory && inventory.IsOpen)
+                PlaceInventory(inventory);
+            UpdateTopShortcutPosition();
+        }
+
+        private void PlaceInventory(InventoryWindowView inventory)
+        {
+            if (!inventory.HasSavedPosition)
+                inventory.Rect.anchoredPosition = shortcutHome;
+            float clearance = itemShortcuts == null ? 0f : 2f * itemShortcuts.Rect.rect.height * shortcutScale + 3f * RowGap;
+            float height = CanvasRect.rect.height + shortcutHome.y - clearance - BottomMenuClearance;
+            inventory.Rect.localScale = Vector3.one * Mathf.Clamp(height / inventory.MaximumHeight, .1f, shortcutScale);
+        }
+
+        internal void UpdateTopShortcutPosition()
+        {
+            if (itemShortcuts == null || shiftShortcuts == null)
+                return;
+
+            var bar = itemShortcuts.Rect;
+            Rect canvas = CanvasRect.rect;
+            float rowHeight = bar.rect.height * shortcutScale;
+            float visibleRows = shiftShortcuts.gameObject.activeSelf ? rowHeight * 2f + RowGap : rowHeight;
+            float center = canvas.center.x + shortcutHome.x;
+            float y = shortcutHome.y;
+            if (views.TryGetValue("inventory", out var panel) && panel is InventoryWindowView inventory && inventory.gameObject.activeInHierarchy)
+            {
+                Rect visiblePanel = BoundsOnCanvas(inventory.Presentation);
+                float halfWidth = bar.rect.width * shortcutScale * .5f;
+                float below = visiblePanel.yMin - canvas.yMax - RowGap;
+                if (visiblePanel.xMin < center + halfWidth && visiblePanel.xMax > center - halfWidth &&
+                    visiblePanel.yMax > canvas.yMax + y - visibleRows && below > -canvas.height + visibleRows + BottomMenuClearance)
+                    y = Mathf.Min(y, below);
+            }
+            bar.anchoredPosition = new Vector2(shortcutHome.x, y);
+            shiftShortcuts.Rect.anchoredPosition = bar.anchoredPosition - Vector2.up * (rowHeight + RowGap);
+            if (areaAnnouncement != null)
+            {
+                var announcement = (RectTransform)areaAnnouncement.transform;
+                float minimum = -canvas.height + announcement.rect.height + BottomMenuClearance;
+                announcement.anchoredPosition = Vector2.up * Mathf.Max(minimum, y - visibleRows - DockMargin);
+            }
         }
 
         private void RefreshItemShortcutBar()
@@ -56,6 +137,8 @@ namespace Workerborn
                 if (shiftShortcuts.gameObject.activeSelf != both)
                     shiftShortcuts.gameObject.SetActive(both);
             }
+            if (views.TryGetValue("inventory", out var panel) && panel is InventoryWindowView inventory)
+                inventory.RefreshShortcuts();
         }
 
         private void UpdateShortcutRows()
@@ -67,7 +150,7 @@ namespace Workerborn
 
         private void ReadItemShortcuts()
         {
-            if (!ShortcutsAvailable || IsHoldingItem || skillShortcutGhost != null || IsTextInputFocused)
+            if (!ShortcutsAvailable || IsShopOpen || IsHoldingItem || skillShortcutGhost != null || IsTextInputFocused)
                 return;
 
             for (int index = 0; index < ShortcutActions.Length; index++)
@@ -96,7 +179,7 @@ namespace Workerborn
             {
                 if (IsHoldingItem)
                     AssignHeldItemShortcut(binding);
-                else
+                else if (!IsShopOpen)
                     UseShortcut(binding);
             }
         }

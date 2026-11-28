@@ -42,6 +42,7 @@ namespace Workerborn
         private bool savedInteractable, savedBlocksRaycasts;
         internal bool IsClosing { get; private set; }
         internal bool IsPlaying { get; private set; }
+        internal event System.Action MotionChanged;
 
         internal void PlayOpening()
         {
@@ -160,6 +161,7 @@ namespace Workerborn
             }
             if (opacity != null)
                 opacity.alpha = pose.Alpha;
+            MotionChanged?.Invoke();
         }
 
         private void BlockInput()
